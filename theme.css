@@ -44,7 +44,14 @@ SOFTWARE.
 
 ───────────────────────────────────────────────────────────────────────── */
 @charset "UTF-8";
-@import url("https://fonts.googleapis.com/css2?family=Asta+Sans:wght@300..800&family=Chocolate+Classical+Sans&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Finlandica:ital,wght@0,400..700;1,400..700&family=Fira+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=IBM+Plex+Sans:ital,wght@0,100..700;1,100..700&family=Orbit&family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Sometype+Mono:ital,wght@0,400..700;1,400..700&family=Source+Sans+3:ital,wght@0,200..900;1,200..900&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Titillium+Web:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Asta+Sans:wght@300..800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Finlandica:ital,wght@0,400..700;1,400..700&family=Fira+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=IBM+Plex+Sans:ital,wght@0,100..700;1,100..700&family=Orbit&family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Sometype+Mono:ital,wght@0,400..700;1,400..700&family=Source+Sans+3:ital,wght@0,200..900;1,200..900&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Titillium+Web:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700&display=swap");
+
+/* CJK Fonts */
+@font-face {
+  font-family: "Chocolate Classical Sans";
+  src: url("https://raw.githubusercontent.com/MoonlitOwen/ChocolateSans/blob/main/fonts/ttf/ChocolateClassicalSans-Regular.ttf");
+  font-weight: normal;
+}
 
 @font-face {
   font-family: "Sukima Gothic";
@@ -76,21 +83,27 @@ SOFTWARE.
   font-weight: normal;
 }
 
+@font-face {
+  font-family: "Shanggu Mono";
+  src: url("https://raw.githubusercontent.com/nx-v/cjkfonts/main/ShangguMono-Regular.ttf");
+  font-weight: normal;
+}
+
 /* src/scss/index.scss */
 body {
   --font-editor-theme: "";
   --font-editor: var(--font-editor-theme), var(--font-text);
-  --font-text-theme: Finlandica, PT Sans, "Source Sans 3", IBM Plex Sans,
-    Titillium Web, Fira Sans, Asta Sans, Orbit, "Chocolate Classical Sans",
-    "GenSeki Hentaigana Gothic", Gothic Nguyen, Sukima Gothic, "Plangothic P1",
-    "Plangothic P2", sans-serif;
-  --font-interface-theme: Finlandica, PT Sans, "Source Sans 3", IBM Plex Sans,
-    Titillium Web, Fira Sans, Asta Sans, Orbit, "Chocolate Classical Sans",
-    "GenSeki Hentaigana Gothic", Gothic Nguyen, Sukima Gothic, "Plangothic P1",
-    "Plangothic P2", sans-serif;
-  --font-monospace-theme: Sometype Mono, Space Mono, DM Mono,
-    "Chocolate Classical Sans", "GenSeki Hentaigana Gothic", Gothic Nguyen,
-    Sukima Gothic, "Plangothic P1", "Plangothic P2", monospace;
+  --font-text-theme: Finlandica, "Source Sans 3", PT Sans, IBM Plex Sans,
+    Titillium Web, Fira Sans, Asta Sans, "Chocolate Classical Sans",
+    "Shanggu Mono", "GenSeki Hentaigana Gothic", Gothic Nguyen, Sukima Gothic,
+    "Plangothic P1", "Plangothic P2", monospace;
+  --font-interface-theme: Finlandica, "Source Sans 3", PT Sans, IBM Plex Sans,
+    Titillium Web, Fira Sans, Asta Sans, "Chocolate Classical Sans",
+    "Shanggu Mono", "GenSeki Hentaigana Gothic", Gothic Nguyen, Sukima Gothic,
+    "Plangothic P1", "Plangothic P2", monospace;
+  --font-monospace-theme: Sometype Mono, "Space Mono", DM Mono,
+    "Chocolate Classical Sans", "Shanggu Mono", "GenSeki Hentaigana Gothic",
+    Gothic Nguyen, Sukima Gothic, "Plangothic P1", "Plangothic P2", monospace;
 }
 
 :root {
