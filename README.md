@@ -1,3 +1,3 @@
-# Nexo's CJK font collection 
+# Nexo's CJK font collection
 
-for use in 
+For use in Agma Schwa's Cursed Conlang Circus contest
