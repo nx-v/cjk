@@ -45,7 +45,7 @@ PRIORITY_FONTS = [
     "NGULIM.TTF",
     "Microsoft-JhengHei.ttf",
     "malgun.ttf",
-    "LXGWNeoZhiSongMN.ttf",
+    "LXGWZhiSongMN.ttf",
     "LXGWNeoZhiSongPlus.ttf",
     "HuayingMinchoT.ttf",
     "HuayingMinchoODict.ttf",
