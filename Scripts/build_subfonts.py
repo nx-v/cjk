@@ -12,6 +12,7 @@ Also writes pancjk.css (@font-face) and fontlist.css (CSS-safe stack).
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import os
 import sys
 from collections import defaultdict
@@ -41,7 +42,7 @@ CSS_FONT_URL_BASE = (
 # ---------- Source priority (highest first) ----------
 
 PRIORITY_FONTS = [
-    "NewGulim.ttf",
+    "NGULIM.TTF",
     "Microsoft-JhengHei.ttf",
     "malgun.ttf",
     "ZHIMINGB5.TTF",
@@ -301,6 +302,34 @@ def build_bucket_font(
     return out_path, len(cmap), sorted(cmap.keys())
 
 
+# ---------- Parallel workers ----------
+
+_WORKER_SOURCES: Optional[Dict[str, SourceFont]] = None
+_WORKER_OUT_DIR: Optional[str] = None
+_WORKER_UPEM: Optional[int] = None
+
+
+def _init_build_worker(font_paths: List[str], out_dir: str, target_upem: int) -> None:
+    """Load source fonts once per process worker."""
+    global _WORKER_SOURCES, _WORKER_OUT_DIR, _WORKER_UPEM
+    _WORKER_OUT_DIR = out_dir
+    _WORKER_UPEM = target_upem
+    _WORKER_SOURCES = {p: SourceFont(p) for p in font_paths}
+
+
+def _build_bucket_task(
+    args: Tuple[int, List[Tuple[int, str]]],
+) -> Tuple[int, str, int, List[int]]:
+    bucket_id, entries = args
+    assert _WORKER_SOURCES is not None
+    assert _WORKER_OUT_DIR is not None
+    assert _WORKER_UPEM is not None
+    path, count, codepoints = build_bucket_font(
+        bucket_id, entries, _WORKER_SOURCES, _WORKER_OUT_DIR, _WORKER_UPEM
+    )
+    return bucket_id, path, count, codepoints
+
+
 def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
     """CSS unicode-range covering present glyphs (merged contiguous runs)."""
     if not codepoints:
@@ -364,19 +393,19 @@ body {{
   --font-editor: var(--font-editor-theme), var(--font-text);
   --font-text-theme:
     Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont,
-    MKanaPlus, Malgun Gothic,
+    MKanaPlus,
     {quoted},
-    monospace;
+    Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
   --font-interface-theme:
     Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont,
-    MKanaPlus, Malgun Gothic,
+    MKanaPlus,
     {quoted},
-    monospace;
+    Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
   --font-monospace-theme:
     Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont,
-    MKanaPlus, Malgun Gothic,
+    MKanaPlus,
     {quoted},
-    monospace;
+    Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
 }}
 """
     with open(fontlist_path, "w", encoding="utf-8") as f:
@@ -384,7 +413,7 @@ body {{
     print(f"Wrote {fontlist_path}")
 
 
-def build_all(in_dir: str, out_dir: str, target_upem: int) -> None:
+def build_all(in_dir: str, out_dir: str, target_upem: int, jobs: int) -> None:
     font_paths = resolve_priority_paths(in_dir)
     if not font_paths:
         print("No priority fonts found in", in_dir, file=sys.stderr)
@@ -395,62 +424,76 @@ def build_all(in_dir: str, out_dir: str, target_upem: int) -> None:
     print(f"Source fonts: {len(font_paths)}")
 
     sources_list = [SourceFont(p) for p in font_paths]
-    sources_map = {s.path: s for s in sources_list}
     try:
         owner = claim_codepoints(sources_list, target)
-        if not owner:
-            print("No codepoints claimed.", file=sys.stderr)
-            sys.exit(1)
+    finally:
+        for s in sources_list:
+            s.close()
 
-        per_source: Dict[str, int] = defaultdict(int)
-        for path in owner.values():
-            per_source[os.path.basename(path)] += 1
-        print("\nClaimed per source:")
-        for name in PRIORITY_FONTS:
-            if name in per_source:
-                print(f"  {name}: {per_source[name]}")
+    if not owner:
+        print("No codepoints claimed.", file=sys.stderr)
+        sys.exit(1)
 
-        buckets = bucket_codepoints(owner)
-        os.makedirs(out_dir, exist_ok=True)
-        print(
-            f"\nBuilding {len(buckets)} subfonts (glyph-by-glyph) -> {out_dir}",
-            flush=True,
-        )
+    per_source: Dict[str, int] = defaultdict(int)
+    for path in owner.values():
+        per_source[os.path.basename(path)] += 1
+    print("\nClaimed per source:")
+    for name in PRIORITY_FONTS:
+        if name in per_source:
+            print(f"  {name}: {per_source[name]}")
 
-        written = 0
-        glyph_total = 0
-        skipped = 0
-        built: List[Tuple[str, int, List[int]]] = []
-        for i, bucket_id in enumerate(sorted(buckets.keys()), start=1):
-            path, count, codepoints = build_bucket_font(
-                bucket_id, buckets[bucket_id], sources_map, out_dir, target_upem
-            )
+    buckets = bucket_codepoints(owner)
+    os.makedirs(out_dir, exist_ok=True)
+
+    used_paths = sorted(set(owner.values()))
+    workers = max(1, jobs)
+    print(
+        f"\nBuilding {len(buckets)} subfonts (glyph-by-glyph, {workers} workers) "
+        f"-> {out_dir}",
+        flush=True,
+    )
+
+    tasks = [(bid, buckets[bid]) for bid in sorted(buckets.keys())]
+    total = len(tasks)
+    written = 0
+    glyph_total = 0
+    skipped = 0
+    built: List[Tuple[str, int, List[int]]] = []
+    done = 0
+
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=workers,
+        initializer=_init_build_worker,
+        initargs=(used_paths, out_dir, target_upem),
+    ) as executor:
+        futures = [executor.submit(_build_bucket_task, task) for task in tasks]
+        for fut in concurrent.futures.as_completed(futures):
+            bucket_id, _path, count, codepoints = fut.result()
+            done += 1
+            hex_id = f"{bucket_id:X}"
             if count == 0:
                 skipped += 1
                 print(
-                    f"  [{i}/{len(buckets)}] {bucket_id:X}.ttf skipped (empty)",
+                    f"  [{done}/{total}] {hex_id}.ttf skipped (empty)",
                     flush=True,
                 )
                 continue
             written += 1
             glyph_total += count
-            hex_id = f"{bucket_id:X}"
             built.append((hex_id, count, codepoints))
             print(
-                f"  [{i}/{len(buckets)}] {hex_id}.ttf/.woff2 ({count} glyphs)",
+                f"  [{done}/{total}] {hex_id}.ttf/.woff2 ({count} glyphs)",
                 flush=True,
             )
 
-        write_css(out_dir, built)
+    built.sort(key=lambda t: int(t[0], 16))
+    write_css(out_dir, built)
 
-        print(
-            f"\nDone: {written} fonts, {glyph_total} glyphs, "
-            f"{skipped} empty skipped, UPM={target_upem}",
-            flush=True,
-        )
-    finally:
-        for s in sources_list:
-            s.close()
+    print(
+        f"\nDone: {written} fonts, {glyph_total} glyphs, "
+        f"{skipped} empty skipped, UPM={target_upem}, jobs={workers}",
+        flush=True,
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -464,9 +507,17 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_UPEM,
         help=f"Target unitsPerEm (default {DEFAULT_UPEM})",
     )
+    p.add_argument(
+        "--jobs",
+        "-j",
+        dest="jobs",
+        type=int,
+        default=max(1, os.cpu_count() or 4),
+        help="Parallel workers for bucket builds (default: CPU count)",
+    )
     return p.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    build_all(args.in_dir, args.out_dir, args.upem)
+    build_all(args.in_dir, args.out_dir, args.upem, args.jobs)
