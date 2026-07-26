@@ -56,8 +56,8 @@ PRIORITY_FONTS = [
     "simsunb.ttf",
     "SimsunExtG.ttf",
     "NotoSerifTangut-Regular.ttf",
-    "LorchinSansP0.ttf",
-    "LorchinSansP2.ttf",
+    "NazoMin-Regular.otf",
+    "NazoMin+-Regular.otf",
 ]
 
 # ---------- Unicode ranges (inclusive) ----------
