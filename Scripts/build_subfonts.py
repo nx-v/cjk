@@ -1,0 +1,469 @@
+#!/usr/bin/env python3
+"""
+Build Pan-CJK pigeonhole subfonts.
+
+Claims CJK/Tangut codepoints from priority-ordered source fonts, buckets them
+into 256-codepoint blocks (cp >> 8), and builds each TTF/WOFF2 from scratch by
+copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
+
+Also writes pancjk.css (@font-face) and fontlist.css (CSS-safe stack).
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from collections import defaultdict
+from typing import Dict, Iterable, List, Optional, Set, Tuple
+
+from fontTools.fontBuilder import FontBuilder
+from fontTools.misc.roundTools import otRound
+from fontTools.pens.recordingPen import DecomposingRecordingPen
+from fontTools.pens.transformPen import TransformPen
+from fontTools.pens.ttGlyphPen import TTGlyphPen
+from fontTools.ttLib import TTFont, woff2
+from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
+
+# ---------- Directories ----------
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+IN_DIR = os.path.join(SCRIPT_DIR, "src")
+OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "subfonts")
+
+DEFAULT_UPEM = 1000
+
+CSS_FAMILY = "pancjk"
+CSS_FONT_URL_BASE = (
+    "https://raw.githubusercontent.com/nexovolta/fonts/main/scripts/dist/subfonts"
+)
+
+# ---------- Source priority (highest first) ----------
+
+PRIORITY_FONTS = [
+    "NewGulim.ttf",
+    "malgun.ttf",
+    "Microsoft-JhengHei.ttf",
+    "BabelStoneHan.woff",
+    "Han-Nom Ming 1.20.otf",
+    "Han-nom Minh 1.42.otf",
+    "I.Ming-8.10.ttf",
+    "simsunb.ttf",
+    "SimsunExtG.ttf",
+    "NotoSerifTangut-Regular.ttf",
+    "LorchinSansP0.ttf",
+    "LorchinSansP2.ttf",
+]
+
+# ---------- Unicode ranges (inclusive) ----------
+
+CHAR_RANGES: List[Tuple[int, int, str]] = [
+    (0x04E00, 0x09FFF, "CJK URO"),
+    (0x03400, 0x04DBF, "CJK Ext A"),
+    (0x20000, 0x2A6DF, "CJK Ext B"),
+    (0x2A700, 0x2B73F, "CJK Ext C"),
+    (0x2B740, 0x2B81F, "CJK Ext D"),
+    (0x2B820, 0x2CEAF, "CJK Ext E"),
+    (0x2CEB0, 0x2EBEF, "CJK Ext F"),
+    (0x30000, 0x3134F, "CJK Ext G"),
+    (0x31350, 0x323AF, "CJK Ext H"),
+    (0x2EBF0, 0x2EE5F, "CJK Ext I"),
+    (0x323B0, 0x3347F, "CJK Ext J"),
+    (0x0FA00, 0x0FAFF, "CJK Compat"),
+    (0x2F800, 0x2FA1F, "CJK Compat Supplement"),
+    (0x17000, 0x187FF, "Tangut"),
+    (0x18D00, 0x18D7F, "Tangut Supplement"),
+    (0x18800, 0x18AFF, "Tangut Components"),
+    (0x18D80, 0x18DFF, "Tangut Components Supplement"),
+]
+
+
+def ranges_to_set(ranges: Iterable[Tuple[int, int, str]]) -> Set[int]:
+    s: Set[int] = set()
+    for start, end, _name in ranges:
+        s.update(range(start, end + 1))
+    return s
+
+
+def font_cmap(tt: TTFont) -> Dict[int, str]:
+    cmap: Dict[int, str] = {}
+    for table in tt["cmap"].tables:
+        if table.isUnicode():
+            cmap.update(table.cmap)
+    return cmap
+
+
+def is_empty_outline(tt: TTFont, glyph_name: str) -> bool:
+    if "glyf" in tt:
+        if glyph_name not in tt["glyf"]:
+            return True
+        g = tt["glyf"][glyph_name]
+        if g.isComposite():
+            return False
+        return g.numberOfContours <= 0
+    if "CFF " in tt:
+        top = tt["CFF "].cff.topDictIndex[0]
+        cs = top.CharStrings
+        if glyph_name in cs:
+            return len(cs[glyph_name].program) == 0
+        return True
+    if "CFF2" in tt:
+        top = tt["CFF2"].cff.topDictIndex[0]
+        cs = top.CharStrings
+        if glyph_name in cs:
+            return len(cs[glyph_name].program) == 0
+        return True
+    return False
+
+
+def is_empty_glyph(tt: TTFont, glyph_name: str) -> bool:
+    if glyph_name in {".notdef", ".null", "nonmarkingreturn"}:
+        return True
+    return is_empty_outline(tt, glyph_name)
+
+
+def glyph_name_for_cp(cp: int) -> str:
+    return f"u{cp:04X}" if cp <= 0xFFFF else f"u{cp:05X}"
+
+
+def empty_glyph() -> TTGlyph:
+    g = TTGlyph()
+    g.numberOfContours = 0
+    g.xMin = g.yMin = g.xMax = g.yMax = 0
+    return g
+
+
+class SourceFont:
+    """Lazy-open source font with cmap and drawing helpers."""
+
+    def __init__(self, path: str):
+        self.path = path
+        self.tt = TTFont(path, fontNumber=0)
+        self.upem = int(self.tt["head"].unitsPerEm)
+        self.cmap = font_cmap(self.tt)
+        self.glyph_set = self.tt.getGlyphSet()
+        self.hmtx = self.tt["hmtx"].metrics
+
+    def close(self) -> None:
+        try:
+            self.tt.close()
+        except Exception:
+            pass
+
+    def copy_glyph(
+        self, src_name: str, target_upem: int
+    ) -> Optional[Tuple[TTGlyph, int, int]]:
+        """Decompose + scale a glyph. Returns (glyph, advance, lsb) or None if blank."""
+        if is_empty_outline(self.tt, src_name):
+            return None
+
+        scale = target_upem / self.upem
+        try:
+            rec = DecomposingRecordingPen(self.glyph_set)
+            self.glyph_set[src_name].draw(rec)
+        except Exception as e:
+            print(
+                f"  [!] draw failed {os.path.basename(self.path)}:{src_name}: {e}",
+                file=sys.stderr,
+            )
+            return None
+
+        pen = TTGlyphPen(None)
+        tpen = TransformPen(pen, (scale, 0, 0, scale, 0, 0))
+        try:
+            rec.replay(tpen)
+            glyph = pen.glyph()
+        except Exception as e:
+            print(
+                f"  [!] replay failed {os.path.basename(self.path)}:{src_name}: {e}",
+                file=sys.stderr,
+            )
+            return None
+
+        if glyph.numberOfContours == 0 and not glyph.isComposite():
+            return None
+
+        advance, lsb = self.hmtx[src_name]
+        return glyph, otRound(advance * scale), otRound(lsb * scale)
+
+
+def resolve_priority_paths(in_dir: str) -> List[str]:
+    paths: List[str] = []
+    for name in PRIORITY_FONTS:
+        path = os.path.join(in_dir, name)
+        if not os.path.isfile(path):
+            print(f"[!] Missing priority font: {name}", file=sys.stderr)
+            continue
+        paths.append(path)
+    return paths
+
+
+def claim_codepoints(sources: List[SourceFont], target: Set[int]) -> Dict[int, str]:
+    """Map codepoint -> owning source path. Higher-priority fonts claim first."""
+    owner: Dict[int, str] = {}
+    for src in sources:
+        base = os.path.basename(src.path)
+        print(f"Scanning {base}...")
+        claimed = 0
+        for cp, gname in src.cmap.items():
+            if cp not in target or cp in owner:
+                continue
+            if is_empty_glyph(src.tt, gname):
+                continue
+            owner[cp] = src.path
+            claimed += 1
+        print(f"  Claimed {claimed} new codepoints (total owned: {len(owner)})")
+    return owner
+
+
+def bucket_codepoints(owner: Dict[int, str]) -> Dict[int, List[Tuple[int, str]]]:
+    """bucket_id -> sorted list of (codepoint, source_path)."""
+    buckets: Dict[int, List[Tuple[int, str]]] = defaultdict(list)
+    for cp, path in owner.items():
+        buckets[cp >> 8].append((cp, path))
+    for bid in buckets:
+        buckets[bid].sort(key=lambda t: t[0])
+    return buckets
+
+
+def build_bucket_font(
+    bucket_id: int,
+    entries: List[Tuple[int, str]],
+    sources: Dict[str, SourceFont],
+    out_dir: str,
+    target_upem: int,
+) -> Tuple[str, int, List[int]]:
+    """Build one pigeonhole font from scratch. Returns (ttf_path, count, codepoints)."""
+    hex_id = f"{bucket_id:X}"
+    out_path = os.path.join(out_dir, f"{hex_id}.ttf")
+
+    glyph_order = [".notdef"]
+    glyphs: Dict[str, TTGlyph] = {".notdef": empty_glyph()}
+    metrics: Dict[str, Tuple[int, int]] = {".notdef": (target_upem // 2, 0)}
+    cmap: Dict[int, str] = {}
+
+    for cp, path in entries:
+        src = sources[path]
+        src_name = src.cmap.get(cp)
+        if src_name is None:
+            continue
+        copied = src.copy_glyph(src_name, target_upem)
+        if copied is None:
+            continue
+        glyph, advance, lsb = copied
+        gname = glyph_name_for_cp(cp)
+        glyph_order.append(gname)
+        glyphs[gname] = glyph
+        metrics[gname] = (advance, lsb)
+        cmap[cp] = gname
+
+    if len(cmap) == 0:
+        return out_path, 0, []
+
+    ascent = otRound(target_upem * 0.88)
+    descent = otRound(target_upem * -0.12)
+    family = f"pancjk {hex_id}"
+    ps = f"pancjk-{hex_id}"
+
+    fb = FontBuilder(target_upem, isTTF=True)
+    fb.setupGlyphOrder(glyph_order)
+    fb.setupGlyf(glyphs)
+    fb.setupHorizontalMetrics(metrics)
+    fb.setupHorizontalHeader(ascent=ascent, descent=descent)
+    fb.setupCharacterMap(cmap)
+    fb.setupNameTable(
+        {
+            "familyName": family,
+            "styleName": "Regular",
+            "uniqueFontIdentifier": ps,
+            "fullName": family,
+            "psName": ps,
+            "version": "Version 1.000",
+        }
+    )
+    fb.setupOS2(
+        sTypoAscender=ascent,
+        sTypoDescender=descent,
+        sTypoLineGap=0,
+        usWinAscent=ascent,
+        usWinDescent=abs(descent),
+        achVendID="pCJK",
+    )
+    fb.setupPost()
+    fb.save(out_path)
+
+    woff2_path = os.path.join(out_dir, f"{hex_id}.woff2")
+    woff2.compress(out_path, woff2_path)
+
+    return out_path, len(cmap), sorted(cmap.keys())
+
+
+def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
+    """CSS unicode-range covering present glyphs (merged contiguous runs)."""
+    if not codepoints:
+        start = bucket_id << 8
+        end = start + 0xFF
+        return f"U+{start:X}-{end:X}"
+
+    runs: List[str] = []
+    run_start = codepoints[0]
+    prev = codepoints[0]
+    for cp in codepoints[1:]:
+        if cp == prev + 1:
+            prev = cp
+            continue
+        if run_start == prev:
+            runs.append(f"U+{run_start:X}")
+        else:
+            runs.append(f"U+{run_start:X}-{prev:X}")
+        run_start = prev = cp
+    if run_start == prev:
+        runs.append(f"U+{run_start:X}")
+    else:
+        runs.append(f"U+{run_start:X}-{prev:X}")
+    return ", ".join(runs)
+
+
+def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
+    """Write pancjk.css (@font-face) and fontlist.css (CSS-safe stack)."""
+    css_path = os.path.join(out_dir, "pancjk.css")
+    lines: List[str] = [
+        "/* Auto-generated Pan-CJK pigeonhole @font-face rules */",
+        "",
+    ]
+    family_names: List[str] = []
+    for hex_id, _count, codepoints in built:
+        bucket_id = int(hex_id, 16)
+        family = f"pancjk {hex_id}"
+        family_names.append(family)
+        urange = unicode_range_for_bucket(bucket_id, codepoints)
+        url = f"{CSS_FONT_URL_BASE}/{hex_id}.woff2"
+        lines.append("@font-face {")
+        lines.append(f"  font-family: '{family}';")
+        lines.append(f"  src: url('{url}') format('woff2');")
+        lines.append("  font-weight: normal;")
+        lines.append("  font-style: normal;")
+        lines.append("  font-display: swap;")
+        lines.append(f"  unicode-range: {urange};")
+        lines.append("}")
+        lines.append("")
+
+    with open(css_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    print(f"Wrote {css_path}")
+
+    # CSS-safe quoted family list for stacks
+    quoted = ",\n    ".join(f"'{name}'" for name in family_names)
+    fontlist_path = os.path.join(out_dir, "fontlist.css")
+    fontlist = f"""/* src/scss/index.scss — Pan-CJK pigeonhole font stack */
+body {{
+  --font-editor-theme: '';
+  --font-editor: var(--font-editor-theme), var(--font-text);
+  --font-text-theme:
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont,
+    MKanaPlus, Malgun Gothic,
+    {quoted},
+    monospace;
+  --font-interface-theme:
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont,
+    MKanaPlus, Malgun Gothic,
+    {quoted},
+    monospace;
+  --font-monospace-theme:
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont,
+    MKanaPlus, Malgun Gothic,
+    {quoted},
+    monospace;
+}}
+"""
+    with open(fontlist_path, "w", encoding="utf-8") as f:
+        f.write(fontlist)
+    print(f"Wrote {fontlist_path}")
+
+
+def build_all(in_dir: str, out_dir: str, target_upem: int) -> None:
+    font_paths = resolve_priority_paths(in_dir)
+    if not font_paths:
+        print("No priority fonts found in", in_dir, file=sys.stderr)
+        sys.exit(1)
+
+    target = ranges_to_set(CHAR_RANGES)
+    print(f"Target range size: {len(target)} codepoints")
+    print(f"Source fonts: {len(font_paths)}")
+
+    sources_list = [SourceFont(p) for p in font_paths]
+    sources_map = {s.path: s for s in sources_list}
+    try:
+        owner = claim_codepoints(sources_list, target)
+        if not owner:
+            print("No codepoints claimed.", file=sys.stderr)
+            sys.exit(1)
+
+        per_source: Dict[str, int] = defaultdict(int)
+        for path in owner.values():
+            per_source[os.path.basename(path)] += 1
+        print("\nClaimed per source:")
+        for name in PRIORITY_FONTS:
+            if name in per_source:
+                print(f"  {name}: {per_source[name]}")
+
+        buckets = bucket_codepoints(owner)
+        os.makedirs(out_dir, exist_ok=True)
+        print(
+            f"\nBuilding {len(buckets)} subfonts (glyph-by-glyph) -> {out_dir}",
+            flush=True,
+        )
+
+        written = 0
+        glyph_total = 0
+        skipped = 0
+        built: List[Tuple[str, int, List[int]]] = []
+        for i, bucket_id in enumerate(sorted(buckets.keys()), start=1):
+            path, count, codepoints = build_bucket_font(
+                bucket_id, buckets[bucket_id], sources_map, out_dir, target_upem
+            )
+            if count == 0:
+                skipped += 1
+                print(
+                    f"  [{i}/{len(buckets)}] {bucket_id:X}.ttf skipped (empty)",
+                    flush=True,
+                )
+                continue
+            written += 1
+            glyph_total += count
+            hex_id = f"{bucket_id:X}"
+            built.append((hex_id, count, codepoints))
+            print(
+                f"  [{i}/{len(buckets)}] {hex_id}.ttf/.woff2 ({count} glyphs)",
+                flush=True,
+            )
+
+        write_css(out_dir, built)
+
+        print(
+            f"\nDone: {written} fonts, {glyph_total} glyphs, "
+            f"{skipped} empty skipped, UPM={target_upem}",
+            flush=True,
+        )
+    finally:
+        for s in sources_list:
+            s.close()
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Build Pan-CJK pigeonhole subfonts")
+    p.add_argument("--in", dest="in_dir", default=IN_DIR, help="Input fonts directory")
+    p.add_argument("--out", dest="out_dir", default=OUT_DIR, help="Output directory")
+    p.add_argument(
+        "--upem",
+        dest="upem",
+        type=int,
+        default=DEFAULT_UPEM,
+        help=f"Target unitsPerEm (default {DEFAULT_UPEM})",
+    )
+    return p.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    build_all(args.in_dir, args.out_dir, args.upem)
