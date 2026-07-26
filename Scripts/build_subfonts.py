@@ -52,6 +52,7 @@ PRIORITY_FONTS = [
     "HuayingMinchoOld.ttf",
     "HuayingMinchoClassic.ttf",
     "I.MingVarCP-8.10.ttf",
+    "Han-Nom Ming 1.20.otf",
     "simsunb.ttf",
     "SimsunExtG.ttf",
     "NotoSerifTangut-Regular.ttf",
