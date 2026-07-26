@@ -48,16 +48,12 @@ PRIORITY_FONTS = [
     "LXGWZhiSongMN.ttf",
     "LXGWNeoZhiSongPlus.ttf",
     "HuayingMinchoT.ttf",
-    "HuayingMinchoODict.ttf",
-    "HuayingMinchoOld.ttf",
-    "HuayingMinchoClassic.ttf",
     "I.MingVarCP-8.10.ttf",
-    "Han-Nom Ming 1.20.otf",
     "simsunb.ttf",
     "SimsunExtG.ttf",
+    "NazoMin-Regular.ttf",
+    "NazoMin+-Regular.ttf",
     "NotoSerifTangut-Regular.ttf",
-    "NazoMin-Regular.otf",
-    "NazoMin+-Regular.otf",
 ]
 
 # ---------- Unicode ranges (inclusive) ----------
