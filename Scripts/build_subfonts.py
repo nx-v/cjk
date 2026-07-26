@@ -35,7 +35,7 @@ DEFAULT_UPEM = 1000
 
 CSS_FAMILY = "pancjk"
 CSS_FONT_URL_BASE = (
-    "https://raw.githubusercontent.com/nexovolta/fonts/main/scripts/dist/subfonts"
+    "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts"
 )
 
 # ---------- Source priority (highest first) ----------
