@@ -41,16 +41,15 @@ CSS_FONT_URL_BASE = (
 # ---------- Source priority (highest first) ----------
 
 PRIORITY_FONTS = [
-    "malgun.ttf",
-    "Microsoft-JhengHei.ttf",
     "NewGulim.ttf",
+    "Microsoft-JhengHei.ttf",
+    "malgun.ttf",
     "ZHIMINGB5.TTF",
     "HuayingMinchoT.ttf",
+    "Han-Nom Ming 1.20.otf",
     "I.MingVarCP-8.10.ttf",
     "simsunb.ttf",
     "SimsunExtG.ttf",
-    "Han-Nom Ming 1.20.otf",
-    "Han-nom Minh 1.42.otf",
     "NotoSerifTangut-Regular.ttf",
     "BabelStoneHan.woff",
     "LorchinSansP0.ttf",
