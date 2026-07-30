@@ -79,6 +79,7 @@ CHAR_RANGES: List[Tuple[int, int, str]] = [
     (0x323B0, 0x3347F, "CJK Ext J"),
     (0x0FA00, 0x0FAFF, "CJK Compat"),
     (0x2F800, 0x2FA1F, "CJK Compat Supplement"),
+    (0x0E000, 0x0F800, "Private Use Area"),
     (0x0AC00, 0x0D7AF, "Hangul Syllables"),
     (0x03130, 0x0318F, "Hangul Compatibility Jamo"),
     (0x17000, 0x187FF, "Tangut"),
