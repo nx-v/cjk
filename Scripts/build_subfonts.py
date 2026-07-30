@@ -6,6 +6,11 @@ Claims CJK/Tangut codepoints from priority-ordered source fonts, buckets them
 into 256-codepoint blocks (cp >> 8), and builds each TTF/WOFF2 from scratch by
 copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
 
+Also emits mirrored Private-Use-style variants for every claimed glyph:
+  +0x40000  mirror on Y axis (horizontal flip)
+  +0x80000  mirror on X axis (vertical flip)
+  +0xC0000  mirror on both axes
+
 Also writes pancjk.css (@font-face) and fontlist.css (CSS-safe stack).
 """
 
@@ -79,6 +84,17 @@ CHAR_RANGES: List[Tuple[int, int, str]] = [
     (0x18800, 0x18AFF, "Tangut Components"),
     (0x18D80, 0x18DFF, "Tangut Components Supplement"),
 ]
+
+# Mirrored variants: (codepoint offset, flip across X, flip across Y)
+# flip_x → negate Y (mirror on X axis); flip_y → negate X (mirror on Y axis)
+MIRROR_VARIANTS: List[Tuple[int, bool, bool]] = [
+    (0x40000, True, False),   # X-axis mirror
+    (0x80000, False, True),   # Y-axis mirror
+    (0xD0000, True, True),    # both axes. Shifted to avoid conflict with variant selectors.
+]
+
+# (out_cp, source_path, src_cp, flip_x, flip_y)
+BucketEntry = Tuple[int, str, int, bool, bool]
 
 
 def ranges_to_set(ranges: Iterable[Tuple[int, int, str]]) -> Set[int]:
@@ -154,13 +170,27 @@ class SourceFont:
             pass
 
     def copy_glyph(
-        self, src_name: str, target_upem: int
+        self,
+        src_name: str,
+        target_upem: int,
+        flip_x: bool = False,
+        flip_y: bool = False,
     ) -> Optional[Tuple[TTGlyph, int, int]]:
-        """Decompose + scale a glyph. Returns (glyph, advance, lsb) or None if blank."""
+        """Decompose + scale (+ optional axis mirrors). Returns (glyph, advance, lsb)."""
         if is_empty_outline(self.tt, src_name):
             return None
 
         scale = target_upem / self.upem
+        advance_src, lsb_src = self.hmtx[src_name]
+        advance = otRound(advance_src * scale)
+
+        # Mirror on Y axis → negate X; mirror on X axis → negate Y.
+        # Translate so the glyph stays inside the em box / advance width.
+        sx = -scale if flip_y else scale
+        sy = -scale if flip_x else scale
+        dx = advance_src * scale if flip_y else 0.0
+        dy = float(target_upem) if flip_x else 0.0
+
         try:
             rec = DecomposingRecordingPen(self.glyph_set)
             self.glyph_set[src_name].draw(rec)
@@ -172,7 +202,7 @@ class SourceFont:
             return None
 
         pen = TTGlyphPen(None)
-        tpen = TransformPen(pen, (scale, 0, 0, scale, 0, 0))
+        tpen = TransformPen(pen, (sx, 0, 0, sy, dx, dy))
         try:
             rec.replay(tpen)
             glyph = pen.glyph()
@@ -186,8 +216,12 @@ class SourceFont:
         if glyph.numberOfContours == 0 and not glyph.isComposite():
             return None
 
-        advance, lsb = self.hmtx[src_name]
-        return glyph, otRound(advance * scale), otRound(lsb * scale)
+        try:
+            glyph.recalcBounds(None)
+            lsb = int(glyph.xMin)
+        except Exception:
+            lsb = otRound(lsb_src * scale)
+        return glyph, advance, lsb
 
 
 def resolve_priority_paths(in_dir: str) -> List[str]:
@@ -219,11 +253,24 @@ def claim_codepoints(sources: List[SourceFont], target: Set[int]) -> Dict[int, s
     return owner
 
 
-def bucket_codepoints(owner: Dict[int, str]) -> Dict[int, List[Tuple[int, str]]]:
-    """bucket_id -> sorted list of (codepoint, source_path)."""
-    buckets: Dict[int, List[Tuple[int, str]]] = defaultdict(list)
+def expand_with_mirrors(owner: Dict[int, str]) -> List[BucketEntry]:
+    """Original claims plus PUA-offset mirrored variants."""
+    entries: List[BucketEntry] = []
     for cp, path in owner.items():
-        buckets[cp >> 8].append((cp, path))
+        entries.append((cp, path, cp, False, False))
+        for offset, flip_x, flip_y in MIRROR_VARIANTS:
+            out_cp = cp + offset
+            if out_cp > 0x10FFFF:
+                continue
+            entries.append((out_cp, path, cp, flip_x, flip_y))
+    return entries
+
+
+def bucket_codepoints(entries: List[BucketEntry]) -> Dict[int, List[BucketEntry]]:
+    """bucket_id -> sorted list of bucket entries."""
+    buckets: Dict[int, List[BucketEntry]] = defaultdict(list)
+    for entry in entries:
+        buckets[entry[0] >> 8].append(entry)
     for bid in buckets:
         buckets[bid].sort(key=lambda t: t[0])
     return buckets
@@ -231,7 +278,7 @@ def bucket_codepoints(owner: Dict[int, str]) -> Dict[int, List[Tuple[int, str]]]
 
 def build_bucket_font(
     bucket_id: int,
-    entries: List[Tuple[int, str]],
+    entries: List[BucketEntry],
     sources: Dict[str, SourceFont],
     out_dir: str,
     target_upem: int,
@@ -245,20 +292,20 @@ def build_bucket_font(
     metrics: Dict[str, Tuple[int, int]] = {".notdef": (target_upem // 2, 0)}
     cmap: Dict[int, str] = {}
 
-    for cp, path in entries:
+    for out_cp, path, src_cp, flip_x, flip_y in entries:
         src = sources[path]
-        src_name = src.cmap.get(cp)
+        src_name = src.cmap.get(src_cp)
         if src_name is None:
             continue
-        copied = src.copy_glyph(src_name, target_upem)
+        copied = src.copy_glyph(src_name, target_upem, flip_x=flip_x, flip_y=flip_y)
         if copied is None:
             continue
         glyph, advance, lsb = copied
-        gname = glyph_name_for_cp(cp)
+        gname = glyph_name_for_cp(out_cp)
         glyph_order.append(gname)
         glyphs[gname] = glyph
         metrics[gname] = (advance, lsb)
-        cmap[cp] = gname
+        cmap[out_cp] = gname
 
     if len(cmap) == 0:
         return out_path, 0, []
@@ -317,7 +364,7 @@ def _init_build_worker(font_paths: List[str], out_dir: str, target_upem: int) ->
 
 
 def _build_bucket_task(
-    args: Tuple[int, List[Tuple[int, str]]],
+    args: Tuple[int, List[BucketEntry]],
 ) -> Tuple[int, str, int, List[int]]:
     bucket_id, entries = args
     assert _WORKER_SOURCES is not None
@@ -392,17 +439,23 @@ body {{
   --font-editor: var(--font-editor-theme), var(--font-text);
   --font-text-theme:
     Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont,
-    MKanaPlus,
+    MKanaPlus, Noto Sans Devanagari, Noto Sans Bengali, Noto Sans Gurmukhi,
+    Noto Sans Gujarati, Noto Sans Gunjala Gondi, Noto Sans Nandinagari,
+    Noto Sans Newa, Noto Sans Sharada,
     {quoted},
     Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
   --font-interface-theme:
     Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont,
-    MKanaPlus,
+    MKanaPlus, Noto Sans Devanagari, Noto Sans Bengali, Noto Sans Gurmukhi,
+    Noto Sans Gujarati, Noto Sans Gunjala Gondi, Noto Sans Nandinagari,
+    Noto Sans Newa, Noto Sans Sharada,
     {quoted},
     Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
   --font-monospace-theme:
     Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont,
-    MKanaPlus,
+    MKanaPlus, Noto Sans Devanagari, Noto Sans Bengali, Noto Sans Gurmukhi,
+    Noto Sans Gujarati, Noto Sans Gunjala Gondi, Noto Sans Nandinagari,
+    Noto Sans Newa, Noto Sans Sharada,
     {quoted},
     Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
 }}
@@ -441,7 +494,14 @@ def build_all(in_dir: str, out_dir: str, target_upem: int, jobs: int) -> None:
         if name in per_source:
             print(f"  {name}: {per_source[name]}")
 
-    buckets = bucket_codepoints(owner)
+    all_entries = expand_with_mirrors(owner)
+    mirror_count = len(all_entries) - len(owner)
+    print(
+        f"\nExpanded with mirrors: {len(owner)} base + {mirror_count} mirrored "
+        f"= {len(all_entries)} glyphs"
+    )
+
+    buckets = bucket_codepoints(all_entries)
     os.makedirs(out_dir, exist_ok=True)
 
     used_paths = sorted(set(owner.values()))
