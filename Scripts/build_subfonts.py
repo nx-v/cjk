@@ -58,8 +58,8 @@ PRIORITY_FONTS = [
     "I.MingVarCP-8.10.ttf",
     "simsunb.ttf",
     "SimsunExtG.ttf",
-    "NazoMin-Regular.ttf",
-    "NazoMin+-Regular.ttf",
+    "NazoMin-Classic.ttf",
+    "NazoMin+-Classic.ttf",
     "NotoSerifTangut-Regular.ttf",
 ]
 
