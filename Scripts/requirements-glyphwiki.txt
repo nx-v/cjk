@@ -1,0 +1,5 @@
+# GlyphWiki / KAGE pipeline extras
+svgwrite>=1.4
+numpy>=1.24
+fonttools[woff]>=4.40
+skia-pathops>=0.8

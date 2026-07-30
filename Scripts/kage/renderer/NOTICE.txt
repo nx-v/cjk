@@ -1,0 +1,13 @@
+KAGE renderer (based on HowardZorn/kage-engine)
+================================================
+
+Source: https://github.com/HowardZorn/kage-engine (dev branch), GPL-3.0.
+Integrated under Scripts/kage/renderer/ and imported via Scripts/kage/engine.py.
+
+Local patches (keep when syncing upstream):
+- stroke.py get_box: use real stroke type (not opt→6), skip non-finite coords
+- kage.py: pad stroke columns with 0 instead of NaN
+- components.py search: always return "" on miss (ignore_version fallthrough)
+- serif_stroke_drawer.py draw_line: distinct Vec2 list; match a1/a2 with % 100
+
+To update from upstream, copy into this package and re-apply the patches above.

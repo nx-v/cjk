@@ -6,10 +6,10 @@ Claims CJK/Tangut codepoints from priority-ordered source fonts, buckets them
 into 256-codepoint blocks (cp >> 8), and builds each TTF/WOFF2 from scratch by
 copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
 
-Also emits mirrored Private-Use-style variants for every claimed glyph:
-  +0x40000  mirror on Y axis (horizontal flip)
-  +0x80000  mirror on X axis (vertical flip)
-  +0xC0000  mirror on both axes
+Mirrored variants for bucket fonts are emitted **in the same TTF**:
+flipped outlines plus GSUB ligatures ``unicode + VS01..VS04``
+(U+E000..U+E003). No Supplementary PUA marker, no cmap offsets.
+GlyphWiki content uses SPUA+BMP-PUA ligatures (see ``kage.mapping``).
 
 Also writes pancjk.css (@font-face) and fontlist.css (CSS-safe stack).
 """
@@ -23,6 +23,7 @@ import sys
 from collections import defaultdict
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
+from fontTools.feaLib.builder import addOpenTypeFeaturesFromString
 from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
 from fontTools.pens.boundsPen import BoundsPen
@@ -79,25 +80,23 @@ CHAR_RANGES: List[Tuple[int, int, str]] = [
     (0x323B0, 0x3347F, "CJK Ext J"),
     (0x0FA00, 0x0FAFF, "CJK Compat"),
     (0x2F800, 0x2FA1F, "CJK Compat Supplement"),
-    (0x0E000, 0x0F800, "Private Use Area"),
-    (0x0AC00, 0x0D7AF, "Hangul Syllables"),
-    (0x03130, 0x0318F, "Hangul Compatibility Jamo"),
     (0x17000, 0x187FF, "Tangut"),
     (0x18D00, 0x18D7F, "Tangut Supplement"),
-    (0x18800, 0x18AFF, "Tangut Components"),
-    (0x18D80, 0x18DFF, "Tangut Components Supplement"),
+    # (0x18800, 0x18AFF, "Tangut Components"),
+    # (0x18D80, 0x18DFF, "Tangut Components Supplement"),
 ]
 
-# Mirrored variants: (codepoint offset, flip across X, flip across Y)
-# flip_x → negate Y (mirror on X axis); flip_y → negate X (mirror on Y axis)
-MIRROR_VARIANTS: List[Tuple[int, bool, bool]] = [
-    (0x40000, True, False),   # X-axis mirror
-    (0x80000, False, True),   # Y-axis mirror
-    (0xD0000, True, True),    # both axes. Shifted to avoid conflict with variant selectors.
+# Mirror modes for bucket fonts: (VS codepoint, flip_x, flip_y, name suffix).
+# VS01 (identity) is mapped but does not need a separate outline/ligature.
+MIRROR_MODES: List[Tuple[int, bool, bool, Optional[str]]] = [
+    (0xE000, False, False, None),  # VS01 — identity
+    (0xE001, True, False, "mx"),  # VS02 — flip on X
+    (0xE002, False, True, "my"),  # VS03 — flip on Y
+    (0xE003, True, True, "mxy"),  # VS04 — both
 ]
 
-# (out_cp, source_path, src_cp, flip_x, flip_y)
-BucketEntry = Tuple[int, str, int, bool, bool]
+# (out_cp, source_path, src_cp) — base Unicode claims only; mirrors added in-font
+BucketEntry = Tuple[int, str, int]
 
 
 def ranges_to_set(ranges: Iterable[Tuple[int, int, str]]) -> Set[int]:
@@ -284,17 +283,9 @@ def claim_codepoints(sources: List[SourceFont], target: Set[int]) -> Dict[int, s
     return owner
 
 
-def expand_with_mirrors(owner: Dict[int, str]) -> List[BucketEntry]:
-    """Original claims plus PUA-offset mirrored variants."""
-    entries: List[BucketEntry] = []
-    for cp, path in owner.items():
-        entries.append((cp, path, cp, False, False))
-        for offset, flip_x, flip_y in MIRROR_VARIANTS:
-            out_cp = cp + offset
-            if out_cp > 0x10FFFF:
-                continue
-            entries.append((out_cp, path, cp, flip_x, flip_y))
-    return entries
+def expand_entries(owner: Dict[int, str]) -> List[BucketEntry]:
+    """One bucket entry per claimed Unicode code point."""
+    return [(cp, path, cp) for cp, path in owner.items()]
 
 
 def bucket_codepoints(entries: List[BucketEntry]) -> Dict[int, List[BucketEntry]]:
@@ -307,6 +298,14 @@ def bucket_codepoints(entries: List[BucketEntry]) -> Dict[int, List[BucketEntry]
     return buckets
 
 
+def vs_glyph_name(vs_cp: int) -> str:
+    return f"vs{vs_cp - 0xE000 + 1:02d}"
+
+
+def mirror_glyph_name(base_name: str, suffix: str) -> str:
+    return f"{base_name}.{suffix}"
+
+
 def build_bucket_font(
     bucket_id: int,
     entries: List[BucketEntry],
@@ -314,7 +313,11 @@ def build_bucket_font(
     out_dir: str,
     target_upem: int,
 ) -> Tuple[str, int, List[int]]:
-    """Build one pigeonhole font from scratch. Returns (ttf_path, count, codepoints)."""
+    """Build one pigeonhole font with in-font mirror ligatures.
+
+    Returns (ttf_path, glyph_count, codepoints) where codepoints are the
+    Unicode cmap keys (bases + VS01..VS04 when present).
+    """
     hex_id = f"{bucket_id:X}"
     out_path = os.path.join(out_dir, f"{hex_id}.ttf")
 
@@ -322,13 +325,14 @@ def build_bucket_font(
     glyphs: Dict[str, TTGlyph] = {".notdef": empty_glyph()}
     metrics: Dict[str, Tuple[int, int]] = {".notdef": (target_upem // 2, 0)}
     cmap: Dict[int, str] = {}
+    liga_rules: List[str] = []
 
-    for out_cp, path, src_cp, flip_x, flip_y in entries:
+    for out_cp, path, src_cp in entries:
         src = sources[path]
         src_name = src.cmap.get(src_cp)
         if src_name is None:
             continue
-        copied = src.copy_glyph(src_name, target_upem, flip_x=flip_x, flip_y=flip_y)
+        copied = src.copy_glyph(src_name, target_upem, flip_x=False, flip_y=False)
         if copied is None:
             continue
         glyph, advance, lsb = copied
@@ -338,8 +342,36 @@ def build_bucket_font(
         metrics[gname] = (advance, lsb)
         cmap[out_cp] = gname
 
+        # Flipped outlines + liga: base + VS0n -> mirrored glyph (same font)
+        for vs_cp, flip_x, flip_y, suffix in MIRROR_MODES:
+            if suffix is None:
+                continue  # VS01 identity — no extra glyph
+            mirrored = src.copy_glyph(
+                src_name, target_upem, flip_x=flip_x, flip_y=flip_y
+            )
+            if mirrored is None:
+                continue
+            m_glyph, m_adv, m_lsb = mirrored
+            m_name = mirror_glyph_name(gname, suffix)
+            if m_name in glyphs:
+                continue
+            glyph_order.append(m_name)
+            glyphs[m_name] = m_glyph
+            metrics[m_name] = (m_adv, m_lsb)
+            vs_name = vs_glyph_name(vs_cp)
+            liga_rules.append(f"  sub {gname} {vs_name} by {m_name};")
+
     if len(cmap) == 0:
         return out_path, 0, []
+
+    # Inject VS01..VS04 as zero-width marks so ligatures stay in-font
+    for vs_cp, _fx, _fy, _suffix in MIRROR_MODES:
+        vname = vs_glyph_name(vs_cp)
+        if vname not in glyphs:
+            glyph_order.append(vname)
+            glyphs[vname] = empty_glyph()
+            metrics[vname] = (0, 0)
+        cmap[vs_cp] = vname
 
     ascent = otRound(target_upem * 0.88)
     descent = otRound(target_upem * -0.12)
@@ -371,12 +403,23 @@ def build_bucket_font(
         achVendID="pCJK",
     )
     fb.setupPost()
+
+    if liga_rules:
+        # rlig: required ligatures so mirrors apply without liga being on
+        fea = (
+            "languagesystem DFLT dflt;\n"
+            "feature rlig {\n"
+            + "\n".join(liga_rules)
+            + "\n} rlig;\n"
+        )
+        addOpenTypeFeaturesFromString(fb.font, fea)
+
     fb.save(out_path)
 
     woff2_path = os.path.join(out_dir, f"{hex_id}.woff2")
     woff2.compress(out_path, woff2_path)
 
-    return out_path, len(cmap), sorted(cmap.keys())
+    return out_path, len(glyphs) - 1, sorted(cmap.keys())
 
 
 # ---------- Parallel workers ----------
@@ -408,16 +451,21 @@ def _build_bucket_task(
 
 
 def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
-    """CSS unicode-range covering present glyphs (merged contiguous runs)."""
+    """CSS unicode-range covering present glyphs (merged contiguous runs).
+
+    Always includes VS01..VS04 (U+E000..E003) so mirror selectors resolve
+    to the same bucket font as the base characters.
+    """
+    cps = sorted(set(codepoints) | {0xE000, 0xE001, 0xE002, 0xE003})
     if not codepoints:
         start = bucket_id << 8
         end = start + 0xFF
-        return f"U+{start:X}-{end:X}"
+        return f"U+{start:X}-{end:X}, U+E000-E003"
 
     runs: List[str] = []
-    run_start = codepoints[0]
-    prev = codepoints[0]
-    for cp in codepoints[1:]:
+    run_start = cps[0]
+    prev = cps[0]
+    for cp in cps[1:]:
         if cp == prev + 1:
             prev = cp
             continue
@@ -525,12 +573,8 @@ def build_all(in_dir: str, out_dir: str, target_upem: int, jobs: int) -> None:
         if name in per_source:
             print(f"  {name}: {per_source[name]}")
 
-    all_entries = expand_with_mirrors(owner)
-    mirror_count = len(all_entries) - len(owner)
-    print(
-        f"\nExpanded with mirrors: {len(owner)} base + {mirror_count} mirrored "
-        f"= {len(all_entries)} glyphs"
-    )
+    all_entries = expand_entries(owner)
+    print(f"\nGlyphs to build: {len(all_entries)}")
 
     buckets = bucket_codepoints(all_entries)
     os.makedirs(out_dir, exist_ok=True)
