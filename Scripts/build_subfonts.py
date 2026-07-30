@@ -25,7 +25,9 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
+from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.recordingPen import DecomposingRecordingPen
+from fontTools.pens.reverseContourPen import ReverseContourPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont, woff2
@@ -176,20 +178,17 @@ class SourceFont:
         flip_x: bool = False,
         flip_y: bool = False,
     ) -> Optional[Tuple[TTGlyph, int, int]]:
-        """Decompose + scale (+ optional axis mirrors). Returns (glyph, advance, lsb)."""
+        """Decompose + scale (+ optional axis mirrors). Returns (glyph, advance, lsb).
+
+        Mirrors flip around the contour bounding-box center so the glyph stays
+        in place (does not reflect across the em-box / advance midline).
+        """
         if is_empty_outline(self.tt, src_name):
             return None
 
         scale = target_upem / self.upem
         advance_src, lsb_src = self.hmtx[src_name]
         advance = otRound(advance_src * scale)
-
-        # Mirror on Y axis → negate X; mirror on X axis → negate Y.
-        # Translate so the glyph stays inside the em box / advance width.
-        sx = -scale if flip_y else scale
-        sy = -scale if flip_x else scale
-        dx = advance_src * scale if flip_y else 0.0
-        dy = float(target_upem) if flip_x else 0.0
 
         try:
             rec = DecomposingRecordingPen(self.glyph_set)
@@ -201,8 +200,39 @@ class SourceFont:
             )
             return None
 
+        sx = scale
+        sy = scale
+        dx = 0.0
+        dy = 0.0
+        if flip_x or flip_y:
+            bpen = BoundsPen(None)
+            try:
+                rec.replay(bpen)
+            except Exception as e:
+                print(
+                    f"  [!] bounds failed {os.path.basename(self.path)}:{src_name}: {e}",
+                    file=sys.stderr,
+                )
+                return None
+            if bpen.bounds is None:
+                return None
+            x_min, y_min, x_max, y_max = bpen.bounds
+            cx = (x_min + x_max) / 2.0
+            cy = (y_min + y_max) / 2.0
+            # Reflect across contour center, then scale into target UPM.
+            # x' = scale * (2*cx - x) = -scale*x + 2*cx*scale  (flip_y)
+            if flip_y:
+                sx = -scale
+                dx = 2.0 * cx * scale
+            if flip_x:
+                sy = -scale
+                dy = 2.0 * cy * scale
+
         pen = TTGlyphPen(None)
-        tpen = TransformPen(pen, (sx, 0, 0, sy, dx, dy))
+        # A single-axis flip makes det(transform) < 0 and reverses winding;
+        # reverse contours so TrueType non-zero fill (holes) stays correct.
+        dest = ReverseContourPen(pen) if (sx * sy) < 0 else pen
+        tpen = TransformPen(dest, (sx, 0, 0, sy, dx, dy))
         try:
             rec.replay(tpen)
             glyph = pen.glyph()
