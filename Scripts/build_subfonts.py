@@ -80,7 +80,6 @@ CHAR_RANGES: List[Tuple[int, int, str]] = [
     (0x323B0, 0x3347F, "CJK Ext J"),
     (0x0FA00, 0x0FAFF, "CJK Compat"),
     (0x2F800, 0x2FA1F, "CJK Compat Supplement"),
-    (0x03130, 0x0318F, "Hangul Jamo"),
     (0x0AC00, 0x0D7AF, "Hangul Syllables"),
     (0x0E000, 0x0F8FF, "Private Use Area"),
     (0x17000, 0x187FF, "Tangut"),
@@ -411,7 +410,9 @@ def build_bucket_font(
         # rlig: required ligatures so mirrors apply without liga being on
         fea = (
             "languagesystem DFLT dflt;\n"
-            "feature rlig {\n" + "\n".join(liga_rules) + "\n} rlig;\n"
+            "feature rlig {\n"
+            + "\n".join(liga_rules)
+            + "\n} rlig;\n"
         )
         addOpenTypeFeaturesFromString(fb.font, fea)
 
