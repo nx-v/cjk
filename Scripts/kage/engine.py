@@ -50,15 +50,24 @@ def _fmt_stroke_num(v: float) -> str:
     return str(int(v)) if float(v).is_integer() else str(v)
 
 
-def _reverse_stroke_nums(nums: list[float]) -> None:
-    """Reverse stroke direction in-place: swap tip forms and control-point order.
+# Head/tail tip bases that encode world-space left vs right (vertical strokes).
+_LR_TIP_SWAP = {12: 22, 22: 12, 13: 23, 23: 13}
 
-    After a single-axis coordinate flip, path orientation is mirrored; reversing
-    keeps tip/connector math (left/right relative to travel) consistent.
-    """
+
+def _remap_tip_lr(tip: float) -> float:
+    """Swap L/R tip forms, preserving option hundreds (e.g. 313 → 323)."""
+    raw = int(round(tip))
+    base = raw % 100
+    swapped = _LR_TIP_SWAP.get(base)
+    if swapped is None:
+        return tip
+    return float(raw - base + swapped)
+
+
+def _reverse_stroke_points(nums: list[float]) -> None:
+    """Reverse control-point order only (keep head/tail tip roles)."""
     if len(nums) < 7:
         return
-    nums[1], nums[2] = nums[2], nums[1]
     coords = nums[3:]
     if len(coords) % 2 == 1:
         coords.append(0.0)
@@ -66,6 +75,27 @@ def _reverse_stroke_nums(nums: list[float]) -> None:
     pairs.reverse()
     flat = [c for p in pairs for c in p]
     nums[3:] = flat[: len(nums) - 3]
+
+
+def _reverse_stroke_nums(nums: list[float]) -> None:
+    """Reverse stroke direction: swap tip forms and control-point order.
+
+    For horizontal / diagonal strokes after a single-axis flip, this restores
+    left/right relative to travel. Do not use alone on vertical strokes whose
+    tips are head-only (12/22) vs tail-only (13/23).
+    """
+    if len(nums) < 7:
+        return
+    nums[1], nums[2] = nums[2], nums[1]
+    _reverse_stroke_points(nums)
+
+
+def _stroke_endpoints(nums: list[float]) -> tuple[float, float, float, float]:
+    """First and last control points (x1, y1, x2, y2)."""
+    coords = nums[3:]
+    if len(coords) % 2 == 1:
+        coords = coords + [0.0]
+    return coords[0], coords[1], coords[-2], coords[-1]
 
 
 def mirror_stroke_data(
@@ -80,17 +110,19 @@ def mirror_stroke_data(
     ``flip_x`` → ``y → size - y`` (mirror across horizontal axis).
     ``flip_y`` → ``x → size - x`` (mirror across vertical axis).
 
-    Coordinates are flipped, then — for a single-axis mirror — each drawable
-    stroke is reversed (swap ``a2``/``a3``, reverse control points) so serifs
-    and connectors stay attached. Double-axis mirrors preserve orientation, so
-    strokes are not reversed.
+    After flipping coordinates:
+
+    * Horizontal / diagonal (single-axis): reverse direction (swap ``a2``/``a3``
+      and control points) so connectors stay travel-relative.
+    * Vertical-ish: keep head/tail tip roles. Y-mirror reverses points only
+      (restore top→bottom). X-mirror leaves direction alone and remaps L/R tip
+      codes (12↔22, 13↔23). Both-axes: restore top→bottom, then L/R remap.
 
     Re-render with ``render_stroke_data`` (do not affine-flip SVG contours).
     """
     if not data or not (flip_x or flip_y):
         return data
-    # Odd number of axis flips reverses path orientation → need stroke reverse.
-    reverse = flip_x != flip_y
+    single_axis = flip_x != flip_y
     out_segs: list[str] = []
     for seg in data.split("$"):
         if not seg:
@@ -114,8 +146,20 @@ def mirror_stroke_data(
             if i + 1 < len(nums) and flip_x:
                 nums[i + 1] = size - nums[i + 1]
         stroke_type = int(nums[0]) % 100
-        if reverse and stroke_type not in (0, 99):
-            _reverse_stroke_nums(nums)
+        if stroke_type not in (0, 99):
+            x1, y1, x2, y2 = _stroke_endpoints(nums)
+            vertical = abs(y2 - y1) >= abs(x2 - x1)
+            if vertical:
+                # Head tips (12/22) must stay on start; heel tips (13/23) on end.
+                if flip_x and y1 > y2:
+                    # Y-mirror (or both) turned the stem upward — restore top→bottom.
+                    _reverse_stroke_points(nums)
+                # X-mirror alone: direction already top→bottom; L/R remap below.
+            elif single_axis:
+                _reverse_stroke_nums(nums)
+            if flip_y:
+                nums[1] = _remap_tip_lr(nums[1])
+                nums[2] = _remap_tip_lr(nums[2])
         out_segs.append(":".join(_fmt_stroke_num(v) for v in nums))
     return "$".join(out_segs)
 
