@@ -1,6 +1,15 @@
 /* Auto-generated Pan-CJK pigeonhole @font-face rules */
 
 @font-face {
+  font-family: 'pancjk 31';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/31.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3131-3163, U+3165-318E, U+E000-E003;
+}
+
+@font-face {
   font-family: 'pancjk 34';
   src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/34.woff2') format('woff2');
   font-weight: normal;
@@ -973,6 +982,618 @@
 }
 
 @font-face {
+  font-family: 'pancjk AC';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/AC.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+AC00-ACFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk AD';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/AD.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+AD00-ADFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk AE';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/AE.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+AE00-AEFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk AF';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/AF.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+AF00-AFFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk B0';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/B0.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+B000-B0FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk B1';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/B1.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+B100-B1FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk B2';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/B2.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+B200-B2FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk B3';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/B3.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+B300-B3FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk B4';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/B4.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+B400-B4FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk B5';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/B5.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+B500-B5FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk B6';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/B6.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+B600-B6FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk B7';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/B7.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+B700-B7FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk B8';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/B8.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+B800-B8FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk B9';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/B9.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+B900-B9FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk BA';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/BA.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+BA00-BAFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk BB';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/BB.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+BB00-BBFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk BC';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/BC.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+BC00-BCFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk BD';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/BD.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+BD00-BDFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk BE';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/BE.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+BE00-BEFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk BF';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/BF.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+BF00-BFFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk C0';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/C0.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+C000-C0FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk C1';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/C1.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+C100-C1FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk C2';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/C2.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+C200-C2FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk C3';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/C3.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+C300-C3FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk C4';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/C4.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+C400-C4FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk C5';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/C5.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+C500-C5FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk C6';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/C6.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+C600-C6FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk C7';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/C7.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+C700-C7FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk C8';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/C8.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+C800-C8FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk C9';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/C9.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+C900-C9FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk CA';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/CA.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+CA00-CAFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk CB';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/CB.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+CB00-CBFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk CC';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/CC.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+CC00-CCFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk CD';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/CD.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+CD00-CDFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk CE';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/CE.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+CE00-CEFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk CF';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/CF.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+CF00-CFFF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk D0';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/D0.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+D000-D0FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk D1';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/D1.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+D100-D1FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk D2';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/D2.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+D200-D2FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk D3';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/D3.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+D300-D3FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk D4';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/D4.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+D400-D4FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk D5';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/D5.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+D500-D5FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk D6';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/D6.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+D600-D6FF, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk D7';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/D7.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+D700-D7A3, U+E000-E003;
+}
+
+@font-face {
+  font-family: 'pancjk E0';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/E0.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+E0BC-E0FF;
+}
+
+@font-face {
+  font-family: 'pancjk E1';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/E1.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+E100-E1FF;
+}
+
+@font-face {
+  font-family: 'pancjk E2';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/E2.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+E200-E2FF;
+}
+
+@font-face {
+  font-family: 'pancjk E3';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/E3.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+E300-E3FF;
+}
+
+@font-face {
+  font-family: 'pancjk E4';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/E4.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+E400-E4FF;
+}
+
+@font-face {
+  font-family: 'pancjk E5';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/E5.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+E500-E5FF;
+}
+
+@font-face {
+  font-family: 'pancjk E6';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/E6.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+E600-E6FF;
+}
+
+@font-face {
+  font-family: 'pancjk E7';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/E7.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+E700-E7FF;
+}
+
+@font-face {
+  font-family: 'pancjk E8';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/E8.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+E800-E8FF;
+}
+
+@font-face {
+  font-family: 'pancjk E9';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/E9.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+E900-E9FF;
+}
+
+@font-face {
+  font-family: 'pancjk EA';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/EA.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+EA00-EAFF;
+}
+
+@font-face {
+  font-family: 'pancjk EB';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/EB.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+EB00-EBFF;
+}
+
+@font-face {
+  font-family: 'pancjk EC';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/EC.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+EC00-ECFF;
+}
+
+@font-face {
+  font-family: 'pancjk ED';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/ED.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+ED00-EDFF;
+}
+
+@font-face {
+  font-family: 'pancjk EE';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/EE.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+EE00-EEFF;
+}
+
+@font-face {
+  font-family: 'pancjk EF';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/EF.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+EF00-EFFF;
+}
+
+@font-face {
+  font-family: 'pancjk F1';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/F1.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+F100-F1FF;
+}
+
+@font-face {
+  font-family: 'pancjk F2';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/F2.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+F200-F2FF;
+}
+
+@font-face {
+  font-family: 'pancjk F3';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/F3.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+F300-F3FF;
+}
+
+@font-face {
+  font-family: 'pancjk F4';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/F4.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+F400-F4FF;
+}
+
+@font-face {
+  font-family: 'pancjk F5';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/F5.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+F500-F5FF;
+}
+
+@font-face {
+  font-family: 'pancjk F6';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/F6.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+F600-F66E, U+F67E-F6FF;
+}
+
+@font-face {
+  font-family: 'pancjk F7';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/F7.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+F700-F77C, U+F785-F7FF;
+}
+
+@font-face {
+  font-family: 'pancjk F8';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/F8.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+F800, U+F807-F864, U+F86B-F8F7;
+}
+
+@font-face {
   font-family: 'pancjk FA';
   src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/FA.woff2') format('woff2');
   font-weight: normal;
@@ -1195,6 +1816,33 @@
   font-style: normal;
   font-display: swap;
   unicode-range: U+E000-E003, U+18700-187F7;
+}
+
+@font-face {
+  font-family: 'pancjk 188';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/188.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+18800-188FF;
+}
+
+@font-face {
+  font-family: 'pancjk 189';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/189.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+18900-189FF;
+}
+
+@font-face {
+  font-family: 'pancjk 18A';
+  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/18A.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E003, U+18A00-18AFF;
 }
 
 @font-face {

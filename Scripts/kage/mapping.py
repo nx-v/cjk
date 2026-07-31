@@ -41,18 +41,20 @@ marker** (the first code point of every ligature in the file), e.g.
 * 6 400 × 4 = 25 600 rendered outlines (identity + X / Y / both)
 
 Total **32 000** glyphs (plus ``.notdef`` and the SPUA marker). Mirrors
-are produced from the KAGE SVG drawing (KAGE-space flip), then
-flattened with skia-pathops. GSUB::
+re-render flipped KAGE stroke skeletons (not SVG contour flips). GSUB::
 
     <SPUA marker>  <BMP PUA>   → identity outline
     <identity>     <VS02..04>  → mirrored outline
 
 Only dump entries whose ``related`` code point falls in
 ``build_subfonts.CHAR_RANGES``, plus CJK Radicals Supplement
-(U+2E80..2EFF) and Kangxi Radicals (U+2F00..2FDF), are packed.
+(U+2E80..2EFF), Kangxi Radicals (U+2F00..2FDF), and GETA MARK
+(U+3013 〓 — GlyphWiki's unencoded/placeholder related), are packed.
 HKCS annotation overlays, non-mincho styles (sans/gothic/calligraphy/bitmap/
-shape experiments), and glyphs that embed overlay pieces are excluded —
-see ``GLYPH_EXCLUSION_NAME_RES`` / ``GLYPH_EXCLUSION_DATA_MARKERS``.
+shape experiments), glyphs with non-mincho KAGE stroke types (``0:99:N``
+shotai ≠ mincho, exotic type codes), and glyphs that embed overlay pieces
+are excluded — see ``GLYPH_EXCLUSION_NAME_RES`` / ``GLYPH_EXCLUSION_DATA_MARKERS``
+/ ``is_non_mincho_stroke_data``.
 Empty placeholders (``0:-1:-1:-1``), full-frame aliases of another packed
 glyph, and duplicate resolved outlines (keep one canonical form) are also
 dropped before ligature assignment.
@@ -202,11 +204,12 @@ def related_codepoint(related: str) -> int | None:
     return None if cp >= 0x110000 else cp
 
 
-# Same blocks as ``build_subfonts.CHAR_RANGES``, plus radical blocks used only
-# for GlyphWiki inclusion (bucket fonts do not claim radicals from sources).
+# Same blocks as ``build_subfonts.CHAR_RANGES``, plus GlyphWiki-only extras
+# (radicals; GETA MARK used as related for unencoded / placeholder glyphs).
 RELATED_EXTRA_RANGES: list[tuple[int, int, str]] = [
     (0x2E80, 0x2EFF, "CJK Radicals Supplement"),
     (0x2F00, 0x2FDF, "Kangxi Radicals"),
+    (0x3013, 0x3013, "GETA MARK (GlyphWiki unencoded related)"),
 ]
 
 
@@ -289,7 +292,49 @@ GLYPH_EXCLUSION_DATA_MARKERS: tuple[str, ...] = (
     "hkcs_u25a1",
     "hkcs_char-2192",
     "hkcs_char-ff1d",
+    "-sans",  # sans-serif component strokes (e.g. u0021-sans)
+    "_sans",
 )
+
+# KAGE stroke types used by mincho (Serif) drawing. Values may be stored as
+# ``type`` or ``type + 100*opt`` (e.g. 101 → type 1); compare ``t % 100``.
+MINCHO_STROKE_TYPES: frozenset[int] = frozenset({1, 2, 3, 4, 6, 7, 12, 99})
+
+
+def is_non_mincho_stroke_data(data: str) -> bool:
+    """True if stroke data selects a non-mincho shotai or exotic stroke type.
+
+    GlyphWiki marks gothic / other styles with a type-0 option stroke
+    ``0:99:N`` (N≠0). Mincho is the default (no marker, or ``0:99:0``).
+    """
+    if not data:
+        return False
+    for seg in data.split("$"):
+        if not seg:
+            continue
+        parts = seg.split(":")
+        try:
+            t = int(float(parts[0]))
+        except ValueError:
+            return True
+        if t < 0:
+            return True
+        if t == 0:
+            try:
+                a2 = int(float(parts[1])) if len(parts) > 1 else 0
+                a3 = int(float(parts[2])) if len(parts) > 2 else 0
+            except ValueError:
+                return True
+            # ``0:-1:-1:-1`` nop / deleted segment
+            if a2 == -1 and a3 == -1:
+                continue
+            # ``0:99:N`` shotai: 0=mincho, nonzero=gothic / sideways / other
+            if a2 == 99 and a3 != 0:
+                return True
+            continue
+        if (t % 100) not in MINCHO_STROKE_TYPES:
+            return True
+    return False
 
 
 def is_excluded_glyph_name(name: str) -> bool:
@@ -299,10 +344,13 @@ def is_excluded_glyph_name(name: str) -> bool:
 
 
 def is_excluded_glyph_data(data: str) -> bool:
-    """True if stroke data embeds an HKCS annotation overlay component."""
+    """True if stroke data embeds excluded components or non-mincho strokes."""
     if not data:
         return False
-    return any(m in data for m in GLYPH_EXCLUSION_DATA_MARKERS)
+    d = data.lower()
+    if any(m in d for m in GLYPH_EXCLUSION_DATA_MARKERS):
+        return True
+    return is_non_mincho_stroke_data(data)
 
 
 def is_excluded_glyph(name: str, data: str | None = None) -> bool:
@@ -346,6 +394,25 @@ def is_empty_stroke_data(data: str | None) -> bool:
     return not d or d == EMPTY_STROKE_DATA or d.startswith(EMPTY_STROKE_DATA)
 
 
+def is_unusable_stroke_data(data: str | None) -> bool:
+    """True if data is empty or not valid KAGE stroke syntax."""
+    if is_empty_stroke_data(data):
+        return True
+    assert data is not None
+    for seg in data.split("$"):
+        if not seg:
+            continue
+        parts = seg.split(":")
+        try:
+            typ = int(float(parts[0]))
+        except ValueError:
+            return True
+        # Type-99 must carry a component name (col 7).
+        if typ == 99 and (len(parts) < 8 or not parts[7].strip()):
+            return True
+    return False
+
+
 def alias_target(data: str | None) -> str | None:
     """Return the target name if ``data`` is a single full-frame type-99 alias."""
     if not data:
@@ -373,11 +440,11 @@ def filter_empty_stroke_entries(
     entries: Sequence[tuple[str, str]],
     glyphs: Mapping[str, str],
 ) -> list[tuple[str, str]]:
-    """Drop glyphs whose dump (or resolved) stroke data is empty."""
+    """Drop glyphs whose dump (or resolved) stroke data is empty/unusable."""
     return [
         (n, r)
         for n, r in entries
-        if not is_empty_stroke_data(glyphs.get(n))
+        if not is_unusable_stroke_data(glyphs.get(n))
     ]
 
 
@@ -437,7 +504,7 @@ def filter_duplicate_stroke_entries(
     empty = 0
     for name, related in entries:
         data = strokes.get(name)
-        if is_empty_stroke_data(data):
+        if is_unusable_stroke_data(data):
             empty += 1
             continue
         assert data is not None

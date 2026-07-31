@@ -80,10 +80,13 @@ CHAR_RANGES: List[Tuple[int, int, str]] = [
     (0x323B0, 0x3347F, "CJK Ext J"),
     (0x0FA00, 0x0FAFF, "CJK Compat"),
     (0x2F800, 0x2FA1F, "CJK Compat Supplement"),
+    (0x03130, 0x0318F, "Hangul Jamo"),
+    (0x0AC00, 0x0D7AF, "Hangul Syllables"),
+    (0x0E000, 0x0F8FF, "Private Use Area"),
     (0x17000, 0x187FF, "Tangut"),
     (0x18D00, 0x18D7F, "Tangut Supplement"),
-    # (0x18800, 0x18AFF, "Tangut Components"),
-    # (0x18D80, 0x18DFF, "Tangut Components Supplement"),
+    (0x18800, 0x18AFF, "Tangut Components"),
+    (0x18D80, 0x18DFF, "Tangut Components Supplement"),
 ]
 
 # Mirror modes for bucket fonts: (VS codepoint, flip_x, flip_y, name suffix).

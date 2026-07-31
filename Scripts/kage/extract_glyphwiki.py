@@ -47,6 +47,7 @@ from .mapping import (
     filter_excluded_entries,
     filter_related_entries,
     is_empty_stroke_data,
+    is_unusable_stroke_data,
     ligature_capacity,
     mapping_to_dict,
     mappings_from_cmap,
@@ -254,7 +255,10 @@ def remap_cmap_drop_empty_alias_dups() -> int:
     # Prefer dump raw for alias detection; fall back to resolved string.
     for n in names:
         raw_glyphs.setdefault(n, strokes.get(n, ""))
-        related_map.setdefault(n, n)
+        # Never invent a fake ``uXXXX`` related from the glyph name — that
+        # hijacks ligature sort order (e.g. name ``u0378`` → CP U+0378).
+        if n not in related_map:
+            related_map[n] = n if not n.lower().startswith("u") else f"zz:{n}"
 
     entries = [(n, related_map.get(n, n)) for n in names]
     before = len(entries)
@@ -270,7 +274,7 @@ def remap_cmap_drop_empty_alias_dups() -> int:
     entries = [
         (n, r)
         for n, r in entries
-        if not is_empty_stroke_data(strokes.get(n, raw_glyphs.get(n)))
+        if not is_unusable_stroke_data(strokes.get(n, raw_glyphs.get(n)))
     ]
     empty_n = before - len(entries)
 
@@ -281,7 +285,7 @@ def remap_cmap_drop_empty_alias_dups() -> int:
     stroke_counts = {
         n: count_strokes(strokes[n])
         for n, _ in entries
-        if n in strokes and not is_empty_stroke_data(strokes.get(n))
+        if n in strokes and not is_unusable_stroke_data(strokes.get(n))
     }
     before = len(entries)
     entries = filter_duplicate_stroke_entries(
@@ -840,7 +844,7 @@ def dedupe_pack_entries(
     stroke_counts = {
         n: count_strokes(strokes[n])
         for n, _ in entries
-        if n in strokes and not is_empty_stroke_data(strokes.get(n))
+        if n in strokes and not is_unusable_stroke_data(strokes.get(n))
     }
     before = len(entries)
     entries = filter_duplicate_stroke_entries(
@@ -1268,7 +1272,7 @@ def main(argv: list[str] | None = None) -> int:
     excluded_cp = len(entries_all) - len(entries)
     print(
         f"After related-CP filter: {len(entries):,} kept, {excluded_cp:,} excluded "
-        f"(CHAR_RANGES + radicals)"
+        f"(CHAR_RANGES + radicals + U+3013)"
     )
 
     # --- overlay exclusion (HKCS □ / digits / arrows, etc.) ---

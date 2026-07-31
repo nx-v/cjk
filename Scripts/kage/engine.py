@@ -46,6 +46,66 @@ def render_stroke_data(engine: _RendererKage, data: str) -> svgwrite.Drawing | N
     return result if result is not None else canvas
 
 
+def mirror_stroke_data(
+    data: str,
+    *,
+    flip_x: bool = False,
+    flip_y: bool = False,
+    size: float = 200.0,
+) -> str:
+    """Mirror resolved KAGE stroke coordinates in design space (y-down).
+
+    ``flip_x`` → ``y → size - y`` (mirror across horizontal axis).
+    ``flip_y`` → ``x → size - x`` (mirror across vertical axis).
+
+    Re-render the result with ``render_stroke_data`` so serifs / tips are
+    generated for the mirrored skeleton (do not affine-flip SVG contours).
+    """
+    if not data or not (flip_x or flip_y):
+        return data
+    out_segs: list[str] = []
+    for seg in data.split("$"):
+        if not seg:
+            continue
+        parts = seg.split(":")
+        nums: list[float] = []
+        ok = True
+        for p in parts:
+            try:
+                nums.append(float(p))
+            except ValueError:
+                ok = False
+                break
+        if not ok or len(nums) < 7:
+            out_segs.append(seg)
+            continue
+        # cols: type, a2, a3, x1,y1, x2,y2, [x3,y3, x4,y4, ...]
+        for i in range(3, len(nums), 2):
+            if flip_y:
+                nums[i] = size - nums[i]
+            if i + 1 < len(nums) and flip_x:
+                nums[i + 1] = size - nums[i + 1]
+        out_segs.append(
+            ":".join(
+                str(int(v)) if float(v).is_integer() else str(v) for v in nums
+            )
+        )
+    return "$".join(out_segs)
+
+
+def kage_mirror_transform(flip_x: bool, flip_y: bool) -> Transform:
+    """Mirror affine in KAGE 200×200 space (y-down). Prefer ``mirror_stroke_data``.
+
+    ``flip_x`` → ``y → 200 - y``; ``flip_y`` → ``x → 200 - x``.
+    """
+    t = Transform()
+    if flip_y:
+        t = t.transform(Transform(-1, 0, 0, 1, 200, 0))
+    if flip_x:
+        t = t.transform(Transform(1, 0, 0, -1, 0, 200))
+    return t
+
+
 def _parse_svg_transform(spec: str | None) -> Transform:
     """Parse a subset of SVG transform lists into a fontTools Transform."""
     t = Transform()
@@ -98,19 +158,6 @@ def iter_filled_paths(drawing: svgwrite.Drawing):
         if fill in ("none", "transparent"):
             continue
         yield d, _parse_svg_transform(attribs.get("transform"))
-
-
-def kage_mirror_transform(flip_x: bool, flip_y: bool) -> Transform:
-    """Mirror in KAGE 200×200 space (y-down).
-
-    ``flip_x`` → ``y → 200 - y``; ``flip_y`` → ``x → 200 - x``.
-    """
-    t = Transform()
-    if flip_y:
-        t = t.transform(Transform(-1, 0, 0, 1, 200, 0))
-    if flip_x:
-        t = t.transform(Transform(1, 0, 0, -1, 0, 200))
-    return t
 
 
 def draw_svg_drawing_to_pen(

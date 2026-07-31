@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .engine import REFERENCE_STROKE, Kage, make_engine, render_stroke_data
+from .engine import REFERENCE_STROKE, Kage, make_engine, mirror_stroke_data, render_stroke_data
 from .mapping import (
     DEFAULT_VS_MARKER,
     MirrorVS,
@@ -19,6 +19,7 @@ from .mapping import (
     is_allowed_related,
     is_empty_stroke_data,
     is_excluded_glyph,
+    is_non_mincho_stroke_data,
     ligature_capacity,
     make_vs,
     mirror_sequence,
@@ -45,10 +46,12 @@ __all__ = [
     "is_allowed_related",
     "is_empty_stroke_data",
     "is_excluded_glyph",
+    "is_non_mincho_stroke_data",
     "ligature_capacity",
     "make_engine",
     "make_vs",
     "mirror_sequence",
+    "mirror_stroke_data",
     "mirror_vs",
     "pack_capacity",
     "related_allow_ranges",

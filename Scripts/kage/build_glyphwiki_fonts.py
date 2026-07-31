@@ -8,7 +8,7 @@ Each output TTF corresponds to one Supplementary PUA marker and contains:
 Total = 32 000 glyphs. GSUB:
 
 * ``marker + pua`` → identity outline
-* ``identity + VS02..VS04`` → mirrored outlines
+* ``identity + VS02..VS04`` → mirrored outlines (KAGE stroke flip + re-render)
 
 Rendering uses the in-tree KAGE Serif renderer (filled SVG paths), then
 Cu2Qu for TrueType. Contours are normalized to clockwise winding so
@@ -35,8 +35,8 @@ from .engine import (
     Kage,
     _path_has_spike,
     iter_filled_paths,
-    kage_mirror_transform,
     make_engine,
+    mirror_stroke_data,
     render_stroke_data,
 )
 from .mapping import (
@@ -143,8 +143,6 @@ def svg_drawing_to_ttglyph(
     drawing,
     upem: int = DEFAULT_UPEM,
     *,
-    flip_x: bool = False,
-    flip_y: bool = False,
     flatten: bool = False,
     max_err: float = 0.5,
 ) -> TTGlyph | None:
@@ -154,15 +152,16 @@ def svg_drawing_to_ttglyph(
     overlapping stroke ribbons fill solidly (nonzero winding). Opposite
     windings otherwise punch white holes at joints.
 
+    Mirrors are produced by flipping KAGE stroke data and re-rendering
+    (see ``mirror_stroke_data``), not by transforming these SVG contours.
+
     ``flatten`` (pathops.simplify) stays off by default: boolean union of
     Serif ribbons collapses to a solid black square over the glyph bbox.
     """
     if drawing is None:
         return None
 
-    to_font = kage_to_font_transform(upem)
-    mirror = kage_mirror_transform(flip_x, flip_y)
-    combined = to_font.transform(mirror)
+    combined = kage_to_font_transform(upem)
 
     if flatten:
         try:
@@ -379,11 +378,22 @@ def build_marker_font(
             if m_name in glyphs:
                 continue
             glyph_order.append(m_name)
-            if drawing is not None:
+            m_drawing = None
+            if data:
                 try:
-                    ttg = svg_drawing_to_ttglyph(
-                        drawing, upem, flip_x=flip_x, flip_y=flip_y
+                    m_data = mirror_stroke_data(
+                        data, flip_x=flip_x, flip_y=flip_y
                     )
+                    m_drawing = render_stroke_data(kage, m_data)
+                except Exception as exc:
+                    print(
+                        f"  [!] mirror render failed "
+                        f"{mapping.name if mapping else pua}.{suffix}: {exc}"
+                    )
+                    m_drawing = None
+            if m_drawing is not None:
+                try:
+                    ttg = svg_drawing_to_ttglyph(m_drawing, upem)
                 except Exception as exc:
                     print(
                         f"  [!] outline failed "
