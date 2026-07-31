@@ -46,6 +46,28 @@ def render_stroke_data(engine: _RendererKage, data: str) -> svgwrite.Drawing | N
     return result if result is not None else canvas
 
 
+def _fmt_stroke_num(v: float) -> str:
+    return str(int(v)) if float(v).is_integer() else str(v)
+
+
+def _reverse_stroke_nums(nums: list[float]) -> None:
+    """Reverse stroke direction in-place: swap tip forms and control-point order.
+
+    After a single-axis coordinate flip, path orientation is mirrored; reversing
+    keeps tip/connector math (left/right relative to travel) consistent.
+    """
+    if len(nums) < 7:
+        return
+    nums[1], nums[2] = nums[2], nums[1]
+    coords = nums[3:]
+    if len(coords) % 2 == 1:
+        coords.append(0.0)
+    pairs = [(coords[i], coords[i + 1]) for i in range(0, len(coords), 2)]
+    pairs.reverse()
+    flat = [c for p in pairs for c in p]
+    nums[3:] = flat[: len(nums) - 3]
+
+
 def mirror_stroke_data(
     data: str,
     *,
@@ -53,16 +75,22 @@ def mirror_stroke_data(
     flip_y: bool = False,
     size: float = 200.0,
 ) -> str:
-    """Mirror resolved KAGE stroke coordinates in design space (y-down).
+    """Mirror resolved KAGE stroke skeletons in design space (y-down).
 
     ``flip_x`` → ``y → size - y`` (mirror across horizontal axis).
     ``flip_y`` → ``x → size - x`` (mirror across vertical axis).
 
-    Re-render the result with ``render_stroke_data`` so serifs / tips are
-    generated for the mirrored skeleton (do not affine-flip SVG contours).
+    Coordinates are flipped, then — for a single-axis mirror — each drawable
+    stroke is reversed (swap ``a2``/``a3``, reverse control points) so serifs
+    and connectors stay attached. Double-axis mirrors preserve orientation, so
+    strokes are not reversed.
+
+    Re-render with ``render_stroke_data`` (do not affine-flip SVG contours).
     """
     if not data or not (flip_x or flip_y):
         return data
+    # Odd number of axis flips reverses path orientation → need stroke reverse.
+    reverse = flip_x != flip_y
     out_segs: list[str] = []
     for seg in data.split("$"):
         if not seg:
@@ -85,11 +113,10 @@ def mirror_stroke_data(
                 nums[i] = size - nums[i]
             if i + 1 < len(nums) and flip_x:
                 nums[i + 1] = size - nums[i + 1]
-        out_segs.append(
-            ":".join(
-                str(int(v)) if float(v).is_integer() else str(v) for v in nums
-            )
-        )
+        stroke_type = int(nums[0]) % 100
+        if reverse and stroke_type not in (0, 99):
+            _reverse_stroke_nums(nums)
+        out_segs.append(":".join(_fmt_stroke_num(v) for v in nums))
     return "$".join(out_segs)
 
 

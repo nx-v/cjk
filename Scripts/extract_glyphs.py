@@ -23,6 +23,7 @@ OUT_DIR = r"c://users/admin/fonts/scripts/dist"
 
 # ---------- Font Helpers ----------
 
+
 def list_input_fonts(in_dir: str) -> List[str]:
     """List all font files in the input directory."""
     return sorted(
@@ -34,6 +35,7 @@ def list_input_fonts(in_dir: str) -> List[str]:
         key=lambda p: os.path.basename(p).lower(),
     )
 
+
 def font_cmap(tt: TTFont) -> Dict[int, str]:
     """Build a Unicode codepoint -> glyph name map."""
     cmap = {}
@@ -42,14 +44,18 @@ def font_cmap(tt: TTFont) -> Dict[int, str]:
             cmap.update(table.cmap)
     return cmap
 
+
 # ---------- SVG Export ----------
+
 
 # find shortest curve data using relative instead of absolute, and use all drawing types wherever possible (h, v, l, q, t, c, s, a)
 def simplify_path(path_data: str) -> str:
     import re
 
     # Regex to split path into commands and their parameters
-    commands = re.findall(r'([MmZzLlHhVvCcSsQqTtAa])([^MmZzLlHhVvCcSsQqTtAa]*)', path_data)
+    commands = re.findall(
+        r"([MmZzLlHhVvCcSsQqTtAa])([^MmZzLlHhVvCcSsQqTtAa]*)", path_data
+    )
     result = []
     current_x, current_y = 0, 0
     start_x, start_y = 0, 0
@@ -57,105 +63,113 @@ def simplify_path(path_data: str) -> str:
 
     for cmd, params in commands:
         params = params.strip()
-        coords = re.findall(r'[+-]?\d*\.?\d+', params)
+        coords = re.findall(r"[+-]?\d*\.?\d+", params)
 
-        if cmd in 'Mm':
+        if cmd in "Mm":
             # Move to - keep first as absolute, others as relative
             if not result:  # First command
                 current_x = float(coords[0])
                 current_y = float(coords[1])
                 start_x, start_y = current_x, current_y
-                result.append(f'M {current_x} {current_y}')
+                result.append(f"M {current_x} {current_y}")
             else:
                 dx = float(coords[0]) - current_x
                 dy = float(coords[1]) - current_y
                 current_x += dx
                 current_y += dy
                 start_x, start_y = current_x, current_y
-                result.append(f'm {dx} {dy}')
+                result.append(f"m {dx} {dy}")
             # Implicit lines
             for i in range(2, len(coords), 2):
-                x = float(coords[i]) if cmd == 'M' else current_x + float(coords[i])
-                y = float(coords[i+1]) if cmd == 'M' else current_y + float(coords[i+1])
+                x = float(coords[i]) if cmd == "M" else current_x + float(coords[i])
+                y = (
+                    float(coords[i + 1])
+                    if cmd == "M"
+                    else current_y + float(coords[i + 1])
+                )
                 dx = x - current_x
                 dy = y - current_y
                 if dx == 0:
-                    result.append(f'v {dy}')
+                    result.append(f"v {dy}")
                 elif dy == 0:
-                    result.append(f'h {dx}')
+                    result.append(f"h {dx}")
                 else:
-                    result.append(f'l {dx} {dy}')
+                    result.append(f"l {dx} {dy}")
                 current_x, current_y = x, y
-        elif cmd in 'Ll':
+        elif cmd in "Ll":
             for i in range(0, len(coords), 2):
-                x = float(coords[i]) if cmd == 'L' else current_x + float(coords[i])
-                y = float(coords[i+1]) if cmd == 'L' else current_y + float(coords[i+1])
+                x = float(coords[i]) if cmd == "L" else current_x + float(coords[i])
+                y = (
+                    float(coords[i + 1])
+                    if cmd == "L"
+                    else current_y + float(coords[i + 1])
+                )
                 dx = x - current_x
                 dy = y - current_y
                 if dx == 0:
-                    result.append(f'v {dy}')
+                    result.append(f"v {dy}")
                 elif dy == 0:
-                    result.append(f'h {dx}')
+                    result.append(f"h {dx}")
                 else:
-                    result.append(f'l {dx} {dy}')
+                    result.append(f"l {dx} {dy}")
                 current_x, current_y = x, y
-        elif cmd in 'Hh':
+        elif cmd in "Hh":
             for val in coords:
-                if cmd == 'H':
+                if cmd == "H":
                     x = float(val)
                     dx = x - current_x
                 else:
                     dx = float(val)
                     x = current_x + dx
-                result.append(f'h {dx}')
+                result.append(f"h {dx}")
                 current_x = x
-        elif cmd in 'Vv':
+        elif cmd in "Vv":
             for val in coords:
-                if cmd == 'V':
+                if cmd == "V":
                     y = float(val)
                     dy = y - current_y
                 else:
                     dy = float(val)
                     y = current_y + dy
-                result.append(f'v {dy}')
+                result.append(f"v {dy}")
                 current_y = y
-        elif cmd in 'Cc':
+        elif cmd in "Cc":
             for i in range(0, len(coords), 6):
-                if cmd == 'C':
+                if cmd == "C":
                     c1x = float(coords[i])
-                    c1y = float(coords[i+1])
-                    c2x = float(coords[i+2])
-                    c2y = float(coords[i+3])
-                    x = float(coords[i+4])
-                    y = float(coords[i+5])
+                    c1y = float(coords[i + 1])
+                    c2x = float(coords[i + 2])
+                    c2y = float(coords[i + 3])
+                    x = float(coords[i + 4])
+                    y = float(coords[i + 5])
                 else:
                     c1x = current_x + float(coords[i])
-                    c1y = current_y + float(coords[i+1])
-                    c2x = current_x + float(coords[i+2])
-                    c2y = current_y + float(coords[i+3])
-                    x = current_x + float(coords[i+4])
-                    y = current_y + float(coords[i+5])
+                    c1y = current_y + float(coords[i + 1])
+                    c2x = current_x + float(coords[i + 2])
+                    c2y = current_y + float(coords[i + 3])
+                    x = current_x + float(coords[i + 4])
+                    y = current_y + float(coords[i + 5])
                 dc1x = c1x - current_x
                 dc1y = c1y - current_y
                 dc2x = c2x - current_x
                 dc2y = c2y - current_y
                 dx = x - current_x
                 dy = y - current_y
-                result.append(f'c {dc1x} {dc1y} {dc2x} {dc2y} {dx} {dy}')
+                result.append(f"c {dc1x} {dc1y} {dc2x} {dc2y} {dx} {dy}")
                 last_cx, last_cy = c2x, c2y  # For smooth
                 current_x, current_y = x, y
-        elif cmd in 'Ss':
+        elif cmd in "Ss":
             for i in range(0, len(coords), 4):
-                if cmd == 'S':
+                if cmd == "S":
                     c2x = float(coords[i])
-                    c2y = float(coords[i+1])
-                    x = float(coords[i+2])
-                    y = float(coords[i+3])
+                    c2y = float(coords[i + 1])
+                    x = float(coords[i + 2])
+                    y = float(coords[i + 3])
                 else:
                     c2x = current_x + float(coords[i])
-                    c2y = current_y + float(coords[i+1])
-                    x = current_x + float(coords[i+2])
-                    y = current_y + float(coords[i+3])
+                    c2y = current_y + float(coords[i + 1])
+                    x = current_x + float(coords[i + 2])
+                    y = current_y + float(coords[i + 3])
                 if last_cx is not None:
                     c1x = 2 * current_x - last_cx
                     c1y = 2 * current_y - last_cy
@@ -168,36 +182,36 @@ def simplify_path(path_data: str) -> str:
                 dc2y = c2y - current_y
                 dx = x - current_x
                 dy = y - current_y
-                result.append(f's {dc2x} {dc2y} {dx} {dy}')
+                result.append(f"s {dc2x} {dc2y} {dx} {dy}")
                 last_cx, last_cy = c2x, c2y
                 current_x, current_y = x, y
-        elif cmd in 'Qq':
+        elif cmd in "Qq":
             for i in range(0, len(coords), 4):
-                if cmd == 'Q':
+                if cmd == "Q":
                     cx = float(coords[i])
-                    cy = float(coords[i+1])
-                    x = float(coords[i+2])
-                    y = float(coords[i+3])
+                    cy = float(coords[i + 1])
+                    x = float(coords[i + 2])
+                    y = float(coords[i + 3])
                 else:
                     cx = current_x + float(coords[i])
-                    cy = current_y + float(coords[i+1])
-                    x = current_x + float(coords[i+2])
-                    y = current_y + float(coords[i+3])
+                    cy = current_y + float(coords[i + 1])
+                    x = current_x + float(coords[i + 2])
+                    y = current_y + float(coords[i + 3])
                 dcx = cx - current_x
                 dcy = cy - current_y
                 dx = x - current_x
                 dy = y - current_y
-                result.append(f'q {dcx} {dcy} {dx} {dy}')
+                result.append(f"q {dcx} {dcy} {dx} {dy}")
                 last_cx, last_cy = cx, cy
                 current_x, current_y = x, y
-        elif cmd in 'Tt':
+        elif cmd in "Tt":
             for i in range(0, len(coords), 2):
-                if cmd == 'T':
+                if cmd == "T":
                     x = float(coords[i])
-                    y = float(coords[i+1])
+                    y = float(coords[i + 1])
                 else:
                     x = current_x + float(coords[i])
-                    y = current_y + float(coords[i+1])
+                    y = current_y + float(coords[i + 1])
                 if last_cx is not None:
                     cx = 2 * current_x - last_cx
                     cy = 2 * current_y - last_cy
@@ -208,37 +222,40 @@ def simplify_path(path_data: str) -> str:
                 dcy = cy - current_y
                 dx = x - current_x
                 dy = y - current_y
-                result.append(f't {dx} {dy}')
+                result.append(f"t {dx} {dy}")
                 last_cx, last_cy = cx, cy
                 current_x, current_y = x, y
-        elif cmd in 'Aa':
+        elif cmd in "Aa":
             for i in range(0, len(coords), 7):
-                if cmd == 'A':
+                if cmd == "A":
                     rx = float(coords[i])
-                    ry = float(coords[i+1])
-                    x_axis_rotation = float(coords[i+2])
-                    large_arc_flag = coords[i+3]
-                    sweep_flag = coords[i+4]
-                    x = float(coords[i+5])
-                    y = float(coords[i+6])
+                    ry = float(coords[i + 1])
+                    x_axis_rotation = float(coords[i + 2])
+                    large_arc_flag = coords[i + 3]
+                    sweep_flag = coords[i + 4]
+                    x = float(coords[i + 5])
+                    y = float(coords[i + 6])
                 else:
                     rx = float(coords[i])
-                    ry = float(coords[i+1])
-                    x_axis_rotation = float(coords[i+2])
-                    large_arc_flag = coords[i+3]
-                    sweep_flag = coords[i+4]
-                    x = current_x + float(coords[i+5])
-                    y = current_y + float(coords[i+6])
+                    ry = float(coords[i + 1])
+                    x_axis_rotation = float(coords[i + 2])
+                    large_arc_flag = coords[i + 3]
+                    sweep_flag = coords[i + 4]
+                    x = current_x + float(coords[i + 5])
+                    y = current_y + float(coords[i + 6])
                 dx = x - current_x
                 dy = y - current_y
-                result.append(f'a {rx} {ry} {x_axis_rotation} {large_arc_flag} {sweep_flag} {dx} {dy}')
+                result.append(
+                    f"a {rx} {ry} {x_axis_rotation} {large_arc_flag} {sweep_flag} {dx} {dy}"
+                )
                 current_x, current_y = x, y
-        elif cmd in 'Zz':
-            result.append('z')
+        elif cmd in "Zz":
+            result.append("z")
             current_x, current_y = start_x, start_y
         else:
             result.append(cmd + params)
-    return ''.join(result)
+    return "".join(result)
+
 
 def extract_glyphs_as_svgs(
     font_path: str,
@@ -309,26 +326,30 @@ def extract_glyphs_as_svgs(
         except Exception:
             pass
 
+
 def process_font(font_path: str, manifest: Dict[int, str]) -> None:
     font_name = os.path.splitext(os.path.basename(font_path))[0]
     output_dir = os.path.join(OUT_DIR, f"{font_name}_svgs")
-    extract_glyphs_as_svgs(
-        font_path, output_dir, overwrite=False, manifest=manifest
-    )
+    extract_glyphs_as_svgs(font_path, output_dir, overwrite=False, manifest=manifest)
     # Zip the SVGs and remove the directory
     print(f"Zipping SVGs for {font_name}...")
-    shutil.make_archive(output_dir, 'zip', output_dir)
+    shutil.make_archive(output_dir, "zip", output_dir)
     print(f"Removing temporary directory {output_dir}...")
     shutil.rmtree(output_dir)
 
+
 # ---------- Main ----------
+
 
 def main():
     input_fonts = list_input_fonts(IN_DIR)
     manifest = {}
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = [executor.submit(process_font, font_path, manifest) for font_path in input_fonts]
+        futures = [
+            executor.submit(process_font, font_path, manifest)
+            for font_path in input_fonts
+        ]
         for future in concurrent.futures.as_completed(futures):
             future.result()
 
@@ -337,6 +358,7 @@ def main():
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
     print(f"\nManifest written to {manifest_path}")
+
 
 if __name__ == "__main__":
     main()

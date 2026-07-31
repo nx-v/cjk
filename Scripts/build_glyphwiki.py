@@ -116,7 +116,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  fonts:  {FONT_DIR}")
     if args.parallel or args.jobs:
         jobs = args.jobs if args.jobs > 0 else max(1, os.cpu_count() or 4)
-        print(f"  jobs:   {jobs}" + (" (parallel)" if args.parallel or args.jobs else ""))
+        print(
+            f"  jobs:   {jobs}" + (" (parallel)" if args.parallel or args.jobs else "")
+        )
     print()
 
     if args.from_resolved:

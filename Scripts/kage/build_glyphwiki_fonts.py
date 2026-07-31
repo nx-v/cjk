@@ -57,6 +57,7 @@ GLYPHS_PER_FILE_NO_MIRROR = PUA_SELECTORS + PUA_SELECTORS  # 12800
 def glyphs_per_file(*, include_mirrors: bool = True) -> int:
     return GLYPHS_PER_FILE if include_mirrors else GLYPHS_PER_FILE_NO_MIRROR
 
+
 DEFAULT_UPEM = 1000
 
 # Mirror forms: (mode, flip_x, flip_y, name suffix or None for identity)
@@ -171,9 +172,7 @@ def svg_drawing_to_ttglyph(
             flatten = False
         else:
             sk = pathops.Path()
-            if not _draw_svg_normalized(
-                drawing, sk.getPen(), combined, clockwise=True
-            ):
+            if not _draw_svg_normalized(drawing, sk.getPen(), combined, clockwise=True):
                 return None
             try:
                 sk = pathops.simplify(sk, fix_winding=True, clockwise=False)
@@ -381,9 +380,7 @@ def build_marker_font(
             m_drawing = None
             if data:
                 try:
-                    m_data = mirror_stroke_data(
-                        data, flip_x=flip_x, flip_y=flip_y
-                    )
+                    m_data = mirror_stroke_data(data, flip_x=flip_x, flip_y=flip_y)
                     m_drawing = render_stroke_data(kage, m_data)
                 except Exception as exc:
                     print(

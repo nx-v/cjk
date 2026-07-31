@@ -15,7 +15,6 @@ import math
 from collections.abc import Callable, Sequence
 from typing import Any
 
-
 Point = list[float]
 BezierCurve = list[Point]
 ProgressCallback = Callable[[dict[str, Any]], None] | None
@@ -373,8 +372,7 @@ def reparameterize(
 ) -> list[float]:
     """Given set of points and their parameterization, find a better one."""
     return [
-        newton_raphson_root_find(bezier, points[i], p)
-        for i, p in enumerate(parameters)
+        newton_raphson_root_find(bezier, points[i], p) for i, p in enumerate(parameters)
     ]
 
 
@@ -586,15 +584,9 @@ class BezierEval:
     def qprime(ctrl_poly: Sequence[Sequence[float]], t: float) -> Point:
         """Evaluate cubic bezier first derivative at t; return point."""
         tx = 1.0 - t
-        p_a = Maths.mul_items(
-            Maths.subtract(ctrl_poly[1], ctrl_poly[0]), 3 * tx * tx
-        )
-        p_b = Maths.mul_items(
-            Maths.subtract(ctrl_poly[2], ctrl_poly[1]), 6 * tx * t
-        )
-        p_c = Maths.mul_items(
-            Maths.subtract(ctrl_poly[3], ctrl_poly[2]), 3 * t * t
-        )
+        p_a = Maths.mul_items(Maths.subtract(ctrl_poly[1], ctrl_poly[0]), 3 * tx * tx)
+        p_b = Maths.mul_items(Maths.subtract(ctrl_poly[2], ctrl_poly[1]), 6 * tx * t)
+        p_c = Maths.mul_items(Maths.subtract(ctrl_poly[3], ctrl_poly[2]), 3 * t * t)
         return Maths.add_arrays(Maths.add_arrays(p_a, p_b), p_c)
 
     @staticmethod

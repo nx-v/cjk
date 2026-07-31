@@ -1,15 +1,16 @@
-from . components import Components
-from . stroke import Stroke
-from . vec2 import Vec2
-from . font.serif import Serif
+from .components import Components
+from .stroke import Stroke
+from .vec2 import Vec2
+from .font.serif import Serif
 from argparse import Namespace
 import svgwrite
 import numpy as np
 
+
 class Kage:
-    def __init__(self, ignore_component_version = False) -> None:
+    def __init__(self, ignore_component_version=False) -> None:
         self.components = Components(ignore_component_version)
-        self.font = Serif() # TODO: フォントを選択できるようにする
+        self.font = Serif()  # TODO: フォントを選択できるようにする
 
     @property
     def type(self):
@@ -21,14 +22,18 @@ class Kage:
 
     def make_glyph(self, name: str) -> svgwrite.Drawing:
         data = self.components.search(name)
-        canvas = svgwrite.Drawing(size=('200', '200'))
+        canvas = svgwrite.Drawing(size=("200", "200"))
         return self.make_glyph_with_data(canvas, data)
 
-    def make_glyph_with_name(self, canvas: svgwrite.Drawing, name: str) -> svgwrite.Drawing:
+    def make_glyph_with_name(
+        self, canvas: svgwrite.Drawing, name: str
+    ) -> svgwrite.Drawing:
         data = self.components.search(name)
         return self.make_glyph_with_data(canvas, data)
 
-    def make_glyph_with_data(self, canvas: svgwrite.Drawing, data: str) -> svgwrite.Drawing:
+    def make_glyph_with_data(
+        self, canvas: svgwrite.Drawing, data: str
+    ) -> svgwrite.Drawing:
         if data:
             strokes_list = self.get_each_strokes(data)
             return self.font.drawer(canvas, strokes_list)
@@ -36,33 +41,36 @@ class Kage:
 
     def get_each_strokes(self, data: str) -> list[Stroke]:
         strokes_list = []
-        strokes = data.split('$')
+        strokes = data.split("$")
         for stroke in strokes:
-            columns = stroke.split(':')
+            columns = stroke.split(":")
             # Pad with 0 (not NaN) so get_box never eats missing x3/y3/x4/y4.
             while len(columns) < 11:
-                columns.append('0')
-            if columns[0] != '99':
+                columns.append("0")
+            if columns[0] != "99":
                 strokes_list.append(Stroke(columns))
             else:
                 component_data = self.components.search(columns[7])
-                if component_data != '':
+                if component_data != "":
                     strokes_list.extend(
-                        self.get_each_strokes_of_component(component_data, 
-                            float(columns[3]), 
-                            float(columns[4]), 
-                            float(columns[5]), 
-                            float(columns[6]), 
-                            float(columns[1]), 
-                            float(columns[2]), 
-                            float(columns[9]), 
-                            float(columns[10])
+                        self.get_each_strokes_of_component(
+                            component_data,
+                            float(columns[3]),
+                            float(columns[4]),
+                            float(columns[5]),
+                            float(columns[6]),
+                            float(columns[1]),
+                            float(columns[2]),
+                            float(columns[9]),
+                            float(columns[10]),
                         )
                     )
 
         return strokes_list
 
-    def get_each_strokes_of_component(self, component_data, x1, y1, x2, y2, sx, sy, sx2, sy2) -> list[Stroke]:
+    def get_each_strokes_of_component(
+        self, component_data, x1, y1, x2, y2, sx, sy, sx2, sy2
+    ) -> list[Stroke]:
         strokes = self.get_each_strokes(component_data)
         box = self.get_box(strokes)
         if sx != 0 or sy != 0:
@@ -72,7 +80,7 @@ class Kage:
                 sx2 = 0
                 sy2 = 0
         for stroke in strokes:
-            if (sx != 0 or sy != 0):
+            if sx != 0 or sy != 0:
                 stroke.stretch(sx, sx2, sy, sy2, box.minX, box.maxX, box.minY, box.maxY)
 
             vec_1 = Vec2(x1, y1)
@@ -97,4 +105,4 @@ class Kage:
             minY = np.min([minY, s_box.minY])
             maxY = np.max([maxY, s_box.maxY])
 
-        return Namespace(**{'minX': minX, 'maxX': maxX, 'minY': minY, 'maxY': maxY})
+        return Namespace(**{"minX": minX, "maxX": maxX, "minY": minY, "maxY": maxY})

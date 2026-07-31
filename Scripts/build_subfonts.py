@@ -411,9 +411,7 @@ def build_bucket_font(
         # rlig: required ligatures so mirrors apply without liga being on
         fea = (
             "languagesystem DFLT dflt;\n"
-            "feature rlig {\n"
-            + "\n".join(liga_rules)
-            + "\n} rlig;\n"
+            "feature rlig {\n" + "\n".join(liga_rules) + "\n} rlig;\n"
         )
         addOpenTypeFeaturesFromString(fb.font, fea)
 

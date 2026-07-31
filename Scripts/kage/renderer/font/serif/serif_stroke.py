@@ -1,5 +1,6 @@
 from ...stroke import Stroke
 
+
 class SerifStroke:
     def __init__(self, stroke: Stroke) -> None:
         self.stroke = stroke
@@ -11,4 +12,22 @@ class SerifStroke:
         self.mage_adjustment = self.stroke.a3_opt_2
 
     def __repr__(self) -> str:
-        return '[' + repr(self.stroke) + ',' + ','.join([str(int(i)) for i in [self.kirikuchi_adjustment, self.tate_adjustment, self.hane_adjustment, self.uroko_adjustment, self.kakato_adjustment, self.mage_adjustment]]) + ']\n'
+        return (
+            "["
+            + repr(self.stroke)
+            + ","
+            + ",".join(
+                [
+                    str(int(i))
+                    for i in [
+                        self.kirikuchi_adjustment,
+                        self.tate_adjustment,
+                        self.hane_adjustment,
+                        self.uroko_adjustment,
+                        self.kakato_adjustment,
+                        self.mage_adjustment,
+                    ]
+                ]
+            )
+            + "]\n"
+        )
