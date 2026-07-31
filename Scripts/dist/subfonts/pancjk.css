@@ -1,15 +1,6 @@
 /* Auto-generated Pan-CJK pigeonhole @font-face rules */
 
 @font-face {
-  font-family: 'pancjk 31';
-  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/31.woff2') format('woff2');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3131-3163, U+3165-318E, U+E000-E003;
-}
-
-@font-face {
   font-family: 'pancjk 34';
   src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/34.woff2') format('woff2');
   font-weight: normal;

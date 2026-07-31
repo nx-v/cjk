@@ -232,10 +232,11 @@ def load_dump_subset(
     return glyphs, related
 
 
-def remap_cmap_drop_empty_alias_dups() -> int:
+def remap_cmap_drop_empty_alias_dups(*, no_filters: bool = False) -> int:
     """Re-filter the existing cmap using resolved strokes (+ dump for aliases).
 
     Faster than a full ``--cmap-only`` dump load: only touches cmap names.
+    With ``no_filters``, only drop redundant aliases (skip exclusion/empty/dedupe).
     """
     if not CMAP_PATH.is_file() or not RESOLVED_PATH.is_file():
         print(
@@ -261,50 +262,66 @@ def remap_cmap_drop_empty_alias_dups() -> int:
             related_map[n] = n if not n.lower().startswith("u") else f"zz:{n}"
 
     entries = [(n, related_map.get(n, n)) for n in names]
-    before = len(entries)
-    entries = filter_excluded_entries(entries, raw_glyphs)
-    print(
-        f"After name/overlay exclusion: {len(entries):,} kept, "
-        f"{before - len(entries):,} excluded"
-    )
+    if no_filters:
+        before = len(entries)
+        entries = filter_alias_entries(entries, raw_glyphs)
+        alias_n = before - len(entries)
+        print(
+            f"After alias filter (--no-filters): {len(entries):,} kept "
+            f"(alias {alias_n:,}; exclusion/empty/dedupe skipped)"
+        )
+        empty_n = dup_n = 0
+    else:
+        before = len(entries)
+        entries = filter_excluded_entries(entries, raw_glyphs)
+        print(
+            f"After name/overlay exclusion: {len(entries):,} kept, "
+            f"{before - len(entries):,} excluded"
+        )
 
-    before = len(entries)
-    entries = filter_empty_stroke_entries(entries, strokes)
-    # Also drop dump-empty when resolved missing
-    entries = [
-        (n, r)
-        for n, r in entries
-        if not is_unusable_stroke_data(strokes.get(n, raw_glyphs.get(n)))
-    ]
-    empty_n = before - len(entries)
+        before = len(entries)
+        entries = filter_empty_stroke_entries(entries, strokes)
+        # Also drop dump-empty when resolved missing
+        entries = [
+            (n, r)
+            for n, r in entries
+            if not is_unusable_stroke_data(strokes.get(n, raw_glyphs.get(n)))
+        ]
+        empty_n = before - len(entries)
 
-    before = len(entries)
-    entries = filter_alias_entries(entries, raw_glyphs)
-    alias_n = before - len(entries)
+        before = len(entries)
+        entries = filter_alias_entries(entries, raw_glyphs)
+        alias_n = before - len(entries)
 
-    stroke_counts = {
-        n: count_strokes(strokes[n])
-        for n, _ in entries
-        if n in strokes and not is_unusable_stroke_data(strokes.get(n))
-    }
-    before = len(entries)
-    entries = filter_duplicate_stroke_entries(
-        entries,
-        strokes,
-        raw_glyphs=raw_glyphs,
-        stroke_counts=stroke_counts,
-    )
-    dup_n = before - len(entries)
-    print(
-        f"After empty/alias/duplicate filter: {len(entries):,} kept "
-        f"(empty {empty_n:,}, alias {alias_n:,}, dup/empty-resolved {dup_n:,})"
-    )
+        stroke_counts = {
+            n: count_strokes(strokes[n])
+            for n, _ in entries
+            if n in strokes and not is_unusable_stroke_data(strokes.get(n))
+        }
+        before = len(entries)
+        entries = filter_duplicate_stroke_entries(
+            entries,
+            strokes,
+            raw_glyphs=raw_glyphs,
+            stroke_counts=stroke_counts,
+        )
+        dup_n = before - len(entries)
+        print(
+            f"After empty/alias/duplicate filter: {len(entries):,} kept "
+            f"(empty {empty_n:,}, alias {alias_n:,}, dup/empty-resolved {dup_n:,})"
+        )
+
     print(f"  SPUA markers needed: {markers_needed(len(entries)):,}")
 
     if not entries:
         print("Fatal: no glyphs left after dedupe", file=sys.stderr)
         return 1
 
+    stroke_counts = {
+        n: count_strokes(strokes[n])
+        for n, _ in entries
+        if n in strokes and not is_unusable_stroke_data(strokes.get(n))
+    }
     print(f"\nAssigning PUA ligatures to {len(entries)} glyphs...")
     try:
         mappings = assign_ligatures(entries, stroke_counts)
@@ -826,14 +843,30 @@ def dedupe_pack_entries(
     all_glyphs: dict[str, str],
     *,
     resolved_path: Path | None = None,
+    aliases_only: bool = False,
 ) -> list[tuple[str, str]]:
-    """Drop empties, redundant aliases, and duplicate resolved outlines."""
-    before = len(entries)
-    entries = filter_empty_stroke_entries(entries, all_glyphs)
-    empty_dump = before - len(entries)
+    """Drop empties, redundant aliases, and duplicate resolved outlines.
+
+    With ``aliases_only``, skip empty/duplicate filters and only drop
+    full-frame aliases whose target is also packed.
+    """
+    if not aliases_only:
+        before = len(entries)
+        entries = filter_empty_stroke_entries(entries, all_glyphs)
+        empty_dump = before - len(entries)
+    else:
+        empty_dump = 0
+
     before = len(entries)
     entries = filter_alias_entries(entries, all_glyphs)
     aliases = before - len(entries)
+
+    if aliases_only:
+        print(
+            f"After alias filter (--no-filters): {len(entries):,} kept "
+            f"(alias {aliases:,}; empty/dedupe skipped)"
+        )
+        return entries
 
     print(
         f"Loading resolved strokes for dedupe ({len(entries):,} candidates)..."
@@ -1145,6 +1178,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Omit mx/my/mxy outlines and rlig (identity forms only)",
     )
     parser.add_argument(
+        "--no-filters",
+        action="store_true",
+        help=(
+            "Skip related-CP, overlay/name, empty, and duplicate filters; "
+            "still drop full-frame aliases whose target is also packed"
+        ),
+    )
+    parser.add_argument(
         "--parallel",
         action="store_true",
         help=(
@@ -1187,6 +1228,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"Parallel: {'yes' if args.parallel else 'no'} (jobs={jobs})")
     print("Bucket mirrors: unicode + VS01..VS04 (U+E000..U+E003), no SPUA marker")
+    if args.no_filters:
+        print("Filters: aliases only (--no-filters)")
 
     # --- fast path: fonts from already-resolved JSON ---
     if args.from_resolved:
@@ -1199,7 +1242,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         if args.cmap_only:
             # Re-apply empty/alias/duplicate filters without a full dump load.
-            return remap_cmap_drop_empty_alias_dups()
+            return remap_cmap_drop_empty_alias_dups(no_filters=args.no_filters)
         cmap_obj = load_json_object(CMAP_PATH)
         mappings = mappings_from_cmap(cmap_obj)
         if args.limit > 0:
@@ -1265,27 +1308,36 @@ def main(argv: list[str] | None = None) -> int:
     base_names = {n for n in all_glyphs if "@" not in n}
     print(f"Base names in dump: {len(base_names):,}")
 
-    # --- related-codepoint filter (CJK/Tangut ranges + radicals) ---
-    allow = related_allow_set()
     entries_all = [(name, related_map.get(name, name)) for name in base_names]
-    entries = filter_related_entries(entries_all, allow)
-    excluded_cp = len(entries_all) - len(entries)
-    print(
-        f"After related-CP filter: {len(entries):,} kept, {excluded_cp:,} excluded "
-        f"(CHAR_RANGES + radicals + U+3013)"
-    )
+    if args.no_filters:
+        entries = list(entries_all)
+        print(
+            f"Skipping related-CP / overlay filters (--no-filters): "
+            f"{len(entries):,} base names kept"
+        )
+    else:
+        # --- related-codepoint filter (CJK/Tangut ranges + radicals) ---
+        allow = related_allow_set()
+        entries = filter_related_entries(entries_all, allow)
+        excluded_cp = len(entries_all) - len(entries)
+        print(
+            f"After related-CP filter: {len(entries):,} kept, {excluded_cp:,} excluded "
+            f"(CHAR_RANGES + radicals + U+3013)"
+        )
 
-    # --- overlay exclusion (HKCS □ / digits / arrows, etc.) ---
-    before_overlay = len(entries)
-    entries = filter_excluded_entries(entries, all_glyphs)
-    excluded_overlay = before_overlay - len(entries)
-    print(
-        f"After overlay exclusion: {len(entries):,} kept, "
-        f"{excluded_overlay:,} excluded (non-mincho / annotation name regexes)"
-    )
+        # --- overlay exclusion (HKCS □ / digits / arrows, etc.) ---
+        before_overlay = len(entries)
+        entries = filter_excluded_entries(entries, all_glyphs)
+        excluded_overlay = before_overlay - len(entries)
+        print(
+            f"After overlay exclusion: {len(entries):,} kept, "
+            f"{excluded_overlay:,} excluded (non-mincho / annotation name regexes)"
+        )
 
-    # --- empty placeholders, aliases, duplicate resolved outlines ---
-    entries = dedupe_pack_entries(entries, all_glyphs)
+    # --- aliases (always); empty + duplicate outlines unless --no-filters ---
+    entries = dedupe_pack_entries(
+        entries, all_glyphs, aliases_only=args.no_filters
+    )
     print(f"  SPUA markers needed: {markers_needed(len(entries)):,}")
 
     if args.limit > 0:
@@ -1307,7 +1359,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if not entries:
-        print("Fatal: no glyphs left after related-CP filter", file=sys.stderr)
+        print("Fatal: no glyphs left after filtering", file=sys.stderr)
         return 1
 
     # --- ligature assignment (related CP, stroke count, name) ---

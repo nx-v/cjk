@@ -11,6 +11,10 @@ Each font is named after its SPUA marker (the first ligature code point),
 e.g. F0000.ttf. Glyphs are rendered with the in-tree KAGE Serif renderer,
 then flattened for TrueType.
 
+After a font build, also writes ``glyphwiki.css`` (@font-face) and inserts
+``glyphwiki …`` families into ``dist/subfonts/fontlist.css`` immediately
+after the pancjk pigeonhole stack.
+
 Examples:
   python Scripts/build_glyphwiki.py
   python Scripts/build_glyphwiki.py --limit 64 --font-markers 1
@@ -18,12 +22,15 @@ Examples:
   python Scripts/build_glyphwiki.py --parallel -j 8 --no-mirrors
   python Scripts/build_glyphwiki.py --cmap-only
   python Scripts/build_glyphwiki.py --from-resolved --cmap-only
+  python Scripts/build_glyphwiki.py --cmap-only --no-filters
+  python Scripts/build_glyphwiki.py --css-only
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -40,6 +47,110 @@ from Scripts.kage.extract_glyphwiki import (  # noqa: E402
     RESOLVED_PATH,
     main as extract_main,
 )
+from Scripts.kage.mapping import BMP_PUA_END, BMP_PUA_START  # noqa: E402
+
+SUBFONTS_DIR = SCRIPT_DIR / "dist" / "subfonts"
+FONTLIST_CSS = SUBFONTS_DIR / "fontlist.css"
+GLYPHWIKI_CSS = FONT_DIR / "glyphwiki.css"
+CSS_FONT_URL_BASE = (
+    "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/glyphwiki"
+)
+CSS_FAMILY_PREFIX = "glyphwiki"
+
+# Strip previously injected glyphwiki lines (idempotent re-runs).
+_GLYPHWIKI_STACK_LINE = re.compile(r"\n[ \t]*'glyphwiki [^']+',")
+# Last pancjk entry in each stack sits immediately before the fallback fonts.
+_PANCJK_BEFORE_FALLBACK = re.compile(
+    r"('pancjk [^']+',)(\n[ \t]*Malgun Gothic)",
+)
+
+
+def discover_marker_hexes(font_dir: Path = FONT_DIR) -> list[str]:
+    """Marker hex ids that have a built woff2 (else ttf), sorted numerically."""
+    if not font_dir.is_dir():
+        return []
+    woff = {p.stem.upper() for p in font_dir.glob("*.woff2")}
+    ttf = {p.stem.upper() for p in font_dir.glob("*.ttf")}
+    stems = woff | ttf
+    out: list[tuple[int, str]] = []
+    for stem in stems:
+        try:
+            out.append((int(stem, 16), stem))
+        except ValueError:
+            continue
+    out.sort(key=lambda t: t[0])
+    return [stem for _cp, stem in out]
+
+
+def write_glyphwiki_css(
+    *,
+    font_dir: Path = FONT_DIR,
+    css_path: Path = GLYPHWIKI_CSS,
+    fontlist_path: Path = FONTLIST_CSS,
+    markers: list[str] | None = None,
+) -> list[str]:
+    """Write glyphwiki.css and insert families into fontlist.css after pancjk.
+
+    Returns the ``glyphwiki …`` family names that were written.
+    """
+    hex_ids = markers if markers is not None else discover_marker_hexes(font_dir)
+    if not hex_ids:
+        print(
+            f"No GlyphWiki fonts in {font_dir}; skipping CSS update",
+            file=sys.stderr,
+        )
+        return []
+
+    families = [f"{CSS_FAMILY_PREFIX} {h}" for h in hex_ids]
+    pua_range = f"U+{BMP_PUA_START:X}-{BMP_PUA_END:X}"
+
+    lines: list[str] = [
+        "/* Auto-generated GlyphWiki PUA ligature @font-face rules */",
+        "",
+    ]
+    for hex_id in hex_ids:
+        family = f"{CSS_FAMILY_PREFIX} {hex_id}"
+        url = f"{CSS_FONT_URL_BASE}/{hex_id}.woff2"
+        # Marker + full BMP PUA (liga needs both CPs from the same face).
+        urange = f"U+{hex_id}, {pua_range}"
+        lines.append("@font-face {")
+        lines.append(f"  font-family: '{family}';")
+        lines.append(f"  src: url('{url}') format('woff2');")
+        lines.append("  font-weight: normal;")
+        lines.append("  font-style: normal;")
+        lines.append("  font-display: swap;")
+        lines.append(f"  unicode-range: {urange};")
+        lines.append("}")
+        lines.append("")
+
+    css_path.parent.mkdir(parents=True, exist_ok=True)
+    css_path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"Wrote {css_path} ({len(hex_ids)} faces)")
+
+    if not fontlist_path.is_file():
+        print(
+            f"Warning: {fontlist_path} missing; wrote @font-face only",
+            file=sys.stderr,
+        )
+        return families
+
+    text = fontlist_path.read_text(encoding="utf-8")
+    text = _GLYPHWIKI_STACK_LINE.sub("", text)
+    inject = "".join(f"\n    '{name}'," for name in families)
+    updated, n = _PANCJK_BEFORE_FALLBACK.subn(rf"\1{inject}\2", text)
+    if n == 0:
+        print(
+            f"Warning: could not find pancjk→Malgun insertion point in "
+            f"{fontlist_path}; left stack unchanged",
+            file=sys.stderr,
+        )
+        return families
+    fontlist_path.write_text(updated, encoding="utf-8")
+    print(
+        f"Updated {fontlist_path} "
+        f"(+{len(families)} glyphwiki families in {n} stack(s))"
+    )
+    return families
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -70,6 +181,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--no-mirrors",
         action="store_true",
         help="Omit mx/my/mxy outlines and rlig (identity forms only; 12800 glyphs/file)",
+    )
+    p.add_argument(
+        "--no-filters",
+        action="store_true",
+        help=(
+            "Skip related-CP, overlay/name, empty, and duplicate filters; "
+            "still drop full-frame aliases whose target is also packed"
+        ),
     )
     p.add_argument(
         "--parallel",
@@ -104,11 +223,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Do not gap-fill from dump_newest_only.txt",
     )
+    p.add_argument(
+        "--css-only",
+        action="store_true",
+        help=(
+            "Only write glyphwiki.css and patch fontlist.css from existing "
+            "dist/glyphwiki fonts (no dump/resolve/build)"
+        ),
+    )
+    p.add_argument(
+        "--skip-css",
+        action="store_true",
+        help="Do not update glyphwiki.css / fontlist.css after a font build",
+    )
     return p.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+
+    if args.css_only:
+        write_glyphwiki_css()
+        return 0
 
     print("GlyphWiki font build")
     print(f"  dump:   {DUMP_PATH}")
@@ -145,6 +281,8 @@ def main(argv: list[str] | None = None) -> int:
         forwarded.append("--from-resolved")
     if args.no_mirrors:
         forwarded.append("--no-mirrors")
+    if args.no_filters:
+        forwarded.append("--no-filters")
     if args.parallel:
         forwarded.append("--parallel")
     if args.jobs:
@@ -156,7 +294,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.skip_newest_fallback:
         forwarded.append("--skip-newest-fallback")
 
-    return extract_main(forwarded)
+    rc = extract_main(forwarded)
+    if (
+        rc == 0
+        and not args.skip_css
+        and not args.cmap_only
+        and not args.skip_fonts
+    ):
+        write_glyphwiki_css()
+    return rc
 
 
 if __name__ == "__main__":
