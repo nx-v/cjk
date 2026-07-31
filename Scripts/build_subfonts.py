@@ -410,9 +410,7 @@ def build_bucket_font(
         # rlig: required ligatures so mirrors apply without liga being on
         fea = (
             "languagesystem DFLT dflt;\n"
-            "feature rlig {\n"
-            + "\n".join(liga_rules)
-            + "\n} rlig;\n"
+            "feature rlig {\n" + "\n".join(liga_rules) + "\n} rlig;\n"
         )
         addOpenTypeFeaturesFromString(fb.font, fea)
 
@@ -512,33 +510,18 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     print(f"Wrote {css_path}")
 
     # CSS-safe quoted family list for stacks
-    quoted = ",\n    ".join(f"'{name}'" for name in family_names)
+    quoted = ", ".join(f"'{name}'" for name in family_names)
     fontlist_path = os.path.join(out_dir, "fontlist.css")
     fontlist = f"""/* src/scss/index.scss — Pan-CJK pigeonhole font stack */
 body {{
   --font-editor-theme: '';
   --font-editor: var(--font-editor-theme), var(--font-text);
   --font-text-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont,
-    MKanaPlus, Noto Sans Devanagari, Noto Sans Bengali, Noto Sans Gurmukhi,
-    Noto Sans Gujarati, Noto Sans Gunjala Gondi, Noto Sans Nandinagari,
-    Noto Sans Newa, Noto Sans Sharada,
-    {quoted},
-    Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
   --font-interface-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont,
-    MKanaPlus, Noto Sans Devanagari, Noto Sans Bengali, Noto Sans Gurmukhi,
-    Noto Sans Gujarati, Noto Sans Gunjala Gondi, Noto Sans Nandinagari,
-    Noto Sans Newa, Noto Sans Sharada,
-    {quoted},
-    Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
   --font-monospace-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont,
-    MKanaPlus, Noto Sans Devanagari, Noto Sans Bengali, Noto Sans Gurmukhi,
-    Noto Sans Gujarati, Noto Sans Gunjala Gondi, Noto Sans Nandinagari,
-    Noto Sans Newa, Noto Sans Sharada,
-    {quoted},
-    Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
 }}
 """
     with open(fontlist_path, "w", encoding="utf-8") as f:
