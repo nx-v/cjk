@@ -304,6 +304,7 @@ def build_marker_font(
     *,
     upem: int = DEFAULT_UPEM,
     kage: Kage | None = None,
+    write_ttf: bool = True,
     write_woff2: bool = True,
     include_mirrors: bool = True,
 ) -> tuple[int, int]:
@@ -509,11 +510,16 @@ def build_marker_font(
         fea.append("} rlig;")
     addOpenTypeFeaturesFromString(fb.font, "\n".join(fea))
 
+    if not write_ttf and not write_woff2:
+        raise ValueError("at least one of write_ttf / write_woff2 must be True")
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fb.save(str(out_path))
     if write_woff2:
         woff_path = out_path.with_suffix(".woff2")
         woff2.compress(str(out_path), str(woff_path))
+    if not write_ttf:
+        out_path.unlink(missing_ok=True)
 
     total = len(glyph_order) - 1  # exclude .notdef
     return rendered, total

@@ -176,10 +176,13 @@ def _save_font(
     cmap: Dict[int, str],
     liga_map: Dict[Tuple[str, ...], str],
     *,
+    write_ttf: bool = True,
     write_woff2: bool = True,
 ) -> Tuple[str, int, List[int]]:
     if not cmap:
         return out_path, 0, []
+    if not write_ttf and not write_woff2:
+        raise ValueError("at least one of write_ttf / write_woff2 must be True")
 
     ascent = otRound(target_upem * 0.88)
     descent = otRound(target_upem * -0.12)
@@ -215,6 +218,11 @@ def _save_font(
     fb.save(out_path)
     if write_woff2:
         woff2.compress(out_path, out_path.replace(".ttf", ".woff2"))
+    if not write_ttf:
+        try:
+            os.remove(out_path)
+        except OSError:
+            pass
     return out_path, len(glyphs) - 1, sorted(cmap.keys())
 
 
@@ -226,6 +234,7 @@ def build_cp_font(
     out_dir: str,
     target_upem: int,
     *,
+    write_ttf: bool = True,
     write_woff2: bool = True,
 ) -> Tuple[str, int, List[int]]:
     """Build the font for inventory ``index`` (named by standalone CP).
@@ -301,6 +310,7 @@ def build_cp_font(
         metrics=metrics,
         cmap=cmap,
         liga_map=liga_map,
+        write_ttf=write_ttf,
         write_woff2=write_woff2,
     )
 
@@ -364,6 +374,8 @@ def _cp_task(index: int) -> Tuple[str, int, List[int], str]:
     assert _WORKER_HC is not None
     assert _WORKER_OUT is not None
     assert _WORKER_UPEM is not None
+    # Always keep the TTF during the worker pass; WOFF2 / TTF retention
+    # is handled after all workers finish (see build_all).
     path, count, cps = build_cp_font(
         _WORKER_INV,
         index,
@@ -371,13 +383,21 @@ def _cp_task(index: int) -> Tuple[str, int, List[int], str]:
         _WORKER_HC,
         _WORKER_OUT,
         _WORKER_UPEM,
-        write_woff2=_WORKER_WOFF2,
+        write_ttf=True,
+        write_woff2=False,
     )
     return _WORKER_INV.font_id(index), count, cps, path
 
 
 def _compress_woff2(ttf_path: str) -> None:
     woff2.compress(ttf_path, ttf_path.replace(".ttf", ".woff2"))
+
+
+def _drop_ttf(ttf_path: str) -> None:
+    try:
+        os.remove(ttf_path)
+    except OSError:
+        pass
 
 
 def unicode_range_css(codepoints: Sequence[int]) -> str:
@@ -445,8 +465,11 @@ def build_all(
     jobs: int,
     *,
     limit: Optional[int] = None,
+    write_ttf: bool = True,
     write_woff2: bool = True,
 ) -> None:
+    if not write_ttf and not write_woff2:
+        raise ValueError("at least one of write_ttf / write_woff2 must be True")
     source = resolve_nuosu_path(in_dir)
     inv = load_inventory(source)
     print(f"Yi inventory: {inv.count} glyphs from {NUOSU_FILENAME}")
@@ -456,6 +479,12 @@ def build_all(
     )
     print(f"  Transform VS: U+{VS_BASE:X}–U+{VS_LAST:X} (8 unique D4 symmetries)")
     print(f"  One font per CP, named by standalone code point")
+    fmt_note = (
+        "ttf+woff2"
+        if write_ttf and write_woff2
+        else ("ttf only" if write_ttf else "woff2 only")
+    )
+    print(f"  Output: {fmt_note}")
 
     os.makedirs(out_dir, exist_ok=True)
     indices = list(range(inv.count))
@@ -497,6 +526,11 @@ def build_all(
         with concurrent.futures.ProcessPoolExecutor(max_workers=max(1, jobs)) as ex:
             list(ex.map(_compress_woff2, ttf_paths))
 
+    if not write_ttf and ttf_paths:
+        print(f"Removing {len(ttf_paths)} intermediate TTFs...", flush=True)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max(1, jobs)) as ex:
+            list(ex.map(_drop_ttf, ttf_paths))
+
     # Sort by code point numeric value
     built.sort(key=lambda t: int(t[0], 16))
     write_css(out_dir, built)
@@ -522,10 +556,17 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Build only the first N codepoint fonts (smoke test)",
     )
-    p.add_argument(
+    fmt = p.add_mutually_exclusive_group()
+    fmt.add_argument(
+        "--ttf-only",
         "--no-woff2",
         action="store_true",
-        help="Skip WOFF2 compression",
+        help="Write TTF only (skip WOFF2); --no-woff2 is an alias",
+    )
+    fmt.add_argument(
+        "--woff2-only",
+        action="store_true",
+        help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
     return p.parse_args()
 
@@ -538,5 +579,6 @@ if __name__ == "__main__":
         args.upem,
         args.jobs,
         limit=args.limit,
-        write_woff2=not args.no_woff2,
+        write_ttf=not args.woff2_only,
+        write_woff2=not args.ttf_only,
     )

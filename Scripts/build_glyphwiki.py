@@ -72,6 +72,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Omit D4 variant outlines and rlig (identity forms only; 12800 glyphs/file)",
     )
+    fmt = p.add_mutually_exclusive_group()
+    fmt.add_argument(
+        "--ttf-only",
+        action="store_true",
+        help="Write TTF only (skip WOFF2)",
+    )
+    fmt.add_argument(
+        "--woff2-only",
+        action="store_true",
+        help="Write WOFF2 only (drop intermediate TTF after compress)",
+    )
     p.add_argument(
         "--no-filters",
         action="store_true",
@@ -154,6 +165,10 @@ def main(argv: list[str] | None = None) -> int:
         forwarded.append("--from-resolved")
     if args.no_mirrors:
         forwarded.append("--no-mirrors")
+    if args.ttf_only:
+        forwarded.append("--ttf-only")
+    if args.woff2_only:
+        forwarded.append("--woff2-only")
     if args.no_filters:
         forwarded.append("--no-filters")
     if args.parallel:

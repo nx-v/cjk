@@ -319,12 +319,17 @@ def build_bucket_font(
     sources: Dict[str, SourceFont],
     out_dir: str,
     target_upem: int,
+    *,
+    write_ttf: bool = True,
+    write_woff2: bool = True,
 ) -> Tuple[str, int, List[int]]:
     """Build one pigeonhole font with in-font D4 variant ligatures.
 
     Returns (ttf_path, glyph_count, codepoints) where codepoints are the
     Unicode cmap keys (bases + VS01..VS08 when present).
     """
+    if not write_ttf and not write_woff2:
+        raise ValueError("at least one of write_ttf / write_woff2 must be True")
     hex_id = f"{bucket_id:X}"
     out_path = os.path.join(out_dir, f"{hex_id}.ttf")
 
@@ -447,8 +452,14 @@ def build_bucket_font(
 
     fb.save(out_path)
 
-    woff2_path = os.path.join(out_dir, f"{hex_id}.woff2")
-    woff2.compress(out_path, woff2_path)
+    if write_woff2:
+        woff2_path = os.path.join(out_dir, f"{hex_id}.woff2")
+        woff2.compress(out_path, woff2_path)
+    if not write_ttf:
+        try:
+            os.remove(out_path)
+        except OSError:
+            pass
 
     return out_path, len(glyphs) - 1, sorted(cmap.keys())
 
@@ -458,13 +469,24 @@ def build_bucket_font(
 _WORKER_SOURCES: Optional[Dict[str, SourceFont]] = None
 _WORKER_OUT_DIR: Optional[str] = None
 _WORKER_UPEM: Optional[int] = None
+_WORKER_WRITE_TTF: bool = True
+_WORKER_WRITE_WOFF2: bool = True
 
 
-def _init_build_worker(font_paths: List[str], out_dir: str, target_upem: int) -> None:
+def _init_build_worker(
+    font_paths: List[str],
+    out_dir: str,
+    target_upem: int,
+    write_ttf: bool = True,
+    write_woff2: bool = True,
+) -> None:
     """Load source fonts once per process worker."""
     global _WORKER_SOURCES, _WORKER_OUT_DIR, _WORKER_UPEM
+    global _WORKER_WRITE_TTF, _WORKER_WRITE_WOFF2
     _WORKER_OUT_DIR = out_dir
     _WORKER_UPEM = target_upem
+    _WORKER_WRITE_TTF = write_ttf
+    _WORKER_WRITE_WOFF2 = write_woff2
     _WORKER_SOURCES = {p: SourceFont(p) for p in font_paths}
 
 
@@ -476,7 +498,13 @@ def _build_bucket_task(
     assert _WORKER_OUT_DIR is not None
     assert _WORKER_UPEM is not None
     path, count, codepoints = build_bucket_font(
-        bucket_id, entries, _WORKER_SOURCES, _WORKER_OUT_DIR, _WORKER_UPEM
+        bucket_id,
+        entries,
+        _WORKER_SOURCES,
+        _WORKER_OUT_DIR,
+        _WORKER_UPEM,
+        write_ttf=_WORKER_WRITE_TTF,
+        write_woff2=_WORKER_WRITE_WOFF2,
     )
     return bucket_id, path, count, codepoints
 
@@ -560,7 +588,17 @@ body {{
     print(f"Wrote {fontlist_path}")
 
 
-def build_all(in_dir: str, out_dir: str, target_upem: int, jobs: int) -> None:
+def build_all(
+    in_dir: str,
+    out_dir: str,
+    target_upem: int,
+    jobs: int,
+    *,
+    write_ttf: bool = True,
+    write_woff2: bool = True,
+) -> None:
+    if not write_ttf and not write_woff2:
+        raise ValueError("at least one of write_ttf / write_woff2 must be True")
     font_paths = resolve_priority_paths(in_dir)
     if not font_paths:
         print("No priority fonts found in", in_dir, file=sys.stderr)
@@ -569,6 +607,12 @@ def build_all(in_dir: str, out_dir: str, target_upem: int, jobs: int) -> None:
     target = ranges_to_set(CHAR_RANGES)
     print(f"Target range size: {len(target)} codepoints")
     print(f"Source fonts: {len(font_paths)}")
+    fmt_note = (
+        "ttf+woff2"
+        if write_ttf and write_woff2
+        else ("ttf only" if write_ttf else "woff2 only")
+    )
+    print(f"Output formats: {fmt_note}")
 
     sources_list = [SourceFont(p) for p in font_paths]
     try:
@@ -614,7 +658,7 @@ def build_all(in_dir: str, out_dir: str, target_upem: int, jobs: int) -> None:
     with concurrent.futures.ProcessPoolExecutor(
         max_workers=workers,
         initializer=_init_build_worker,
-        initargs=(used_paths, out_dir, target_upem),
+        initargs=(used_paths, out_dir, target_upem, write_ttf, write_woff2),
     ) as executor:
         futures = [executor.submit(_build_bucket_task, task) for task in tasks]
         for fut in concurrent.futures.as_completed(futures):
@@ -624,7 +668,7 @@ def build_all(in_dir: str, out_dir: str, target_upem: int, jobs: int) -> None:
             if count == 0:
                 skipped += 1
                 print(
-                    f"  [{done}/{total}] {hex_id}.ttf skipped (empty)",
+                    f"  [{done}/{total}] {hex_id} skipped (empty)",
                     flush=True,
                 )
                 continue
@@ -632,7 +676,7 @@ def build_all(in_dir: str, out_dir: str, target_upem: int, jobs: int) -> None:
             glyph_total += count
             built.append((hex_id, count, codepoints))
             print(
-                f"  [{done}/{total}] {hex_id}.ttf/.woff2 ({count} glyphs)",
+                f"  [{done}/{total}] {hex_id} ({fmt_note}, {count} glyphs)",
                 flush=True,
             )
 
@@ -665,9 +709,27 @@ def parse_args() -> argparse.Namespace:
         default=max(1, os.cpu_count() or 4),
         help="Parallel workers for bucket builds (default: CPU count)",
     )
+    fmt = p.add_mutually_exclusive_group()
+    fmt.add_argument(
+        "--ttf-only",
+        action="store_true",
+        help="Write TTF only (skip WOFF2)",
+    )
+    fmt.add_argument(
+        "--woff2-only",
+        action="store_true",
+        help="Write WOFF2 only (drop intermediate TTF after compress)",
+    )
     return p.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    build_all(args.in_dir, args.out_dir, args.upem, args.jobs)
+    build_all(
+        args.in_dir,
+        args.out_dir,
+        args.upem,
+        args.jobs,
+        write_ttf=not args.woff2_only,
+        write_woff2=not args.ttf_only,
+    )

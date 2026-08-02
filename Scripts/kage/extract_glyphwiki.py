@@ -899,6 +899,8 @@ def _build_marker_task(
     stroke_data: dict[str, str],
     out_path: str,
     include_mirrors: bool,
+    write_ttf: bool = True,
+    write_woff2: bool = True,
 ) -> tuple[int, int, int]:
     """Process-pool worker: build one marker font. Returns (marker, rendered, total)."""
     rendered, total = build_marker_font(
@@ -907,6 +909,8 @@ def _build_marker_task(
         stroke_data,
         Path(out_path),
         include_mirrors=include_mirrors,
+        write_ttf=write_ttf,
+        write_woff2=write_woff2,
     )
     return marker, rendered, total
 
@@ -917,10 +921,17 @@ def build_fonts_from_mappings(
     *,
     font_markers: int = 0,
     include_mirrors: bool = True,
+    write_ttf: bool = True,
+    write_woff2: bool = True,
     jobs: int = 1,
 ) -> None:
     per_file = glyphs_per_file(include_mirrors=include_mirrors)
     mirror_note = "with D4" if include_mirrors else "no D4"
+    fmt_note = (
+        "ttf+woff2"
+        if write_ttf and write_woff2
+        else ("ttf only" if write_ttf else "woff2 only")
+    )
     grouped = group_mappings_by_marker(mappings)
     markers = sorted(grouped)
     if font_markers > 0:
@@ -930,7 +941,7 @@ def build_fonts_from_mappings(
     jobs = max(1, jobs)
     print(
         f"\nBuilding GlyphWiki fonts ({per_file} glyphs each, {mirror_note}, "
-        f"jobs={jobs}) -> {FONT_DIR}"
+        f"{fmt_note}, jobs={jobs}) -> {FONT_DIR}"
     )
 
     if jobs == 1:
@@ -948,6 +959,8 @@ def build_fonts_from_mappings(
                 out,
                 kage=kage,
                 include_mirrors=include_mirrors,
+                write_ttf=write_ttf,
+                write_woff2=write_woff2,
             )
             print(f"      rendered {rendered}, glyphs in file {total}")
         return
@@ -960,7 +973,17 @@ def build_fonts_from_mappings(
         names = {m.name for m in grouped[marker]}
         subset = {n: stroke_data[n] for n in names if n in stroke_data}
         out = str(FONT_DIR / f"{marker:X}.ttf")
-        tasks.append((marker, list(grouped[marker]), subset, out, include_mirrors))
+        tasks.append(
+            (
+                marker,
+                list(grouped[marker]),
+                subset,
+                out,
+                include_mirrors,
+                write_ttf,
+                write_woff2,
+            )
+        )
 
     done = 0
     with ProcessPoolExecutor(max_workers=jobs) as pool:
@@ -983,6 +1006,8 @@ def resolve_and_build_pipelined(
     *,
     font_markers: int = 0,
     include_mirrors: bool = True,
+    write_ttf: bool = True,
+    write_woff2: bool = True,
     jobs: int = 1,
 ) -> dict[str, str]:
     """Resolve each marker's glyphs, overlapping font builds when ``jobs > 1``.
@@ -991,6 +1016,11 @@ def resolve_and_build_pipelined(
     """
     per_file = glyphs_per_file(include_mirrors=include_mirrors)
     mirror_note = "with D4" if include_mirrors else "no D4"
+    fmt_note = (
+        "ttf+woff2"
+        if write_ttf and write_woff2
+        else ("ttf only" if write_ttf else "woff2 only")
+    )
     grouped = group_mappings_by_marker(mappings)
     markers = sorted(grouped)
     if font_markers > 0:
@@ -1000,7 +1030,7 @@ def resolve_and_build_pipelined(
 
     print(
         f"\nPipelined resolve+build ({per_file} glyphs each, {mirror_note}, "
-        f"jobs={jobs}) -> {FONT_DIR}"
+        f"{fmt_note}, jobs={jobs}) -> {FONT_DIR}"
     )
 
     all_strokes: dict[str, str] = {}
@@ -1024,6 +1054,8 @@ def resolve_and_build_pipelined(
                 out,
                 kage=kage,
                 include_mirrors=include_mirrors,
+                write_ttf=write_ttf,
+                write_woff2=write_woff2,
             )
             print(f"      rendered {rendered}, glyphs in file {total}", flush=True)
         return all_strokes
@@ -1049,6 +1081,8 @@ def resolve_and_build_pipelined(
                 strokes,
                 out,
                 include_mirrors,
+                write_ttf,
+                write_woff2,
             )
             pending[fut] = marker
             print(f"      queued build {Path(out).name} ({len(pending)} in flight)", flush=True)
@@ -1175,6 +1209,17 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Omit D4 variant outlines and rlig (identity forms only)",
     )
+    fmt = parser.add_mutually_exclusive_group()
+    fmt.add_argument(
+        "--ttf-only",
+        action="store_true",
+        help="Write TTF only (skip WOFF2)",
+    )
+    fmt.add_argument(
+        "--woff2-only",
+        action="store_true",
+        help="Write WOFF2 only (drop intermediate TTF after compress)",
+    )
     parser.add_argument(
         "--no-filters",
         action="store_true",
@@ -1203,6 +1248,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     include_mirrors = not args.no_mirrors
+    write_ttf = not args.woff2_only
+    write_woff2 = not args.ttf_only
     per_file = glyphs_per_file(include_mirrors=include_mirrors)
 
     import os
@@ -1269,6 +1316,8 @@ def main(argv: list[str] | None = None) -> int:
             stroke_data,
             font_markers=args.font_markers,
             include_mirrors=include_mirrors,
+            write_ttf=write_ttf,
+            write_woff2=write_woff2,
             jobs=jobs,
         )
         print("\n=== Font build from resolved data complete ===")
@@ -1391,6 +1440,8 @@ def main(argv: list[str] | None = None) -> int:
             all_glyphs,
             font_markers=args.font_markers,
             include_mirrors=include_mirrors,
+            write_ttf=write_ttf,
+            write_woff2=write_woff2,
             jobs=jobs,
         )
         # Persist cmap-coverage strokes for --from-resolved later
@@ -1449,6 +1500,8 @@ def main(argv: list[str] | None = None) -> int:
             stroke_data,
             font_markers=args.font_markers,
             include_mirrors=include_mirrors,
+            write_ttf=write_ttf,
+            write_woff2=write_woff2,
             jobs=jobs,
         )
 
