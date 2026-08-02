@@ -6,8 +6,9 @@ Encoding
   (e.g. ``A000.ttf`` for U+A000).
 * Standalone / compounds: fit into the CJK typo box (1000×1000 body with
   center at 0.38em) by **shifting outline points** independently on X and Y.
-* Compounds: ordered pairs ``(this, j)`` as flattened merged outlines,
-  cmap'd at ``U+40000+j`` (half-cells are build-only, not emitted).
+* Compounds: ordered pairs ``(i, j)`` as flattened merged outlines,
+  cmap'd at unique contiguous PUA ``U+40000 + i·N + j`` (half-cells are
+  build-only, not emitted).
 * Variants: the 8 unique square symmetries (D4) — 90° rotations and
   axis reflections — each with its own VS (``U+E000``..``U+E007``).
   Geometric duplicates are omitted (e.g. ``mxy === r180``).
@@ -184,8 +185,18 @@ class YiInventory:
     def count(self) -> int:
         return len(self.src_cps)
 
-    def hw_cp(self, index: int) -> int:
-        return HALFWIDTH_BASE + index
+    def compound_cp(self, i: int, j: int) -> int:
+        """Unique contiguous PUA for pair ``(i, j)``: ``U+40000 + i·N + j``."""
+        n = self.count
+        if not (0 <= i < n and 0 <= j < n):
+            raise IndexError(f"compound indices ({i},{j}) out of range for N={n}")
+        return HALFWIDTH_BASE + i * n + j
+
+    def compound_range(self, i: int) -> Tuple[int, int]:
+        """Inclusive ``(first, last)`` compound CPs owned by font index ``i``."""
+        n = self.count
+        start = HALFWIDTH_BASE + i * n
+        return start, start + n - 1
 
     def font_id(self, index: int) -> str:
         """Filename / family stem = standalone code point hex (e.g. A000)."""

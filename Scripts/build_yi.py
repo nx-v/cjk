@@ -8,12 +8,13 @@ Each font contains:
 * Standalone form at the real Unicode CP (full CJK width)
   plus VS01..VS08 rotation × reflection variants
 * All ordered pairs ``(this, j)`` as flattened merged-outline compounds,
-  cmap'd at ``U+40000+j``, plus VS variants
+  cmap'd at unique contiguous ``U+40000 + i·N + j``, plus VS variants
 
     glyph VS0n   → variant   (rlig)
 
 Half-cell glyphs are build-only intermediates (not emitted). Pairs are
-already flattened outlines — no TrueType composites, no halfwidth cmap.
+already flattened outlines — no TrueType composites, no shared compound
+codepoint reuse across fonts.
 """
 
 from __future__ import annotations
@@ -240,7 +241,8 @@ def build_cp_font(
     """Build the font for inventory ``index`` (named by standalone CP).
 
     ``halfcells`` are build-only intermediates used to merge pair outlines;
-    they are not emitted. Each pair ``(index, j)`` is cmap'd at ``U+40000+j``.
+    they are not emitted. Each pair ``(index, j)`` is cmap'd at the unique
+    contiguous PUA ``U+40000 + index·N + j``.
     """
     src_cp = inv.src_cps[index]
     font_id = inv.font_id(index)
@@ -274,7 +276,7 @@ def build_cp_font(
         liga_map,
     )
 
-    # --- All pairs (this, j): flattened merge; cmap at U+40000+j ---
+    # --- All pairs (this, j): unique contiguous PUA U+40000 + i·N + j ---
     left_glyph = halfcells[index][0]
     for j, hc in halfcells.items():
         made = merge_halfcell_glyphs(left_glyph, hc[0], target_upem)
@@ -293,10 +295,10 @@ def build_cp_font(
         glyph_order.append(c_name)
         glyphs[c_name] = c_glyph
         metrics[c_name] = (c_adv, c_lsb)
-        cmap[inv.hw_cp(j)] = c_name
+        cmap[inv.compound_cp(index, j)] = c_name
         _add_variants_from_recording(
             c_name,
-            recording_from_metrics(made),
+            recording_from_metrics((c_glyph, c_adv, c_lsb)),
             c_adv,
             target_upem,
             glyph_order,
@@ -479,9 +481,14 @@ def build_all(
     source = resolve_nuosu_path(in_dir)
     inv = load_inventory(source)
     print(f"Yi inventory: {inv.count} glyphs from {NUOSU_FILENAME}")
+    compound_last = HALFWIDTH_BASE + inv.count * inv.count - 1
     print(
-        f"  Compound cmap: U+{HALFWIDTH_BASE:X}–"
-        f"U+{HALFWIDTH_BASE + inv.count - 1:X}  (pair this+j → U+40000+j)"
+        f"  Compound cmap: U+{HALFWIDTH_BASE:X}–U+{compound_last:X} "
+        f"({inv.count}² unique; pair (i,j) → U+40000 + i·N + j)"
+    )
+    lo, hi = inv.compound_range(0)
+    print(
+        f"  Per-font slice example (i=0): U+{lo:X}–U+{hi:X}"
     )
     print(f"  Transform VS: U+{VS_BASE:X}–U+{VS_LAST:X} (8 unique D4 symmetries)")
     print(f"  One font per CP, named by standalone code point")
