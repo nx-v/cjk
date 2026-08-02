@@ -4,16 +4,17 @@ Build GlyphWiki PUA ligature fonts.
 
 Resolves the GlyphWiki dump under Scripts/dump/, assigns SPUA+BMP-PUA
 ligatures (related code points limited to build_subfonts.CHAR_RANGES plus
-CJK/Kangxi radicals), and writes one TTF/WOFF2 per SPUA marker into
-Scripts/dist/glyphwiki/.
+CJK/Kangxi radicals), and writes TTF/WOFF2 per SPUA marker × KAGE style into
+Scripts/dist/glyphwiki/{mincho,gothic,rounded}/.
 
 Each font is named after its SPUA marker (the first ligature code point),
-e.g. F0000.ttf. Glyphs are rendered with the in-tree KAGE Serif renderer,
-then flattened for TrueType.
+e.g. mincho/F0000.ttf. Styles default to all three; pass ``--mincho``,
+``--gothic``, and/or ``--rounded`` to build a subset.
 
 Examples:
   python Scripts/build_glyphwiki.py
-  python Scripts/build_glyphwiki.py --limit 64 --font-markers 1
+  python Scripts/build_glyphwiki.py --gothic --rounded
+  python Scripts/build_glyphwiki.py --mincho --limit 64 --font-markers 1
   python Scripts/build_glyphwiki.py --from-resolved --no-mirrors -j 8
   python Scripts/build_glyphwiki.py --parallel -j 8 --no-mirrors
   python Scripts/build_glyphwiki.py --cmap-only
@@ -71,6 +72,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--no-mirrors",
         action="store_true",
         help="Omit D4 variant outlines and rlig (identity forms only; 12800 glyphs/file)",
+    )
+    p.add_argument(
+        "--mincho",
+        action="store_true",
+        help="Build mincho (serif); if none of the style flags are set, all three are built",
+    )
+    p.add_argument(
+        "--gothic",
+        action="store_true",
+        help="Build gothic (sans); combine with --mincho/--rounded as needed",
+    )
+    p.add_argument(
+        "--rounded",
+        action="store_true",
+        help="Build rounded; combine with --mincho/--gothic as needed",
     )
     fmt = p.add_mutually_exclusive_group()
     fmt.add_argument(
@@ -165,6 +181,12 @@ def main(argv: list[str] | None = None) -> int:
         forwarded.append("--from-resolved")
     if args.no_mirrors:
         forwarded.append("--no-mirrors")
+    if args.mincho:
+        forwarded.append("--mincho")
+    if args.gothic:
+        forwarded.append("--gothic")
+    if args.rounded:
+        forwarded.append("--rounded")
     if args.ttf_only:
         forwarded.append("--ttf-only")
     if args.woff2_only:

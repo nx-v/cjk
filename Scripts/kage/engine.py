@@ -15,11 +15,21 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.svgLib.path import parse_path
 
 from .renderer import Kage as _RendererKage
+from .renderer.font.round import Round
+from .renderer.font.sans import Sans
 from .renderer.font.serif import Serif
 
 import svgwrite
 
 REFERENCE_STROKE = 99
+
+# KAGE shotai / drawer styles exposed by the GlyphWiki font builder.
+SHOTAI_STYLES: tuple[str, ...] = ("mincho", "gothic", "rounded")
+_STYLE_FONT = {
+    "mincho": Serif,  # filled serif ribbons
+    "gothic": Sans,  # stroked sans
+    "rounded": Round,  # stroked round
+}
 
 _TRANSFORM_RE = re.compile(
     r"(matrix|translate|scale|rotate)\s*\(\s*([^)]*)\s*\)",
@@ -27,10 +37,20 @@ _TRANSFORM_RE = re.compile(
 )
 
 
-def make_engine(*, ignore_component_version: bool = False) -> _RendererKage:
-    """Serif KAGE instance (filled polygon SVG paths)."""
+def make_engine(
+    *,
+    style: str = "mincho",
+    ignore_component_version: bool = False,
+) -> _RendererKage:
+    """KAGE instance for ``style`` (``mincho`` / ``gothic`` / ``rounded``)."""
+    key = style.lower().strip()
+    font_cls = _STYLE_FONT.get(key)
+    if font_cls is None:
+        raise ValueError(
+            f"unknown KAGE style {style!r}; expected one of {SHOTAI_STYLES}"
+        )
     engine = _RendererKage(ignore_component_version=ignore_component_version)
-    engine.font = Serif()
+    engine.font = font_cls()
     return engine
 
 
@@ -172,8 +192,41 @@ def _path_d(element: Any) -> str:
     return ""
 
 
+def _svg_line_cap(name: str | None):
+    import pathops
+
+    key = (name or "butt").strip().lower()
+    if key == "round":
+        return pathops.LineCap.ROUND_CAP
+    if key == "square":
+        return pathops.LineCap.SQUARE_CAP
+    return pathops.LineCap.BUTT_CAP
+
+
+def _svg_line_join(name: str | None):
+    import pathops
+
+    key = (name or "miter").strip().lower()
+    if key == "round":
+        return pathops.LineJoin.ROUND_JOIN
+    if key == "bevel":
+        return pathops.LineJoin.BEVEL_JOIN
+    return pathops.LineJoin.MITER_JOIN
+
+
 def iter_filled_paths(drawing: svgwrite.Drawing):
     """Yield ``(d, local_transform)`` for filled path elements."""
+    for d, local, stroke in iter_outline_paths(drawing):
+        if stroke is None:
+            yield d, local
+
+
+def iter_outline_paths(drawing: svgwrite.Drawing):
+    """Yield ``(d, local_transform, stroke|None)`` for drawable paths.
+
+    ``stroke`` is ``None`` for filled mincho ribbons; for gothic/rounded it is
+    ``(width, line_cap, line_join)`` in KAGE design units.
+    """
     for el in getattr(drawing, "elements", []) or []:
         if type(el).__name__ != "Path":
             continue
@@ -181,10 +234,29 @@ def iter_filled_paths(drawing: svgwrite.Drawing):
         if not d.strip():
             continue
         attribs = getattr(el, "attribs", {}) or {}
+        local = _parse_svg_transform(attribs.get("transform"))
         fill = str(attribs.get("fill", "black")).lower()
-        if fill in ("none", "transparent"):
+        stroke_paint = str(attribs.get("stroke", "none")).lower()
+        if fill not in ("none", "transparent"):
+            yield d, local, None
             continue
-        yield d, _parse_svg_transform(attribs.get("transform"))
+        if stroke_paint in ("none", "transparent"):
+            continue
+        try:
+            width = float(attribs.get("stroke-width", 1.0))
+        except (TypeError, ValueError):
+            width = 1.0
+        if width <= 0:
+            continue
+        yield (
+            d,
+            local,
+            (
+                width,
+                _svg_line_cap(attribs.get("stroke-linecap")),
+                _svg_line_join(attribs.get("stroke-linejoin")),
+            ),
+        )
 
 
 def draw_svg_drawing_to_pen(

@@ -17,7 +17,7 @@ Outputs:
   Scripts/data/glyphwiki-resolved.json
   Scripts/data/glyphwiki-components.json
   Scripts/data/glyphwiki-cmap.json        (name → [SPUA marker, BMP PUA])
-  Scripts/dist/glyphwiki/{marker}.ttf     (named after SPUA marker = first CP)
+  Scripts/dist/glyphwiki/{style}/{marker}.ttf  (mincho/gothic/rounded × marker)
 
 Usage:
   python -m Scripts.kage.extract_glyphwiki
@@ -37,7 +37,7 @@ from .build_glyphwiki_fonts import (
     glyphs_per_file,
     group_mappings_by_marker,
 )
-from .engine import REFERENCE_STROKE, make_engine
+from .engine import REFERENCE_STROKE, SHOTAI_STYLES, make_engine
 from .mapping import (
     GlyphMapping,
     assign_ligatures,
@@ -901,8 +901,12 @@ def _build_marker_task(
     include_mirrors: bool,
     write_ttf: bool = True,
     write_woff2: bool = True,
-) -> tuple[int, int, int]:
-    """Process-pool worker: build one marker font. Returns (marker, rendered, total)."""
+    style: str = "mincho",
+) -> tuple[int, str, int, int]:
+    """Process-pool worker: build one marker font.
+
+    Returns ``(marker, style, rendered, total)``.
+    """
     rendered, total = build_marker_font(
         marker,
         mappings,
@@ -911,8 +915,9 @@ def _build_marker_task(
         include_mirrors=include_mirrors,
         write_ttf=write_ttf,
         write_woff2=write_woff2,
+        style=style,
     )
-    return marker, rendered, total
+    return marker, style, rendered, total
 
 
 def build_fonts_from_mappings(
@@ -923,8 +928,10 @@ def build_fonts_from_mappings(
     include_mirrors: bool = True,
     write_ttf: bool = True,
     write_woff2: bool = True,
+    styles: Sequence[str] | None = None,
     jobs: int = 1,
 ) -> None:
+    style_list = list(styles) if styles else list(SHOTAI_STYLES)
     per_file = glyphs_per_file(include_mirrors=include_mirrors)
     mirror_note = "with D4" if include_mirrors else "no D4"
     fmt_note = (
@@ -939,62 +946,71 @@ def build_fonts_from_mappings(
     FONT_DIR.mkdir(parents=True, exist_ok=True)
 
     jobs = max(1, jobs)
+    total_fonts = len(markers) * len(style_list)
     print(
         f"\nBuilding GlyphWiki fonts ({per_file} glyphs each, {mirror_note}, "
-        f"{fmt_note}, jobs={jobs}) -> {FONT_DIR}"
+        f"{fmt_note}, styles={','.join(style_list)}, jobs={jobs}) -> {FONT_DIR}"
     )
 
     if jobs == 1:
-        kage = make_engine()
-        for i, marker in enumerate(markers, 1):
-            out = FONT_DIR / f"{marker:X}.ttf"
-            print(
-                f"  [{i}/{len(markers)}] U+{marker:X} "
-                f"({len(grouped[marker])} ligatures) -> {out.name}"
-            )
-            rendered, total = build_marker_font(
-                marker,
-                grouped[marker],
-                stroke_data,
-                out,
-                kage=kage,
-                include_mirrors=include_mirrors,
-                write_ttf=write_ttf,
-                write_woff2=write_woff2,
-            )
-            print(f"      rendered {rendered}, glyphs in file {total}")
+        for style in style_list:
+            kage = make_engine(style=style)
+            style_dir = FONT_DIR / style
+            for i, marker in enumerate(markers, 1):
+                out = style_dir / f"{marker:X}.ttf"
+                print(
+                    f"  [{style} {i}/{len(markers)}] U+{marker:X} "
+                    f"({len(grouped[marker])} ligatures) -> {style}/{out.name}"
+                )
+                rendered, total = build_marker_font(
+                    marker,
+                    grouped[marker],
+                    stroke_data,
+                    out,
+                    kage=kage,
+                    style=style,
+                    include_mirrors=include_mirrors,
+                    write_ttf=write_ttf,
+                    write_woff2=write_woff2,
+                )
+                print(f"      rendered {rendered}, glyphs in file {total}")
         return
 
     from concurrent.futures import ProcessPoolExecutor, as_completed
 
     tasks = []
-    for marker in markers:
-        # Only ship strokes this marker needs (keeps pickles smaller)
-        names = {m.name for m in grouped[marker]}
-        subset = {n: stroke_data[n] for n in names if n in stroke_data}
-        out = str(FONT_DIR / f"{marker:X}.ttf")
-        tasks.append(
-            (
-                marker,
-                list(grouped[marker]),
-                subset,
-                out,
-                include_mirrors,
-                write_ttf,
-                write_woff2,
+    for style in style_list:
+        style_dir = FONT_DIR / style
+        style_dir.mkdir(parents=True, exist_ok=True)
+        for marker in markers:
+            # Only ship strokes this marker needs (keeps pickles smaller)
+            names = {m.name for m in grouped[marker]}
+            subset = {n: stroke_data[n] for n in names if n in stroke_data}
+            out = str(style_dir / f"{marker:X}.ttf")
+            tasks.append(
+                (
+                    marker,
+                    list(grouped[marker]),
+                    subset,
+                    out,
+                    include_mirrors,
+                    write_ttf,
+                    write_woff2,
+                    style,
+                )
             )
-        )
 
     done = 0
     with ProcessPoolExecutor(max_workers=jobs) as pool:
         futures = {
-            pool.submit(_build_marker_task, *task): task[0] for task in tasks
+            pool.submit(_build_marker_task, *task): (task[0], task[-1])
+            for task in tasks
         }
         for fut in as_completed(futures):
             done += 1
-            marker, rendered, total = fut.result()
+            marker, style, rendered, total = fut.result()
             print(
-                f"  [{done}/{len(markers)}] U+{marker:X} done — "
+                f"  [{done}/{total_fonts}] {style} U+{marker:X} done — "
                 f"rendered {rendered}, glyphs in file {total}",
                 flush=True,
             )
@@ -1008,12 +1024,14 @@ def resolve_and_build_pipelined(
     include_mirrors: bool = True,
     write_ttf: bool = True,
     write_woff2: bool = True,
+    styles: Sequence[str] | None = None,
     jobs: int = 1,
 ) -> dict[str, str]:
     """Resolve each marker's glyphs, overlapping font builds when ``jobs > 1``.
 
     Returns stroke data for all cmap names that were processed.
     """
+    style_list = list(styles) if styles else list(SHOTAI_STYLES)
     per_file = glyphs_per_file(include_mirrors=include_mirrors)
     mirror_note = "with D4" if include_mirrors else "no D4"
     fmt_note = (
@@ -1027,16 +1045,17 @@ def resolve_and_build_pipelined(
         markers = markers[: font_markers]
     FONT_DIR.mkdir(parents=True, exist_ok=True)
     jobs = max(1, jobs)
+    total_fonts = len(markers) * len(style_list)
 
     print(
         f"\nPipelined resolve+build ({per_file} glyphs each, {mirror_note}, "
-        f"{fmt_note}, jobs={jobs}) -> {FONT_DIR}"
+        f"{fmt_note}, styles={','.join(style_list)}, jobs={jobs}) -> {FONT_DIR}"
     )
 
     all_strokes: dict[str, str] = {}
 
     if jobs == 1:
-        kage = make_engine()
+        engines = {style: make_engine(style=style) for style in style_list}
         for i, marker in enumerate(markers, 1):
             names = {m.name for m in grouped[marker]}
             print(
@@ -1045,19 +1064,21 @@ def resolve_and_build_pipelined(
             )
             strokes = resolve_names_to_strokes(names, all_glyphs)
             all_strokes.update(strokes)
-            out = FONT_DIR / f"{marker:X}.ttf"
-            print(f"      build {out.name}...", flush=True)
-            rendered, total = build_marker_font(
-                marker,
-                grouped[marker],
-                strokes,
-                out,
-                kage=kage,
-                include_mirrors=include_mirrors,
-                write_ttf=write_ttf,
-                write_woff2=write_woff2,
-            )
-            print(f"      rendered {rendered}, glyphs in file {total}", flush=True)
+            for style in style_list:
+                out = FONT_DIR / style / f"{marker:X}.ttf"
+                print(f"      build {style}/{out.name}...", flush=True)
+                rendered, total = build_marker_font(
+                    marker,
+                    grouped[marker],
+                    strokes,
+                    out,
+                    kage=engines[style],
+                    style=style,
+                    include_mirrors=include_mirrors,
+                    write_ttf=write_ttf,
+                    write_woff2=write_woff2,
+                )
+                print(f"      rendered {rendered}, glyphs in file {total}", flush=True)
         return all_strokes
 
     from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
@@ -1073,45 +1094,68 @@ def resolve_and_build_pipelined(
             )
             strokes = resolve_names_to_strokes(names, all_glyphs)
             all_strokes.update(strokes)
-            out = str(FONT_DIR / f"{marker:X}.ttf")
-            fut = pool.submit(
-                _build_marker_task,
-                marker,
-                list(grouped[marker]),
-                strokes,
-                out,
-                include_mirrors,
-                write_ttf,
-                write_woff2,
-            )
-            pending[fut] = marker
-            print(f"      queued build {Path(out).name} ({len(pending)} in flight)", flush=True)
+            for style in style_list:
+                style_dir = FONT_DIR / style
+                style_dir.mkdir(parents=True, exist_ok=True)
+                out = str(style_dir / f"{marker:X}.ttf")
+                fut = pool.submit(
+                    _build_marker_task,
+                    marker,
+                    list(grouped[marker]),
+                    strokes,
+                    out,
+                    include_mirrors,
+                    write_ttf,
+                    write_woff2,
+                    style,
+                )
+                pending[fut] = (marker, style)
+                print(
+                    f"      queued build {style}/{Path(out).name} "
+                    f"({len(pending)} in flight)",
+                    flush=True,
+                )
 
-            while len(pending) >= jobs:
-                done_set, _ = wait(pending.keys(), return_when=FIRST_COMPLETED)
-                for fut in done_set:
-                    mk = pending.pop(fut)
-                    _marker, rendered, total = fut.result()
-                    finished += 1
-                    print(
-                        f"  [build {finished}/{len(markers)}] U+{mk:X} done — "
-                        f"rendered {rendered}, glyphs {total}",
-                        flush=True,
-                    )
+                while len(pending) >= jobs:
+                    done_set, _ = wait(pending.keys(), return_when=FIRST_COMPLETED)
+                    for fut in done_set:
+                        mk, st = pending.pop(fut)
+                        _marker, _style, rendered, total = fut.result()
+                        finished += 1
+                        print(
+                            f"  [build {finished}/{total_fonts}] "
+                            f"{st} U+{mk:X} done — "
+                            f"rendered {rendered}, glyphs {total}",
+                            flush=True,
+                        )
 
         while pending:
             done_set, _ = wait(pending.keys(), return_when=FIRST_COMPLETED)
             for fut in done_set:
-                mk = pending.pop(fut)
-                _marker, rendered, total = fut.result()
+                mk, st = pending.pop(fut)
+                _marker, _style, rendered, total = fut.result()
                 finished += 1
                 print(
-                    f"  [build {finished}/{len(markers)}] U+{mk:X} done — "
+                    f"  [build {finished}/{total_fonts}] {st} U+{mk:X} done — "
                     f"rendered {rendered}, glyphs {total}",
                     flush=True,
                 )
 
     return all_strokes
+
+
+def resolve_shotai_styles(args: argparse.Namespace) -> list[str]:
+    """Return selected KAGE styles; default is all three when none are set."""
+    selected = [
+        name
+        for name, flag in (
+            ("mincho", args.mincho),
+            ("gothic", args.gothic),
+            ("rounded", args.rounded),
+        )
+        if flag
+    ]
+    return selected or list(SHOTAI_STYLES)
 
 
 # ---------------------------------------------------------------------------
@@ -1209,6 +1253,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Omit D4 variant outlines and rlig (identity forms only)",
     )
+    parser.add_argument(
+        "--mincho",
+        action="store_true",
+        help="Build mincho (serif); if none of the style flags are set, all three are built",
+    )
+    parser.add_argument(
+        "--gothic",
+        action="store_true",
+        help="Build gothic (sans); combine with --mincho/--rounded as needed",
+    )
+    parser.add_argument(
+        "--rounded",
+        action="store_true",
+        help="Build rounded; combine with --mincho/--gothic as needed",
+    )
     fmt = parser.add_mutually_exclusive_group()
     fmt.add_argument(
         "--ttf-only",
@@ -1250,6 +1309,7 @@ def main(argv: list[str] | None = None) -> int:
     include_mirrors = not args.no_mirrors
     write_ttf = not args.woff2_only
     write_woff2 = not args.ttf_only
+    styles = resolve_shotai_styles(args)
     per_file = glyphs_per_file(include_mirrors=include_mirrors)
 
     import os
@@ -1272,6 +1332,7 @@ def main(argv: list[str] | None = None) -> int:
         f"({'6400 PUA + 6400 identity' if args.no_mirrors else '6400 PUA + 6400*8 D4 variants'})"
     )
     print(f"Parallel: {'yes' if args.parallel else 'no'} (jobs={jobs})")
+    print(f"Styles: {', '.join(styles)} -> {FONT_DIR}/{{style}}/")
     print("Bucket D4: unicode + VS01..VS08 (U+E000..U+E007), no SPUA marker")
     if args.no_filters:
         print("Filters: aliases only (--no-filters)")
@@ -1318,6 +1379,7 @@ def main(argv: list[str] | None = None) -> int:
             include_mirrors=include_mirrors,
             write_ttf=write_ttf,
             write_woff2=write_woff2,
+            styles=styles,
             jobs=jobs,
         )
         print("\n=== Font build from resolved data complete ===")
@@ -1442,6 +1504,7 @@ def main(argv: list[str] | None = None) -> int:
             include_mirrors=include_mirrors,
             write_ttf=write_ttf,
             write_woff2=write_woff2,
+            styles=styles,
             jobs=jobs,
         )
         # Persist cmap-coverage strokes for --from-resolved later
@@ -1502,6 +1565,7 @@ def main(argv: list[str] | None = None) -> int:
             include_mirrors=include_mirrors,
             write_ttf=write_ttf,
             write_woff2=write_woff2,
+            styles=styles,
             jobs=jobs,
         )
 

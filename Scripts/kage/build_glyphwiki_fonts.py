@@ -36,8 +36,9 @@ from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from .engine import (
     Kage,
+    SHOTAI_STYLES,
     _path_has_spike,
-    iter_filled_paths,
+    iter_outline_paths,
     make_engine,
     render_stroke_data,
 )
@@ -227,23 +228,51 @@ def _draw_svg_normalized(
     *,
     clockwise: bool = True,
 ) -> bool:
-    """Draw SVG paths in font space, reversing any contour with wrong winding."""
+    """Draw SVG paths in font space, reversing any contour with wrong winding.
+
+    Filled mincho ribbons are drawn directly. Gothic/rounded stroked centerlines
+    are expanded with pathops before the KAGE→font affine is applied.
+    """
     import pathops
 
     drew = False
-    for d, local in iter_filled_paths(drawing):
+    for d, local, stroke in iter_outline_paths(drawing):
         if _path_has_spike(d, local):
             continue
         piece = pathops.Path()
-        composed = font_transform.transform(local)
         try:
-            parse_path(d, TransformPen(piece.getPen(), composed))
+            # Parse in KAGE space (+ local transform) so stroke widths stay in
+            # design units; font_transform is applied after expansion.
+            parse_path(d, TransformPen(piece.getPen(), local))
         except Exception:
             continue
-        try:
-            piece.close()
-        except Exception:
-            pass
+        if stroke is not None:
+            width, cap, join = stroke
+            try:
+                piece.stroke(width, cap, join, 4.0)
+                # Round caps/joins emit conics; convert before winding / Cu2Qu.
+                # Returns None when the stroked path has no conics.
+                converted = piece.convertConicsToQuads()
+                if converted is not None:
+                    piece = converted
+            except Exception:
+                continue
+        else:
+            try:
+                piece.close()
+            except Exception:
+                pass
+        if font_transform != Transform():
+            try:
+                piece = piece.transform(*font_transform)
+            except Exception:
+                # Fallback: replay through a transform pen
+                xformed = pathops.Path()
+                try:
+                    piece.draw(TransformPen(xformed.getPen(), font_transform))
+                except Exception:
+                    continue
+                piece = xformed
         if len(list(piece.contours)) == 0:
             continue
         try:
@@ -304,6 +333,7 @@ def build_marker_font(
     *,
     upem: int = DEFAULT_UPEM,
     kage: Kage | None = None,
+    style: str = "mincho",
     write_ttf: bool = True,
     write_woff2: bool = True,
     include_mirrors: bool = True,
@@ -312,6 +342,7 @@ def build_marker_font(
 
     ``mappings`` must all share ``marker`` and cover up to 6400 PUA slots.
     ``stroke_data`` maps glyph name → resolved KAGE stroke string.
+    ``style`` is the KAGE shotai (``mincho`` / ``gothic`` / ``rounded``).
 
     With ``include_mirrors`` (default), each slot gets identity + 7 D4
     variants (57 600 glyphs). Without mirrors, only identity outlines are
@@ -319,8 +350,11 @@ def build_marker_font(
 
     Returns ``(rendered_count, total_glyphs)``.
     """
+    style_key = style.lower().strip()
+    if style_key not in SHOTAI_STYLES:
+        raise ValueError(f"unknown style {style!r}; expected one of {SHOTAI_STYLES}")
     if kage is None:
-        kage = make_engine()
+        kage = make_engine(style=style_key)
 
     by_pua = {m.pua: m for m in mappings if m.marker == marker}
     if not by_pua:
@@ -471,8 +505,8 @@ def build_marker_font(
     ascent = otRound(upem * 0.88)
     descent = otRound(upem * -0.12)
     hex_id = f"{marker:X}"
-    family = f"glyphwiki {hex_id}"
-    ps = f"glyphwiki-{hex_id}"
+    family = f"glyphwiki {style_key} {hex_id}"
+    ps = f"glyphwiki-{style_key}-{hex_id}"
 
     fb = FontBuilder(upem, isTTF=True)
     fb.setupGlyphOrder(glyph_order)

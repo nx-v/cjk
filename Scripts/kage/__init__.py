@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from .engine import REFERENCE_STROKE, Kage, make_engine, mirror_stroke_data, render_stroke_data
+from .engine import (
+    REFERENCE_STROKE,
+    SHOTAI_STYLES,
+    Kage,
+    make_engine,
+    mirror_stroke_data,
+    render_stroke_data,
+)
 from .mapping import (
     D4_MODES,
     DEFAULT_VS_MARKER,
@@ -39,6 +46,7 @@ __all__ = [
     "Kage",
     "MirrorVS",
     "REFERENCE_STROKE",
+    "SHOTAI_STYLES",
     "VS01",
     "VS02",
     "VS03",

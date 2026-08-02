@@ -1,5 +1,6 @@
 # Leaf directories whose contents exceed 100MB
 Scripts/data/
 Scripts/dump/
+Scripts/dist/glyphwiki/
 *.pyc
 */__pycache__/
