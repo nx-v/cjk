@@ -1,22 +1,24 @@
-"""Build GlyphWiki PUA ligature fonts (32 000 glyphs per SPUA marker).
+"""Build GlyphWiki PUA ligature fonts (57 600 glyphs per SPUA marker).
 
 Each output TTF corresponds to one Supplementary PUA marker and contains:
 
 * 6 400 BMP PUA selector glyphs (U+E000..U+F8FF, zero-width)
-* 6 400 × 4 = 25 600 rendered outlines (identity + 3 mirrors)
+* 6 400 × 8 = 51 200 rendered outlines (identity + 7 unique D4 variants)
 
-Total = 32 000 glyphs. GSUB:
+Total = 57 600 glyphs. GSUB:
 
 * ``marker + pua`` → identity outline
-* ``identity + VS02..VS04`` → mirrored outlines (KAGE stroke flip + re-render)
+* ``identity + VS02..VS08`` → D4 variants (stroke-level transform + re-render)
 
 Rendering uses the in-tree KAGE Serif renderer (filled SVG paths), then
-Cu2Qu for TrueType. Contours are normalized to clockwise winding so
-overlaps fill solidly under nonzero fill.
+optional Schneider curve-fit of long ribbon polygons, then Cu2Qu for
+TrueType. Contours are normalized to clockwise winding so overlaps fill
+solidly under nonzero fill.
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -32,25 +34,33 @@ from fontTools.ttLib import woff2
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from .engine import (
+    DEFAULT_CURVE_FIT_ERROR,
     Kage,
     _path_has_spike,
+    draw_path_with_optional_curve_fit,
     iter_filled_paths,
     make_engine,
-    mirror_stroke_data,
     render_stroke_data,
+    transform_stroke_data,
 )
 from .mapping import (
     BMP_PUA_COUNT,
     BMP_PUA_START,
+    D4_MODES,
     GlyphMapping,
     MirrorVS,
 )
 
-# One SPUA-marker font: 6400 PUA selectors + 6400*4 rendered variants
+_SCRIPTS_DIR = Path(__file__).resolve().parent.parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+from yi_halfwidth import center_glyph_in_cell  # noqa: E402
+
+# One SPUA-marker font: 6400 PUA selectors + 6400*8 rendered D4 variants
 PUA_SELECTORS = BMP_PUA_COUNT  # 6400
-MIRROR_FORMS = 4  # identity, mx, my, mxy
-RENDERED_PER_MARKER = PUA_SELECTORS * MIRROR_FORMS  # 25600
-GLYPHS_PER_FILE = PUA_SELECTORS + RENDERED_PER_MARKER  # 32000
+D4_FORMS = MirrorVS.MODE_COUNT  # identity + 7 unique symmetries
+RENDERED_PER_MARKER = PUA_SELECTORS * D4_FORMS  # 51200
+GLYPHS_PER_FILE = PUA_SELECTORS + RENDERED_PER_MARKER  # 57600
 GLYPHS_PER_FILE_NO_MIRROR = PUA_SELECTORS + PUA_SELECTORS  # 12800
 
 
@@ -59,14 +69,6 @@ def glyphs_per_file(*, include_mirrors: bool = True) -> int:
 
 
 DEFAULT_UPEM = 1000
-
-# Mirror forms: (mode, flip_x, flip_y, name suffix or None for identity)
-MIRROR_FORMS_SPEC: list[tuple[int, bool, bool, str | None]] = [
-    (MirrorVS.IDENTITY, False, False, None),
-    (MirrorVS.FLIP_X, True, False, "mx"),
-    (MirrorVS.FLIP_Y, False, True, "my"),
-    (MirrorVS.FLIP_BOTH, True, True, "mxy"),
-]
 
 
 def empty_glyph() -> TTGlyph:
@@ -146,6 +148,8 @@ def svg_drawing_to_ttglyph(
     *,
     flatten: bool = False,
     max_err: float = 0.5,
+    curve_fit: bool = False,
+    curve_fit_error: float = DEFAULT_CURVE_FIT_ERROR,
 ) -> TTGlyph | None:
     """Convert a KAGE SVG drawing to a TrueType glyph.
 
@@ -153,8 +157,11 @@ def svg_drawing_to_ttglyph(
     overlapping stroke ribbons fill solidly (nonzero winding). Opposite
     windings otherwise punch white holes at joints.
 
-    Mirrors are produced by flipping KAGE stroke data and re-rendering
-    (see ``mirror_stroke_data``), not by transforming these SVG contours.
+    D4 variants are produced by ``transform_stroke_data`` + re-render, not
+    by transforming these SVG contours.
+
+    ``curve_fit`` runs Schneider fitting on long polygonal ribbons (serif
+    tip polygons with few points are left sharp).
 
     ``flatten`` (pathops.simplify) stays off by default: boolean union of
     Serif ribbons collapses to a solid black square over the glyph bbox.
@@ -172,7 +179,14 @@ def svg_drawing_to_ttglyph(
             flatten = False
         else:
             sk = pathops.Path()
-            if not _draw_svg_normalized(drawing, sk.getPen(), combined, clockwise=True):
+            if not _draw_svg_normalized(
+                drawing,
+                sk.getPen(),
+                combined,
+                clockwise=True,
+                curve_fit=curve_fit,
+                curve_fit_error=curve_fit_error,
+            ):
                 return None
             try:
                 sk = pathops.simplify(sk, fix_winding=True, clockwise=False)
@@ -200,7 +214,12 @@ def svg_drawing_to_ttglyph(
 
     pen = TTGlyphPen(None)
     if not _draw_svg_normalized(
-        drawing, Cu2QuPen(pen, max_err), combined, clockwise=True
+        drawing,
+        Cu2QuPen(pen, max_err),
+        combined,
+        clockwise=True,
+        curve_fit=curve_fit,
+        curve_fit_error=curve_fit_error,
     ):
         return None
     glyph = pen.glyph()
@@ -219,6 +238,8 @@ def _draw_svg_normalized(
     font_transform: Transform,
     *,
     clockwise: bool = True,
+    curve_fit: bool = False,
+    curve_fit_error: float = DEFAULT_CURVE_FIT_ERROR,
 ) -> bool:
     """Draw SVG paths in font space, reversing any contour with wrong winding."""
     import pathops
@@ -230,7 +251,14 @@ def _draw_svg_normalized(
         piece = pathops.Path()
         composed = font_transform.transform(local)
         try:
-            parse_path(d, TransformPen(piece.getPen(), composed))
+            if not draw_path_with_optional_curve_fit(
+                d,
+                composed,
+                piece.getPen(),
+                curve_fit=curve_fit,
+                max_error=curve_fit_error,
+            ):
+                continue
         except Exception:
             continue
         try:
@@ -279,15 +307,20 @@ def build_marker_font(
     kage: Kage | None = None,
     write_woff2: bool = True,
     include_mirrors: bool = True,
+    curve_fit: bool = False,
+    curve_fit_error: float = DEFAULT_CURVE_FIT_ERROR,
 ) -> tuple[int, int]:
     """Build one font for a single SPUA ``marker``.
 
     ``mappings`` must all share ``marker`` and cover up to 6400 PUA slots.
     ``stroke_data`` maps glyph name → resolved KAGE stroke string.
 
-    With ``include_mirrors`` (default), each slot gets identity + 3 mirrors
-    (32 000 glyphs). Without mirrors, only identity outlines are stored
+    With ``include_mirrors`` (default), each slot gets identity + 7 D4
+    variants (57 600 glyphs) via stroke-level ``transform_stroke_data`` +
+    re-render. Without mirrors, only identity outlines are stored
     (12 800 glyphs).
+
+    ``curve_fit`` enables Schneider fitting of long ribbon polygons.
 
     Returns ``(rendered_count, total_glyphs)``.
     """
@@ -312,7 +345,7 @@ def build_marker_font(
     metrics[mk_name] = (0, 0)
     cmap[marker] = mk_name
 
-    # All 6400 BMP PUA selectors (zero-width), including VS01..VS04 slots
+    # All 6400 BMP PUA selectors (zero-width), including VS01..VS08 slots
     for i in range(BMP_PUA_COUNT):
         pua = BMP_PUA_START + i
         pname = pua_glyph_name(pua)
@@ -324,43 +357,46 @@ def build_marker_font(
     rendered = 0
     advance = upem  # full em square for CJK-like cells
 
+    def _outline_from_data(stroke: str) -> TTGlyph | None:
+        try:
+            drawing = render_stroke_data(kage, stroke)
+        except Exception:
+            return None
+        if drawing is None:
+            return None
+        try:
+            return svg_drawing_to_ttglyph(
+                drawing,
+                upem,
+                curve_fit=curve_fit,
+                curve_fit_error=curve_fit_error,
+            )
+        except Exception:
+            return None
+
     for i in range(BMP_PUA_COUNT):
         pua = BMP_PUA_START + i
         mapping = by_pua.get(pua)
         data = stroke_data.get(mapping.name) if mapping else None
 
-        drawing = None
-        if data:
-            try:
-                drawing = render_stroke_data(kage, data)
-            except Exception as exc:
-                print(f"  [!] render failed {mapping.name if mapping else pua}: {exc}")
-                drawing = None
-
         identity_name = result_glyph_name(pua)
         if identity_name not in glyphs:
             glyph_order.append(identity_name)
-            if drawing is not None:
+            ttg = _outline_from_data(data) if data else None
+            if ttg is not None:
+                glyphs[identity_name] = ttg
                 try:
-                    ttg = svg_drawing_to_ttglyph(drawing, upem)
-                except Exception as exc:
-                    print(
-                        f"  [!] outline failed "
-                        f"{mapping.name if mapping else pua}: {exc}"
-                    )
-                    ttg = None
-                if ttg is not None:
-                    glyphs[identity_name] = ttg
-                    try:
-                        lsb = int(ttg.xMin)
-                    except Exception:
-                        lsb = 0
-                    metrics[identity_name] = (advance, lsb)
-                    rendered += 1
-                else:
-                    glyphs[identity_name] = empty_glyph()
-                    metrics[identity_name] = (advance, 0)
+                    lsb = int(ttg.xMin)
+                except Exception:
+                    lsb = 0
+                metrics[identity_name] = (advance, lsb)
+                rendered += 1
             else:
+                if data:
+                    print(
+                        f"  [!] render/outline failed "
+                        f"{mapping.name if mapping else pua}"
+                    )
                 glyphs[identity_name] = empty_glyph()
                 metrics[identity_name] = (advance, 0)
 
@@ -370,44 +406,41 @@ def build_marker_font(
         if not include_mirrors:
             continue
 
-        for mode, flip_x, flip_y, suffix in MIRROR_FORMS_SPEC:
+        for mode, rot, flip_x, flip_y, suffix in D4_MODES:
             if suffix is None:
                 continue
             m_name = result_glyph_name(pua, suffix)
             if m_name in glyphs:
                 continue
             glyph_order.append(m_name)
-            m_drawing = None
+            ttg = None
             if data:
                 try:
-                    m_data = mirror_stroke_data(data, flip_x=flip_x, flip_y=flip_y)
-                    m_drawing = render_stroke_data(kage, m_data)
-                except Exception as exc:
-                    print(
-                        f"  [!] mirror render failed "
-                        f"{mapping.name if mapping else pua}.{suffix}: {exc}"
+                    tdata = transform_stroke_data(
+                        data,
+                        rot90_quarters=rot,
+                        flip_x=flip_x,
+                        flip_y=flip_y,
                     )
-                    m_drawing = None
-            if m_drawing is not None:
-                try:
-                    ttg = svg_drawing_to_ttglyph(m_drawing, upem)
+                    ttg = _outline_from_data(tdata)
                 except Exception as exc:
                     print(
-                        f"  [!] outline failed "
+                        f"  [!] D4 re-render failed "
                         f"{mapping.name if mapping else pua}.{suffix}: {exc}"
                     )
                     ttg = None
-                if ttg is not None:
-                    glyphs[m_name] = ttg
-                    try:
-                        lsb = int(ttg.xMin)
-                    except Exception:
-                        lsb = 0
-                    metrics[m_name] = (advance, lsb)
-                    rendered += 1
-                else:
-                    glyphs[m_name] = empty_glyph()
-                    metrics[m_name] = (advance, 0)
+            if ttg is not None:
+                # Stroke transform is content-centered; nudge again after
+                # serifs render so the final outline sits in the em cell.
+                ttg = center_glyph_in_cell(ttg, upem)
+                glyphs[m_name] = ttg
+                try:
+                    ttg.recalcBounds(None)
+                    lsb = int(ttg.xMin)
+                except Exception:
+                    lsb = 0
+                metrics[m_name] = (advance, lsb)
+                rendered += 1
             else:
                 glyphs[m_name] = empty_glyph()
                 metrics[m_name] = (advance, 0)

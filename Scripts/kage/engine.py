@@ -2,19 +2,25 @@
 
 Uses the in-tree renderer under ``Scripts.kage.renderer`` (based on
 HowardZorn/kage-engine, GPL-3.0).
+
+D4 variants (rotate × reflect) transform **stroke skeletons** with tip
+codes peeled off, then reattached after direction restore / L·R remap so
+serifs keep calligraphic roles. Prefer ``transform_stroke_data`` +
+``render_stroke_data`` over affine-flipping finished SVG contours.
 """
 
 from __future__ import annotations
 
 import math
 import re
-from typing import Any
+from typing import Any, Sequence
 
 from fontTools.misc.transform import Transform
 from fontTools.pens.transformPen import TransformPen
 from fontTools.svgLib.path import parse_path
 
 from .renderer import Kage as _RendererKage
+from .renderer.fit_curve import fit_curve
 from .renderer.font.serif import Serif
 
 import svgwrite
@@ -25,6 +31,11 @@ _TRANSFORM_RE = re.compile(
     r"(matrix|translate|scale|rotate)\s*\(\s*([^)]*)\s*\)",
     re.IGNORECASE,
 )
+
+# Contours with at least this many points are treated as flattened stroke
+# ribbons eligible for Schneider curve fitting (small tip polygons skipped).
+CURVE_FIT_MIN_POINTS = 8
+DEFAULT_CURVE_FIT_ERROR = 4.0  # squared distance in font units
 
 
 def make_engine(*, ignore_component_version: bool = False) -> _RendererKage:
@@ -64,65 +75,108 @@ def _remap_tip_lr(tip: float) -> float:
     return float(raw - base + swapped)
 
 
-def _reverse_stroke_points(nums: list[float]) -> None:
-    """Reverse control-point order only (keep head/tail tip roles)."""
-    if len(nums) < 7:
-        return
-    coords = nums[3:]
-    if len(coords) % 2 == 1:
-        coords.append(0.0)
-    pairs = [(coords[i], coords[i + 1]) for i in range(0, len(coords), 2)]
-    pairs.reverse()
-    flat = [c for p in pairs for c in p]
-    nums[3:] = flat[: len(nums) - 3]
+def _d4_is_reflection(rot90_quarters: int, flip_x: bool, flip_y: bool) -> bool:
+    """True when the D4 map reverses orientation (odd number of axis flips)."""
+    del rot90_quarters  # rotations are proper; only flips affect parity
+    return bool(flip_x) != bool(flip_y)
 
 
-def _reverse_stroke_nums(nums: list[float]) -> None:
-    """Reverse stroke direction: swap tip forms and control-point order.
+def _stroke_data_bounds(
+    data: str,
+) -> tuple[float, float, float, float] | None:
+    """Axis-aligned bounds of all control points in resolved stroke data."""
+    xs: list[float] = []
+    ys: list[float] = []
+    for seg in data.split("$"):
+        if not seg:
+            continue
+        parts = seg.split(":")
+        nums: list[float] = []
+        ok = True
+        for p in parts:
+            try:
+                nums.append(float(p))
+            except ValueError:
+                ok = False
+                break
+        if not ok or len(nums) < 7:
+            continue
+        if int(nums[0]) % 100 in (0, 99):
+            continue
+        for i in range(3, len(nums), 2):
+            if i + 1 >= len(nums):
+                break
+            xs.append(nums[i])
+            ys.append(nums[i + 1])
+    if not xs:
+        return None
+    return min(xs), min(ys), max(xs), max(ys)
 
-    For horizontal / diagonal strokes after a single-axis flip, this restores
-    left/right relative to travel. Do not use alone on vertical strokes whose
-    tips are head-only (12/22) vs tail-only (13/23).
-    """
-    if len(nums) < 7:
-        return
-    nums[1], nums[2] = nums[2], nums[1]
-    _reverse_stroke_points(nums)
+
+def _kage_d4_point_about(
+    x: float,
+    y: float,
+    *,
+    rot90_quarters: int,
+    flip_x: bool,
+    flip_y: bool,
+    size: float,
+    content_cx: float,
+    content_cy: float,
+) -> tuple[float, float]:
+    """D4 about content center, then place that center at the design midpoint."""
+    # Map into frame centered at content, apply design-space D4 about 0,
+    # then shift so content center lands on size/2.
+    q = rot90_quarters % 4
+    dx, dy = x - content_cx, y - content_cy
+    if q == 1:
+        dx, dy = dy, -dx
+    elif q == 2:
+        dx, dy = -dx, -dy
+    elif q == 3:
+        dx, dy = -dy, dx
+    if flip_y:
+        dx = -dx
+    if flip_x:
+        dy = -dy
+    cell = size / 2.0
+    return cell + dx, cell + dy
 
 
-def _stroke_endpoints(nums: list[float]) -> tuple[float, float, float, float]:
-    """First and last control points (x1, y1, x2, y2)."""
-    coords = nums[3:]
-    if len(coords) % 2 == 1:
-        coords = coords + [0.0]
-    return coords[0], coords[1], coords[-2], coords[-1]
-
-
-def mirror_stroke_data(
+def transform_stroke_data(
     data: str,
     *,
+    rot90_quarters: int = 0,
     flip_x: bool = False,
     flip_y: bool = False,
     size: float = 200.0,
 ) -> str:
-    """Mirror resolved KAGE stroke skeletons in design space (y-down).
+    """Apply a D4 transform to resolved KAGE strokes, preserving serifs.
 
-    ``flip_x`` → ``y → size - y`` (mirror across horizontal axis).
-    ``flip_y`` → ``x → size - x`` (mirror across vertical axis).
+    For each real stroke:
 
-    After flipping coordinates:
+    1. **Peel** head/tail tip codes (``a2``/``a3``) off the skeleton.
+    2. Transform control points about the glyph's content bbox center, then
+       place that center at the design-frame midpoint so the result stays
+       cell-centered. Point order is kept so each tip stays on its endpoint.
+    3. On reflection, remap L/R tip bases (12↔22, 13↔23).
+    4. **Reattach** tip codes; re-render with ``render_stroke_data``.
 
-    * Horizontal / diagonal (single-axis): reverse direction (swap ``a2``/``a3``
-      and control points) so connectors stay travel-relative.
-    * Vertical-ish: keep head/tail tip roles. Y-mirror reverses points only
-      (restore top→bottom). X-mirror leaves direction alone and remaps L/R tip
-      codes (12↔22, 13↔23). Both-axes: restore top→bottom, then L/R remap.
-
-    Re-render with ``render_stroke_data`` (do not affine-flip SVG contours).
+    Types 0 and 99 only move coordinates (no tip surgery).
     """
-    if not data or not (flip_x or flip_y):
+    q = rot90_quarters % 4
+    if not data or (q == 0 and not flip_x and not flip_y):
         return data
-    single_axis = flip_x != flip_y
+
+    reflects = _d4_is_reflection(q, flip_x, flip_y)
+    bounds = _stroke_data_bounds(data)
+    if bounds is None:
+        content_cx = content_cy = size / 2.0
+    else:
+        x0, y0, x1, y1 = bounds
+        content_cx = (x0 + x1) / 2.0
+        content_cy = (y0 + y1) / 2.0
+
     out_segs: list[str] = []
     for seg in data.split("$"):
         if not seg:
@@ -139,29 +193,56 @@ def mirror_stroke_data(
         if not ok or len(nums) < 7:
             out_segs.append(seg)
             continue
-        # cols: type, a2, a3, x1,y1, x2,y2, [x3,y3, x4,y4, ...]
-        for i in range(3, len(nums), 2):
-            if flip_y:
-                nums[i] = size - nums[i]
-            if i + 1 < len(nums) and flip_x:
-                nums[i + 1] = size - nums[i + 1]
+
         stroke_type = int(nums[0]) % 100
+        head_tip = nums[1]
+        tail_tip = nums[2]
+
+        # Peel tips while the skeleton moves.
         if stroke_type not in (0, 99):
-            x1, y1, x2, y2 = _stroke_endpoints(nums)
-            vertical = abs(y2 - y1) >= abs(x2 - x1)
-            if vertical:
-                # Head tips (12/22) must stay on start; heel tips (13/23) on end.
-                if flip_x and y1 > y2:
-                    # Y-mirror (or both) turned the stem upward — restore top→bottom.
-                    _reverse_stroke_points(nums)
-                # X-mirror alone: direction already top→bottom; L/R remap below.
-            elif single_axis:
-                _reverse_stroke_nums(nums)
-            if flip_y:
-                nums[1] = _remap_tip_lr(nums[1])
-                nums[2] = _remap_tip_lr(nums[2])
+            nums[1] = 0.0
+            nums[2] = 0.0
+
+        for i in range(3, len(nums), 2):
+            if i + 1 >= len(nums):
+                break
+            nums[i], nums[i + 1] = _kage_d4_point_about(
+                nums[i],
+                nums[i + 1],
+                rot90_quarters=q,
+                flip_x=flip_x,
+                flip_y=flip_y,
+                size=size,
+                content_cx=content_cx,
+                content_cy=content_cy,
+            )
+
+        if stroke_type not in (0, 99):
+            if reflects:
+                head_tip = _remap_tip_lr(head_tip)
+                tail_tip = _remap_tip_lr(tail_tip)
+            nums[1] = head_tip
+            nums[2] = tail_tip
+
         out_segs.append(":".join(_fmt_stroke_num(v) for v in nums))
     return "$".join(out_segs)
+
+
+def mirror_stroke_data(
+    data: str,
+    *,
+    flip_x: bool = False,
+    flip_y: bool = False,
+    size: float = 200.0,
+) -> str:
+    """Mirror resolved KAGE stroke skeletons (D4 flips only).
+
+    ``flip_x`` → ``y → size - y``; ``flip_y`` → ``x → size - x``.
+    See ``transform_stroke_data`` for tip peel / reattach.
+    """
+    return transform_stroke_data(
+        data, rot90_quarters=0, flip_x=flip_x, flip_y=flip_y, size=size
+    )
 
 
 def kage_mirror_transform(flip_x: bool, flip_y: bool) -> Transform:
@@ -278,6 +359,127 @@ def _path_has_spike(d: str, local: Transform) -> bool:
             if x < -100 or y < -100 or x > 400 or y > 400:
                 return True
     return False
+
+
+def _recording_contours(
+    d: str, local: Transform
+) -> list[tuple[list[tuple[float, float]], bool]]:
+    """Extract closed polyline contours ``(points, only_lines)`` from a path."""
+    from fontTools.pens.recordingPen import RecordingPen
+
+    rp = RecordingPen()
+    try:
+        parse_path(d, TransformPen(rp, local) if local != Transform() else rp)
+    except Exception:
+        return []
+
+    contours: list[tuple[list[tuple[float, float]], bool]] = []
+    pts: list[tuple[float, float]] = []
+    only_lines = True
+    for op, args in rp.value:
+        if op == "moveTo":
+            if pts:
+                contours.append((pts, only_lines))
+            pts = [args[0]]
+            only_lines = True
+        elif op == "lineTo":
+            pts.append(args[0])
+        elif op in ("qCurveTo", "curveTo"):
+            only_lines = False
+            pts.extend(args)
+        elif op == "closePath":
+            if pts:
+                contours.append((pts, only_lines))
+            pts = []
+            only_lines = True
+        elif op == "endPath":
+            if pts:
+                contours.append((pts, only_lines))
+            pts = []
+            only_lines = True
+    if pts:
+        contours.append((pts, only_lines))
+    return contours
+
+
+def fit_polyline_contour(
+    points: Sequence[Sequence[float]],
+    *,
+    max_error: float = DEFAULT_CURVE_FIT_ERROR,
+    min_points: int = CURVE_FIT_MIN_POINTS,
+) -> list[list[list[float]]] | None:
+    """Fit a closed polygonal contour to cubics, or ``None`` to keep polygon.
+
+    Small tip polygons (few points) are left alone so serifs stay sharp.
+    """
+    pts = [list(p) for p in points]
+    if len(pts) >= 2 and pts[0] == pts[-1]:
+        pts = pts[:-1]
+    if len(pts) < min_points:
+        return None
+    # Closed ring: repeat first point so the fit covers the seam.
+    ring = pts + [pts[0]]
+    try:
+        curves = fit_curve(ring, max_error)
+    except Exception:
+        return None
+    return curves if curves else None
+
+
+def draw_path_with_optional_curve_fit(
+    d: str,
+    local: Transform,
+    pen,
+    *,
+    curve_fit: bool = False,
+    max_error: float = DEFAULT_CURVE_FIT_ERROR,
+    min_points: int = CURVE_FIT_MIN_POINTS,
+) -> bool:
+    """Replay a filled SVG path onto ``pen``, optionally curve-fitting polygons."""
+    if not curve_fit:
+        target = pen if local == Transform() else TransformPen(pen, local)
+        try:
+            parse_path(d, target)
+        except Exception:
+            return False
+        try:
+            target.closePath()
+        except Exception:
+            try:
+                pen.closePath()
+            except Exception:
+                pass
+        return True
+
+    drew = False
+    for pts, only_lines in _recording_contours(d, local):
+        if not pts:
+            continue
+        curves = (
+            fit_polyline_contour(pts, max_error=max_error, min_points=min_points)
+            if only_lines
+            else None
+        )
+        try:
+            if curves:
+                pen.moveTo((curves[0][0][0], curves[0][0][1]))
+                for bez in curves:
+                    # [p0, c1, c2, p1]
+                    pen.curveTo(
+                        (bez[1][0], bez[1][1]),
+                        (bez[2][0], bez[2][1]),
+                        (bez[3][0], bez[3][1]),
+                    )
+                pen.closePath()
+            else:
+                pen.moveTo(pts[0])
+                for p in pts[1:]:
+                    pen.lineTo(p)
+                pen.closePath()
+            drew = True
+        except Exception:
+            continue
+    return drew
 
 
 Kage = _RendererKage

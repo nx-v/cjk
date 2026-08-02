@@ -180,7 +180,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--no-mirrors",
         action="store_true",
-        help="Omit mx/my/mxy outlines and rlig (identity forms only; 12800 glyphs/file)",
+        help="Omit D4 variant outlines and rlig (identity forms only; 12800 glyphs/file)",
+    )
+    p.add_argument(
+        "--curve-fit",
+        action="store_true",
+        help=(
+            "Schneider-fit long polygonal stroke ribbons to cubics "
+            "(default: keep renderer polygons)"
+        ),
     )
     p.add_argument(
         "--no-filters",
@@ -281,6 +289,8 @@ def main(argv: list[str] | None = None) -> int:
         forwarded.append("--from-resolved")
     if args.no_mirrors:
         forwarded.append("--no-mirrors")
+    if args.curve_fit:
+        forwarded.append("--curve-fit")
     if args.no_filters:
         forwarded.append("--no-filters")
     if args.parallel:

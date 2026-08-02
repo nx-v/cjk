@@ -3,8 +3,8 @@
 ## Roles
 
 * **Bucket / pigeonhole fonts** (``build_subfonts.py``) cover real Unicode
-  Hanzi, Hangul, and Tangut only. They run independently of the GlyphWiki
-  PUA font. Mirroring uses **VS01..VS04 directly** after the character
+  Hanzi, Hangul, Tangut, and Yi. They run independently of the GlyphWiki
+  PUA font. D4 variants use **VS01..VS08 directly** after the character
   (no Supplementary PUA marker).
 * **Everything else from GlyphWiki** is addressed only through the Private
   Use Area, as a **two-codepoint ligature**.
@@ -31,20 +31,20 @@ stroke count, name)``, then fill markers × PUA slots row-major
 
 Capacity ≈ ``131_068 × 6_400`` ≈ 838 million — far above the dump size.
 
-## GlyphWiki ligature fonts (32 000 glyphs per file)
+## GlyphWiki ligature fonts (57 600 glyphs per file)
 
 One TTF per SPUA marker (``build_glyphwiki_fonts``), **named after that
 marker** (the first code point of every ligature in the file), e.g.
 ``F0000.ttf``. Each file contains:
 
 * 6 400 BMP PUA selector glyphs (U+E000..U+F8FF)
-* 6 400 × 4 = 25 600 rendered outlines (identity + X / Y / both)
+* 6 400 × 8 = 51 200 rendered outlines (identity + 7 unique D4 variants)
 
-Total **32 000** glyphs (plus ``.notdef`` and the SPUA marker). Mirrors
-re-render flipped KAGE stroke skeletons (not SVG contour flips). GSUB::
+Total **57 600** glyphs (plus ``.notdef`` and the SPUA marker). Non-identity
+forms are outline transforms of the identity render (D4). GSUB::
 
     <SPUA marker>  <BMP PUA>   → identity outline
-    <identity>     <VS02..04>  → mirrored outline
+    <identity>     <VS02..08>  → D4 variant outline
 
 Only dump entries whose ``related`` code point falls in
 ``build_subfonts.CHAR_RANGES``, plus CJK Radicals Supplement
@@ -59,23 +59,30 @@ Empty placeholders (``0:-1:-1:-1``), full-frame aliases of another packed
 glyph, and duplicate resolved outlines (keep one canonical form) are also
 dropped before ligature assignment.
 
-## Mirror variants — VS01..VS04 (bucket fonts)
+## D4 variants — VS01..VS08 (bucket + GlyphWiki fonts)
 
-Bucket fonts emit flipped outlines **in the same TTF** as the base
-glyph. Mirrors are the two-codepoint GSUB ligature::
+Bucket fonts emit transformed outlines **in the same TTF** as the base
+glyph. Variants are the two-codepoint GSUB ligature::
 
-    <han / hangul / tangut>  <VS0n>
+    <han / hangul / tangut / yi>  <VS0n>
 
-No Supplementary PUA marker. VS01..VS04 (U+E000..U+E003) are also
+No Supplementary PUA marker. VS01..VS08 (U+E000..U+E007) are also
 cmap'd into every bucket font as zero-width marks.
 
+The 8 unique square symmetries (dihedral group D4); geometric duplicates
+such as ``mxy === r180`` are omitted:
+
 ======= ========== =========================
-Name    Code point Flip
+Name    Code point Transform
 ======= ========== =========================
-VS01    U+E000     0 — identity (no flip)
-VS02    U+E001     1 — flip on X axis
-VS03    U+E002     2 — flip on Y axis
-VS04    U+E003     3 — flip on both axes
+VS01    U+E000     identity
+VS02    U+E001     r90 (90° CCW)
+VS03    U+E002     r180
+VS04    U+E003     r270
+VS05    U+E004     mx (reflect horizontal)
+VS06    U+E005     my (reflect vertical)
+VS07    U+E006     r90mx (diagonal)
+VS08    U+E007     r90my (other diagonal)
 ======= ========== =========================
 
 GSUB distinguishes this from GlyphWiki pairs because the first code point
@@ -113,30 +120,53 @@ GLYPHWIKI_MARKER_START = SPUA_A_START
 
 
 class MirrorVS:
-    """Flip mode encoded as BMP PUA U+E000..U+E003 (VS01..VS04)."""
+    """D4 symmetries encoded as BMP PUA U+E000..U+E007 (VS01..VS08)."""
 
-    IDENTITY = 0  # VS01 — U+E000 — no flip
-    FLIP_X = 1  # VS02 — U+E001 — mirror on X axis (negate Y)
-    FLIP_Y = 2  # VS03 — U+E002 — mirror on Y axis (negate X)
-    FLIP_BOTH = 3  # VS04 — U+E003 — both axes
+    IDENTITY = 0  # VS01 — U+E000
+    ROT90 = 1  # VS02 — U+E001
+    ROT180 = 2  # VS03 — U+E002
+    ROT270 = 3  # VS04 — U+E003
+    FLIP_X = 4  # VS05 — U+E004 — mx (reflect across horizontal)
+    FLIP_Y = 5  # VS06 — U+E005 — my (reflect across vertical)
+    ROT90_MX = 6  # VS07 — U+E006
+    ROT90_MY = 7  # VS08 — U+E007
+
+    MODE_COUNT = 8
 
     @staticmethod
     def codepoint(mode: int) -> int:
-        if not 0 <= mode <= 3:
-            raise ValueError(f"mirror mode must be 0..3, got {mode}")
+        if not 0 <= mode < MirrorVS.MODE_COUNT:
+            raise ValueError(f"D4 mode must be 0..{MirrorVS.MODE_COUNT - 1}, got {mode}")
         return BMP_PUA_START + mode
 
     @staticmethod
     def mode_of(cp: int) -> int | None:
-        if BMP_PUA_START <= cp <= BMP_PUA_START + 3:
+        if BMP_PUA_START <= cp < BMP_PUA_START + MirrorVS.MODE_COUNT:
             return cp - BMP_PUA_START
         return None
 
 
+# (mode, rot90_quarters, flip_x, flip_y, name_suffix or None for identity)
+# Canonical D4 reps; omits geometric duplicates (mxy===r180, …).
+D4_MODES: list[tuple[int, int, bool, bool, str | None]] = [
+    (MirrorVS.IDENTITY, 0, False, False, None),
+    (MirrorVS.ROT90, 1, False, False, "r90"),
+    (MirrorVS.ROT180, 2, False, False, "r180"),
+    (MirrorVS.ROT270, 3, False, False, "r270"),
+    (MirrorVS.FLIP_X, 0, True, False, "mx"),
+    (MirrorVS.FLIP_Y, 0, False, True, "my"),
+    (MirrorVS.ROT90_MX, 1, True, False, "r90mx"),
+    (MirrorVS.ROT90_MY, 1, False, True, "r90my"),
+]
+
 VS01 = MirrorVS.codepoint(MirrorVS.IDENTITY)
-VS02 = MirrorVS.codepoint(MirrorVS.FLIP_X)
-VS03 = MirrorVS.codepoint(MirrorVS.FLIP_Y)
-VS04 = MirrorVS.codepoint(MirrorVS.FLIP_BOTH)
+VS02 = MirrorVS.codepoint(MirrorVS.ROT90)
+VS03 = MirrorVS.codepoint(MirrorVS.ROT180)
+VS04 = MirrorVS.codepoint(MirrorVS.ROT270)
+VS05 = MirrorVS.codepoint(MirrorVS.FLIP_X)
+VS06 = MirrorVS.codepoint(MirrorVS.FLIP_Y)
+VS07 = MirrorVS.codepoint(MirrorVS.ROT90_MX)
+VS08 = MirrorVS.codepoint(MirrorVS.ROT90_MY)
 
 
 # ---------------------------------------------------------------------------
@@ -585,10 +615,10 @@ def make_vs(marker: int, pua_index: int) -> VsSequence:
 
 
 def mirror_vs(mode: int) -> int:
-    """Return VS01..VS04 (U+E000..U+E003) for bucket-font mirroring.
+    """Return VS01..VS08 (U+E000..U+E007) for bucket/GlyphWiki D4 variants.
 
-    Used directly after a Unicode Han/Hangul/Tangut character — no SPUA
-    marker. Example sequence: ``<U+4E00><U+E001>`` → X-flipped 一.
+    Used directly after a Unicode character — no SPUA marker.
+    Example: ``<U+4E00><U+E001>`` → 90° CCW 一.
     """
     return MirrorVS.codepoint(mode)
 

@@ -6,10 +6,11 @@ Claims CJK/Tangut codepoints from priority-ordered source fonts, buckets them
 into 256-codepoint blocks (cp >> 8), and builds each TTF/WOFF2 from scratch by
 copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
 
-Mirrored variants for bucket fonts are emitted **in the same TTF**:
-flipped outlines plus GSUB ligatures ``unicode + VS01..VS04``
-(U+E000..U+E003). No Supplementary PUA marker, no cmap offsets.
-GlyphWiki content uses SPUA+BMP-PUA ligatures (see ``kage.mapping``).
+D4 variants for bucket fonts are emitted **in the same TTF**:
+transformed outlines plus GSUB ligatures ``unicode + VS01..VS08``
+(U+E000..U+E007) — the 8 unique square symmetries. No Supplementary
+PUA marker, no cmap offsets. GlyphWiki content uses SPUA+BMP-PUA
+ligatures (see ``kage.mapping``).
 
 Also writes pancjk.css (@font-face) and fontlist.css (CSS-safe stack).
 """
@@ -33,6 +34,20 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont, woff2
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
+
+from yi_halfwidth import (
+    NUOSU_FILENAME,
+    TRANSFORM_MODES,
+    VS_BASE,
+    VS_LAST,
+    apply_variant_recording,
+    center_glyph_in_cell,
+    is_yi_cp,
+    make_standalone_glyph,
+    record_glyph,
+    recording_from_metrics,
+    variant_glyph_name,
+)
 
 # ---------- Directories ----------
 
@@ -62,6 +77,7 @@ PRIORITY_FONTS = [
     "NazoMin-Classic.ttf",
     "NazoMin+-Classic.ttf",
     "NotoSerifTangut-Regular.ttf",
+    "NuosuSIL-Regular.ttf",  # Yi Syllables / Radicals (standalone forms)
 ]
 
 # ---------- Unicode ranges (inclusive) ----------
@@ -86,18 +102,11 @@ CHAR_RANGES: List[Tuple[int, int, str]] = [
     (0x18D00, 0x18D7F, "Tangut Supplement"),
     (0x18800, 0x18AFF, "Tangut Components"),
     (0x18D80, 0x18DFF, "Tangut Components Supplement"),
+    (0x0A000, 0x0A48C, "Yi Syllables"),
+    (0x0A490, 0x0A4CF, "Yi Radicals"),
 ]
 
-# Mirror modes for bucket fonts: (VS codepoint, flip_x, flip_y, name suffix).
-# VS01 (identity) is mapped but does not need a separate outline/ligature.
-MIRROR_MODES: List[Tuple[int, bool, bool, Optional[str]]] = [
-    (0xE000, False, False, None),  # VS01 — identity
-    (0xE001, True, False, "mx"),  # VS02 — flip on X
-    (0xE002, False, True, "my"),  # VS03 — flip on Y
-    (0xE003, True, True, "mxy"),  # VS04 — both
-]
-
-# (out_cp, source_path, src_cp) — base Unicode claims only; mirrors added in-font
+# (out_cp, source_path, src_cp) — base Unicode claims only; D4 variants in-font
 BucketEntry = Tuple[int, str, int]
 
 
@@ -304,10 +313,6 @@ def vs_glyph_name(vs_cp: int) -> str:
     return f"vs{vs_cp - 0xE000 + 1:02d}"
 
 
-def mirror_glyph_name(base_name: str, suffix: str) -> str:
-    return f"{base_name}.{suffix}"
-
-
 def build_bucket_font(
     bucket_id: int,
     entries: List[BucketEntry],
@@ -315,10 +320,10 @@ def build_bucket_font(
     out_dir: str,
     target_upem: int,
 ) -> Tuple[str, int, List[int]]:
-    """Build one pigeonhole font with in-font mirror ligatures.
+    """Build one pigeonhole font with in-font D4 variant ligatures.
 
     Returns (ttf_path, glyph_count, codepoints) where codepoints are the
-    Unicode cmap keys (bases + VS01..VS04 when present).
+    Unicode cmap keys (bases + VS01..VS08 when present).
     """
     hex_id = f"{bucket_id:X}"
     out_path = os.path.join(out_dir, f"{hex_id}.ttf")
@@ -334,9 +339,23 @@ def build_bucket_font(
         src_name = src.cmap.get(src_cp)
         if src_name is None:
             continue
-        copied = src.copy_glyph(src_name, target_upem, flip_x=False, flip_y=False)
-        if copied is None:
-            continue
+
+        # Yi from NuosuSIL: axis-shift fit into a CJK cell.
+        use_yi_standalone = (
+            os.path.basename(path) == NUOSU_FILENAME and is_yi_cp(src_cp)
+        )
+        if use_yi_standalone:
+            rec = record_glyph(src.tt, src_name)
+            if rec is None:
+                continue
+            copied = make_standalone_glyph(rec, target_upem)
+            if copied is None:
+                continue
+        else:
+            copied = src.copy_glyph(src_name, target_upem, flip_x=False, flip_y=False)
+            if copied is None:
+                continue
+
         glyph, advance, lsb = copied
         gname = glyph_name_for_cp(out_cp)
         glyph_order.append(gname)
@@ -344,19 +363,31 @@ def build_bucket_font(
         metrics[gname] = (advance, lsb)
         cmap[out_cp] = gname
 
-        # Flipped outlines + liga: base + VS0n -> mirrored glyph (same font)
-        for vs_cp, flip_x, flip_y, suffix in MIRROR_MODES:
+        base_rec = recording_from_metrics(copied)
+        for vs_cp, rot, flip_x, flip_y, suffix in TRANSFORM_MODES:
             if suffix is None:
                 continue  # VS01 identity — no extra glyph
-            mirrored = src.copy_glyph(
-                src_name, target_upem, flip_x=flip_x, flip_y=flip_y
+            mirrored = apply_variant_recording(
+                base_rec,
+                advance,
+                target_upem,
+                rot90_quarters=rot,
+                flip_x=flip_x,
+                flip_y=flip_y,
             )
             if mirrored is None:
                 continue
-            m_glyph, m_adv, m_lsb = mirrored
-            m_name = mirror_glyph_name(gname, suffix)
+            m_name = variant_glyph_name(gname, suffix)
             if m_name in glyphs:
                 continue
+            m_glyph, m_adv, m_lsb = mirrored
+            # Keep D4 variants centered in the CJK cell (bbox midpoint = em/2).
+            m_glyph = center_glyph_in_cell(m_glyph, target_upem)
+            try:
+                m_glyph.recalcBounds(None)
+                m_lsb = int(m_glyph.xMin)
+            except Exception:
+                pass
             glyph_order.append(m_name)
             glyphs[m_name] = m_glyph
             metrics[m_name] = (m_adv, m_lsb)
@@ -366,8 +397,8 @@ def build_bucket_font(
     if len(cmap) == 0:
         return out_path, 0, []
 
-    # Inject VS01..VS04 as zero-width marks so ligatures stay in-font
-    for vs_cp, _fx, _fy, _suffix in MIRROR_MODES:
+    # Inject VS marks so D4 ligatures stay in-font (VS01..VS08)
+    for vs_cp, _rot, _fx, _fy, _suffix in TRANSFORM_MODES:
         vname = vs_glyph_name(vs_cp)
         if vname not in glyphs:
             glyph_order.append(vname)
@@ -407,7 +438,7 @@ def build_bucket_font(
     fb.setupPost()
 
     if liga_rules:
-        # rlig: required ligatures so mirrors apply without liga being on
+        # rlig: required ligatures so D4 variants apply without liga being on
         fea = (
             "languagesystem DFLT dflt;\n"
             "feature rlig {\n" + "\n".join(liga_rules) + "\n} rlig;\n"
@@ -453,14 +484,14 @@ def _build_bucket_task(
 def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
     """CSS unicode-range covering present glyphs (merged contiguous runs).
 
-    Always includes VS01..VS04 (U+E000..E003) so mirror selectors resolve
-    to the same bucket font as the base characters.
+    Always includes VS01..VS08 (U+E000..E007) so rotation/reflection
+    selectors resolve to the same bucket font as the base characters.
     """
-    cps = sorted(set(codepoints) | {0xE000, 0xE001, 0xE002, 0xE003})
+    cps = sorted(set(codepoints) | set(range(VS_BASE, VS_LAST + 1)))
     if not codepoints:
         start = bucket_id << 8
         end = start + 0xFF
-        return f"U+{start:X}-{end:X}, U+E000-E003"
+        return f"U+{start:X}-{end:X}, U+{VS_BASE:X}-{VS_LAST:X}"
 
     runs: List[str] = []
     run_start = cps[0]

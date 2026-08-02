@@ -2,14 +2,26 @@
 
 from __future__ import annotations
 
-from .engine import REFERENCE_STROKE, Kage, make_engine, mirror_stroke_data, render_stroke_data
+from .engine import (
+    REFERENCE_STROKE,
+    Kage,
+    make_engine,
+    mirror_stroke_data,
+    render_stroke_data,
+    transform_stroke_data,
+)
 from .mapping import (
+    D4_MODES,
     DEFAULT_VS_MARKER,
     MirrorVS,
     VS01,
     VS02,
     VS03,
     VS04,
+    VS05,
+    VS06,
+    VS07,
+    VS08,
     assign_ligatures,
     filter_alias_entries,
     filter_duplicate_stroke_entries,
@@ -29,6 +41,7 @@ from .mapping import (
 )
 
 __all__ = [
+    "D4_MODES",
     "DEFAULT_VS_MARKER",
     "Kage",
     "MirrorVS",
@@ -37,6 +50,10 @@ __all__ = [
     "VS02",
     "VS03",
     "VS04",
+    "VS05",
+    "VS06",
+    "VS07",
+    "VS08",
     "assign_ligatures",
     "filter_alias_entries",
     "filter_duplicate_stroke_entries",
@@ -56,4 +73,5 @@ __all__ = [
     "pack_capacity",
     "related_allow_ranges",
     "render_stroke_data",
+    "transform_stroke_data",
 ]

@@ -4,7 +4,7 @@
 Reads ``Scripts/data/glyphwiki-cmap.json`` and writes one ``.md`` per SPUA
 marker font (same basename as the TTF, e.g. ``F0000.md``). Each file lists
 the OpenType input sequences that render that font's glyphs — identity
-(``marker + PUA``) and mirrors (``marker + PUA + VS02..VS04``) — chunked
+(``marker + PUA``) and D4 variants (``marker + PUA + VS02..VS08``) — chunked
 32 glyphs per line like ``CJK Unified Ideographs.md``.
 
 Examples:
@@ -27,9 +27,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from Scripts.kage.mapping import (  # noqa: E402
-    VS02,
-    VS03,
-    VS04,
+    D4_MODES,
+    MirrorVS,
     mappings_from_cmap,
 )
 
@@ -40,11 +39,9 @@ DEFAULT_OUT = SCRIPT_DIR / "dist" / "glyphwiki"
 CHUNK_SIZE = 32
 
 # (section heading, trailing VS code point or None for identity)
-MIRROR_SECTIONS: list[tuple[str, int | None]] = [
-    ("Identity", None),
-    ("mx", VS02),  # U+E001 — flip X
-    ("my", VS03),  # U+E002 — flip Y
-    ("mxy", VS04),  # U+E003 — both
+D4_SECTIONS: list[tuple[str, int | None]] = [
+    (suffix or "Identity", None if suffix is None else MirrorVS.codepoint(mode))
+    for mode, _rot, _fx, _fy, suffix in D4_MODES
 ]
 
 
@@ -81,7 +78,7 @@ def markdown_for_marker(
     ``pairs`` is ``(pua, glyph_name)`` sorted by PUA.
     """
     parts: list[str] = [f"# U+{marker:X}", ""]
-    sections = MIRROR_SECTIONS if include_mirrors else MIRROR_SECTIONS[:1]
+    sections = D4_SECTIONS if include_mirrors else D4_SECTIONS[:1]
     for heading, vs in sections:
         seqs = [ligature_sequence(marker, pua, vs) for pua, _name in pairs]
         parts.append(f"# {heading}")
@@ -105,7 +102,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=(
             "Write per-marker markdown previews of GlyphWiki PUA ligature "
-            "sequences (identity + mirrors)"
+            "sequences (identity + D4 variants)"
         ),
     )
     p.add_argument(
@@ -124,7 +121,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--no-mirrors",
         action="store_true",
-        help="Only emit Identity sections (omit mx/my/mxy)",
+        help="Only emit Identity sections (omit D4 variants)",
     )
     p.add_argument(
         "--markers",
@@ -157,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
     include_mirrors = not args.no_mirrors
     print(
         f"Writing {len(markers)} markdown file(s) -> {args.out_dir} "
-        f"({'identity + mirrors' if include_mirrors else 'identity only'})"
+        f"({'identity + D4' if include_mirrors else 'identity only'})"
     )
 
     for i, marker in enumerate(markers, 1):
