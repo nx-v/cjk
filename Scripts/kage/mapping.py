@@ -40,8 +40,10 @@ marker** (the first code point of every ligature in the file), e.g.
 * 6 400 BMP PUA selector glyphs (U+E000..U+F8FF)
 * 6 400 × 8 = 51 200 rendered outlines (identity + 7 unique D4 variants)
 
-Total **57 600** glyphs (plus ``.notdef`` and the SPUA marker). Non-identity
-forms are outline transforms of the identity render (D4). GSUB::
+Total **57 600** glyphs (plus ``.notdef`` and the SPUA marker). Identity is
+rendered once, centered in the em, then D4 flips/rotates that outline about
+the em midpoint. Result glyph names are the GlyphWiki canonical names
+(e.g. ``u4e00``, ``cdp-81dd``), not ``g`` + hex. GSUB::
 
     <SPUA marker>  <BMP PUA>   → identity outline
     <identity>     <VS02..08>  → D4 variant outline
@@ -126,8 +128,8 @@ class MirrorVS:
     ROT90 = 1  # VS02 — U+E001
     ROT180 = 2  # VS03 — U+E002
     ROT270 = 3  # VS04 — U+E003
-    FLIP_X = 4  # VS05 — U+E004 — mx (reflect across horizontal)
-    FLIP_Y = 5  # VS06 — U+E005 — my (reflect across vertical)
+    FLIP_X = 4  # VS05 — U+E004 — mx
+    FLIP_Y = 5  # VS06 — U+E005 — my
     ROT90_MX = 6  # VS07 — U+E006
     ROT90_MY = 7  # VS08 — U+E007
 
@@ -136,7 +138,9 @@ class MirrorVS:
     @staticmethod
     def codepoint(mode: int) -> int:
         if not 0 <= mode < MirrorVS.MODE_COUNT:
-            raise ValueError(f"D4 mode must be 0..{MirrorVS.MODE_COUNT - 1}, got {mode}")
+            raise ValueError(
+                f"D4 mode must be 0..{MirrorVS.MODE_COUNT - 1}, got {mode}"
+            )
         return BMP_PUA_START + mode
 
     @staticmethod
@@ -147,7 +151,6 @@ class MirrorVS:
 
 
 # (mode, rot90_quarters, flip_x, flip_y, name_suffix or None for identity)
-# Canonical D4 reps; omits geometric duplicates (mxy===r180, …).
 D4_MODES: list[tuple[int, int, bool, bool, str | None]] = [
     (MirrorVS.IDENTITY, 0, False, False, None),
     (MirrorVS.ROT90, 1, False, False, "r90"),
@@ -172,6 +175,7 @@ VS08 = MirrorVS.codepoint(MirrorVS.ROT90_MY)
 # ---------------------------------------------------------------------------
 # Predicates / iterators
 # ---------------------------------------------------------------------------
+
 
 def is_noncharacter(cp: int) -> bool:
     if 0xFDD0 <= cp <= 0xFDEF:
@@ -217,6 +221,7 @@ def pack_capacity() -> int:
 # ---------------------------------------------------------------------------
 # Related-key sorting
 # ---------------------------------------------------------------------------
+
 
 def parse_related_key(related: str) -> tuple[int, str]:
     """Sort key for a GlyphWiki ``related`` field."""
@@ -471,11 +476,7 @@ def filter_empty_stroke_entries(
     glyphs: Mapping[str, str],
 ) -> list[tuple[str, str]]:
     """Drop glyphs whose dump (or resolved) stroke data is empty/unusable."""
-    return [
-        (n, r)
-        for n, r in entries
-        if not is_unusable_stroke_data(glyphs.get(n))
-    ]
+    return [(n, r) for n, r in entries if not is_unusable_stroke_data(glyphs.get(n))]
 
 
 def filter_alias_entries(
@@ -568,6 +569,7 @@ def sort_glyph_entries(
 # Ligature mapping
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class VsSequence:
     """A custom two-codepoint Private-Use ligature."""
@@ -659,9 +661,7 @@ def assign_ligatures(
     needed = len(ordered)
     capacity = ligature_capacity()
     if needed > capacity:
-        raise ValueError(
-            f"{needed:,} glyphs exceed ligature capacity {capacity:,}"
-        )
+        raise ValueError(f"{needed:,} glyphs exceed ligature capacity {capacity:,}")
 
     markers = iter_spua_markers(GLYPHWIKI_MARKER_START)
     marker = next(markers)

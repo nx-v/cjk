@@ -3,8 +3,8 @@
 
 Reads ``Scripts/data/glyphwiki-cmap.json`` and writes one ``.md`` per SPUA
 marker font (same basename as the TTF, e.g. ``F0000.md``). Each file lists
-the OpenType input sequences that render that font's glyphs — identity
-(``marker + PUA``) and D4 variants (``marker + PUA + VS02..VS08``) — chunked
+the OpenType input sequences that render that font's glyphs ? identity
+(``marker + PUA``) and D4 variants (``marker + PUA + VS02..VS08``) ? chunked
 32 glyphs per line like ``CJK Unified Ideographs.md``.
 
 Examples:

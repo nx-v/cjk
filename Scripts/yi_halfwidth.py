@@ -28,7 +28,10 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
-from kage.mapping import D4_MODES, MirrorVS
+try:
+    from kage.mapping import D4_MODES, MirrorVS
+except ImportError:  # Scripts.* import style
+    from Scripts.kage.mapping import D4_MODES, MirrorVS
 
 # ---------- Constants ----------
 
@@ -399,25 +402,31 @@ def apply_variant_recording(
     flip_x: bool = False,
     flip_y: bool = False,
 ) -> Optional[GlyphMetrics]:
-    """Apply a D4 variant and keep the result centered in the em cell."""
+    """Center the glyph, then apply a D4 rotation/reflection about em mid."""
     bounds = recording_bounds(rec)
     if bounds is None:
         return None
     x0, y0, x1, y1 = bounds
-    content_center = ((x0 + x1) / 2.0, (y0 + y1) / 2.0)
+    cell = target_upem / 2.0
+    # Center first so rotations/reflections orbit the em midpoint.
+    sx = cell - (x0 + x1) / 2.0
+    sy = cell - (y0 + y1) / 2.0
+    centered = RecordingPen()
+    if abs(sx) > 1e-6 or abs(sy) > 1e-6:
+        rec.replay(TransformPen(centered, Transform(1, 0, 0, 1, sx, sy)))
+    else:
+        rec.replay(centered)
     t = variant_transform(
         target_upem,
         rot90_quarters=rot90_quarters,
         flip_x=flip_x,
         flip_y=flip_y,
-        center=content_center,
     )
     det = t.xx * t.yy - t.xy * t.yx
-    glyph = apply_transform(rec, t, reverse_winding=det < 0)
+    glyph = apply_transform(centered, t, reverse_winding=det < 0)
     if glyph.numberOfContours == 0 and not glyph.isComposite():
         return None
-    # Orthogonal maps can leave bbox center ≠ transformed content center
-    # for asymmetric shapes — nudge so the cell stays visually centered.
+    # Asymmetric shapes can drift slightly after orthogonal maps.
     glyph = center_glyph_in_cell(glyph, target_upem)
     try:
         glyph.recalcBounds(None)

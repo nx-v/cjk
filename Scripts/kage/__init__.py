@@ -2,14 +2,7 @@
 
 from __future__ import annotations
 
-from .engine import (
-    REFERENCE_STROKE,
-    Kage,
-    make_engine,
-    mirror_stroke_data,
-    render_stroke_data,
-    transform_stroke_data,
-)
+from .engine import REFERENCE_STROKE, Kage, make_engine, mirror_stroke_data, render_stroke_data
 from .mapping import (
     D4_MODES,
     DEFAULT_VS_MARKER,
@@ -73,5 +66,4 @@ __all__ = [
     "pack_capacity",
     "related_allow_ranges",
     "render_stroke_data",
-    "transform_stroke_data",
 ]

@@ -270,7 +270,6 @@ def remap_cmap_drop_empty_alias_dups(*, no_filters: bool = False) -> int:
             f"After alias filter (--no-filters): {len(entries):,} kept "
             f"(alias {alias_n:,}; exclusion/empty/dedupe skipped)"
         )
-        empty_n = dup_n = 0
     else:
         before = len(entries)
         entries = filter_excluded_entries(entries, raw_glyphs)
@@ -310,7 +309,6 @@ def remap_cmap_drop_empty_alias_dups(*, no_filters: bool = False) -> int:
             f"After empty/alias/duplicate filter: {len(entries):,} kept "
             f"(empty {empty_n:,}, alias {alias_n:,}, dup/empty-resolved {dup_n:,})"
         )
-
     print(f"  SPUA markers needed: {markers_needed(len(entries)):,}")
 
     if not entries:
@@ -901,7 +899,6 @@ def _build_marker_task(
     stroke_data: dict[str, str],
     out_path: str,
     include_mirrors: bool,
-    curve_fit: bool = False,
 ) -> tuple[int, int, int]:
     """Process-pool worker: build one marker font. Returns (marker, rendered, total)."""
     rendered, total = build_marker_font(
@@ -910,7 +907,6 @@ def _build_marker_task(
         stroke_data,
         Path(out_path),
         include_mirrors=include_mirrors,
-        curve_fit=curve_fit,
     )
     return marker, rendered, total
 
@@ -921,12 +917,10 @@ def build_fonts_from_mappings(
     *,
     font_markers: int = 0,
     include_mirrors: bool = True,
-    curve_fit: bool = False,
     jobs: int = 1,
 ) -> None:
     per_file = glyphs_per_file(include_mirrors=include_mirrors)
-    mirror_note = "with mirrors" if include_mirrors else "no mirrors"
-    fit_note = "curve-fit" if curve_fit else "polygon"
+    mirror_note = "with D4" if include_mirrors else "no D4"
     grouped = group_mappings_by_marker(mappings)
     markers = sorted(grouped)
     if font_markers > 0:
@@ -936,7 +930,7 @@ def build_fonts_from_mappings(
     jobs = max(1, jobs)
     print(
         f"\nBuilding GlyphWiki fonts ({per_file} glyphs each, {mirror_note}, "
-        f"{fit_note}, jobs={jobs}) -> {FONT_DIR}"
+        f"jobs={jobs}) -> {FONT_DIR}"
     )
 
     if jobs == 1:
@@ -954,7 +948,6 @@ def build_fonts_from_mappings(
                 out,
                 kage=kage,
                 include_mirrors=include_mirrors,
-                curve_fit=curve_fit,
             )
             print(f"      rendered {rendered}, glyphs in file {total}")
         return
@@ -967,9 +960,7 @@ def build_fonts_from_mappings(
         names = {m.name for m in grouped[marker]}
         subset = {n: stroke_data[n] for n in names if n in stroke_data}
         out = str(FONT_DIR / f"{marker:X}.ttf")
-        tasks.append(
-            (marker, list(grouped[marker]), subset, out, include_mirrors, curve_fit)
-        )
+        tasks.append((marker, list(grouped[marker]), subset, out, include_mirrors))
 
     done = 0
     with ProcessPoolExecutor(max_workers=jobs) as pool:
@@ -992,7 +983,6 @@ def resolve_and_build_pipelined(
     *,
     font_markers: int = 0,
     include_mirrors: bool = True,
-    curve_fit: bool = False,
     jobs: int = 1,
 ) -> dict[str, str]:
     """Resolve each marker's glyphs, overlapping font builds when ``jobs > 1``.
@@ -1000,8 +990,7 @@ def resolve_and_build_pipelined(
     Returns stroke data for all cmap names that were processed.
     """
     per_file = glyphs_per_file(include_mirrors=include_mirrors)
-    mirror_note = "with mirrors" if include_mirrors else "no mirrors"
-    fit_note = "curve-fit" if curve_fit else "polygon"
+    mirror_note = "with D4" if include_mirrors else "no D4"
     grouped = group_mappings_by_marker(mappings)
     markers = sorted(grouped)
     if font_markers > 0:
@@ -1011,7 +1000,7 @@ def resolve_and_build_pipelined(
 
     print(
         f"\nPipelined resolve+build ({per_file} glyphs each, {mirror_note}, "
-        f"{fit_note}, jobs={jobs}) -> {FONT_DIR}"
+        f"jobs={jobs}) -> {FONT_DIR}"
     )
 
     all_strokes: dict[str, str] = {}
@@ -1035,7 +1024,6 @@ def resolve_and_build_pipelined(
                 out,
                 kage=kage,
                 include_mirrors=include_mirrors,
-                curve_fit=curve_fit,
             )
             print(f"      rendered {rendered}, glyphs in file {total}", flush=True)
         return all_strokes
@@ -1061,7 +1049,6 @@ def resolve_and_build_pipelined(
                 strokes,
                 out,
                 include_mirrors,
-                curve_fit,
             )
             pending[fut] = marker
             print(f"      queued build {Path(out).name} ({len(pending)} in flight)", flush=True)
@@ -1189,14 +1176,6 @@ def main(argv: list[str] | None = None) -> int:
         help="Omit D4 variant outlines and rlig (identity forms only)",
     )
     parser.add_argument(
-        "--curve-fit",
-        action="store_true",
-        help=(
-            "Schneider-fit long polygonal stroke ribbons to cubics before "
-            "TrueType conversion (small tip polygons stay sharp)"
-        ),
-    )
-    parser.add_argument(
         "--no-filters",
         action="store_true",
         help=(
@@ -1224,7 +1203,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     include_mirrors = not args.no_mirrors
-    curve_fit = bool(args.curve_fit)
     per_file = glyphs_per_file(include_mirrors=include_mirrors)
 
     import os
@@ -1248,9 +1226,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"Parallel: {'yes' if args.parallel else 'no'} (jobs={jobs})")
     print("Bucket D4: unicode + VS01..VS08 (U+E000..U+E007), no SPUA marker")
-    print(
-        f"Curve fit: {'on (Schneider ribbons)' if curve_fit else 'off (keep polygons)'}"
-    )
     if args.no_filters:
         print("Filters: aliases only (--no-filters)")
 
@@ -1294,7 +1269,6 @@ def main(argv: list[str] | None = None) -> int:
             stroke_data,
             font_markers=args.font_markers,
             include_mirrors=include_mirrors,
-            curve_fit=curve_fit,
             jobs=jobs,
         )
         print("\n=== Font build from resolved data complete ===")
@@ -1383,7 +1357,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if not entries:
-        print("Fatal: no glyphs left after filtering", file=sys.stderr)
+        print("Fatal: no glyphs left after related-CP filter", file=sys.stderr)
         return 1
 
     # --- ligature assignment (related CP, stroke count, name) ---
@@ -1417,7 +1391,6 @@ def main(argv: list[str] | None = None) -> int:
             all_glyphs,
             font_markers=args.font_markers,
             include_mirrors=include_mirrors,
-            curve_fit=curve_fit,
             jobs=jobs,
         )
         # Persist cmap-coverage strokes for --from-resolved later
@@ -1476,7 +1449,6 @@ def main(argv: list[str] | None = None) -> int:
             stroke_data,
             font_markers=args.font_markers,
             include_mirrors=include_mirrors,
-            curve_fit=curve_fit,
             jobs=jobs,
         )
 
