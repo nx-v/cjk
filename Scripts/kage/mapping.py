@@ -41,8 +41,9 @@ marker** (the first code point of every ligature in the file), e.g.
 * 6 400 × 8 = 51 200 rendered outlines (identity + 7 unique D4 variants)
 
 Total **57 600** glyphs (plus ``.notdef`` and the SPUA marker). Identity is
-rendered once, centered in the em, then D4 flips/rotates that outline about
-the em midpoint. Result glyph names are the GlyphWiki canonical names
+rendered into the CJK typo box (ascender 0.88em / descender -0.12em),
+centered at ``y ≈ 0.38em`` like Han/Yi, then D4 flips/rotates about that
+midpoint. Result glyph names are the GlyphWiki canonical names
 (e.g. ``u4e00``, ``cdp-81dd``), not ``g`` + hex. GSUB::
 
     <SPUA marker>  <BMP PUA>   → identity outline

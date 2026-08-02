@@ -54,8 +54,11 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 from yi_halfwidth import (  # noqa: E402
+    TYPO_ASCENDER_FRAC,
+    TYPO_DESCENDER_FRAC,
     apply_variant_recording,
     center_glyph_in_cell,
+    ideographic_center,
     recording_from_metrics,
 )
 
@@ -85,9 +88,18 @@ def empty_glyph() -> TTGlyph:
 
 
 def kage_to_font_transform(upem: int = DEFAULT_UPEM) -> Transform:
-    """Affine map from KAGE 200×200 (y-down) to font space (y-up, ``upem``)."""
-    scale = upem / 200.0
-    return Transform(scale, 0, 0, -scale, 0, upem)
+    """Affine map from KAGE 200×200 (y-down) onto the CJK typo box (y-up).
+
+    The typo box matches ``build_yi`` / ``build_subfonts`` metrics
+    (ascender 0.88em, descender -0.12em), so GlyphWiki outlines share the
+    same vertical band as Han/Yi rather than the geometric em midpoint.
+    """
+    ascent = upem * TYPO_ASCENDER_FRAC
+    descent = upem * TYPO_DESCENDER_FRAC
+    body = ascent - descent  # == upem with the default 0.88 / -0.12 fracs
+    scale = body / 200.0
+    # y_kage=0 (top) → ascent; y_kage=200 (bottom) → descent
+    return Transform(scale, 0, 0, -scale, 0, ascent)
 
 
 def _round_skia_path(path, round_fn=otRound):
@@ -161,8 +173,8 @@ def svg_drawing_to_ttglyph(
     overlapping stroke ribbons fill solidly (nonzero winding). Opposite
     windings otherwise punch white holes at joints.
 
-    D4 variants are produced later by centering this outline and applying
-    affine transforms (see ``apply_variant_recording``).
+    D4 variants are produced later by centering on the CJK typo midpoint
+    and applying affine transforms (see ``apply_variant_recording``).
 
     ``flatten`` (pathops.simplify) stays off by default: boolean union of
     Serif ribbons collapses to a solid black square over the glyph bbox.
@@ -431,7 +443,10 @@ def build_marker_font(
                     )
                     ttg = None
                 if ttg is not None:
-                    ttg = center_glyph_in_cell(ttg, upem)
+                    # Align with Han/Yi: bbox center at CJK typo mid (y≈0.38em).
+                    ttg = center_glyph_in_cell(
+                        ttg, upem, center=ideographic_center(upem)
+                    )
                     glyphs[identity_name] = ttg
                     try:
                         lsb = int(ttg.xMin)
@@ -502,8 +517,8 @@ def build_marker_font(
             vs_sel = pua_glyph_name(vs_pua)
             rlig_rules.append(f"  sub {identity_name} {vs_sel} by {m_name};")
 
-    ascent = otRound(upem * 0.88)
-    descent = otRound(upem * -0.12)
+    ascent = otRound(upem * TYPO_ASCENDER_FRAC)
+    descent = otRound(upem * TYPO_DESCENDER_FRAC)
     hex_id = f"{marker:X}"
     family = f"glyphwiki {style_key} {hex_id}"
     ps = f"glyphwiki-{style_key}-{hex_id}"

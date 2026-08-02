@@ -386,7 +386,7 @@ def build_bucket_font(
             if m_name in glyphs:
                 continue
             m_glyph, m_adv, m_lsb = mirrored
-            # Keep D4 variants centered in the CJK cell (bbox midpoint = em/2).
+            # Keep D4 variants on the CJK typo midpoint (y ≈ 0.38em).
             m_glyph = center_glyph_in_cell(m_glyph, target_upem)
             try:
                 m_glyph.recalcBounds(None)

@@ -4,8 +4,8 @@ Encoding
 --------
 * One font per Yi syllable/radical, **named by its standalone code point**
   (e.g. ``A000.ttf`` for U+A000).
-* Standalone / compounds: fit into the target box by **shifting outline
-  points** independently on X and Y (linear remap of each axis).
+* Standalone / compounds: fit into the CJK typo box (1000×1000 body with
+  center at 0.38em) by **shifting outline points** independently on X and Y.
 * Compounds: ordered pairs ``(this, j)`` as flattened merged outlines,
   cmap'd at ``U+40000+j`` (half-cells are build-only, not emitted).
 * Variants: the 8 unique square symmetries (D4) — 90° rotations and
@@ -49,10 +49,26 @@ STANDALONE_PAD = 0.06
 HALFWIDTH_PAD = 0.06
 COMPOUND_PAD = 0.04
 
+# Match build_yi / build_subfonts OS/2 + hhea (CJK ideographic body).
+TYPO_ASCENDER_FRAC = 0.88
+TYPO_DESCENDER_FRAC = -0.12
+
 NUOSU_FILENAME = "NuosuSIL-Regular.ttf"
 
 Bounds = Tuple[float, float, float, float]
 GlyphMetrics = Tuple[TTGlyph, int, int]
+
+
+def ideographic_center(target_upem: int) -> Tuple[float, float]:
+    """Center of the CJK typo box (ascent 0.88em / descent -0.12em).
+
+    Geometric em midpoint is ``(upem/2, upem/2)``; CJK ink after uniform
+    UPM scale sits near ``(upem/2, 0.38·upem)``. Centering Yi there keeps
+    mixed CJK+Yi lines vertically aligned.
+    """
+    ascent = target_upem * TYPO_ASCENDER_FRAC
+    descent = target_upem * TYPO_DESCENDER_FRAC
+    return target_upem / 2.0, (ascent + descent) / 2.0
 
 # (vs_cp, rot90_quarters, flip_x, flip_y, name_suffix or None for identity)
 # Shared with build_subfonts / GlyphWiki via kage.mapping.D4_MODES.
@@ -123,32 +139,33 @@ def variant_transform(
     flip_y: bool,
     center: Optional[Tuple[float, float]] = None,
 ) -> Transform:
-    """D4 map that sends ``center`` (default: em midpoint) to the em midpoint."""
+    """D4 map rotating/reflecting about ``center`` (default: ideographic mid)."""
     if rot90_quarters % 4 == 0 and not flip_x and not flip_y:
         return Transform()
     m = variant_matrix(rot90_quarters=rot90_quarters, flip_x=flip_x, flip_y=flip_y)
     (xx, xy), (yx, yy) = m
-    cell = target_upem / 2.0
-    cx, cy = center if center is not None else (cell, cell)
-    # p' = M·(p - c) + cell_center
-    dx = cell - xx * cx - yx * cy
-    dy = cell - xy * cx - yy * cy
+    cx, cy = center if center is not None else ideographic_center(target_upem)
+    # p' = M·(p - c) + c
+    dx = cx - xx * cx - yx * cy
+    dy = cy - xy * cx - yy * cy
     return Transform(xx, xy, yx, yy, dx, dy)
 
 
 def center_glyph_in_cell(
     glyph: TTGlyph,
     target_upem: int,
+    *,
+    center: Optional[Tuple[float, float]] = None,
 ) -> TTGlyph:
-    """Translate ``glyph`` so its bbox center sits at the em midpoint."""
+    """Translate ``glyph`` so its bbox center sits at the CJK typo midpoint."""
     try:
         glyph.recalcBounds(None)
         x_min, y_min, x_max, y_max = glyph.xMin, glyph.yMin, glyph.xMax, glyph.yMax
     except Exception:
         return glyph
-    cell = target_upem / 2.0
-    sx = cell - (x_min + x_max) / 2.0
-    sy = cell - (y_min + y_max) / 2.0
+    cx, cy = center if center is not None else ideographic_center(target_upem)
+    sx = cx - (x_min + x_max) / 2.0
+    sy = cy - (y_min + y_max) / 2.0
     if abs(sx) < 1e-6 and abs(sy) < 1e-6:
         return glyph
     rec = RecordingPen()
@@ -301,18 +318,20 @@ def make_standalone_glyph(
     pad: float = STANDALONE_PAD,
     stroke_weight: Optional[float] = None,  # unused; kept for call-site compat
 ) -> Optional[GlyphMetrics]:
-    """Axis-shift fit into the full CJK em."""
+    """Axis-shift fit into the CJK typo box (1000×1000 body, center at 0.38em)."""
     del stroke_weight
     inner = target_upem * (1.0 - 2.0 * pad)
+    cx, cy = ideographic_center(target_upem)
     glyph = _axis_shift_fit(
         rec,
         target_w=inner,
         target_h=inner,
-        center_x=target_upem / 2.0,
-        center_y=target_upem / 2.0,
+        center_x=cx,
+        center_y=cy,
     )
     if glyph is None:
         return None
+    glyph = center_glyph_in_cell(glyph, target_upem, center=(cx, cy))
     return glyph, target_upem, int(glyph.xMin)
 
 
@@ -323,15 +342,16 @@ def make_halfwidth_glyph(
     pad: float = HALFWIDTH_PAD,
     stroke_weight: Optional[float] = None,  # unused; kept for call-site compat
 ) -> Optional[GlyphMetrics]:
-    """Axis-shift fit into a half-em cell."""
+    """Axis-shift fit into a half-em cell (same CJK vertical center as standalone)."""
     del stroke_weight
     adv = target_upem // 2
+    _, cy = ideographic_center(target_upem)
     glyph = _axis_shift_fit(
         rec,
         target_w=adv * (1.0 - 2.0 * pad),
         target_h=target_upem * (1.0 - 2.0 * pad),
         center_x=adv / 2.0,
-        center_y=target_upem / 2.0,
+        center_y=cy,
     )
     if glyph is None:
         return None
@@ -373,20 +393,21 @@ def make_compound_glyph(
     half = target_upem / 2.0
     cell_w = half * (1.0 - 2.0 * pad)
     cell_h = target_upem * (1.0 - 2.0 * pad)
+    _, cy = ideographic_center(target_upem)
 
     ga = _axis_shift_fit(
         rec_a,
         target_w=cell_w,
         target_h=cell_h,
         center_x=half / 2.0,
-        center_y=target_upem / 2.0,
+        center_y=cy,
     )
     gb = _axis_shift_fit(
         rec_b,
         target_w=cell_w,
         target_h=cell_h,
         center_x=half / 2.0,  # left-slot; merge shifts right
-        center_y=target_upem / 2.0,
+        center_y=cy,
     )
     if ga is None or gb is None:
         return None
@@ -402,15 +423,15 @@ def apply_variant_recording(
     flip_x: bool = False,
     flip_y: bool = False,
 ) -> Optional[GlyphMetrics]:
-    """Center the glyph, then apply a D4 rotation/reflection about em mid."""
+    """Center in the CJK typo box, then D4-rotate/reflect about that center."""
     bounds = recording_bounds(rec)
     if bounds is None:
         return None
     x0, y0, x1, y1 = bounds
-    cell = target_upem / 2.0
-    # Center first so rotations/reflections orbit the em midpoint.
-    sx = cell - (x0 + x1) / 2.0
-    sy = cell - (y0 + y1) / 2.0
+    cx, cy = ideographic_center(target_upem)
+    # Center first so rotations/reflections orbit the CJK midpoint.
+    sx = cx - (x0 + x1) / 2.0
+    sy = cy - (y0 + y1) / 2.0
     centered = RecordingPen()
     if abs(sx) > 1e-6 or abs(sy) > 1e-6:
         rec.replay(TransformPen(centered, Transform(1, 0, 0, 1, sx, sy)))
@@ -421,13 +442,14 @@ def apply_variant_recording(
         rot90_quarters=rot90_quarters,
         flip_x=flip_x,
         flip_y=flip_y,
+        center=(cx, cy),
     )
     det = t.xx * t.yy - t.xy * t.yx
     glyph = apply_transform(centered, t, reverse_winding=det < 0)
     if glyph.numberOfContours == 0 and not glyph.isComposite():
         return None
     # Asymmetric shapes can drift slightly after orthogonal maps.
-    glyph = center_glyph_in_cell(glyph, target_upem)
+    glyph = center_glyph_in_cell(glyph, target_upem, center=(cx, cy))
     try:
         glyph.recalcBounds(None)
         lsb = int(glyph.xMin)

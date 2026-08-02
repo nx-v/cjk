@@ -107,7 +107,7 @@ def _add_variants_from_recording(
         if made is None:
             continue
         m_glyph, m_adv, m_lsb = made
-        # Keep D4 variants centered in the CJK cell (bbox midpoint = em/2).
+        # Keep D4 variants on the CJK typo midpoint (y ≈ 0.38em).
         m_glyph = center_glyph_in_cell(m_glyph, target_upem)
         try:
             m_glyph.recalcBounds(None)
@@ -283,6 +283,12 @@ def build_cp_font(
         c_glyph, c_adv, c_lsb = made
         if c_glyph.isComposite():
             raise RuntimeError(f"composite leaked in {font_id} pair ({index},{j})")
+        c_glyph = center_glyph_in_cell(c_glyph, target_upem)
+        try:
+            c_glyph.recalcBounds(None)
+            c_lsb = int(c_glyph.xMin)
+        except Exception:
+            pass
         c_name = compound_glyph_name(index, j)
         glyph_order.append(c_name)
         glyphs[c_name] = c_glyph
