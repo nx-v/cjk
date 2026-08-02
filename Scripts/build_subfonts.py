@@ -40,12 +40,10 @@ from yi_halfwidth import (
     TRANSFORM_MODES,
     VS_BASE,
     VS_LAST,
-    apply_variant_recording,
-    center_glyph_in_cell,
     is_yi_cp,
+    make_composite_variant,
     make_standalone_glyph,
     record_glyph,
-    recording_from_metrics,
     variant_glyph_name,
 )
 
@@ -368,31 +366,21 @@ def build_bucket_font(
         metrics[gname] = (advance, lsb)
         cmap[out_cp] = gname
 
-        base_rec = recording_from_metrics(copied)
         for vs_cp, rot, flip_x, flip_y, suffix in TRANSFORM_MODES:
             if suffix is None:
                 continue  # VS01 identity — no extra glyph
-            mirrored = apply_variant_recording(
-                base_rec,
-                advance,
+            m_name = variant_glyph_name(gname, suffix)
+            if m_name in glyphs:
+                continue
+            m_glyph, m_adv, m_lsb = make_composite_variant(
+                gname,
                 target_upem,
                 rot90_quarters=rot,
                 flip_x=flip_x,
                 flip_y=flip_y,
+                advance=advance,
+                lsb=lsb,
             )
-            if mirrored is None:
-                continue
-            m_name = variant_glyph_name(gname, suffix)
-            if m_name in glyphs:
-                continue
-            m_glyph, m_adv, m_lsb = mirrored
-            # Keep D4 variants on the CJK typo midpoint (y ≈ 0.38em).
-            m_glyph = center_glyph_in_cell(m_glyph, target_upem)
-            try:
-                m_glyph.recalcBounds(None)
-                m_lsb = int(m_glyph.xMin)
-            except Exception:
-                pass
             glyph_order.append(m_name)
             glyphs[m_name] = m_glyph
             metrics[m_name] = (m_adv, m_lsb)

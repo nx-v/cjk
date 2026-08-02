@@ -12,6 +12,8 @@ Encoding
 * Variants: the 8 unique square symmetries (D4) — 90° rotations and
   axis reflections — each with its own VS (``U+E000``..``U+E007``).
   Geometric duplicates are omitted (e.g. ``mxy === r180``).
+  Only the identity form stores outlines; the other seven are one-component
+  TrueType composites referencing identity about the CJK typo center.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
+from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
 from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.recordingPen import DecomposingRecordingPen, RecordingPen
@@ -27,7 +30,12 @@ from fontTools.pens.reverseContourPen import ReverseContourPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont
-from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
+from fontTools.ttLib.tables._g_l_y_f import (
+    ROUND_XY_TO_GRID,
+    USE_MY_METRICS,
+    Glyph as TTGlyph,
+    GlyphComponent,
+)
 
 try:
     from kage.mapping import D4_MODES, MirrorVS
@@ -151,6 +159,37 @@ def variant_transform(
     dx = cx - xx * cx - yx * cy
     dy = cy - xy * cx - yy * cy
     return Transform(xx, xy, yx, yy, dx, dy)
+
+
+def make_composite_variant(
+    base_name: str,
+    target_upem: int,
+    *,
+    rot90_quarters: int = 0,
+    flip_x: bool = False,
+    flip_y: bool = False,
+    advance: int,
+    lsb: int = 0,
+) -> GlyphMetrics:
+    """One-component TT composite: ``base_name`` under a D4 map about typo center."""
+    t = variant_transform(
+        target_upem,
+        rot90_quarters=rot90_quarters,
+        flip_x=flip_x,
+        flip_y=flip_y,
+    )
+    g = TTGlyph()
+    g.numberOfContours = -1
+    comp = GlyphComponent()
+    comp.glyphName = base_name
+    comp.x = otRound(t.dx)
+    comp.y = otRound(t.dy)
+    comp.flags = USE_MY_METRICS | ROUND_XY_TO_GRID
+    if (t.xx, t.xy, t.yx, t.yy) != (1.0, 0.0, 0.0, 1.0):
+        # fontTools: ((xx, xy), (yx, yy)) with x' = xx·x + yx·y + dx
+        comp.transform = ((t.xx, t.xy), (t.yx, t.yy))
+    g.components = [comp]
+    return g, advance, lsb
 
 
 def center_glyph_in_cell(

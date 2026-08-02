@@ -56,10 +56,9 @@ if str(_SCRIPTS_DIR) not in sys.path:
 from yi_halfwidth import (  # noqa: E402
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,
-    apply_variant_recording,
     center_glyph_in_cell,
     ideographic_center,
-    recording_from_metrics,
+    make_composite_variant,
 )
 
 # One SPUA-marker font: 6400 PUA selectors + 6400*8 rendered D4 variants
@@ -76,8 +75,8 @@ def glyphs_per_file(*, include_mirrors: bool = True) -> int:
 
 DEFAULT_UPEM = 1000
 
-# FEA / PostScript-safe: keep GlyphWiki spelling, neutralize class-marker '@'.
-_OT_NAME_BAD = re.compile(r"[^A-Za-z0-9._-]+")
+# FEA / PostScript-safe: letters/digits/._ only; '-' and '@' → '_'.
+_OT_NAME_BAD = re.compile(r"[^A-Za-z0-9._]+")
 
 
 def empty_glyph() -> TTGlyph:
@@ -173,8 +172,8 @@ def svg_drawing_to_ttglyph(
     overlapping stroke ribbons fill solidly (nonzero winding). Opposite
     windings otherwise punch white holes at joints.
 
-    D4 variants are produced later by centering on the CJK typo midpoint
-    and applying affine transforms (see ``apply_variant_recording``).
+    D4 variants are produced later as one-component TrueType composites
+    of the centered identity glyph (see ``make_composite_variant``).
 
     ``flatten`` (pathops.simplify) stays off by default: boolean union of
     Serif ribbons collapses to a solid black square over the glyph bbox.
@@ -310,8 +309,8 @@ def marker_glyph_name(marker: int) -> str:
 
 def ot_glyph_name(name: str) -> str:
     """Map a GlyphWiki canonical name to an OpenType-safe glyph name."""
-    # '@' introduces glyph classes in FEA; neutralize it first.
-    cleaned = name.replace("@", "_")
+    # '@' is FEA class syntax; '-' is common in GlyphWiki aliases — both → '_'.
+    cleaned = name.replace("@", "_").replace("-", "_")
     cleaned = _OT_NAME_BAD.sub("_", cleaned)
     if not cleaned:
         cleaned = "gw"
@@ -471,11 +470,7 @@ def build_marker_font(
         has_outline = (
             getattr(id_glyph, "numberOfContours", 0) > 0 or id_glyph.isComposite()
         )
-        base_rec = (
-            recording_from_metrics((id_glyph, advance, metrics[identity_name][1]))
-            if has_outline
-            else None
-        )
+        id_lsb = metrics[identity_name][1]
 
         for mode, rot, flip_x, flip_y, suffix in D4_MODES:
             if suffix is None:
@@ -485,30 +480,19 @@ def build_marker_font(
                 continue
             glyph_order.append(m_name)
             used_names.add(m_name)
-            if base_rec is not None:
-                try:
-                    made = apply_variant_recording(
-                        base_rec,
-                        advance,
-                        upem,
-                        rot90_quarters=rot,
-                        flip_x=flip_x,
-                        flip_y=flip_y,
-                    )
-                except Exception as exc:
-                    print(
-                        f"  [!] D4 transform failed "
-                        f"{mapping.name if mapping else pua}.{suffix}: {exc}"
-                    )
-                    made = None
-                if made is not None:
-                    ttg, m_adv, m_lsb = made
-                    glyphs[m_name] = ttg
-                    metrics[m_name] = (m_adv, m_lsb)
-                    rendered += 1
-                else:
-                    glyphs[m_name] = empty_glyph()
-                    metrics[m_name] = (advance, 0)
+            if has_outline:
+                ttg, m_adv, m_lsb = make_composite_variant(
+                    identity_name,
+                    upem,
+                    rot90_quarters=rot,
+                    flip_x=flip_x,
+                    flip_y=flip_y,
+                    advance=advance,
+                    lsb=id_lsb,
+                )
+                glyphs[m_name] = ttg
+                metrics[m_name] = (m_adv, m_lsb)
+                rendered += 1
             else:
                 glyphs[m_name] = empty_glyph()
                 metrics[m_name] = (advance, 0)

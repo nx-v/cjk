@@ -12,9 +12,10 @@ Each font contains:
 
     glyph VS0n   → variant   (rlig)
 
-Half-cell glyphs are build-only intermediates (not emitted). Pairs are
-already flattened outlines — no TrueType composites, no shared compound
-codepoint reuse across fonts.
+Half-cell glyphs are build-only intermediates (not emitted). Pair identities
+are flattened outlines; D4 variants (VS02–08) are one-component TrueType
+composites of the identity glyph. No shared compound codepoint reuse across
+fonts.
 """
 
 from __future__ import annotations
@@ -38,15 +39,14 @@ from yi_halfwidth import (
     VS_BASE,
     VS_LAST,
     YiInventory,
-    apply_variant_recording,
     center_glyph_in_cell,
     empty_glyph,
     load_inventory,
+    make_composite_variant,
     make_halfwidth_glyph,
     make_standalone_glyph,
     merge_halfcell_glyphs,
     record_glyph,
-    recording_from_metrics,
     resolve_nuosu_path,
     variant_glyph_name,
     vs_glyph_name,
@@ -84,40 +84,32 @@ def _inject_vs(
         cmap[vs_cp] = vname
 
 
-def _add_variants_from_recording(
+def _add_variants(
     base_name: str,
-    base_rec,
     advance: int,
+    lsb: int,
     target_upem: int,
     glyph_order: List[str],
     glyphs: Dict,
     metrics: Dict,
     liga_map: Dict[Tuple[str, ...], str],
 ) -> None:
+    """Attach D4 variants as one-component composites of ``base_name``."""
     for vs_cp, rot, flip_x, flip_y, suffix in TRANSFORM_MODES:
         if suffix is None:
             continue
-        made = apply_variant_recording(
-            base_rec,
-            advance,
+        m_name = variant_glyph_name(base_name, suffix)
+        if m_name in glyphs:
+            continue
+        m_glyph, m_adv, m_lsb = make_composite_variant(
+            base_name,
             target_upem,
             rot90_quarters=rot,
             flip_x=flip_x,
             flip_y=flip_y,
+            advance=advance,
+            lsb=lsb,
         )
-        if made is None:
-            continue
-        m_glyph, m_adv, m_lsb = made
-        # Keep D4 variants on the CJK typo midpoint (y ≈ 0.38em).
-        m_glyph = center_glyph_in_cell(m_glyph, target_upem)
-        try:
-            m_glyph.recalcBounds(None)
-            m_lsb = int(m_glyph.xMin)
-        except Exception:
-            pass
-        m_name = variant_glyph_name(base_name, suffix)
-        if m_name in glyphs:
-            continue
         glyph_order.append(m_name)
         glyphs[m_name] = m_glyph
         metrics[m_name] = (m_adv, m_lsb)
@@ -265,10 +257,10 @@ def build_cp_font(
     glyphs[sa_name] = sa_glyph
     metrics[sa_name] = (sa_adv, sa_lsb)
     cmap[src_cp] = sa_name
-    _add_variants_from_recording(
+    _add_variants(
         sa_name,
-        recording_from_metrics(sa),
         sa_adv,
+        sa_lsb,
         target_upem,
         glyph_order,
         glyphs,
@@ -296,10 +288,10 @@ def build_cp_font(
         glyphs[c_name] = c_glyph
         metrics[c_name] = (c_adv, c_lsb)
         cmap[inv.compound_cp(index, j)] = c_name
-        _add_variants_from_recording(
+        _add_variants(
             c_name,
-            recording_from_metrics((c_glyph, c_adv, c_lsb)),
             c_adv,
+            c_lsb,
             target_upem,
             glyph_order,
             glyphs,
