@@ -45,9 +45,9 @@ VS_COUNT = MirrorVS.MODE_COUNT
 VS_LAST = VS_BASE + VS_COUNT - 1  # U+E007
 
 DEFAULT_UPEM = 1000
-STANDALONE_PAD = 0.06
-HALFWIDTH_PAD = 0.06
-COMPOUND_PAD = 0.04
+STANDALONE_PAD = 0.08
+HALFWIDTH_PAD = 0.08
+COMPOUND_PAD = 0.06
 
 # Match build_yi / build_subfonts OS/2 + hhea (CJK ideographic body).
 TYPO_ASCENDER_FRAC = 0.88
@@ -69,6 +69,7 @@ def ideographic_center(target_upem: int) -> Tuple[float, float]:
     ascent = target_upem * TYPO_ASCENDER_FRAC
     descent = target_upem * TYPO_DESCENDER_FRAC
     return target_upem / 2.0, (ascent + descent) / 2.0
+
 
 # (vs_cp, rot90_quarters, flip_x, flip_y, name_suffix or None for identity)
 # Shared with build_subfonts / GlyphWiki via kage.mapping.D4_MODES.
