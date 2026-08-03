@@ -7,13 +7,14 @@ Contents:
 
       yi VS0n   → variant   (ccmp/rlig/liga)   # VS01 = identity (no subst)
 
-* Compounds via digraph unpack (no per-pair glyphs — stays under 64k IDs):
+* Compounds via digraph unpack (no joiner, no per-pair glyphs — under 64k IDs):
 
-      yi1 + ZWJ + yi2 + VS0n   →   yihL_i[.var] + yihR_j[.var]
+      yi1 + yi2 + VS0n   →   yihL_i[.var] + yihR_j[.var]
 
   ``yihL`` is a half-cell in the left slot (advance = 1em); ``yihR`` is the
   same outline shifted +½em as a zero-width overlay. Axis-aligned D4 maps
   are TT composites; 2×2 rotates (r90/r270/diagonals) are baked outlines.
+  A lone ``yi + VS`` (no second Yi before the VS) stays a standalone form.
 """
 
 from __future__ import annotations
@@ -41,7 +42,6 @@ from yi_halfwidth import (
     VS_BASE,
     VS_LAST,
     YiInventory,
-    ZWJ_CP,
     add_d4_variant_glyphs,
     build_d4_uvs_entries,
     empty_glyph,
@@ -55,7 +55,6 @@ from yi_halfwidth import (
     resolve_nuosu_path,
     variant_glyph_name,
     vs_glyph_name,
-    zwj_glyph_name,
 )
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -89,22 +88,17 @@ def _inject_vs(
         cmap[vs_cp] = vname
 
 
-def _inject_zwj(
-    glyph_order: List[str],
-    glyphs: Dict,
-    metrics: Dict,
-    cmap: Dict[int, str],
-) -> None:
-    name = zwj_glyph_name()
-    if name not in glyphs:
-        glyph_order.append(name)
-        glyphs[name] = empty_glyph()
-        metrics[name] = (0, 0)
-    cmap[ZWJ_CP] = name
-
-
 def _mode_target(base_name: str, suffix: Optional[str]) -> str:
     return base_name if suffix is None else variant_glyph_name(base_name, suffix)
+
+
+def _mode_names(base_name: str) -> List[str]:
+    """Identity plus all D4 variant glyph names for ``base_name``."""
+    names = [base_name]
+    for _vs, _r, _fx, _fy, suffix in TRANSFORM_MODES:
+        if suffix is not None:
+            names.append(variant_glyph_name(base_name, suffix))
+    return names
 
 
 def _coverage(glyphs: Sequence[str]) -> ot.Coverage:
@@ -114,17 +108,23 @@ def _coverage(glyphs: Sequence[str]) -> ot.Coverage:
 
 
 def _chain_context_format3(
-    input_glyphs: Sequence[str],
-    lookahead_groups: Sequence[Sequence[str]],
+    input_groups: Sequence[Sequence[str]],
+    *,
+    lookahead_groups: Sequence[Sequence[str]] = (),
+    backtrack_groups: Sequence[Sequence[str]] = (),
     subst_lookup_index: int,
 ) -> ot.ChainContextSubst:
-    """One-input chain rule: replace input[0] when lookahead matches."""
+    """Chain rule: replace input[0] (via nested lookup) when context matches.
+
+    ``backtrack_groups`` is in visual order (glyph immediately before input
+    first); OpenType stores backtrack coverages in that same order.
+    """
     st = ot.ChainContextSubst()
     st.Format = 3
-    st.BacktrackGlyphCount = 0
-    st.BacktrackCoverage = []
-    st.InputGlyphCount = 1
-    st.InputCoverage = [_coverage(input_glyphs)]
+    st.BacktrackGlyphCount = len(backtrack_groups)
+    st.BacktrackCoverage = [_coverage(g) for g in backtrack_groups]
+    st.InputGlyphCount = len(input_groups)
+    st.InputCoverage = [_coverage(g) for g in input_groups]
     st.LookAheadGlyphCount = len(lookahead_groups)
     st.LookAheadCoverage = [_coverage(g) for g in lookahead_groups]
     rec = ot.SubstLookupRecord()
@@ -138,77 +138,112 @@ def _chain_context_format3(
 def install_rlig(font, yi_names: Sequence[str]) -> None:
     """Install GSUB digraph unpack + standalone VS (``ccmp``/``rlig``/``liga``).
 
-    Shared feature/script tags match ``composition_fea`` used by subfonts and
-    GlyphWiki. Nested chain lookups unpack compounds; ligatures handle the
-    right half and standalone VS forms.
+    Compounds: ``yi1 + yi2 + VS`` → ``yihL + yihR`` (no joiner). The right-half
+    liga is gated by a yihL backtrack so a lone ``yi + VS`` still forms the
+    standalone variant instead of a half-cell.
     """
     if not yi_names:
         return
 
-    zwj = zwj_glyph_name()
     yi_list = list(yi_names)
+    left_names = [
+        name
+        for yi in yi_list
+        for name in _mode_names(halfcell_left_name(int(yi[1:], 16)))
+    ]
 
-    # --- Lookups: SingleSubst yi → yihL[.var] (one per VS mode) ---
-    single_lookups = []
+    # --- Left: SingleSubst yi → yihL[.var] (one per VS mode) ---
+    left_singles = []
     for _vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
-        mapping = {}
-        for yi in yi_list:
-            cp = int(yi[1:], 16)
-            mapping[yi] = _mode_target(halfcell_left_name(cp), suffix)
+        mapping = {
+            yi: _mode_target(halfcell_left_name(int(yi[1:], 16)), suffix)
+            for yi in yi_list
+        }
         sub = buildSingleSubstSubtable(mapping)
         lu = buildLookup([sub])
         lu.LookupType = 1
-        single_lookups.append(lu)
+        left_singles.append(lu)
 
-    n_single = len(single_lookups)
-
-    # --- ChainContext: yi' zwj @yi vsXX → (SingleSubst above) ---
-    chain_lookups = []
+    # --- Left chain: yi' @yi vsXX → (left single) ---
+    left_chains = []
     for mode_i, (vs_cp, _r, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
         vs = vs_glyph_name(vs_cp)
         st = _chain_context_format3(
-            yi_list,
-            [[zwj], yi_list, [vs]],
+            [yi_list],
+            lookahead_groups=[yi_list, [vs]],
             subst_lookup_index=mode_i,
         )
         lu = buildLookup([st])
         lu.LookupType = 6
-        chain_lookups.append(lu)
+        left_chains.append(lu)
 
-    n_chain = len(chain_lookups)
-    for mode_i, lu in enumerate(chain_lookups):
-        for st in lu.SubTable:
-            st.SubstLookupRecord[0].LookupListIndex = n_chain + mode_i
-
-    # --- Ligatures (split so each subtable stays under the 64KB OT limit) ---
-    liga_lookups = []
+    # --- Right: Ligature yi+vs → yihR[.var] (nested; one per VS mode) ---
+    right_ligas = []
     for vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
         vs = vs_glyph_name(vs_cp)
-        right_map: Dict[Tuple[str, ...], str] = {}
-        for yi in yi_list:
-            cp = int(yi[1:], 16)
-            right_map[(zwj, yi, vs)] = _mode_target(halfcell_right_name(cp), suffix)
+        right_map = {
+            (yi, vs): _mode_target(halfcell_right_name(int(yi[1:], 16)), suffix)
+            for yi in yi_list
+        }
         sub = buildLigatureSubstSubtable(right_map)
         lu = buildLookup([sub])
         lu.LookupType = 4
-        liga_lookups.append(lu)
+        right_ligas.append(lu)
 
+    # --- Right chain: yihL yi' vsXX → (right liga starting at yi) ---
+    right_chains = []
+    for mode_i, (vs_cp, _r, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
+        vs = vs_glyph_name(vs_cp)
+        st = _chain_context_format3(
+            [yi_list, [vs]],
+            backtrack_groups=[left_names],
+            subst_lookup_index=mode_i,
+        )
+        lu = buildLookup([st])
+        lu.LookupType = 6
+        right_chains.append(lu)
+
+    # --- Standalone: yi + VS → variant (identity VS needs no subst) ---
     standalone_map: Dict[Tuple[str, ...], str] = {}
     for yi in yi_list:
         for vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
             if suffix is None:
                 continue
             standalone_map[(yi, vs_glyph_name(vs_cp))] = variant_glyph_name(yi, suffix)
+    standalone_lookups = []
     if standalone_map:
         sub = buildLigatureSubstSubtable(standalone_map)
         lu = buildLookup([sub])
         lu.LookupType = 4
-        liga_lookups.append(lu)
+        standalone_lookups.append(lu)
 
-    all_lookups = chain_lookups + single_lookups + liga_lookups
-    feature_indices = list(range(n_chain)) + [
-        n_chain + n_single + i for i in range(len(liga_lookups))
-    ]
+    n_left_c = len(left_chains)
+    n_left_s = len(left_singles)
+    n_right_c = len(right_chains)
+    n_right_l = len(right_ligas)
+
+    # Nested lookup indices (absolute within LookupList).
+    for mode_i, lu in enumerate(left_chains):
+        for st in lu.SubTable:
+            st.SubstLookupRecord[0].LookupListIndex = n_left_c + mode_i
+    right_liga_base = n_left_c + n_left_s + n_right_c
+    for mode_i, lu in enumerate(right_chains):
+        for st in lu.SubTable:
+            st.SubstLookupRecord[0].LookupListIndex = right_liga_base + mode_i
+
+    all_lookups = (
+        left_chains + left_singles + right_chains + right_ligas + standalone_lookups
+    )
+    feature_indices = (
+        list(range(n_left_c))
+        + list(range(n_left_c + n_left_s, n_left_c + n_left_s + n_right_c))
+        + list(
+            range(
+                n_left_c + n_left_s + n_right_c + n_right_l,
+                n_left_c + n_left_s + n_right_c + n_right_l + len(standalone_lookups),
+            )
+        )
+    )
 
     def _langsys() -> ot.DefaultLangSys:
         ls = ot.DefaultLangSys()
@@ -329,7 +364,6 @@ def build_panyi_font(
         )
         uvs_rows.extend(build_d4_uvs_entries(cp, sa_name, glyphs=glyphs))
 
-    _inject_zwj(glyph_order, glyphs, metrics, cmap)
     _inject_vs(glyph_order, glyphs, metrics, cmap)
 
     # --- Half-cells: left (1em adv) + right (0 adv overlay) + D4 ---
@@ -499,8 +533,7 @@ def build_all(
         print(f"Yi inventory: {inv.count} glyphs from {NUOSU_FILENAME}")
 
     print(
-        f"  Compounds: rlig  yi1 + ZWJ (U+{ZWJ_CP:04X}) + yi2 + VS "
-        "-> yihL + yihR digraph"
+        "  Compounds: rlig  yi1 + yi2 + VS -> yihL + yihR digraph"
     )
     print(f"  Transform VS: U+{VS_BASE:X}-U+{VS_LAST:X} (8 unique D4 symmetries)")
     print(f"  Output: single font '{FAMILY_NAME}'")
