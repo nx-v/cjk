@@ -2,13 +2,13 @@
 
 Encoding
 --------
-* One font per Yi syllable/radical, **named by its standalone code point**
-  (e.g. ``A000.ttf`` for U+A000).
-* Standalone / compounds: fit into the CJK typo box (1000×1000 body with
+* One font (``panyi``) covering the whole Yi inventory.
+* Standalone / half-cells: fit into the CJK typo box (1000×1000 body with
   center at 0.38em) by **shifting outline points** independently on X and Y.
-* Compounds: ordered pairs ``(i, j)`` as flattened merged outlines,
-  cmap'd at unique contiguous PUA ``U+40000 + i·N + j`` (half-cells are
-  build-only, not emitted).
+* Compounds: ``yi1 + CGJ (U+034F) + yi2 + VS0n`` (``rlig``) unpacks to a
+  digraph of shared half-cell glyphs (left slot + zero-width right slot) so
+  all N² pairs fit under the 64k glyph-ID limit — no per-pair glyphs and no
+  outline merging. Identity uses VS01.
 * Variants: the 8 unique square symmetries (D4) — 90° rotations and
   axis reflections — each with its own VS (``U+E000``..``U+E007``).
   Geometric duplicates are omitted (e.g. ``mxy === r180``).
@@ -47,7 +47,8 @@ except ImportError:  # Scripts.* import style
 YI_SYLLABLES = (0xA000, 0xA48C)
 YI_RADICALS = (0xA490, 0xA4CF)
 
-HALFWIDTH_BASE = 0x40000
+# Combining Grapheme Joiner — joins yi₁ / yi₂ in compound ligatures.
+CGJ_CP = 0x034F
 
 VS_BASE = 0xE000
 VS_COUNT = MirrorVS.MODE_COUNT
@@ -92,6 +93,10 @@ TRANSFORM_MODES: List[TransformMode] = [
 
 def vs_glyph_name(vs_cp: int) -> str:
     return f"vs{vs_cp - VS_BASE + 1:02d}"
+
+
+def cgj_glyph_name() -> str:
+    return "cgj"
 
 
 def variant_glyph_name(base_name: str, suffix: str) -> str:
@@ -192,6 +197,67 @@ def make_composite_variant(
     return g, advance, lsb
 
 
+def make_composite_pair(
+    left_name: str,
+    right_name: str,
+    target_upem: int = DEFAULT_UPEM,
+    *,
+    lsb: int = 0,
+) -> GlyphMetrics:
+    """Two-component TT composite: left half-cell + right half-cell (shift +½em)."""
+    half = target_upem // 2
+    g = TTGlyph()
+    g.numberOfContours = -1
+    left = GlyphComponent()
+    left.glyphName = left_name
+    left.x = 0
+    left.y = 0
+    left.flags = ROUND_XY_TO_GRID
+    right = GlyphComponent()
+    right.glyphName = right_name
+    right.x = half
+    right.y = 0
+    right.flags = ROUND_XY_TO_GRID
+    g.components = [left, right]
+    return g, target_upem, lsb
+
+
+def make_right_half_composite(
+    left_name: str,
+    target_upem: int = DEFAULT_UPEM,
+    *,
+    lsb: int = 0,
+) -> GlyphMetrics:
+    """Zero-width right-slot composite: ``left_name`` shifted +½em (digraph overlay)."""
+    half = target_upem // 2
+    g = TTGlyph()
+    g.numberOfContours = -1
+    comp = GlyphComponent()
+    comp.glyphName = left_name
+    comp.x = half
+    comp.y = 0
+    comp.flags = ROUND_XY_TO_GRID
+    g.components = [comp]
+    return g, 0, lsb
+
+
+def _cp_hex(cp: int) -> str:
+    return f"{cp:04X}" if cp <= 0xFFFF else f"{cp:05X}"
+
+
+def halfcell_left_name(cp: int) -> str:
+    return f"yihL{_cp_hex(cp)}"
+
+
+def halfcell_right_name(cp: int) -> str:
+    return f"yihR{_cp_hex(cp)}"
+
+
+def halfcell_glyph_name(cp: int) -> str:
+    """Alias for the left-slot half-cell name."""
+    return halfcell_left_name(cp)
+
+
 def center_glyph_in_cell(
     glyph: TTGlyph,
     target_upem: int,
@@ -223,19 +289,6 @@ class YiInventory:
     @property
     def count(self) -> int:
         return len(self.src_cps)
-
-    def compound_cp(self, i: int, j: int) -> int:
-        """Unique contiguous PUA for pair ``(i, j)``: ``U+40000 + i·N + j``."""
-        n = self.count
-        if not (0 <= i < n and 0 <= j < n):
-            raise IndexError(f"compound indices ({i},{j}) out of range for N={n}")
-        return HALFWIDTH_BASE + i * n + j
-
-    def compound_range(self, i: int) -> Tuple[int, int]:
-        """Inclusive ``(first, last)`` compound CPs owned by font index ``i``."""
-        n = self.count
-        start = HALFWIDTH_BASE + i * n
-        return start, start + n - 1
 
     def font_id(self, index: int) -> str:
         """Filename / family stem = standalone code point hex (e.g. A000)."""

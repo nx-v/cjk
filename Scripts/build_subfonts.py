@@ -21,6 +21,8 @@ import argparse
 import concurrent.futures
 import os
 import sys
+import tempfile
+import time
 from collections import defaultdict
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
@@ -441,13 +443,9 @@ def build_bucket_font(
     fb.save(out_path)
 
     if write_woff2:
-        woff2_path = os.path.join(out_dir, f"{hex_id}.woff2")
-        woff2.compress(out_path, woff2_path)
+        compress_woff2(out_path)
     if not write_ttf:
-        try:
-            os.remove(out_path)
-        except OSError:
-            pass
+        _drop_ttf(out_path)
 
     return out_path, len(glyphs) - 1, sorted(cmap.keys())
 
@@ -457,24 +455,56 @@ def build_bucket_font(
 _WORKER_SOURCES: Optional[Dict[str, SourceFont]] = None
 _WORKER_OUT_DIR: Optional[str] = None
 _WORKER_UPEM: Optional[int] = None
-_WORKER_WRITE_TTF: bool = True
-_WORKER_WRITE_WOFF2: bool = True
+
+
+def compress_woff2(ttf_path: str, woff2_path: Optional[str] = None) -> str:
+    """Compress TTF→WOFF2 via a temp file (avoids Windows/OneDrive errno 22 races)."""
+    if woff2_path is None:
+        woff2_path = os.path.splitext(ttf_path)[0] + ".woff2"
+    out_dir = os.path.dirname(os.path.abspath(woff2_path)) or "."
+    os.makedirs(out_dir, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(suffix=".woff2", dir=out_dir)
+    os.close(fd)
+    try:
+        last_err: Optional[BaseException] = None
+        for attempt in range(5):
+            try:
+                woff2.compress(ttf_path, tmp_path)
+                os.replace(tmp_path, woff2_path)
+                return woff2_path
+            except OSError as exc:
+                last_err = exc
+                time.sleep(0.05 * (2**attempt))
+        assert last_err is not None
+        raise last_err
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+
+def _drop_ttf(ttf_path: str) -> None:
+    try:
+        os.remove(ttf_path)
+    except OSError:
+        pass
+
+
+def _compress_woff2_task(ttf_path: str) -> None:
+    compress_woff2(ttf_path)
 
 
 def _init_build_worker(
     font_paths: List[str],
     out_dir: str,
     target_upem: int,
-    write_ttf: bool = True,
-    write_woff2: bool = True,
 ) -> None:
     """Load source fonts once per process worker."""
     global _WORKER_SOURCES, _WORKER_OUT_DIR, _WORKER_UPEM
-    global _WORKER_WRITE_TTF, _WORKER_WRITE_WOFF2
     _WORKER_OUT_DIR = out_dir
     _WORKER_UPEM = target_upem
-    _WORKER_WRITE_TTF = write_ttf
-    _WORKER_WRITE_WOFF2 = write_woff2
     _WORKER_SOURCES = {p: SourceFont(p) for p in font_paths}
 
 
@@ -485,14 +515,16 @@ def _build_bucket_task(
     assert _WORKER_SOURCES is not None
     assert _WORKER_OUT_DIR is not None
     assert _WORKER_UPEM is not None
+    # Always keep the TTF during the worker pass; WOFF2 / TTF retention
+    # is handled after all workers finish (see build_all).
     path, count, codepoints = build_bucket_font(
         bucket_id,
         entries,
         _WORKER_SOURCES,
         _WORKER_OUT_DIR,
         _WORKER_UPEM,
-        write_ttf=_WORKER_WRITE_TTF,
-        write_woff2=_WORKER_WRITE_WOFF2,
+        write_ttf=True,
+        write_woff2=False,
     )
     return bucket_id, path, count, codepoints
 
@@ -641,16 +673,17 @@ def build_all(
     glyph_total = 0
     skipped = 0
     built: List[Tuple[str, int, List[int]]] = []
+    ttf_paths: List[str] = []
     done = 0
 
     with concurrent.futures.ProcessPoolExecutor(
         max_workers=workers,
         initializer=_init_build_worker,
-        initargs=(used_paths, out_dir, target_upem, write_ttf, write_woff2),
+        initargs=(used_paths, out_dir, target_upem),
     ) as executor:
         futures = [executor.submit(_build_bucket_task, task) for task in tasks]
         for fut in concurrent.futures.as_completed(futures):
-            bucket_id, _path, count, codepoints = fut.result()
+            bucket_id, path, count, codepoints = fut.result()
             done += 1
             hex_id = f"{bucket_id:X}"
             if count == 0:
@@ -663,10 +696,21 @@ def build_all(
             written += 1
             glyph_total += count
             built.append((hex_id, count, codepoints))
+            ttf_paths.append(path)
             print(
-                f"  [{done}/{total}] {hex_id} ({fmt_note}, {count} glyphs)",
+                f"  [{done}/{total}] {hex_id} (ttf, {count} glyphs)",
                 flush=True,
             )
+
+    if write_woff2 and ttf_paths:
+        print(f"\nCompressing {len(ttf_paths)} WOFF2...", flush=True)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as ex:
+            list(ex.map(_compress_woff2_task, ttf_paths))
+
+    if not write_ttf and ttf_paths:
+        print(f"Removing {len(ttf_paths)} intermediate TTFs...", flush=True)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as ex:
+            list(ex.map(_drop_ttf, ttf_paths))
 
     built.sort(key=lambda t: int(t[0], 16))
     write_css(out_dir, built)

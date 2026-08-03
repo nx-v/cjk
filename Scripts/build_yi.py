@@ -1,51 +1,54 @@
 #!/usr/bin/env python3
 """
-Build one Yi font per syllable/radical, named by its standalone code point.
+Build one Yi font (``panyi``) covering the whole inventory.
 
-Example: U+A000 → ``A000.ttf`` / font-family ``A000``.
+Contents:
+* Standalone forms at real Unicode CPs (full CJK width) plus D4 variants
 
-Each font contains:
-* Standalone form at the real Unicode CP (full CJK width)
-  plus VS01..VS08 rotation × reflection variants
-* All ordered pairs ``(this, j)`` as flattened merged-outline compounds,
-  cmap'd at unique contiguous ``U+40000 + i·N + j``, plus VS variants
+      yi VS0n   → variant   (rlig)   # VS01 = identity (no subst)
 
-    glyph VS0n   → variant   (rlig)
+* Compounds via digraph unpack (no per-pair glyphs — stays under 64k IDs):
 
-Half-cell glyphs are build-only intermediates (not emitted). Pair identities
-are flattened outlines; D4 variants (VS02–08) are one-component TrueType
-composites of the identity glyph. No shared compound codepoint reuse across
-fonts.
+      yi1 + CGJ + yi2 + VS0n   →   yihL_i[.var] + yihR_j[.var]   (rlig)
+
+  ``yihL`` is a half-cell in the left slot (advance = 1em); ``yihR`` is the
+  same outline shifted +½em as a zero-width overlay. D4 variants are
+  one-component composites about the CJK typo center.
 """
 
 from __future__ import annotations
 
 import argparse
-import concurrent.futures
 import os
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
-from fontTools.otlLib.builder import buildLigatureSubstSubtable, buildLookup
+from fontTools.otlLib.builder import (
+    buildLigatureSubstSubtable,
+    buildLookup,
+    buildSingleSubstSubtable,
+)
 from fontTools.ttLib import TTFont, newTable, woff2
 from fontTools.ttLib.tables import otTables as ot
 
 from yi_halfwidth import (
+    CGJ_CP,
     DEFAULT_UPEM,
-    HALFWIDTH_BASE,
     NUOSU_FILENAME,
     TRANSFORM_MODES,
     VS_BASE,
     VS_LAST,
     YiInventory,
-    center_glyph_in_cell,
+    cgj_glyph_name,
     empty_glyph,
+    halfcell_left_name,
+    halfcell_right_name,
     load_inventory,
     make_composite_variant,
     make_halfwidth_glyph,
+    make_right_half_composite,
     make_standalone_glyph,
-    merge_halfcell_glyphs,
     record_glyph,
     resolve_nuosu_path,
     variant_glyph_name,
@@ -56,6 +59,9 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
 OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "yi")
 
+FAMILY_NAME = "panyi"
+PS_NAME = "panyi"
+
 CSS_FONT_URL_BASE = (
     "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/yi"
 )
@@ -63,10 +69,6 @@ CSS_FONT_URL_BASE = (
 
 def glyph_name_for_cp(cp: int) -> str:
     return f"u{cp:04X}" if cp <= 0xFFFF else f"u{cp:05X}"
-
-
-def compound_glyph_name(i: int, j: int) -> str:
-    return f"yic_{i:04X}_{j:04X}"
 
 
 def _inject_vs(
@@ -84,6 +86,20 @@ def _inject_vs(
         cmap[vs_cp] = vname
 
 
+def _inject_cgj(
+    glyph_order: List[str],
+    glyphs: Dict,
+    metrics: Dict,
+    cmap: Dict[int, str],
+) -> None:
+    name = cgj_glyph_name()
+    if name not in glyphs:
+        glyph_order.append(name)
+        glyphs[name] = empty_glyph()
+        metrics[name] = (0, 0)
+    cmap[CGJ_CP] = name
+
+
 def _add_variants(
     base_name: str,
     advance: int,
@@ -92,10 +108,9 @@ def _add_variants(
     glyph_order: List[str],
     glyphs: Dict,
     metrics: Dict,
-    liga_map: Dict[Tuple[str, ...], str],
 ) -> None:
     """Attach D4 variants as one-component composites of ``base_name``."""
-    for vs_cp, rot, flip_x, flip_y, suffix in TRANSFORM_MODES:
+    for _vs_cp, rot, flip_x, flip_y, suffix in TRANSFORM_MODES:
         if suffix is None:
             continue
         m_name = variant_glyph_name(base_name, suffix)
@@ -113,15 +128,120 @@ def _add_variants(
         glyph_order.append(m_name)
         glyphs[m_name] = m_glyph
         metrics[m_name] = (m_adv, m_lsb)
-        liga_map[(base_name, vs_glyph_name(vs_cp))] = m_name
 
 
-def _install_rlig(font, liga_map: Dict[Tuple[str, ...], str]) -> None:
-    if not liga_map:
+def _mode_target(base_name: str, suffix: Optional[str]) -> str:
+    return base_name if suffix is None else variant_glyph_name(base_name, suffix)
+
+
+def _coverage(glyphs: Sequence[str]) -> ot.Coverage:
+    cov = ot.Coverage()
+    cov.glyphs = list(glyphs)
+    return cov
+
+
+def _chain_context_format3(
+    input_glyphs: Sequence[str],
+    lookahead_groups: Sequence[Sequence[str]],
+    subst_lookup_index: int,
+) -> ot.ChainContextSubst:
+    """One-input chain rule: replace input[0] when lookahead matches."""
+    st = ot.ChainContextSubst()
+    st.Format = 3
+    st.BacktrackGlyphCount = 0
+    st.BacktrackCoverage = []
+    st.InputGlyphCount = 1
+    st.InputCoverage = [_coverage(input_glyphs)]
+    st.LookAheadGlyphCount = len(lookahead_groups)
+    st.LookAheadCoverage = [_coverage(g) for g in lookahead_groups]
+    rec = ot.SubstLookupRecord()
+    rec.SequenceIndex = 0
+    rec.LookupListIndex = subst_lookup_index
+    st.SubstCount = 1
+    st.SubstLookupRecord = [rec]
+    return st
+
+
+def install_rlig(font, yi_names: Sequence[str]) -> None:
+    """Install compact ``rlig``: digraph unpack + standalone VS.
+
+    Left half uses 8 chain-context rules (one per VS) with shared Yi coverage
+    and a SingleSubst — O(N) tables, not O(N²) FEA expansion via ``@yi``.
+    """
+    if not yi_names:
         return
-    sub = buildLigatureSubstSubtable(liga_map)
-    lookup = buildLookup([sub])
-    lookup.LookupType = 4
+
+    cgj = cgj_glyph_name()
+    yi_list = list(yi_names)
+
+    # --- Lookups: SingleSubst yi → yihL[.var] (one per VS mode) ---
+    single_lookups = []
+    for _vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
+        mapping = {}
+        for yi in yi_list:
+            cp = int(yi[1:], 16)
+            mapping[yi] = _mode_target(halfcell_left_name(cp), suffix)
+        sub = buildSingleSubstSubtable(mapping)
+        lu = buildLookup([sub])
+        lu.LookupType = 1
+        single_lookups.append(lu)
+
+    n_single = len(single_lookups)
+
+    # --- ChainContext: yi' cgj @yi vsXX → (SingleSubst above) ---
+    chain_lookups = []
+    for mode_i, (vs_cp, _r, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
+        vs = vs_glyph_name(vs_cp)
+        st = _chain_context_format3(
+            yi_list,
+            [[cgj], yi_list, [vs]],
+            subst_lookup_index=mode_i,  # absolute index in final LookupList
+        )
+        lu = buildLookup([st])
+        lu.LookupType = 6
+        chain_lookups.append(lu)
+
+    # Fix subst lookup indices: singles come after chains in the list below,
+    # so rewrite to n_chain + mode_i. We'll order as: chains first, then singles,
+    # then ligatures — chain records must point at singles.
+    n_chain = len(chain_lookups)
+    for mode_i, lu in enumerate(chain_lookups):
+        for st in lu.SubTable:
+            st.SubstLookupRecord[0].LookupListIndex = n_chain + mode_i
+
+    # --- Ligatures (split so each subtable stays under the 64KB OT limit) ---
+    # All compound-right ligatures share first glyph ``cgj``; packing every
+    # VS into one LigatureSet overflows (~N*8*10 bytes) and fontTools' split
+    # path is extremely slow. One lookup per VS keeps each set at ~N entries.
+    liga_lookups = []
+    for vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
+        vs = vs_glyph_name(vs_cp)
+        right_map: Dict[Tuple[str, ...], str] = {}
+        for yi in yi_list:
+            cp = int(yi[1:], 16)
+            right_map[(cgj, yi, vs)] = _mode_target(halfcell_right_name(cp), suffix)
+        sub = buildLigatureSubstSubtable(right_map)
+        lu = buildLookup([sub])
+        lu.LookupType = 4
+        liga_lookups.append(lu)
+
+    standalone_map: Dict[Tuple[str, ...], str] = {}
+    for yi in yi_list:
+        for vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
+            if suffix is None:
+                continue
+            standalone_map[(yi, vs_glyph_name(vs_cp))] = variant_glyph_name(yi, suffix)
+    if standalone_map:
+        sub = buildLigatureSubstSubtable(standalone_map)
+        lu = buildLookup([sub])
+        lu.LookupType = 4
+        liga_lookups.append(lu)
+
+    all_lookups = chain_lookups + single_lookups + liga_lookups
+    # Feature: chains then ligatures (singles are only reached from chains).
+    feature_indices = list(range(n_chain)) + [
+        n_chain + n_single + i for i in range(len(liga_lookups))
+    ]
 
     gsub = ot.GSUB()
     gsub.Version = 0x00010000
@@ -143,43 +263,126 @@ def _install_rlig(font, liga_map: Dict[Tuple[str, ...], str]) -> None:
     fr.FeatureTag = "rlig"
     fr.Feature = ot.Feature()
     fr.Feature.FeatureParams = None
-    fr.Feature.LookupCount = 1
-    fr.Feature.LookupListIndex = [0]
+    fr.Feature.LookupCount = len(feature_indices)
+    fr.Feature.LookupListIndex = feature_indices
     gsub.FeatureList = ot.FeatureList()
     gsub.FeatureList.FeatureRecord = [fr]
     gsub.FeatureList.FeatureCount = 1
 
     gsub.LookupList = ot.LookupList()
-    gsub.LookupList.Lookup = [lookup]
-    gsub.LookupList.LookupCount = 1
+    gsub.LookupList.Lookup = all_lookups
+    gsub.LookupList.LookupCount = len(all_lookups)
 
     table = newTable("GSUB")
     table.table = gsub
     font["GSUB"] = table
 
 
-def _save_font(
-    out_path: str,
+def build_panyi_font(
+    inv: YiInventory,
+    out_dir: str,
     target_upem: int,
-    family: str,
-    ps: str,
-    glyph_order: List[str],
-    glyphs: Dict,
-    metrics: Dict,
-    cmap: Dict[int, str],
-    liga_map: Dict[Tuple[str, ...], str],
     *,
     write_ttf: bool = True,
     write_woff2: bool = True,
 ) -> Tuple[str, int, List[int]]:
-    if not cmap:
-        return out_path, 0, []
+    """Build the single ``panyi`` font for the whole inventory."""
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
+
+    out_path = os.path.join(out_dir, f"{FAMILY_NAME}.ttf")
+
+    print("  Recording source outlines...", flush=True)
+    tt = TTFont(inv.source_path, fontNumber=0)
+    try:
+        recs: Dict[int, object] = {}
+        for idx, cp in enumerate(inv.src_cps):
+            rec = record_glyph(tt, inv.glyph_names[cp])
+            if rec is not None:
+                recs[idx] = rec
+    finally:
+        tt.close()
+
+    print(
+        f"  Fitting {len(recs)} standalones + half-cells...",
+        flush=True,
+    )
+    standalones: Dict[int, Tuple] = {}
+    halfcells: Dict[int, Tuple] = {}
+    for idx, rec in recs.items():
+        sa = make_standalone_glyph(rec, target_upem)
+        if sa is not None:
+            standalones[idx] = sa
+        hc = make_halfwidth_glyph(rec, target_upem)
+        if hc is not None:
+            halfcells[idx] = hc
+
+    glyph_order = [".notdef"]
+    glyphs = {".notdef": empty_glyph()}
+    metrics: Dict[str, Tuple[int, int]] = {".notdef": (target_upem // 2, 0)}
+    cmap: Dict[int, str] = {}
+    yi_names: List[str] = []
+
+    # --- Standalones + D4 ---
+    for idx, cp in enumerate(inv.src_cps):
+        if idx not in standalones:
+            continue
+        sa_glyph, sa_adv, sa_lsb = standalones[idx]
+        sa_name = glyph_name_for_cp(cp)
+        glyph_order.append(sa_name)
+        glyphs[sa_name] = sa_glyph
+        metrics[sa_name] = (sa_adv, sa_lsb)
+        cmap[cp] = sa_name
+        yi_names.append(sa_name)
+        _add_variants(
+            sa_name, sa_adv, sa_lsb, target_upem, glyph_order, glyphs, metrics
+        )
+
+    _inject_cgj(glyph_order, glyphs, metrics, cmap)
+    _inject_vs(glyph_order, glyphs, metrics, cmap)
+
+    # --- Half-cells: left (1em adv) + right (0 adv overlay) + D4 ---
+    print("  Installing half-cell digraph components...", flush=True)
+    for idx, cp in enumerate(inv.src_cps):
+        if idx not in halfcells:
+            continue
+        h_glyph, _h_adv, h_lsb = halfcells[idx]
+        left_name = halfcell_left_name(cp)
+        glyph_order.append(left_name)
+        glyphs[left_name] = h_glyph
+        # Full-em advance so digraph overlay advances one cell.
+        metrics[left_name] = (target_upem, h_lsb)
+        _add_variants(
+            left_name,
+            target_upem,
+            h_lsb,
+            target_upem,
+            glyph_order,
+            glyphs,
+            metrics,
+        )
+
+        right_name = halfcell_right_name(cp)
+        r_glyph, r_adv, r_lsb = make_right_half_composite(
+            left_name, target_upem, lsb=0
+        )
+        glyph_order.append(right_name)
+        glyphs[right_name] = r_glyph
+        metrics[right_name] = (r_adv, r_lsb)
+        _add_variants(
+            right_name, r_adv, r_lsb, target_upem, glyph_order, glyphs, metrics
+        )
+
+    if not yi_names:
+        return out_path, 0, []
 
     ascent = otRound(target_upem * 0.88)
     descent = otRound(target_upem * -0.12)
 
+    print(
+        f"  Assembling font ({len(glyphs) - 1} glyphs, {len(yi_names)} Yi CPs)...",
+        flush=True,
+    )
     fb = FontBuilder(target_upem, isTTF=True)
     fb.setupGlyphOrder(glyph_order)
     fb.setupGlyf(glyphs)
@@ -188,11 +391,11 @@ def _save_font(
     fb.setupCharacterMap(cmap)
     fb.setupNameTable(
         {
-            "familyName": family,
+            "familyName": FAMILY_NAME,
             "styleName": "Regular",
-            "uniqueFontIdentifier": ps,
-            "fullName": family,
-            "psName": ps,
+            "uniqueFontIdentifier": PS_NAME,
+            "fullName": FAMILY_NAME,
+            "psName": PS_NAME,
             "version": "Version 1.000",
         }
     )
@@ -205,199 +408,22 @@ def _save_font(
         achVendID="pYi ",
     )
     fb.setupPost()
-    _install_rlig(fb.font, liga_map)
 
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    print("  Compiling rlig (compound digraph + standalone VS)...", flush=True)
+    install_rlig(fb.font, yi_names)
+
+    os.makedirs(out_dir, exist_ok=True)
     fb.save(out_path)
     if write_woff2:
+        print("  Compressing WOFF2...", flush=True)
         woff2.compress(out_path, out_path.replace(".ttf", ".woff2"))
     if not write_ttf:
         try:
             os.remove(out_path)
         except OSError:
             pass
+
     return out_path, len(glyphs) - 1, sorted(cmap.keys())
-
-
-def build_cp_font(
-    inv: YiInventory,
-    index: int,
-    standalones: Dict[int, Tuple],
-    halfcells: Dict[int, Tuple],
-    out_dir: str,
-    target_upem: int,
-    *,
-    write_ttf: bool = True,
-    write_woff2: bool = True,
-) -> Tuple[str, int, List[int]]:
-    """Build the font for inventory ``index`` (named by standalone CP).
-
-    ``halfcells`` are build-only intermediates used to merge pair outlines;
-    they are not emitted. Each pair ``(index, j)`` is cmap'd at the unique
-    contiguous PUA ``U+40000 + index·N + j``.
-    """
-    src_cp = inv.src_cps[index]
-    font_id = inv.font_id(index)
-    out_path = os.path.join(out_dir, f"{font_id}.ttf")
-
-    if index not in standalones or index not in halfcells:
-        return out_path, 0, []
-
-    glyph_order = [".notdef"]
-    glyphs = {".notdef": empty_glyph()}
-    metrics: Dict[str, Tuple[int, int]] = {".notdef": (target_upem // 2, 0)}
-    cmap: Dict[int, str] = {}
-    liga_map: Dict[Tuple[str, ...], str] = {}
-
-    # --- Standalone at real Unicode CP ---
-    sa = standalones[index]
-    sa_glyph, sa_adv, sa_lsb = sa
-    sa_name = glyph_name_for_cp(src_cp)
-    glyph_order.append(sa_name)
-    glyphs[sa_name] = sa_glyph
-    metrics[sa_name] = (sa_adv, sa_lsb)
-    cmap[src_cp] = sa_name
-    _add_variants(
-        sa_name,
-        sa_adv,
-        sa_lsb,
-        target_upem,
-        glyph_order,
-        glyphs,
-        metrics,
-        liga_map,
-    )
-
-    # --- All pairs (this, j): unique contiguous PUA U+40000 + i·N + j ---
-    left_glyph = halfcells[index][0]
-    for j, hc in halfcells.items():
-        made = merge_halfcell_glyphs(left_glyph, hc[0], target_upem)
-        if made is None:
-            continue
-        c_glyph, c_adv, c_lsb = made
-        if c_glyph.isComposite():
-            raise RuntimeError(f"composite leaked in {font_id} pair ({index},{j})")
-        c_glyph = center_glyph_in_cell(c_glyph, target_upem)
-        try:
-            c_glyph.recalcBounds(None)
-            c_lsb = int(c_glyph.xMin)
-        except Exception:
-            pass
-        c_name = compound_glyph_name(index, j)
-        glyph_order.append(c_name)
-        glyphs[c_name] = c_glyph
-        metrics[c_name] = (c_adv, c_lsb)
-        cmap[inv.compound_cp(index, j)] = c_name
-        _add_variants(
-            c_name,
-            c_adv,
-            c_lsb,
-            target_upem,
-            glyph_order,
-            glyphs,
-            metrics,
-            liga_map,
-        )
-
-    _inject_vs(glyph_order, glyphs, metrics, cmap)
-    return _save_font(
-        out_path,
-        target_upem,
-        family=font_id,
-        ps=f"panyi-{font_id}",
-        glyph_order=glyph_order,
-        glyphs=glyphs,
-        metrics=metrics,
-        cmap=cmap,
-        liga_map=liga_map,
-        write_ttf=write_ttf,
-        write_woff2=write_woff2,
-    )
-
-
-# ---------- Workers ----------
-
-_WORKER_INV: Optional[YiInventory] = None
-_WORKER_SA: Optional[Dict[int, Tuple]] = None
-_WORKER_HC: Optional[Dict[int, Tuple]] = None
-_WORKER_OUT: Optional[str] = None
-_WORKER_UPEM: Optional[int] = None
-_WORKER_WOFF2: bool = False
-
-
-def _init_worker(
-    source_path: str,
-    src_cps: Tuple[int, ...],
-    glyph_names: Dict[int, str],
-    out_dir: str,
-    upem: int,
-    write_woff2: bool,
-) -> None:
-    """Load sources; precompute standalones + half-cells (merge intermediates)."""
-    global _WORKER_INV, _WORKER_SA, _WORKER_HC, _WORKER_OUT, _WORKER_UPEM, _WORKER_WOFF2
-    _WORKER_INV = YiInventory(source_path, src_cps, glyph_names)
-    _WORKER_OUT = out_dir
-    _WORKER_UPEM = upem
-    _WORKER_WOFF2 = write_woff2
-
-    tt = TTFont(source_path, fontNumber=0)
-    try:
-        recs = {}
-        for idx, cp in enumerate(src_cps):
-            rec = record_glyph(tt, glyph_names[cp])
-            if rec is not None:
-                recs[idx] = rec
-    finally:
-        tt.close()
-
-    standalones: Dict[int, Tuple] = {}
-    halfcells: Dict[int, Tuple] = {}
-    for idx, rec in recs.items():
-        sa = make_standalone_glyph(rec, upem)
-        if sa is not None:
-            standalones[idx] = sa
-        hc = make_halfwidth_glyph(rec, upem)
-        if hc is not None:
-            halfcells[idx] = hc
-    _WORKER_SA = standalones
-    _WORKER_HC = halfcells
-    print(
-        f"  worker cache: {len(standalones)} standalones, "
-        f"{len(halfcells)} half-cells (build-only)",
-        flush=True,
-    )
-
-
-def _cp_task(index: int) -> Tuple[str, int, List[int], str]:
-    assert _WORKER_INV is not None
-    assert _WORKER_SA is not None
-    assert _WORKER_HC is not None
-    assert _WORKER_OUT is not None
-    assert _WORKER_UPEM is not None
-    # Always keep the TTF during the worker pass; WOFF2 / TTF retention
-    # is handled after all workers finish (see build_all).
-    path, count, cps = build_cp_font(
-        _WORKER_INV,
-        index,
-        _WORKER_SA,
-        _WORKER_HC,
-        _WORKER_OUT,
-        _WORKER_UPEM,
-        write_ttf=True,
-        write_woff2=False,
-    )
-    return _WORKER_INV.font_id(index), count, cps, path
-
-
-def _compress_woff2(ttf_path: str) -> None:
-    woff2.compress(ttf_path, ttf_path.replace(".ttf", ".woff2"))
-
-
-def _drop_ttf(ttf_path: str) -> None:
-    try:
-        os.remove(ttf_path)
-    except OSError:
-        pass
 
 
 def unicode_range_css(codepoints: Sequence[int]) -> str:
@@ -422,38 +448,32 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
     return ", ".join(runs)
 
 
-def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
+def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     css_path = os.path.join(out_dir, "panyi.css")
+    urange = unicode_range_css(codepoints)
+    url = f"{CSS_FONT_URL_BASE}/{FAMILY_NAME}.woff2"
     lines = [
-        "/* Auto-generated Yi per-codepoint fonts (name = standalone CP) */",
+        "/* Auto-generated single Yi font */",
         "",
+        "@font-face {",
+        f"  font-family: '{FAMILY_NAME}';",
+        f"  src: url('{url}') format('woff2');",
+        "  font-weight: normal;",
+        "  font-style: normal;",
+        "  font-display: swap;",
     ]
-    family_names: List[str] = []
-    for font_id, _count, codepoints in built:
-        family_names.append(font_id)
-        urange = unicode_range_css(codepoints)
-        url = f"{CSS_FONT_URL_BASE}/{font_id}.woff2"
-        lines.append("@font-face {")
-        lines.append(f"  font-family: '{font_id}';")
-        lines.append(f"  src: url('{url}') format('woff2');")
-        lines.append("  font-weight: normal;")
-        lines.append("  font-style: normal;")
-        lines.append("  font-display: swap;")
-        if urange:
-            lines.append(f"  unicode-range: {urange};")
-        lines.append("}")
-        lines.append("")
-
+    if urange:
+        lines.append(f"  unicode-range: {urange};")
+    lines += ["}", ""]
     with open(css_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
-    quoted = ", ".join(f"'{n}'" for n in family_names)
     fontlist_path = os.path.join(out_dir, "panyi-fontlist.css")
     with open(fontlist_path, "w", encoding="utf-8") as f:
         f.write(
-            "/* Yi per-codepoint font stack (family name = standalone CP hex) */\n"
-            f":root {{\n  --font-panyi: {quoted};\n}}\n"
+            "/* Yi font family */\n"
+            f":root {{\n  --font-panyi: '{FAMILY_NAME}';\n}}\n"
         )
     print(f"Wrote {fontlist_path}")
 
@@ -462,7 +482,6 @@ def build_all(
     in_dir: str,
     out_dir: str,
     target_upem: int,
-    jobs: int,
     *,
     limit: Optional[int] = None,
     write_ttf: bool = True,
@@ -472,94 +491,52 @@ def build_all(
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
     source = resolve_nuosu_path(in_dir)
     inv = load_inventory(source)
-    print(f"Yi inventory: {inv.count} glyphs from {NUOSU_FILENAME}")
-    compound_last = HALFWIDTH_BASE + inv.count * inv.count - 1
+    if limit is not None:
+        inv = YiInventory(
+            inv.source_path,
+            inv.src_cps[:limit],
+            {cp: inv.glyph_names[cp] for cp in inv.src_cps[:limit]},
+        )
+        print(f"Yi inventory: first {inv.count} glyphs (--limit)")
+    else:
+        print(f"Yi inventory: {inv.count} glyphs from {NUOSU_FILENAME}")
+
     print(
-        f"  Compound cmap: U+{HALFWIDTH_BASE:X}–U+{compound_last:X} "
-        f"({inv.count}² unique; pair (i,j) → U+40000 + i·N + j)"
+        f"  Compounds: rlig  yi1 + CGJ (U+{CGJ_CP:04X}) + yi2 + VS "
+        "-> yihL + yihR digraph"
     )
-    lo, hi = inv.compound_range(0)
-    print(
-        f"  Per-font slice example (i=0): U+{lo:X}–U+{hi:X}"
-    )
-    print(f"  Transform VS: U+{VS_BASE:X}–U+{VS_LAST:X} (8 unique D4 symmetries)")
-    print(f"  One font per CP, named by standalone code point")
+    print(f"  Transform VS: U+{VS_BASE:X}-U+{VS_LAST:X} (8 unique D4 symmetries)")
+    print(f"  Output: single font '{FAMILY_NAME}'")
     fmt_note = (
         "ttf+woff2"
         if write_ttf and write_woff2
         else ("ttf only" if write_ttf else "woff2 only")
     )
-    print(f"  Output: {fmt_note}")
+    print(f"  Formats: {fmt_note}")
 
     os.makedirs(out_dir, exist_ok=True)
-    indices = list(range(inv.count))
-    if limit is not None:
-        indices = indices[:limit]
-        print(f"  Building first {len(indices)} fonts only (--limit)")
-
-    print(f"\nBuilding {len(indices)} fonts with {jobs} workers...", flush=True)
-    built: List[Tuple[str, int, List[int]]] = []
-    ttf_paths: List[str] = []
-    done = 0
-
-    with concurrent.futures.ProcessPoolExecutor(
-        max_workers=max(1, jobs),
-        initializer=_init_worker,
-        initargs=(
-            inv.source_path,
-            inv.src_cps,
-            dict(inv.glyph_names),
-            out_dir,
-            target_upem,
-            False,  # woff2 after all TTFs
-        ),
-    ) as ex:
-        futs = [ex.submit(_cp_task, i) for i in indices]
-        for fut in concurrent.futures.as_completed(futs):
-            font_id, count, cps, path = fut.result()
-            done += 1
-            if count:
-                built.append((font_id, count, cps))
-                ttf_paths.append(path)
-            print(
-                f"  [{done}/{len(indices)}] {font_id}.ttf ({count} glyphs)",
-                flush=True,
-            )
-
-    if write_woff2 and ttf_paths:
-        print(f"\nCompressing {len(ttf_paths)} WOFF2...", flush=True)
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max(1, jobs)) as ex:
-            list(ex.map(_compress_woff2, ttf_paths))
-
-    if not write_ttf and ttf_paths:
-        print(f"Removing {len(ttf_paths)} intermediate TTFs...", flush=True)
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max(1, jobs)) as ex:
-            list(ex.map(_drop_ttf, ttf_paths))
-
-    # Sort by code point numeric value
-    built.sort(key=lambda t: int(t[0], 16))
-    write_css(out_dir, built)
-    print(f"\nDone: {len(built)} Yi fonts -> {out_dir}", flush=True)
+    path, count, cps = build_panyi_font(
+        inv,
+        out_dir,
+        target_upem,
+        write_ttf=write_ttf,
+        write_woff2=write_woff2,
+    )
+    if count:
+        write_css(out_dir, cps)
+    print(f"\nDone: {path} ({count} glyphs)", flush=True)
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="Build per-codepoint Yi fonts (name = standalone CP)"
-    )
+    p = argparse.ArgumentParser(description="Build the single panyi Yi font")
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
     p.add_argument("--out", dest="out_dir", default=OUT_DIR)
     p.add_argument("--upem", type=int, default=DEFAULT_UPEM)
     p.add_argument(
-        "--jobs",
-        "-j",
-        type=int,
-        default=max(1, (os.cpu_count() or 4) // 2),
-    )
-    p.add_argument(
         "--limit",
         type=int,
         default=None,
-        help="Build only the first N codepoint fonts (smoke test)",
+        help="Use only the first N inventory codepoints (smoke test)",
     )
     fmt = p.add_mutually_exclusive_group()
     fmt.add_argument(
@@ -582,7 +559,6 @@ if __name__ == "__main__":
         args.in_dir,
         args.out_dir,
         args.upem,
-        args.jobs,
         limit=args.limit,
         write_ttf=not args.woff2_only,
         write_woff2=not args.ttf_only,
