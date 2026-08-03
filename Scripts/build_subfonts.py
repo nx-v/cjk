@@ -7,7 +7,8 @@ into 256-codepoint blocks (cp >> 8), and builds each TTF/WOFF2 from scratch by
 copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
 
 D4 variants for bucket fonts are emitted **in the same TTF**:
-transformed outlines plus GSUB ligatures ``unicode + VS01..VS08``
+transformed outlines (2×2 rotates baked; axis mirrors as composites) plus
+GSUB ``ccmp``/``rlig``/``liga`` for ``unicode + VS01..VS08``
 (U+E000..U+E007) — the 8 unique square symmetries. No Supplementary
 PUA marker, no cmap offsets. GlyphWiki content uses SPUA+BMP-PUA
 ligatures (see ``kage.mapping``).
@@ -42,11 +43,12 @@ from yi_halfwidth import (
     TRANSFORM_MODES,
     VS_BASE,
     VS_LAST,
+    add_d4_variant_glyphs,
+    composition_fea,
     is_yi_cp,
-    make_composite_variant,
     make_standalone_glyph,
     record_glyph,
-    variant_glyph_name,
+    vs_glyph_name,
 )
 
 # ---------- Directories ----------
@@ -368,26 +370,17 @@ def build_bucket_font(
         metrics[gname] = (advance, lsb)
         cmap[out_cp] = gname
 
-        for vs_cp, rot, flip_x, flip_y, suffix in TRANSFORM_MODES:
-            if suffix is None:
-                continue  # VS01 identity — no extra glyph
-            m_name = variant_glyph_name(gname, suffix)
-            if m_name in glyphs:
-                continue
-            m_glyph, m_adv, m_lsb = make_composite_variant(
-                gname,
-                target_upem,
-                rot90_quarters=rot,
-                flip_x=flip_x,
-                flip_y=flip_y,
-                advance=advance,
-                lsb=lsb,
-            )
-            glyph_order.append(m_name)
-            glyphs[m_name] = m_glyph
-            metrics[m_name] = (m_adv, m_lsb)
-            vs_name = vs_glyph_name(vs_cp)
-            liga_rules.append(f"  sub {gname} {vs_name} by {m_name};")
+        installed = add_d4_variant_glyphs(
+            gname,
+            advance=advance,
+            lsb=lsb,
+            target_upem=target_upem,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+        )
+        for vs_cp, _suffix, m_name in installed:
+            liga_rules.append(f"  sub {gname} {vs_glyph_name(vs_cp)} by {m_name};")
 
     if len(cmap) == 0:
         return out_path, 0, []
@@ -433,12 +426,9 @@ def build_bucket_font(
     fb.setupPost()
 
     if liga_rules:
-        # rlig: required ligatures so D4 variants apply without liga being on
-        fea = (
-            "languagesystem DFLT dflt;\n"
-            "feature rlig {\n" + "\n".join(liga_rules) + "\n} rlig;\n"
-        )
-        addOpenTypeFeaturesFromString(fb.font, fea)
+        fea = composition_fea(liga_rules)
+        if fea:
+            addOpenTypeFeaturesFromString(fb.font, fea)
 
     fb.save(out_path)
 

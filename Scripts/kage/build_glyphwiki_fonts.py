@@ -57,6 +57,7 @@ from yi_halfwidth import (  # noqa: E402
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,
     center_glyph_in_cell,
+    composition_fea,
     ideographic_center,
     make_composite_variant,
 )
@@ -172,8 +173,8 @@ def svg_drawing_to_ttglyph(
     overlapping stroke ribbons fill solidly (nonzero winding). Opposite
     windings otherwise punch white holes at joints.
 
-    D4 variants are produced later as one-component TrueType composites
-    of the centered identity glyph (see ``make_composite_variant``).
+    D4 variants are produced later via ``make_composite_variant`` (axis-aligned
+    composites; 2×2 rotates baked to outlines) and ``composition_fea`` GSUB.
 
     ``flatten`` (pathops.simplify) stays off by default: boolean union of
     Serif ribbons collapses to a solid black square over the glyph bbox.
@@ -489,6 +490,8 @@ def build_marker_font(
                     flip_y=flip_y,
                     advance=advance,
                     lsb=id_lsb,
+                    base_glyph=id_glyph,
+                    glyph_set=glyphs,
                 )
                 glyphs[m_name] = ttg
                 metrics[m_name] = (m_adv, m_lsb)
@@ -534,14 +537,9 @@ def build_marker_font(
     )
     fb.setupPost()
 
-    fea = ["languagesystem DFLT dflt;", "feature liga {"]
-    fea.extend(liga_rules)
-    fea.append("} liga;")
-    if rlig_rules:
-        fea.append("feature rlig {")
-        fea.extend(rlig_rules)
-        fea.append("} rlig;")
-    addOpenTypeFeaturesFromString(fb.font, "\n".join(fea))
+    fea = composition_fea(liga_rules, rlig_rules)
+    if fea:
+        addOpenTypeFeaturesFromString(fb.font, fea)
 
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")

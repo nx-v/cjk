@@ -5,15 +5,15 @@ Build one Yi font (``panyi``) covering the whole inventory.
 Contents:
 * Standalone forms at real Unicode CPs (full CJK width) plus D4 variants
 
-      yi VS0n   → variant   (rlig)   # VS01 = identity (no subst)
+      yi VS0n   → variant   (ccmp/rlig/liga)   # VS01 = identity (no subst)
 
 * Compounds via digraph unpack (no per-pair glyphs — stays under 64k IDs):
 
-      yi1 + CGJ + yi2 + VS0n   →   yihL_i[.var] + yihR_j[.var]   (rlig)
+      yi1 + CGJ + yi2 + VS0n   →   yihL_i[.var] + yihR_j[.var]
 
   ``yihL`` is a half-cell in the left slot (advance = 1em); ``yihR`` is the
-  same outline shifted +½em as a zero-width overlay. D4 variants are
-  one-component composites about the CJK typo center.
+  same outline shifted +½em as a zero-width overlay. Axis-aligned D4 maps
+  are TT composites; 2×2 rotates (r90/r270/diagonals) are baked outlines.
 """
 
 from __future__ import annotations
@@ -34,18 +34,20 @@ from fontTools.ttLib.tables import otTables as ot
 
 from yi_halfwidth import (
     CGJ_CP,
+    COMPOSITION_FEATURE_TAGS,
+    COMPOSITION_LANGUAGE_SYSTEMS,
     DEFAULT_UPEM,
     NUOSU_FILENAME,
     TRANSFORM_MODES,
     VS_BASE,
     VS_LAST,
     YiInventory,
+    add_d4_variant_glyphs,
     cgj_glyph_name,
     empty_glyph,
     halfcell_left_name,
     halfcell_right_name,
     load_inventory,
-    make_composite_variant,
     make_halfwidth_glyph,
     make_right_half_composite,
     make_standalone_glyph,
@@ -100,36 +102,6 @@ def _inject_cgj(
     cmap[CGJ_CP] = name
 
 
-def _add_variants(
-    base_name: str,
-    advance: int,
-    lsb: int,
-    target_upem: int,
-    glyph_order: List[str],
-    glyphs: Dict,
-    metrics: Dict,
-) -> None:
-    """Attach D4 variants as one-component composites of ``base_name``."""
-    for _vs_cp, rot, flip_x, flip_y, suffix in TRANSFORM_MODES:
-        if suffix is None:
-            continue
-        m_name = variant_glyph_name(base_name, suffix)
-        if m_name in glyphs:
-            continue
-        m_glyph, m_adv, m_lsb = make_composite_variant(
-            base_name,
-            target_upem,
-            rot90_quarters=rot,
-            flip_x=flip_x,
-            flip_y=flip_y,
-            advance=advance,
-            lsb=lsb,
-        )
-        glyph_order.append(m_name)
-        glyphs[m_name] = m_glyph
-        metrics[m_name] = (m_adv, m_lsb)
-
-
 def _mode_target(base_name: str, suffix: Optional[str]) -> str:
     return base_name if suffix is None else variant_glyph_name(base_name, suffix)
 
@@ -163,10 +135,11 @@ def _chain_context_format3(
 
 
 def install_rlig(font, yi_names: Sequence[str]) -> None:
-    """Install compact ``rlig``: digraph unpack + standalone VS.
+    """Install GSUB digraph unpack + standalone VS (``ccmp``/``rlig``/``liga``).
 
-    Left half uses 8 chain-context rules (one per VS) with shared Yi coverage
-    and a SingleSubst — O(N) tables, not O(N²) FEA expansion via ``@yi``.
+    Shared feature/script tags match ``composition_fea`` used by subfonts and
+    GlyphWiki. Nested chain lookups unpack compounds; ligatures handle the
+    right half and standalone VS forms.
     """
     if not yi_names:
         return
@@ -195,24 +168,18 @@ def install_rlig(font, yi_names: Sequence[str]) -> None:
         st = _chain_context_format3(
             yi_list,
             [[cgj], yi_list, [vs]],
-            subst_lookup_index=mode_i,  # absolute index in final LookupList
+            subst_lookup_index=mode_i,
         )
         lu = buildLookup([st])
         lu.LookupType = 6
         chain_lookups.append(lu)
 
-    # Fix subst lookup indices: singles come after chains in the list below,
-    # so rewrite to n_chain + mode_i. We'll order as: chains first, then singles,
-    # then ligatures — chain records must point at singles.
     n_chain = len(chain_lookups)
     for mode_i, lu in enumerate(chain_lookups):
         for st in lu.SubTable:
             st.SubstLookupRecord[0].LookupListIndex = n_chain + mode_i
 
     # --- Ligatures (split so each subtable stays under the 64KB OT limit) ---
-    # All compound-right ligatures share first glyph ``cgj``; packing every
-    # VS into one LigatureSet overflows (~N*8*10 bytes) and fontTools' split
-    # path is extremely slow. One lookup per VS keeps each set at ~N entries.
     liga_lookups = []
     for vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
         vs = vs_glyph_name(vs_cp)
@@ -238,36 +205,51 @@ def install_rlig(font, yi_names: Sequence[str]) -> None:
         liga_lookups.append(lu)
 
     all_lookups = chain_lookups + single_lookups + liga_lookups
-    # Feature: chains then ligatures (singles are only reached from chains).
     feature_indices = list(range(n_chain)) + [
         n_chain + n_single + i for i in range(len(liga_lookups))
     ]
 
+    def _langsys() -> ot.DefaultLangSys:
+        ls = ot.DefaultLangSys()
+        ls.ReqFeatureIndex = 0xFFFF
+        ls.FeatureCount = len(COMPOSITION_FEATURE_TAGS)
+        ls.FeatureIndex = list(range(len(COMPOSITION_FEATURE_TAGS)))
+        return ls
+
+    def _script_record(tag: str) -> ot.ScriptRecord:
+        rec = ot.ScriptRecord()
+        rec.ScriptTag = tag
+        rec.Script = ot.Script()
+        rec.Script.DefaultLangSys = _langsys()
+        rec.Script.LangSysCount = 0
+        rec.Script.LangSysRecord = []
+        return rec
+
+    # Parse "languagesystem X Y;" → OT script tags (yi/hani padded to 4 chars).
+    script_tags: List[str] = []
+    for line in COMPOSITION_LANGUAGE_SYSTEMS:
+        parts = line.replace(";", "").split()
+        if len(parts) >= 2 and parts[0] == "languagesystem":
+            tag = parts[1]
+            script_tags.append(tag.ljust(4)[:4])
+
     gsub = ot.GSUB()
     gsub.Version = 0x00010000
-
-    script = ot.ScriptRecord()
-    script.ScriptTag = "DFLT"
-    script.Script = ot.Script()
-    script.Script.DefaultLangSys = ot.DefaultLangSys()
-    script.Script.DefaultLangSys.ReqFeatureIndex = 0xFFFF
-    script.Script.DefaultLangSys.FeatureCount = 1
-    script.Script.DefaultLangSys.FeatureIndex = [0]
-    script.Script.LangSysCount = 0
-    script.Script.LangSysRecord = []
     gsub.ScriptList = ot.ScriptList()
-    gsub.ScriptList.ScriptRecord = [script]
-    gsub.ScriptList.ScriptCount = 1
+    gsub.ScriptList.ScriptRecord = [_script_record(t) for t in script_tags]
+    gsub.ScriptList.ScriptCount = len(script_tags)
 
-    fr = ot.FeatureRecord()
-    fr.FeatureTag = "rlig"
-    fr.Feature = ot.Feature()
-    fr.Feature.FeatureParams = None
-    fr.Feature.LookupCount = len(feature_indices)
-    fr.Feature.LookupListIndex = feature_indices
     gsub.FeatureList = ot.FeatureList()
-    gsub.FeatureList.FeatureRecord = [fr]
-    gsub.FeatureList.FeatureCount = 1
+    gsub.FeatureList.FeatureRecord = []
+    for tag in COMPOSITION_FEATURE_TAGS:
+        fr = ot.FeatureRecord()
+        fr.FeatureTag = tag
+        fr.Feature = ot.Feature()
+        fr.Feature.FeatureParams = None
+        fr.Feature.LookupCount = len(feature_indices)
+        fr.Feature.LookupListIndex = list(feature_indices)
+        gsub.FeatureList.FeatureRecord.append(fr)
+    gsub.FeatureList.FeatureCount = len(COMPOSITION_FEATURE_TAGS)
 
     gsub.LookupList = ot.LookupList()
     gsub.LookupList.Lookup = all_lookups
@@ -334,8 +316,14 @@ def build_panyi_font(
         metrics[sa_name] = (sa_adv, sa_lsb)
         cmap[cp] = sa_name
         yi_names.append(sa_name)
-        _add_variants(
-            sa_name, sa_adv, sa_lsb, target_upem, glyph_order, glyphs, metrics
+        add_d4_variant_glyphs(
+            sa_name,
+            advance=sa_adv,
+            lsb=sa_lsb,
+            target_upem=target_upem,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
         )
 
     _inject_cgj(glyph_order, glyphs, metrics, cmap)
@@ -352,14 +340,14 @@ def build_panyi_font(
         glyphs[left_name] = h_glyph
         # Full-em advance so digraph overlay advances one cell.
         metrics[left_name] = (target_upem, h_lsb)
-        _add_variants(
+        add_d4_variant_glyphs(
             left_name,
-            target_upem,
-            h_lsb,
-            target_upem,
-            glyph_order,
-            glyphs,
-            metrics,
+            advance=target_upem,
+            lsb=h_lsb,
+            target_upem=target_upem,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
         )
 
         right_name = halfcell_right_name(cp)
@@ -369,8 +357,14 @@ def build_panyi_font(
         glyph_order.append(right_name)
         glyphs[right_name] = r_glyph
         metrics[right_name] = (r_adv, r_lsb)
-        _add_variants(
-            right_name, r_adv, r_lsb, target_upem, glyph_order, glyphs, metrics
+        add_d4_variant_glyphs(
+            right_name,
+            advance=r_adv,
+            lsb=r_lsb,
+            target_upem=target_upem,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
         )
 
     if not yi_names:

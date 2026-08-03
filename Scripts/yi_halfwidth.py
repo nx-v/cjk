@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
@@ -32,6 +32,7 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables._g_l_y_f import (
     ROUND_XY_TO_GRID,
+    UNSCALED_COMPONENT_OFFSET,
     USE_MY_METRICS,
     Glyph as TTGlyph,
     GlyphComponent,
@@ -101,6 +102,81 @@ def cgj_glyph_name() -> str:
 
 def variant_glyph_name(base_name: str, suffix: str) -> str:
     return f"{base_name}.{suffix}"
+
+
+# Shared across build_yi / build_subfonts / GlyphWiki.
+COMPOSITION_FEATURE_TAGS: Tuple[str, ...] = ("ccmp", "rlig", "liga")
+COMPOSITION_LANGUAGE_SYSTEMS: Tuple[str, ...] = (
+    "languagesystem DFLT dflt;",
+    "languagesystem latn dflt;",
+    "languagesystem yi dflt;",
+    "languagesystem hani dflt;",
+)
+
+
+def composition_fea(*rule_groups: Sequence[str]) -> str:
+    """FEA for mandatory composition: ``ccmp`` + ``rlig`` + ``liga`` on common scripts.
+
+    Each ``rule_groups`` entry is a sequence of already-indented ``sub ...;`` lines.
+    Empty groups are skipped. Returns ``\"\"`` when there are no rules.
+    """
+    body_lines: List[str] = []
+    for group in rule_groups:
+        for line in group:
+            if line is None:
+                continue
+            s = line if line.endswith("\n") else line
+            s = s.rstrip("\n")
+            if s.strip():
+                body_lines.append(s if s.startswith(" ") else f"  {s.lstrip()}")
+    if not body_lines:
+        return ""
+    body = "\n".join(body_lines)
+    parts = list(COMPOSITION_LANGUAGE_SYSTEMS) + [""]
+    for tag in COMPOSITION_FEATURE_TAGS:
+        parts.append(f"feature {tag} {{")
+        parts.append(body)
+        parts.append(f"}} {tag};")
+        parts.append("")
+    return "\n".join(parts)
+
+
+def add_d4_variant_glyphs(
+    base_name: str,
+    *,
+    advance: int,
+    lsb: int,
+    target_upem: int,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+) -> List[Tuple[int, str, str]]:
+    """Create non-identity D4 forms for ``base_name`` (bake 2×2, composite otherwise).
+
+    Returns ``[(vs_cp, suffix, variant_glyph_name), ...]`` for GSUB wiring.
+    """
+    installed: List[Tuple[int, str, str]] = []
+    for vs_cp, rot, flip_x, flip_y, suffix in TRANSFORM_MODES:
+        if suffix is None:
+            continue
+        m_name = variant_glyph_name(base_name, suffix)
+        if m_name not in glyphs:
+            m_glyph, m_adv, m_lsb = make_composite_variant(
+                base_name,
+                target_upem,
+                rot90_quarters=rot,
+                flip_x=flip_x,
+                flip_y=flip_y,
+                advance=advance,
+                lsb=lsb,
+                base_glyph=glyphs[base_name],
+                glyph_set=glyphs,
+            )
+            glyph_order.append(m_name)
+            glyphs[m_name] = m_glyph
+            metrics[m_name] = (m_adv, m_lsb)
+        installed.append((vs_cp, suffix, m_name))
+    return installed
 
 
 def _rot90_matrix(quarters: int) -> Tuple[Tuple[float, float], Tuple[float, float]]:
@@ -175,26 +251,84 @@ def make_composite_variant(
     flip_y: bool = False,
     advance: int,
     lsb: int = 0,
+    base_glyph: Optional[TTGlyph] = None,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> GlyphMetrics:
-    """One-component TT composite: ``base_name`` under a D4 map about typo center."""
+    """D4 variant of ``base_name`` about the CJK typo center.
+
+    Axis-aligned maps (r180 / mx / my) stay one-component TT composites.
+    Rotations that need a full 2×2 matrix (r90 / r270 / diagonals) are baked
+    to outlines — many viewers mishandle ``WE_HAVE_A_TWO_BY_TWO``, which is
+    why those cells looked empty.
+    """
     t = variant_transform(
         target_upem,
         rot90_quarters=rot90_quarters,
         flip_x=flip_x,
         flip_y=flip_y,
     )
+    needs_2x2 = abs(t.xy) > 1e-9 or abs(t.yx) > 1e-9
+    if needs_2x2:
+        src = base_glyph
+        if src is None and glyph_set is not None:
+            src = glyph_set.get(base_name)
+        if src is None:
+            raise ValueError(
+                f"2x2 variant of {base_name!r} needs base_glyph or glyph_set"
+            )
+        return _bake_transformed_glyph(src, t, advance, glyph_set=glyph_set)
+
     g = TTGlyph()
     g.numberOfContours = -1
     comp = GlyphComponent()
     comp.glyphName = base_name
     comp.x = otRound(t.dx)
     comp.y = otRound(t.dy)
-    comp.flags = USE_MY_METRICS | ROUND_XY_TO_GRID
+    # Explicit MS/OT offset rule — without this, Apple-style scaled offsets
+    # wreck 90°/270° placements when a 2x2 composite is used.
+    comp.flags = USE_MY_METRICS | ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
     if (t.xx, t.xy, t.yx, t.yy) != (1.0, 0.0, 0.0, 1.0):
         # fontTools: ((xx, xy), (yx, yy)) with x' = xx·x + yx·y + dx
         comp.transform = ((t.xx, t.xy), (t.yx, t.yy))
     g.components = [comp]
     return g, advance, lsb
+
+
+def _recording_from_glyph(
+    glyph: TTGlyph,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> RecordingPen:
+    """Expand ``glyph`` (including shallow composites) to a recording."""
+    rec = RecordingPen()
+    if not glyph.isComposite():
+        glyph.draw(rec, None)
+        return rec
+    if glyph_set is None:
+        raise ValueError("composite glyph needs glyph_set to bake transforms")
+    for comp in glyph.components:
+        name, (xx, xy, yx, yy, dx, dy) = comp.getComponentInfo()
+        child = glyph_set[name]
+        child_rec = _recording_from_glyph(child, glyph_set)
+        child_rec.replay(TransformPen(rec, Transform(xx, xy, yx, yy, dx, dy)))
+    return rec
+
+
+def _bake_transformed_glyph(
+    glyph: TTGlyph,
+    t: Transform,
+    advance: int,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> GlyphMetrics:
+    rec = _recording_from_glyph(glyph, glyph_set)
+    det = t.xx * t.yy - t.xy * t.yx
+    out = apply_transform(rec, t, reverse_winding=det < 0)
+    try:
+        out.recalcBounds(None)
+        lsb = int(out.xMin)
+    except Exception:
+        lsb = 0
+    return out, advance, lsb
 
 
 def make_composite_pair(
@@ -212,12 +346,12 @@ def make_composite_pair(
     left.glyphName = left_name
     left.x = 0
     left.y = 0
-    left.flags = ROUND_XY_TO_GRID
+    left.flags = ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
     right = GlyphComponent()
     right.glyphName = right_name
     right.x = half
     right.y = 0
-    right.flags = ROUND_XY_TO_GRID
+    right.flags = ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
     g.components = [left, right]
     return g, target_upem, lsb
 
@@ -236,7 +370,7 @@ def make_right_half_composite(
     comp.glyphName = left_name
     comp.x = half
     comp.y = 0
-    comp.flags = ROUND_XY_TO_GRID
+    comp.flags = ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
     g.components = [comp]
     return g, 0, lsb
 
