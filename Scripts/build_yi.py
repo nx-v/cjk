@@ -43,6 +43,7 @@ from yi_halfwidth import (
     VS_LAST,
     YiInventory,
     add_d4_variant_glyphs,
+    build_d4_uvs_entries,
     cgj_glyph_name,
     empty_glyph,
     halfcell_left_name,
@@ -304,6 +305,7 @@ def build_panyi_font(
     metrics: Dict[str, Tuple[int, int]] = {".notdef": (target_upem // 2, 0)}
     cmap: Dict[int, str] = {}
     yi_names: List[str] = []
+    uvs_rows: List[Tuple[int, int, Optional[str]]] = []
 
     # --- Standalones + D4 ---
     for idx, cp in enumerate(inv.src_cps):
@@ -325,6 +327,7 @@ def build_panyi_font(
             glyphs=glyphs,
             metrics=metrics,
         )
+        uvs_rows.extend(build_d4_uvs_entries(cp, sa_name, glyphs=glyphs))
 
     _inject_cgj(glyph_order, glyphs, metrics, cmap)
     _inject_vs(glyph_order, glyphs, metrics, cmap)
@@ -382,7 +385,7 @@ def build_panyi_font(
     fb.setupGlyf(glyphs)
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=ascent, descent=descent)
-    fb.setupCharacterMap(cmap)
+    fb.setupCharacterMap(cmap, uvs=uvs_rows)
     fb.setupNameTable(
         {
             "familyName": FAMILY_NAME,

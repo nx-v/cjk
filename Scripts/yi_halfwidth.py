@@ -55,6 +55,12 @@ VS_BASE = 0xE000
 VS_COUNT = MirrorVS.MODE_COUNT
 VS_LAST = VS_BASE + VS_COUNT - 1  # U+E007
 
+# Standard Unicode Variation Selectors (cmap format 14) — same 8 D4 modes.
+# Browsers apply these on the *base character's* font, so they keep working
+# when a unicode-range stack would otherwise steal PUA U+E000..E007.
+UVS_BASE = 0xFE00  # VS1..VS8 → identity..r90my
+UVS_LAST = UVS_BASE + VS_COUNT - 1
+
 DEFAULT_UPEM = 1000
 STANDALONE_PAD = 0.08
 HALFWIDTH_PAD = 0.08
@@ -94,6 +100,33 @@ TRANSFORM_MODES: List[TransformMode] = [
 
 def vs_glyph_name(vs_cp: int) -> str:
     return f"vs{vs_cp - VS_BASE + 1:02d}"
+
+
+def uvs_selector_for_mode(mode_index: int) -> int:
+    """Unicode VS1..VS8 (U+FE00..) for D4 mode index 0..7."""
+    return UVS_BASE + (mode_index % VS_COUNT)
+
+
+def build_d4_uvs_entries(
+    base_cp: int,
+    base_glyph: str,
+    *,
+    glyphs: Dict[str, TTGlyph],
+) -> List[Tuple[int, int, Optional[str]]]:
+    """``(base_cp, U+FE0n, variantName)`` rows for ``setupCharacterMap(uvs=...)``.
+
+    Identity (default glyph) is omitted: cmap format 14 default UVS ranges use a
+    uint8 length, so >256 consecutive bases (e.g. full Yi) overflow on compile.
+    Non-default mappings are stored one-per-record and have no such limit.
+    """
+    rows: List[Tuple[int, int, Optional[str]]] = []
+    for mode_i, (_vs_cp, _r, _fx, _fy, suffix) in enumerate(TRANSFORM_MODES):
+        if suffix is None:
+            continue
+        vname = variant_glyph_name(base_glyph, suffix)
+        if vname in glyphs:
+            rows.append((base_cp, uvs_selector_for_mode(mode_i), vname))
+    return rows
 
 
 def cgj_glyph_name() -> str:

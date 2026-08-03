@@ -41,9 +41,12 @@ from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 from yi_halfwidth import (
     NUOSU_FILENAME,
     TRANSFORM_MODES,
+    UVS_BASE,
+    UVS_LAST,
     VS_BASE,
     VS_LAST,
     add_d4_variant_glyphs,
+    build_d4_uvs_entries,
     composition_fea,
     is_yi_cp,
     make_standalone_glyph,
@@ -340,6 +343,7 @@ def build_bucket_font(
     metrics: Dict[str, Tuple[int, int]] = {".notdef": (target_upem // 2, 0)}
     cmap: Dict[int, str] = {}
     liga_rules: List[str] = []
+    uvs_rows: List[Tuple[int, int, Optional[str]]] = []
 
     for out_cp, path, src_cp in entries:
         src = sources[path]
@@ -381,6 +385,7 @@ def build_bucket_font(
         )
         for vs_cp, _suffix, m_name in installed:
             liga_rules.append(f"  sub {gname} {vs_glyph_name(vs_cp)} by {m_name};")
+        uvs_rows.extend(build_d4_uvs_entries(out_cp, gname, glyphs=glyphs))
 
     if len(cmap) == 0:
         return out_path, 0, []
@@ -404,7 +409,7 @@ def build_bucket_font(
     fb.setupGlyf(glyphs)
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=ascent, descent=descent)
-    fb.setupCharacterMap(cmap)
+    fb.setupCharacterMap(cmap, uvs=uvs_rows)
     fb.setupNameTable(
         {
             "familyName": family,
@@ -520,16 +525,19 @@ def _build_bucket_task(
 
 
 def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
-    """CSS unicode-range covering present glyphs (merged contiguous runs).
+    """CSS unicode-range for this bucket's CJK + Unicode VS1..VS8 (U+FE00..).
 
-    Always includes VS01..VS08 (U+E000..E007) so rotation/reflection
-    selectors resolve to the same bucket font as the base characters.
+    PUA U+E000..E007 is intentionally *not* listed: in a multi-face stack every
+    bucket used to advertise those codepoints, so the first face stole all VS
+    and broke ``base+VS`` ligatures. Prefer cmap format-14 UVS (U+FE00..) which
+    stays on the base character's face; keep PUA liga for single-family use
+    (VS still in the font cmap).
     """
-    cps = sorted(set(codepoints) | set(range(VS_BASE, VS_LAST + 1)))
+    cps = sorted(set(codepoints) | set(range(UVS_BASE, UVS_LAST + 1)))
     if not codepoints:
         start = bucket_id << 8
         end = start + 0xFF
-        return f"U+{start:X}-{end:X}, U+{VS_BASE:X}-{VS_LAST:X}"
+        return f"U+{start:X}-{end:X}, U+{UVS_BASE:X}-{UVS_LAST:X}"
 
     runs: List[str] = []
     run_start = cps[0]
