@@ -9,7 +9,7 @@ Contents:
 
 * Compounds via digraph unpack (no per-pair glyphs — stays under 64k IDs):
 
-      yi1 + CGJ + yi2 + VS0n   →   yihL_i[.var] + yihR_j[.var]
+      yi1 + ZWJ + yi2 + VS0n   →   yihL_i[.var] + yihR_j[.var]
 
   ``yihL`` is a half-cell in the left slot (advance = 1em); ``yihR`` is the
   same outline shifted +½em as a zero-width overlay. Axis-aligned D4 maps
@@ -33,7 +33,6 @@ from fontTools.ttLib import TTFont, newTable, woff2
 from fontTools.ttLib.tables import otTables as ot
 
 from yi_halfwidth import (
-    CGJ_CP,
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
     DEFAULT_UPEM,
@@ -42,9 +41,9 @@ from yi_halfwidth import (
     VS_BASE,
     VS_LAST,
     YiInventory,
+    ZWJ_CP,
     add_d4_variant_glyphs,
     build_d4_uvs_entries,
-    cgj_glyph_name,
     empty_glyph,
     halfcell_left_name,
     halfcell_right_name,
@@ -56,6 +55,7 @@ from yi_halfwidth import (
     resolve_nuosu_path,
     variant_glyph_name,
     vs_glyph_name,
+    zwj_glyph_name,
 )
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -89,18 +89,18 @@ def _inject_vs(
         cmap[vs_cp] = vname
 
 
-def _inject_cgj(
+def _inject_zwj(
     glyph_order: List[str],
     glyphs: Dict,
     metrics: Dict,
     cmap: Dict[int, str],
 ) -> None:
-    name = cgj_glyph_name()
+    name = zwj_glyph_name()
     if name not in glyphs:
         glyph_order.append(name)
         glyphs[name] = empty_glyph()
         metrics[name] = (0, 0)
-    cmap[CGJ_CP] = name
+    cmap[ZWJ_CP] = name
 
 
 def _mode_target(base_name: str, suffix: Optional[str]) -> str:
@@ -145,7 +145,7 @@ def install_rlig(font, yi_names: Sequence[str]) -> None:
     if not yi_names:
         return
 
-    cgj = cgj_glyph_name()
+    zwj = zwj_glyph_name()
     yi_list = list(yi_names)
 
     # --- Lookups: SingleSubst yi → yihL[.var] (one per VS mode) ---
@@ -162,13 +162,13 @@ def install_rlig(font, yi_names: Sequence[str]) -> None:
 
     n_single = len(single_lookups)
 
-    # --- ChainContext: yi' cgj @yi vsXX → (SingleSubst above) ---
+    # --- ChainContext: yi' zwj @yi vsXX → (SingleSubst above) ---
     chain_lookups = []
     for mode_i, (vs_cp, _r, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
         vs = vs_glyph_name(vs_cp)
         st = _chain_context_format3(
             yi_list,
-            [[cgj], yi_list, [vs]],
+            [[zwj], yi_list, [vs]],
             subst_lookup_index=mode_i,
         )
         lu = buildLookup([st])
@@ -187,7 +187,7 @@ def install_rlig(font, yi_names: Sequence[str]) -> None:
         right_map: Dict[Tuple[str, ...], str] = {}
         for yi in yi_list:
             cp = int(yi[1:], 16)
-            right_map[(cgj, yi, vs)] = _mode_target(halfcell_right_name(cp), suffix)
+            right_map[(zwj, yi, vs)] = _mode_target(halfcell_right_name(cp), suffix)
         sub = buildLigatureSubstSubtable(right_map)
         lu = buildLookup([sub])
         lu.LookupType = 4
@@ -329,7 +329,7 @@ def build_panyi_font(
         )
         uvs_rows.extend(build_d4_uvs_entries(cp, sa_name, glyphs=glyphs))
 
-    _inject_cgj(glyph_order, glyphs, metrics, cmap)
+    _inject_zwj(glyph_order, glyphs, metrics, cmap)
     _inject_vs(glyph_order, glyphs, metrics, cmap)
 
     # --- Half-cells: left (1em adv) + right (0 adv overlay) + D4 ---
@@ -499,7 +499,7 @@ def build_all(
         print(f"Yi inventory: {inv.count} glyphs from {NUOSU_FILENAME}")
 
     print(
-        f"  Compounds: rlig  yi1 + CGJ (U+{CGJ_CP:04X}) + yi2 + VS "
+        f"  Compounds: rlig  yi1 + ZWJ (U+{ZWJ_CP:04X}) + yi2 + VS "
         "-> yihL + yihR digraph"
     )
     print(f"  Transform VS: U+{VS_BASE:X}-U+{VS_LAST:X} (8 unique D4 symmetries)")

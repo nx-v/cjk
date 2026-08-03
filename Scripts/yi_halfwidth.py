@@ -5,7 +5,7 @@ Encoding
 * One font (``panyi``) covering the whole Yi inventory.
 * Standalone / half-cells: fit into the CJK typo box (1000×1000 body with
   center at 0.38em) by **shifting outline points** independently on X and Y.
-* Compounds: ``yi1 + CGJ (U+034F) + yi2 + VS0n`` (``rlig``) unpacks to a
+* Compounds: ``yi1 + ZWJ (U+200D) + yi2 + VS0n`` (``rlig``) unpacks to a
   digraph of shared half-cell glyphs (left slot + zero-width right slot) so
   all N² pairs fit under the 64k glyph-ID limit — no per-pair glyphs and no
   outline merging. Identity uses VS01.
@@ -48,8 +48,8 @@ except ImportError:  # Scripts.* import style
 YI_SYLLABLES = (0xA000, 0xA48C)
 YI_RADICALS = (0xA490, 0xA4CF)
 
-# Combining Grapheme Joiner — joins yi₁ / yi₂ in compound ligatures.
-CGJ_CP = 0x034F
+# Zero Width Joiner — joins yi₁ / yi₂ in compound ligatures.
+ZWJ_CP = 0x200D
 
 VS_BASE = 0xE000
 VS_COUNT = MirrorVS.MODE_COUNT
@@ -129,8 +129,8 @@ def build_d4_uvs_entries(
     return rows
 
 
-def cgj_glyph_name() -> str:
-    return "cgj"
+def zwj_glyph_name() -> str:
+    return "zwj"
 
 
 def variant_glyph_name(base_name: str, suffix: str) -> str:
