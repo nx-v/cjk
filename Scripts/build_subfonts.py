@@ -77,6 +77,7 @@ PRIORITY_FONTS = [
     "LXGWNeoZhiSongPlus.ttf",
     "HuayingMinchoT.ttf",
     "I.MingVarCP-8.10.ttf",
+    "Minh Nguyen Regular.ttf",
     "simsunb.ttf",
     "SimsunExtG.ttf",
     "NazoMin-Classic.ttf",
@@ -352,8 +353,8 @@ def build_bucket_font(
             continue
 
         # Yi from NuosuSIL: axis-shift fit into a CJK cell.
-        use_yi_standalone = (
-            os.path.basename(path) == NUOSU_FILENAME and is_yi_cp(src_cp)
+        use_yi_standalone = os.path.basename(path) == NUOSU_FILENAME and is_yi_cp(
+            src_cp
         )
         if use_yi_standalone:
             rec = record_glyph(src.tt, src_name)
