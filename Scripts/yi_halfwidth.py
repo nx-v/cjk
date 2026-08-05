@@ -3,8 +3,10 @@
 Encoding
 --------
 * One font (``panyi``) covering the whole Yi inventory.
-* Standalone / half-cells: fit into the CJK typo box (1000×1000 body with
-  center at 0.38em) by **shifting outline points** independently on X and Y.
+* Standalone / half-cells: NuosuSIL is monospace (shared advance), so every
+  glyph gets the **same** uniform scale from that advance into the CJK cell
+  (center at 0.38em) — proportions and side bearings stay consistent. No
+  per-glyph bbox squash into a fixed ink box.
 * Compounds: ``yi1 + yi2 + VS0n`` (``rlig``) unpacks to a digraph of shared
   half-cell glyphs (left slot + zero-width right slot) so all N² pairs fit
   under the 64k glyph-ID limit — no joiner, no per-pair glyphs, no outline
@@ -59,9 +61,10 @@ UVS_BASE = 0xFE00  # VS1..VS8 → identity..r90my
 UVS_LAST = UVS_BASE + VS_COUNT - 1
 
 DEFAULT_UPEM = 1000
-STANDALONE_PAD = 0.08
-HALFWIDTH_PAD = 0.08
-COMPOUND_PAD = 0.06
+# Optional inset of the shared advance box inside the CJK cell (uniform).
+STANDALONE_PAD = 0.0
+HALFWIDTH_PAD = 0.0
+COMPOUND_PAD = 0.0
 
 # Match build_yi / build_subfonts OS/2 + hhea (CJK ideographic body).
 TYPO_ASCENDER_FRAC = 0.88
@@ -445,6 +448,9 @@ class YiInventory:
     source_path: str
     src_cps: Tuple[int, ...]
     glyph_names: Dict[int, str]
+    # Shared monospace advance and typographic Y center (design space).
+    source_advance: int
+    source_center_y: float
 
     @property
     def count(self) -> int:
@@ -469,6 +475,14 @@ def font_cmap(tt: TTFont) -> Dict[int, str]:
     return cmap
 
 
+def source_layout_metrics(tt: TTFont, sample_glyph: str) -> Tuple[int, float]:
+    """Monospace advance + typographic Y center from the source face."""
+    advance = int(tt["hmtx"][sample_glyph][0])
+    os2 = tt["OS/2"]
+    center_y = (os2.sTypoAscender + os2.sTypoDescender) / 2.0
+    return advance, center_y
+
+
 def load_inventory(source_path: str) -> YiInventory:
     tt = TTFont(source_path, fontNumber=0)
     try:
@@ -488,10 +502,15 @@ def load_inventory(source_path: str) -> YiInventory:
                     continue
                 ordered.append(cp)
                 names[cp] = gname
+        if not ordered:
+            raise ValueError(f"No Yi glyphs found in {source_path}")
+        adv, cy = source_layout_metrics(tt, names[ordered[0]])
         return YiInventory(
             source_path=source_path,
             src_cps=tuple(ordered),
             glyph_names=names,
+            source_advance=adv,
+            source_center_y=cy,
         )
     finally:
         tt.close()
@@ -539,36 +558,26 @@ def apply_transform(
     return glyph
 
 
-def _axis_shift_fit(
+def _uniform_place(
     rec: RecordingPen,
     *,
-    target_w: float,
-    target_h: float,
-    center_x: float,
-    center_y: float,
+    scale: float,
+    src_cx: float,
+    src_cy: float,
+    dst_cx: float,
+    dst_cy: float,
 ) -> Optional[TTGlyph]:
-    """Fit bbox into a target box by shifting points on each axis.
-
-    Independently remaps X and Y so source ``[x0,x1]×[y0,y1]`` lands in a
-    ``target_w×target_h`` box centered at ``(center_x, center_y)``. Each
-    outline point (on- and off-curve) moves by an amount that varies with
-    its position on that axis::
-
-        x' = (center_x - target_w/2) + (x - x0) / (x1 - x0) * target_w
-        y' = (center_y - target_h/2) + (y - y0) / (y1 - y0) * target_h
-    """
-    bounds = recording_bounds(rec)
-    if bounds is None:
+    """Apply one isotropic scale, mapping ``(src_cx, src_cy)`` → destination center."""
+    if scale <= 0:
         return None
-    x0, y0, x1, y1 = bounds
-    bw = max(x1 - x0, 1e-6)
-    bh = max(y1 - y0, 1e-6)
-    sx = target_w / bw
-    sy = target_h / bh
-    # Equivalent shift form: x' = x + (sx-1)*(x-x0) + (left - x0)
-    left = center_x - target_w / 2.0
-    bottom = center_y - target_h / 2.0
-    t = Transform(sx, 0, 0, sy, left - x0 * sx, bottom - y0 * sy)
+    t = Transform(
+        scale,
+        0,
+        0,
+        scale,
+        dst_cx - scale * src_cx,
+        dst_cy - scale * src_cy,
+    )
     glyph = apply_transform(rec, t)
     if glyph.numberOfContours == 0 and not glyph.isComposite():
         return None
@@ -579,47 +588,69 @@ def make_standalone_glyph(
     rec: RecordingPen,
     target_upem: int = DEFAULT_UPEM,
     *,
+    source_advance: int,
+    source_center_y: float,
     pad: float = STANDALONE_PAD,
     stroke_weight: Optional[float] = None,  # unused; kept for call-site compat
 ) -> Optional[GlyphMetrics]:
-    """Axis-shift fit into the CJK typo box (1000×1000 body, center at 0.38em)."""
+    """Uniform scale from the shared monospace advance into the CJK cell."""
     del stroke_weight
-    inner = target_upem * (1.0 - 2.0 * pad)
-    cx, cy = ideographic_center(target_upem)
-    glyph = _axis_shift_fit(
+    if source_advance <= 0:
+        return None
+    cell = target_upem * (1.0 - 2.0 * pad)
+    scale = cell / float(source_advance)
+    dst_cx, dst_cy = ideographic_center(target_upem)
+    glyph = _uniform_place(
         rec,
-        target_w=inner,
-        target_h=inner,
-        center_x=cx,
-        center_y=cy,
+        scale=scale,
+        src_cx=source_advance / 2.0,
+        src_cy=source_center_y,
+        dst_cx=dst_cx,
+        dst_cy=dst_cy,
     )
     if glyph is None:
         return None
-    glyph = center_glyph_in_cell(glyph, target_upem, center=(cx, cy))
-    return glyph, target_upem, int(glyph.xMin)
+    try:
+        glyph.recalcBounds(None)
+        lsb = int(glyph.xMin)
+    except Exception:
+        lsb = 0
+    return glyph, target_upem, lsb
 
 
 def make_halfwidth_glyph(
     rec: RecordingPen,
     target_upem: int = DEFAULT_UPEM,
     *,
+    source_advance: int,
+    source_center_y: float,
     pad: float = HALFWIDTH_PAD,
     stroke_weight: Optional[float] = None,  # unused; kept for call-site compat
 ) -> Optional[GlyphMetrics]:
-    """Axis-shift fit into a half-em cell (same CJK vertical center as standalone)."""
+    """Same uniform scale into a half-em slot (left cell of a digraph)."""
     del stroke_weight
+    if source_advance <= 0:
+        return None
     adv = target_upem // 2
-    _, cy = ideographic_center(target_upem)
-    glyph = _axis_shift_fit(
+    cell_w = adv * (1.0 - 2.0 * pad)
+    scale = cell_w / float(source_advance)
+    _, dst_cy = ideographic_center(target_upem)
+    glyph = _uniform_place(
         rec,
-        target_w=adv * (1.0 - 2.0 * pad),
-        target_h=target_upem * (1.0 - 2.0 * pad),
-        center_x=adv / 2.0,
-        center_y=cy,
+        scale=scale,
+        src_cx=source_advance / 2.0,
+        src_cy=source_center_y,
+        dst_cx=adv / 2.0,
+        dst_cy=dst_cy,
     )
     if glyph is None:
         return None
-    return glyph, adv, int(glyph.xMin)
+    try:
+        glyph.recalcBounds(None)
+        lsb = int(glyph.xMin)
+    except Exception:
+        lsb = 0
+    return glyph, adv, lsb
 
 
 def merge_halfcell_glyphs(
@@ -651,31 +682,28 @@ def make_compound_glyph(
     rec_b: RecordingPen,
     target_upem: int = DEFAULT_UPEM,
     *,
+    source_advance: int,
+    source_center_y: float,
     pad: float = COMPOUND_PAD,
 ) -> Optional[GlyphMetrics]:
-    """Side-by-side pair via axis-shift fit of each half, then merge."""
-    half = target_upem / 2.0
-    cell_w = half * (1.0 - 2.0 * pad)
-    cell_h = target_upem * (1.0 - 2.0 * pad)
-    _, cy = ideographic_center(target_upem)
-
-    ga = _axis_shift_fit(
+    """Side-by-side pair via uniform half-cell scale, then merge."""
+    ga = make_halfwidth_glyph(
         rec_a,
-        target_w=cell_w,
-        target_h=cell_h,
-        center_x=half / 2.0,
-        center_y=cy,
+        target_upem,
+        source_advance=source_advance,
+        source_center_y=source_center_y,
+        pad=pad,
     )
-    gb = _axis_shift_fit(
+    gb = make_halfwidth_glyph(
         rec_b,
-        target_w=cell_w,
-        target_h=cell_h,
-        center_x=half / 2.0,  # left-slot; merge shifts right
-        center_y=cy,
+        target_upem,
+        source_advance=source_advance,
+        source_center_y=source_center_y,
+        pad=pad,
     )
     if ga is None or gb is None:
         return None
-    return merge_halfcell_glyphs(ga, gb, target_upem)
+    return merge_halfcell_glyphs(ga[0], gb[0], target_upem)
 
 
 def apply_variant_recording(

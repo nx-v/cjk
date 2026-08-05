@@ -322,16 +322,27 @@ def build_panyi_font(
         tt.close()
 
     print(
-        f"  Fitting {len(recs)} standalones + half-cells...",
+        f"  Scaling {len(recs)} standalones + half-cells "
+        f"(uniform {inv.source_advance} → {target_upem})...",
         flush=True,
     )
     standalones: Dict[int, Tuple] = {}
     halfcells: Dict[int, Tuple] = {}
     for idx, rec in recs.items():
-        sa = make_standalone_glyph(rec, target_upem)
+        sa = make_standalone_glyph(
+            rec,
+            target_upem,
+            source_advance=inv.source_advance,
+            source_center_y=inv.source_center_y,
+        )
         if sa is not None:
             standalones[idx] = sa
-        hc = make_halfwidth_glyph(rec, target_upem)
+        hc = make_halfwidth_glyph(
+            rec,
+            target_upem,
+            source_advance=inv.source_advance,
+            source_center_y=inv.source_center_y,
+        )
         if hc is not None:
             halfcells[idx] = hc
 
@@ -527,6 +538,8 @@ def build_all(
             inv.source_path,
             inv.src_cps[:limit],
             {cp: inv.glyph_names[cp] for cp in inv.src_cps[:limit]},
+            inv.source_advance,
+            inv.source_center_y,
         )
         print(f"Yi inventory: first {inv.count} glyphs (--limit)")
     else:

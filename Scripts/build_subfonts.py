@@ -51,6 +51,7 @@ from yi_halfwidth import (
     is_yi_cp,
     make_standalone_glyph,
     record_glyph,
+    source_layout_metrics,
     vs_glyph_name,
 )
 
@@ -352,7 +353,7 @@ def build_bucket_font(
         if src_name is None:
             continue
 
-        # Yi from NuosuSIL: axis-shift fit into a CJK cell.
+        # Yi from NuosuSIL: uniform monospace scale into a CJK cell.
         use_yi_standalone = os.path.basename(path) == NUOSU_FILENAME and is_yi_cp(
             src_cp
         )
@@ -360,7 +361,13 @@ def build_bucket_font(
             rec = record_glyph(src.tt, src_name)
             if rec is None:
                 continue
-            copied = make_standalone_glyph(rec, target_upem)
+            src_adv, src_cy = source_layout_metrics(src.tt, src_name)
+            copied = make_standalone_glyph(
+                rec,
+                target_upem,
+                source_advance=src_adv,
+                source_center_y=src_cy,
+            )
             if copied is None:
                 continue
         else:
