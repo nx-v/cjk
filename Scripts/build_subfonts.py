@@ -49,9 +49,9 @@ from yi_halfwidth import (
     build_d4_uvs_entries,
     composition_fea,
     is_yi_cp,
+    load_inventory,
     make_standalone_glyph,
     record_glyph,
-    source_layout_metrics,
     vs_glyph_name,
 )
 
@@ -320,6 +320,20 @@ def vs_glyph_name(vs_cp: int) -> str:
     return f"vs{vs_cp - 0xE000 + 1:02d}"
 
 
+# Cached Nuosu layout (advance, typo mid, max ink height) for Yi standalone scale.
+_yi_layout_cache: Dict[str, Tuple[int, float, float]] = {}
+
+
+def _yi_layout_for_source(path: str) -> Tuple[int, float, float]:
+    cached = _yi_layout_cache.get(path)
+    if cached is not None:
+        return cached
+    inv = load_inventory(path)
+    layout = (inv.source_advance, inv.source_center_y, inv.source_max_height)
+    _yi_layout_cache[path] = layout
+    return layout
+
+
 def build_bucket_font(
     bucket_id: int,
     entries: List[BucketEntry],
@@ -353,7 +367,7 @@ def build_bucket_font(
         if src_name is None:
             continue
 
-        # Yi from NuosuSIL: uniform monospace scale into a CJK cell.
+        # Yi from NuosuSIL: shared sx (advance) + sy (max ink height).
         use_yi_standalone = os.path.basename(path) == NUOSU_FILENAME and is_yi_cp(
             src_cp
         )
@@ -361,12 +375,13 @@ def build_bucket_font(
             rec = record_glyph(src.tt, src_name)
             if rec is None:
                 continue
-            src_adv, src_cy = source_layout_metrics(src.tt, src_name)
+            src_adv, src_cy, src_max_h = _yi_layout_for_source(path)
             copied = make_standalone_glyph(
                 rec,
                 target_upem,
                 source_advance=src_adv,
                 source_center_y=src_cy,
+                source_max_height=src_max_h,
             )
             if copied is None:
                 continue

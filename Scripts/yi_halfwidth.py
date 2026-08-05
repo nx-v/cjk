@@ -3,10 +3,11 @@
 Encoding
 --------
 * One font (``panyi``) covering the whole Yi inventory.
-* Standalone / half-cells: NuosuSIL is monospace (shared advance), so every
-  glyph gets the **same** uniform scale from that advance into the CJK cell
-  (center at 0.38em) — proportions and side bearings stay consistent. No
-  per-glyph bbox squash into a fixed ink box.
+* Standalone / half-cells: NuosuSIL is monospace (shared advance). Every glyph
+  gets the **same** ``sx`` from that advance and the **same** ``sy`` from the
+  tallest ink height in the inventory, so the vertical axis is squashed just
+  enough for the tallest to fit the CJK cell (center at 0.38em). Compounds
+  use the same shared ``sy`` in each half-slot.
 * Compounds: ``yi1 + yi2 + VS0n`` (``rlig``) unpacks to a digraph of shared
   half-cell glyphs (left slot + zero-width right slot) so all N² pairs fit
   under the 64k glyph-ID limit — no joiner, no per-pair glyphs, no outline
@@ -448,9 +449,10 @@ class YiInventory:
     source_path: str
     src_cps: Tuple[int, ...]
     glyph_names: Dict[int, str]
-    # Shared monospace advance and typographic Y center (design space).
+    # Shared monospace advance, typographic Y center, and tallest ink height.
     source_advance: int
     source_center_y: float
+    source_max_height: float
 
     @property
     def count(self) -> int:
@@ -483,6 +485,23 @@ def source_layout_metrics(tt: TTFont, sample_glyph: str) -> Tuple[int, float]:
     return advance, center_y
 
 
+def inventory_max_ink_height(
+    tt: TTFont, glyph_names: Sequence[str]
+) -> float:
+    """Tallest outline height among ``glyph_names`` (design units)."""
+    max_h = 0.0
+    for gname in glyph_names:
+        rec = record_glyph(tt, gname)
+        if rec is None:
+            continue
+        bounds = recording_bounds(rec)
+        if bounds is None:
+            continue
+        _x0, y0, _x1, y1 = bounds
+        max_h = max(max_h, y1 - y0)
+    return max_h
+
+
 def load_inventory(source_path: str) -> YiInventory:
     tt = TTFont(source_path, fontNumber=0)
     try:
@@ -505,12 +524,16 @@ def load_inventory(source_path: str) -> YiInventory:
         if not ordered:
             raise ValueError(f"No Yi glyphs found in {source_path}")
         adv, cy = source_layout_metrics(tt, names[ordered[0]])
+        max_h = inventory_max_ink_height(tt, [names[cp] for cp in ordered])
+        if max_h <= 0:
+            raise ValueError(f"No ink bounds in {source_path}")
         return YiInventory(
             source_path=source_path,
             src_cps=tuple(ordered),
             glyph_names=names,
             source_advance=adv,
             source_center_y=cy,
+            source_max_height=max_h,
         )
     finally:
         tt.close()
@@ -561,22 +584,23 @@ def apply_transform(
 def _uniform_place(
     rec: RecordingPen,
     *,
-    scale: float,
+    scale_x: float,
+    scale_y: float,
     src_cx: float,
     src_cy: float,
     dst_cx: float,
     dst_cy: float,
 ) -> Optional[TTGlyph]:
-    """Apply one isotropic scale, mapping ``(src_cx, src_cy)`` → destination center."""
-    if scale <= 0:
+    """Axis scales ``(sx, sy)``, mapping ``(src_cx, src_cy)`` → destination center."""
+    if scale_x <= 0 or scale_y <= 0:
         return None
     t = Transform(
-        scale,
+        scale_x,
         0,
         0,
-        scale,
-        dst_cx - scale * src_cx,
-        dst_cy - scale * src_cy,
+        scale_y,
+        dst_cx - scale_x * src_cx,
+        dst_cy - scale_y * src_cy,
     )
     glyph = apply_transform(rec, t)
     if glyph.numberOfContours == 0 and not glyph.isComposite():
@@ -590,21 +614,34 @@ def make_standalone_glyph(
     *,
     source_advance: int,
     source_center_y: float,
+    source_max_height: float,
     pad: float = STANDALONE_PAD,
     stroke_weight: Optional[float] = None,  # unused; kept for call-site compat
 ) -> Optional[GlyphMetrics]:
-    """Uniform scale from the shared monospace advance into the CJK cell."""
+    """Shared ``sx`` from advance, shared ``sy`` from inventory max ink height.
+
+    X is placed from the monospace advance center (side bearings preserved).
+    Y is placed from each glyph's own ink midpoint so the tallest sits inside
+    the CJK cell after the shared vertical squash.
+    """
     del stroke_weight
-    if source_advance <= 0:
+    del source_center_y  # retained for call-site compat / inventory symmetry
+    if source_advance <= 0 or source_max_height <= 0:
         return None
+    bounds = recording_bounds(rec)
+    if bounds is None:
+        return None
+    _x0, y0, _x1, y1 = bounds
     cell = target_upem * (1.0 - 2.0 * pad)
-    scale = cell / float(source_advance)
+    scale_x = cell / float(source_advance)
+    scale_y = cell / float(source_max_height)
     dst_cx, dst_cy = ideographic_center(target_upem)
     glyph = _uniform_place(
         rec,
-        scale=scale,
+        scale_x=scale_x,
+        scale_y=scale_y,
         src_cx=source_advance / 2.0,
-        src_cy=source_center_y,
+        src_cy=(y0 + y1) / 2.0,
         dst_cx=dst_cx,
         dst_cy=dst_cy,
     )
@@ -624,22 +661,31 @@ def make_halfwidth_glyph(
     *,
     source_advance: int,
     source_center_y: float,
+    source_max_height: float,
     pad: float = HALFWIDTH_PAD,
     stroke_weight: Optional[float] = None,  # unused; kept for call-site compat
 ) -> Optional[GlyphMetrics]:
-    """Same uniform scale into a half-em slot (left cell of a digraph)."""
+    """Half-em ``sx``; same inventory-wide ``sy`` as standalones (full cell height)."""
     del stroke_weight
-    if source_advance <= 0:
+    del source_center_y
+    if source_advance <= 0 or source_max_height <= 0:
         return None
+    bounds = recording_bounds(rec)
+    if bounds is None:
+        return None
+    _x0, y0, _x1, y1 = bounds
     adv = target_upem // 2
     cell_w = adv * (1.0 - 2.0 * pad)
-    scale = cell_w / float(source_advance)
+    cell_h = target_upem * (1.0 - 2.0 * pad)
+    scale_x = cell_w / float(source_advance)
+    scale_y = cell_h / float(source_max_height)
     _, dst_cy = ideographic_center(target_upem)
     glyph = _uniform_place(
         rec,
-        scale=scale,
+        scale_x=scale_x,
+        scale_y=scale_y,
         src_cx=source_advance / 2.0,
-        src_cy=source_center_y,
+        src_cy=(y0 + y1) / 2.0,
         dst_cx=adv / 2.0,
         dst_cy=dst_cy,
     )
@@ -684,14 +730,16 @@ def make_compound_glyph(
     *,
     source_advance: int,
     source_center_y: float,
+    source_max_height: float,
     pad: float = COMPOUND_PAD,
 ) -> Optional[GlyphMetrics]:
-    """Side-by-side pair via uniform half-cell scale, then merge."""
+    """Side-by-side pair via shared half-cell scales, then merge."""
     ga = make_halfwidth_glyph(
         rec_a,
         target_upem,
         source_advance=source_advance,
         source_center_y=source_center_y,
+        source_max_height=source_max_height,
         pad=pad,
     )
     gb = make_halfwidth_glyph(
@@ -699,6 +747,7 @@ def make_compound_glyph(
         target_upem,
         source_advance=source_advance,
         source_center_y=source_center_y,
+        source_max_height=source_max_height,
         pad=pad,
     )
     if ga is None or gb is None:

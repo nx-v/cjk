@@ -323,7 +323,8 @@ def build_panyi_font(
 
     print(
         f"  Scaling {len(recs)} standalones + half-cells "
-        f"(uniform {inv.source_advance} → {target_upem})...",
+        f"(sx {inv.source_advance}→{target_upem}, "
+        f"sy maxH {inv.source_max_height:.0f}→{target_upem})...",
         flush=True,
     )
     standalones: Dict[int, Tuple] = {}
@@ -334,6 +335,7 @@ def build_panyi_font(
             target_upem,
             source_advance=inv.source_advance,
             source_center_y=inv.source_center_y,
+            source_max_height=inv.source_max_height,
         )
         if sa is not None:
             standalones[idx] = sa
@@ -342,6 +344,7 @@ def build_panyi_font(
             target_upem,
             source_advance=inv.source_advance,
             source_center_y=inv.source_center_y,
+            source_max_height=inv.source_max_height,
         )
         if hc is not None:
             halfcells[idx] = hc
@@ -540,6 +543,7 @@ def build_all(
             {cp: inv.glyph_names[cp] for cp in inv.src_cps[:limit]},
             inv.source_advance,
             inv.source_center_y,
+            inv.source_max_height,
         )
         print(f"Yi inventory: first {inv.count} glyphs (--limit)")
     else:
