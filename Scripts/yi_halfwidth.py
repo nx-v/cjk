@@ -68,11 +68,11 @@ STANDALONE_PAD = 0.0
 HALFWIDTH_PAD = 0.0
 COMPOUND_PAD = 0.0
 # Standalone only: extra horizontal scale after fit (1.0 = none).
-STANDALONE_CONTOUR_WIDEN = 0.06
+STANDALONE_CONTOUR_WIDEN = 0.1
 # Inset from CJK typo top/bottom when fitting Y (fraction of em).
 # Keeps short glyphs from sitting on the raw descent (-0.12em), which reads
 # low next to CJK ink that usually rests nearer the baseline.
-STANDALONE_VERT_PAD = 0.07
+STANDALONE_VERT_PAD = 0.06
 
 # Match build_yi / build_subfonts OS/2 + hhea (CJK ideographic body).
 TYPO_ASCENDER_FRAC = 0.88
