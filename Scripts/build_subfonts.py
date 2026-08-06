@@ -72,7 +72,8 @@ CSS_FONT_URL_BASE = (
 
 PRIORITY_FONTS = [
     "NGULIM.TTF",
-    "Microsoft-JhengHei.ttf",
+    "msjh.ttc",
+    "msyh.ttc",
     "malgun.ttf",
     "LXGWZhiSongMN.ttf",
     "LXGWNeoZhiSongPlus.ttf",
