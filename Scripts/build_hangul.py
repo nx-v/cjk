@@ -20,12 +20,15 @@ VS3     U+E002     U+FE02     my — negate Y about contour bbox center
 VS4     U+E003     U+FE03     mxy — both axes
 ======= ========== ========== ================================
 
-* **Jamo (``panhangul``):** place VS *after the jongseong* (end of LVT).
-  One selector flips **both** choseong and jongseong (jungseong unchanged).
-  Open syllables (LV + VS) flip choseong only. Contours flip about each
-  glyph's own bbox center (baked outlines).
+* **Jamo (``panhangul``):** VS may follow each jamo (``L+VS V+VS T+VS``).
+  Each selector flips that jamo about its **own bbox center** (choseong,
+  jungseong, and jongseong). VS glyphs are GDEF Marks so Hangul shaping
+  still runs. Additionally, a VS after the **jongseong** moves the choseong
+  by point-reflecting it through the CJK cell center (``.swap``) so its
+  slot flips relative to the jongseong, while the jongseong outline flips
+  normally.
 * **Syllables (``panhanguls``):** ``char + VS`` / cmap-14 UVS flips the
-  whole precomposed (or compat) glyph.
+  whole precomposed (or compat) glyph about its bbox center.
 """
 
 from __future__ import annotations
@@ -44,6 +47,7 @@ from fontTools.otlLib.builder import (
     buildCoverage,
     buildLigatureSubstSubtable,
     buildLookup,
+    buildSingleSubstSubtable,
 )
 from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.recordingPen import DecomposingRecordingPen, RecordingPen
@@ -57,6 +61,7 @@ from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 from yi_halfwidth import (
     DEFAULT_UPEM,
     empty_glyph,
+    ideographic_center,
     variant_glyph_name,
 )
 
@@ -244,6 +249,80 @@ def copy_scaled_glyph(
     except Exception:
         pass
     return out
+
+
+def swap_glyph_name(base_name: str) -> str:
+    """Choseong slot-swap variant (point-reflected through CJK cell center)."""
+    return f"{base_name}.swap"
+
+
+def make_position_swap(
+    base_name: str,
+    glyphs: Dict[str, TTGlyph],
+    *,
+    advance: int,
+    lsb: int,
+    target_upem: int,
+) -> Tuple[TTGlyph, int, int]:
+    """Translate glyph so its bbox center point-reflects through the cell center.
+
+    Outline orientation is unchanged — only the slot moves (choseong <->
+    opposite side of the cell relative to jongseong).
+    """
+    base = glyphs[base_name]
+    rec = RecordingPen()
+    try:
+        base.draw(rec, None)
+    except Exception:
+        return empty_glyph(), advance, lsb
+    bpen = BoundsPen(None)
+    try:
+        rec.replay(bpen)
+    except Exception:
+        bpen.bounds = None
+    if bpen.bounds is None:
+        return empty_glyph(), advance, lsb
+    x0, y0, x1, y1 = bpen.bounds
+    cx = (x0 + x1) / 2.0
+    cy = (y0 + y1) / 2.0
+    ecx, ecy = ideographic_center(target_upem)
+    # new_center = 2*em - old_center  =>  translation = 2*(em - old)
+    dx = 2.0 * (ecx - cx)
+    dy = 2.0 * (ecy - cy)
+    pen = TTGlyphPen(None)
+    rec.replay(TransformPen(pen, Transform(1, 0, 0, 1, dx, dy)))
+    out = pen.glyph()
+    try:
+        out.recalcBounds(None)
+        new_lsb = int(out.xMin)
+    except Exception:
+        new_lsb = lsb
+    return out, advance, new_lsb
+
+
+def add_swap_variant(
+    base_name: str,
+    *,
+    advance: int,
+    lsb: int,
+    target_upem: int,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+) -> str:
+    vname = swap_glyph_name(base_name)
+    if vname not in glyphs:
+        vg, vadv, vlsb = make_position_swap(
+            base_name,
+            glyphs,
+            advance=advance,
+            lsb=lsb,
+            target_upem=target_upem,
+        )
+        glyph_order.append(vname)
+        glyphs[vname] = vg
+        metrics[vname] = (vadv, vlsb)
+    return vname
 
 
 def make_bbox_mirror(
@@ -570,84 +649,127 @@ def _build_reverse_chain(
     return st
 
 
-def install_cluster_vs(
+def install_jamo_component_vs(
     font,
     *,
     l_forms: Sequence[str],
     v_forms: Sequence[str],
     t_forms: Sequence[str],
     glyphs: Dict[str, TTGlyph],
-) -> int:
-    """VS after jongseong flips choseong + jongseong; LV+VS flips choseong.
+) -> Tuple[int, int]:
+    """After Hangul: ``jamo+VS`` bbox flips; VS after T also ``.swap``s choseong.
 
-    Reverse-chain singles run in ``rlig``/``liga`` *after* Hangul jamo features:
-    ``L V T vs → L.sfx`` then ``T vs → T.sfx`` (same ``vs`` / suffix).
+    All new lookups share one ``rlig``/``liga`` FeatureRecord each — duplicate
+    feature tags are ignored by some shapers (only the first ``rlig`` runs).
+
+    Returns ``(liga_rule_count, swap_lookup_count)``.
     """
+    liga_pairs: List[Tuple[str, str, str]] = []
+    for forms in (l_forms, v_forms, t_forms):
+        for base in forms:
+            for vs_cp, _nx, _ny, suffix in HANGUL_MIRROR_MODES:
+                if suffix is None:
+                    continue
+                vname = variant_glyph_name(base, suffix)
+                if vname in glyphs:
+                    liga_pairs.append((base, vs_glyph_name(vs_cp), vname))
+
     glyph_map = {n: i for i, n in enumerate(font.getGlyphOrder())}
-    vs_lookups = []
+    v_all = list(v_forms)
+    for v in v_forms:
+        for sfx in MIRROR_SUFFIXES:
+            vn = variant_glyph_name(v, sfx)
+            if vn in glyphs:
+                v_all.append(vn)
+    v_all = sorted(set(v_all), key=lambda g: glyph_map.get(g, 0))
 
-    for vs_cp, _nx, _ny, suffix in HANGUL_MIRROR_MODES:
-        if suffix is None:
-            continue
-        vs_name = vs_glyph_name(vs_cp)
-        l_map = {
-            g: variant_glyph_name(g, suffix)
-            for g in l_forms
-            if variant_glyph_name(g, suffix) in glyphs
-        }
-        t_map = {
-            g: variant_glyph_name(g, suffix)
-            for g in t_forms
-            if variant_glyph_name(g, suffix) in glyphs
-        }
-        if not l_map and not t_map:
-            continue
-
-        # L' + V + T + vs → L.sfx  (closed syllable)
-        if l_map and v_forms and t_forms:
-            st = _build_reverse_chain(
-                l_map, [v_forms, t_forms, [vs_name]], glyph_map
-            )
-            lu = buildLookup([st])
-            lu.LookupType = 8
-            vs_lookups.append(lu)
-
-        # L' + V + vs → L.sfx  (open syllable)
-        if l_map and v_forms:
-            st = _build_reverse_chain(l_map, [v_forms, [vs_name]], glyph_map)
-            lu = buildLookup([st])
-            lu.LookupType = 8
-            vs_lookups.append(lu)
-
-        # T' + vs → T.sfx
-        if t_map:
-            st = _build_reverse_chain(t_map, [[vs_name]], glyph_map)
-            lu = buildLookup([st])
-            lu.LookupType = 8
-            vs_lookups.append(lu)
-
-        # Consume trailing VS (PUA is not default-ignorable).
-        consume: Dict[Tuple[str, ...], str] = {}
-        for base, var in t_map.items():
-            consume[(var, vs_name)] = var
-        for v in v_forms:
-            consume[(v, vs_name)] = v
-        if consume:
-            sub = buildLigatureSubstSubtable(consume)
-            lu = buildLookup([sub])
-            lu.LookupType = 4
-            vs_lookups.append(lu)
-
-    if not vs_lookups:
-        return 0
+    l_bases = list(l_forms)
+    for L in l_forms:
+        for sfx in MIRROR_SUFFIXES:
+            ln = variant_glyph_name(L, sfx)
+            if ln in glyphs:
+                l_bases.append(ln)
+    l_bases = sorted(set(l_bases), key=lambda g: glyph_map.get(g, 0))
 
     gsub = _ensure_gsub(font)
-    base_index = len(gsub.LookupList.Lookup)
-    gsub.LookupList.Lookup.extend(vs_lookups)
+    staged: List[ot.Lookup] = []
+    # Indices relative to final LookupList (only these go into rlig/liga).
+    feature_lookup_indices: List[int] = []
+
+    if liga_pairs:
+        liga_map: Dict[Tuple[str, ...], str] = {
+            (base, vs): var for base, vs, var in liga_pairs
+        }
+        items = list(liga_map.items())
+        chunk_size = 4000
+        for i in range(0, len(items), chunk_size):
+            chunk = dict(items[i : i + chunk_size])
+            sub = buildLigatureSubstSubtable(chunk)
+            lu = buildLookup([sub])
+            lu.LookupType = 4
+            feature_lookup_indices.append(
+                len(gsub.LookupList.Lookup) + len(staged)
+            )
+            staged.append(lu)
+
+    swap_count = 0
+    for sfx in MIRROR_SUFFIXES:
+        t_sfx = sorted(
+            (
+                variant_glyph_name(t, sfx)
+                for t in t_forms
+                if variant_glyph_name(t, sfx) in glyphs
+            ),
+            key=lambda g: glyph_map.get(g, 0),
+        )
+        mapping = {
+            L: swap_glyph_name(L)
+            for L in l_bases
+            if swap_glyph_name(L) in glyphs
+        }
+        if not t_sfx or not mapping or not v_all:
+            continue
+
+        single = buildSingleSubstSubtable(mapping)
+        single_lu = buildLookup([single])
+        single_lu.LookupType = 1
+        single_index = len(gsub.LookupList.Lookup) + len(staged)
+        staged.append(single_lu)  # nested only — not in feature list
+
+        chain = ot.ChainContextSubst()
+        chain.Format = 3
+        chain.BacktrackCoverage = []
+        chain.BacktrackGlyphCount = 0
+        chain.InputCoverage = [
+            buildCoverage(
+                sorted(mapping.keys(), key=lambda g: glyph_map[g]), glyph_map
+            ),
+            buildCoverage(v_all, glyph_map),
+            buildCoverage(t_sfx, glyph_map),
+        ]
+        chain.InputGlyphCount = 3
+        chain.LookAheadCoverage = []
+        chain.LookAheadGlyphCount = 0
+        rec = ot.SubstLookupRecord()
+        rec.SequenceIndex = 0
+        rec.LookupListIndex = single_index
+        chain.SubstLookupRecord = [rec]
+        chain.SubstCount = 1
+        chain_lu = buildLookup([chain])
+        chain_lu.LookupType = 6
+        feature_lookup_indices.append(
+            len(gsub.LookupList.Lookup) + len(staged)
+        )
+        staged.append(chain_lu)
+        swap_count += 1
+
+    if not staged:
+        return 0, 0
+
+    gsub.LookupList.Lookup.extend(staged)
     gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
-    new_indices = list(range(base_index, base_index + len(vs_lookups)))
-    _attach_features(gsub, new_indices, CLUSTER_VS_FEATURE_TAGS)
-    return len(vs_lookups)
+    _attach_features(gsub, feature_lookup_indices, CLUSTER_VS_FEATURE_TAGS)
+    return len(liga_pairs), swap_count
 
 
 def _scale_glyphs_from_subset(
@@ -791,8 +913,8 @@ def build_jamo_font(
     v_forms = sorted(set(v_forms))
     t_forms = sorted(set(t_forms))
 
-    print("  Installing L/T axis-mirror variants...", flush=True)
-    for base in l_forms + t_forms:
+    print("  Installing L/V/T bbox mirrors + choseong .swap...", flush=True)
+    for base in l_forms + v_forms + t_forms:
         adv, lsb = metrics[base]
         add_mirror_variants(
             base,
@@ -802,6 +924,31 @@ def build_jamo_font(
             glyphs=glyphs,
             metrics=metrics,
         )
+    for L in l_forms:
+        adv, lsb = metrics[L]
+        add_swap_variant(
+            L,
+            advance=adv,
+            lsb=lsb,
+            target_upem=target_upem,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+        )
+        for sfx in MIRROR_SUFFIXES:
+            lm = variant_glyph_name(L, sfx)
+            if lm not in glyphs:
+                continue
+            adv_m, lsb_m = metrics[lm]
+            add_swap_variant(
+                lm,
+                advance=adv_m,
+                lsb=lsb_m,
+                target_upem=target_upem,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+            )
 
     hangul_cps = [cp for cp in cmap if not is_vs_codepoint(cp)]
     ascent = otRound(target_upem * 0.88)
@@ -852,14 +999,17 @@ def build_jamo_font(
             pass
     mark_vs_glyphs_in_gdef(fb.font, vs_names)
 
-    n_vs = install_cluster_vs(
+    n_liga, n_swap = install_jamo_component_vs(
         fb.font,
         l_forms=l_forms,
         v_forms=v_forms,
         t_forms=t_forms,
         glyphs=glyphs,
     )
-    print(f"  Cluster VS lookups: {n_vs} (VS after jongseong -> L+T)", flush=True)
+    print(
+        f"  Component VS: {n_liga} ligas; {n_swap} choseong-swap lookups",
+        flush=True,
+    )
 
     out_path = _save_font(
         fb, out_dir, FAMILY_JAMO, write_ttf=write_ttf, write_woff2=write_woff2
@@ -1058,7 +1208,8 @@ def build_all(
         "identity / mx / my / mxy"
     )
     print(
-        f"  Jamo ({FAMILY_JAMO}): VS after jongseong flips choseong+jongseong"
+        f"  Jamo ({FAMILY_JAMO}): VS after each jamo (bbox); "
+        f"VS after jongseong also swaps choseong slot"
     )
     print(f"  Syllables ({FAMILY_SYLL}): whole-glyph VS / UVS")
     print(f"  Local scale: {local_scale:g} about bbox center")
