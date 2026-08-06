@@ -69,6 +69,10 @@ HALFWIDTH_PAD = 0.0
 COMPOUND_PAD = 0.0
 # Standalone only: extra horizontal scale after fit (1.0 = none).
 STANDALONE_CONTOUR_WIDEN = 0.06
+# Inset from CJK typo top/bottom when fitting Y (fraction of em).
+# Keeps short glyphs from sitting on the raw descent (-0.12em), which reads
+# low next to CJK ink that usually rests nearer the baseline.
+STANDALONE_VERT_PAD = 0.10
 
 # Match build_yi / build_subfonts OS/2 + hhea (CJK ideographic body).
 TYPO_ASCENDER_FRAC = 0.88
@@ -627,13 +631,27 @@ def _widen_glyph_x(glyph: TTGlyph, factor: float, center_x: float) -> TTGlyph:
     return apply_transform(rec, t)
 
 
-def _fit_glyph_to_cjk_height(glyph: TTGlyph, target_upem: int) -> TTGlyph:
-    """Match ink to the CJK typo box on Y.
+def _fit_glyph_to_cjk_height(
+    glyph: TTGlyph,
+    target_upem: int,
+    *,
+    pad: float = STANDALONE_VERT_PAD,
+) -> TTGlyph:
+    """Match ink to a vertically padded CJK typo box.
 
-    * Taller than the box → squash Y so height equals the box, bottom on descent.
-    * Shorter (or equal) → translate so the ink bottom sits on descent.
+    * Taller than the padded box → squash Y to that height, bottom on the floor.
+    * Shorter (or equal) → translate so the ink bottom sits on the floor.
+
+    ``pad`` is a fraction of em inset from typo ascent/descent so Yi does not
+    hang on the raw -0.12em descent (which sits below typical CJK ink).
     """
-    bottom, _top, cell_h = ideographic_bounds(target_upem)
+    typo_bottom, typo_top, _ = ideographic_bounds(target_upem)
+    inset = target_upem * max(pad, 0.0)
+    bottom = typo_bottom + inset
+    top = typo_top - inset
+    cell_h = top - bottom
+    if cell_h <= 1e-6:
+        bottom, top, cell_h = typo_bottom, typo_top, typo_top - typo_bottom
     try:
         glyph.recalcBounds(None)
         y0, y1 = float(glyph.yMin), float(glyph.yMax)
@@ -663,14 +681,15 @@ def make_standalone_glyph(
     source_max_height: float,
     pad: float = STANDALONE_PAD,
     widen: float = STANDALONE_CONTOUR_WIDEN,
+    vert_pad: float = STANDALONE_VERT_PAD,
     stroke_weight: Optional[float] = None,  # unused; kept for call-site compat
 ) -> Optional[GlyphMetrics]:
     """Shared ``sx`` from advance, shared ``sy`` from inventory max ink height.
 
     X is placed from the monospace advance center (side bearings preserved).
     Contours are widened slightly on X (``widen``, default ~6%). Then Y is
-    fitted to the CJK typo box: squash if taller, otherwise pin the ink bottom
-    to the CJK descent.
+    fitted to a padded CJK typo box: squash if taller, otherwise pin the ink
+    bottom to the padded floor (above raw descent).
     """
     del stroke_weight
     del source_center_y  # retained for call-site compat / inventory symmetry
@@ -697,7 +716,7 @@ def make_standalone_glyph(
         return None
     if widen > 0:
         glyph = _widen_glyph_x(glyph, 1.0 + widen, dst_cx)
-    glyph = _fit_glyph_to_cjk_height(glyph, target_upem)
+    glyph = _fit_glyph_to_cjk_height(glyph, target_upem, pad=vert_pad)
     try:
         glyph.recalcBounds(None)
         lsb = int(glyph.xMin)
