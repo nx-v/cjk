@@ -3,26 +3,35 @@
 Build one Hangul font (``panhangul``) from Malgun Gothic.
 
 Preserves Malgun ``ljmo`` / ``vjmo`` / ``tjmo`` contextual jamo shaping on
-script ``hang``, and adds axis-mirror variants via VS1..VS4 (U+E000..E003):
+script ``hang``, and adds axis-mirror variants via VS1..VS4:
 
-======= ========== ================================
-Name    Code point Transform
-======= ========== ================================
-VS1     U+E000     identity (no subst)
-VS2     U+E001     mx — negate X about contour bbox center
-VS3     U+E002     my — negate Y about contour bbox center
-VS4     U+E003     mxy — both axes
-======= ========== ================================
+======= ========== ========== ================================
+Name    PUA        Unicode    Transform
+======= ========== ========== ================================
+VS1     U+E000     U+FE00     identity (no subst)
+VS2     U+E001     U+FE01     mx — negate X about contour bbox center
+VS3     U+E002     U+FE02     my — negate Y about contour bbox center
+VS4     U+E003     U+FE03     mxy — both axes
+======= ========== ========== ================================
+
+Both encodings map to the same empty mark glyphs (``vs01``..``vs04``).
 
 * Whole cmap glyphs (syllables, compat jamo, conjoining jamo): ``char + VS2..4``
-  → flipped outline (``ccmp`` / ``rlig`` / ``liga``).
+  → flipped outline (``rlig`` / ``liga``). Precomposed syllables also
+  get cmap format-14 UVS for ``U+FE01``..``FE03``.
 * Choseong / jongseong forms (including ``ljmo`` / ``tjmo`` alternates): same
   VS ligas; jungseong / ``vjmo`` targets get no VS variants.
 * Contours flip about each glyph's own bbox center — advance / slot unchanged.
 
+VS marks between jamo (``L + VS + V + T + VS``): Unicode ``U+FE0n`` is consumed
+via cmap-14 UVS on L/T (and syllables); PUA ``U+E0xx`` is ligated early in
+``ccmp``. Hangul chain/single lookups are extended so ``.mx``/``.my``/``.mxy``
+L/T forms still take ``ljmo``/``vjmo``/``tjmo``. VS glyphs are also GDEF Marks
+with ``IgnoreMarks`` on Hangul lookups as a fallback.
+
 HarfBuzz may decompose precomposed syllables before liga; whole-syllable VS
-ligas still apply when the precomposed form remains. NFD jamo + VS on L/T is
-the reliable component path.
+ligas / UVS still apply when the precomposed form remains. NFD jamo + VS on L/T
+is the reliable component path (UVS for ``U+FE0n``, early ``ccmp`` for PUA).
 """
 
 from __future__ import annotations
@@ -53,11 +62,16 @@ from fontTools.ttLib.tables._g_l_y_f import (
 )
 
 from yi_halfwidth import (
-    COMPOSITION_FEATURE_TAGS,
     DEFAULT_UPEM,
     empty_glyph,
     variant_glyph_name,
 )
+
+# Apply VS ligas in ``ccmp`` (early) as well as ``rlig``/``liga``. Early
+# application turns ``L+VS``/``T+VS`` into ``.mx`` forms *before* Hangul FST;
+# Hangul GSUB is then extended so those mirrored L/T glyphs still shape.
+VS_LIGA_FEATURE_TAGS: Tuple[str, ...] = ("ccmp", "rlig", "liga")
+MIRROR_SUFFIXES: Tuple[str, ...] = ("mx", "my", "mxy")
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
@@ -72,8 +86,8 @@ CSS_FONT_URL_BASE = (
     "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/hangul"
 )
 
-# VS1..VS4 — axis mirrors only (U+E000..E003).
-# (vs_cp, negate_x, negate_y, suffix or None)
+# VS1..VS4 — axis mirrors only (PUA U+E000..E003; Unicode VS U+FE00..FE03).
+# (pua_cp, negate_x, negate_y, suffix or None)
 HANGUL_MIRROR_MODES: List[Tuple[int, bool, bool, Optional[str]]] = [
     (0xE000, False, False, None),
     (0xE001, True, False, "mx"),
@@ -82,6 +96,12 @@ HANGUL_MIRROR_MODES: List[Tuple[int, bool, bool, Optional[str]]] = [
 ]
 VS_BASE = HANGUL_MIRROR_MODES[0][0]
 VS_LAST = HANGUL_MIRROR_MODES[-1][0]
+UVS_BASE = 0xFE00
+UVS_LAST = UVS_BASE + len(HANGUL_MIRROR_MODES) - 1  # U+FE03
+
+# OpenType LookupFlag bit: skip GDEF Mark glyphs while matching.
+LOOKUP_FLAG_IGNORE_MARKS = 0x0008
+GDEF_CLASS_MARK = 3
 
 HANGUL_RANGES: List[Tuple[int, int, str]] = [
     (0x1100, 0x11FF, "Hangul Jamo"),
@@ -91,11 +111,22 @@ HANGUL_RANGES: List[Tuple[int, int, str]] = [
     (0xD7B0, 0xD7FF, "Hangul Jamo Extended-B"),
 ]
 
+# Conjoining jamo — UVS allowed on L/T only (see ``jamo_kind`` / UVS builder).
+
 JamoClass = str  # "L" | "V" | "T" | "other"
 
 
 def vs_glyph_name(vs_cp: int) -> str:
-    return f"vs{vs_cp - VS_BASE + 1:02d}"
+    """Glyph name for PUA or Unicode VS (``vs01``..``vs04``)."""
+    if VS_BASE <= vs_cp <= VS_LAST:
+        return f"vs{vs_cp - VS_BASE + 1:02d}"
+    if UVS_BASE <= vs_cp <= UVS_LAST:
+        return f"vs{vs_cp - UVS_BASE + 1:02d}"
+    raise ValueError(f"not a hangul VS codepoint: U+{vs_cp:04X}")
+
+
+def is_vs_codepoint(cp: int) -> bool:
+    return (VS_BASE <= cp <= VS_LAST) or (UVS_BASE <= cp <= UVS_LAST)
 
 
 def font_cmap(tt: TTFont) -> Dict[int, str]:
@@ -303,13 +334,229 @@ def _inject_vs(
     metrics: Dict[str, Tuple[int, int]],
     cmap: Dict[int, str],
 ) -> None:
-    for vs_cp, _nx, _ny, _suffix in HANGUL_MIRROR_MODES:
-        vname = vs_glyph_name(vs_cp)
+    """Map PUA U+E000..E003 and Unicode U+FE00..FE03 onto empty ``vs01``..``vs04``."""
+    for mode_i, (pua_cp, _nx, _ny, _suffix) in enumerate(HANGUL_MIRROR_MODES):
+        vname = vs_glyph_name(pua_cp)
         if vname not in glyphs:
             glyph_order.append(vname)
             glyphs[vname] = empty_glyph()
             metrics[vname] = (0, 0)
-        cmap[vs_cp] = vname
+        cmap[pua_cp] = vname
+        cmap[UVS_BASE + mode_i] = vname
+
+
+def jamo_kind(cp: int) -> Optional[str]:
+    """Return ``L`` / ``V`` / ``T`` for conjoining jamo codepoints, else None."""
+    if 0x1100 <= cp <= 0x115F or 0xA960 <= cp <= 0xA97F:
+        return "L"
+    if 0x1160 <= cp <= 0x11A7 or 0xD7B0 <= cp <= 0xD7C6:
+        return "V"
+    if 0x11A8 <= cp <= 0x11FF or 0xD7CB <= cp <= 0xD7FB:
+        return "T"
+    return None
+
+
+def build_hangul_uvs_entries(
+    cmap: Dict[int, str],
+    glyphs: Dict[str, TTGlyph],
+) -> List[Tuple[int, int, Optional[str]]]:
+    """Cmap-14 UVS for syllables, compat jamo, and L/T conjoining jamo (not V).
+
+    UVS consumes ``U+FE0n`` at cmap time so Hangul FST still sees contiguous
+    L/V/T codepoints. Mirrored L/T glyphs are shaped via extended GSUB.
+    """
+    rows: List[Tuple[int, int, Optional[str]]] = []
+    for cp, gname in cmap.items():
+        if is_vs_codepoint(cp):
+            continue
+        kind = jamo_kind(cp)
+        if kind == "V":
+            continue
+        if kind is None and not (
+            0xAC00 <= cp <= 0xD7A3 or 0x3131 <= cp <= 0x318E
+        ):
+            continue
+        for mode_i, (_pua, _nx, _ny, suffix) in enumerate(HANGUL_MIRROR_MODES):
+            if suffix is None:
+                continue
+            vname = variant_glyph_name(gname, suffix)
+            if vname in glyphs:
+                rows.append((cp, UVS_BASE + mode_i, vname))
+    return rows
+
+
+def extend_hangul_gsub_for_mirrors(
+    font,
+    glyph_names: Set[str],
+    glyph_order: Sequence[str],
+) -> None:
+    """Add ``.mx``/``.my``/``.mxy`` parallels to Hangul chain coverages + singles.
+
+    After early VS (UVS or ``ccmp`` liga), L/T may already be mirrored glyphs;
+    Hangul lookups must still match and substitute them. Coverage lists are
+    kept sorted by glyph ID (OpenType requirement).
+    """
+    if "GSUB" not in font:
+        return
+    gsub = font["GSUB"].table
+    gid = {name: i for i, name in enumerate(glyph_order)}
+
+    hangul_tags = {"ljmo", "vjmo", "tjmo"}
+    lookup_indices: Set[int] = set()
+    for fr in gsub.FeatureList.FeatureRecord:
+        if fr.FeatureTag in hangul_tags:
+            lookup_indices.update(fr.Feature.LookupListIndex)
+    nested: Set[int] = set()
+    for li in list(lookup_indices):
+        if li >= len(gsub.LookupList.Lookup):
+            continue
+        lu = gsub.LookupList.Lookup[li]
+        if lu.LookupType != 6:
+            continue
+        for st in lu.SubTable:
+            for rec in getattr(st, "SubstLookupRecord", []) or []:
+                nested.add(rec.LookupListIndex)
+    lookup_indices |= nested
+
+    def _mirror_names(name: str) -> List[str]:
+        out = []
+        for sfx in MIRROR_SUFFIXES:
+            vn = variant_glyph_name(name, sfx)
+            if vn in glyph_names:
+                out.append(vn)
+        return out
+
+    def _sort_cov(names: Sequence[str]) -> List[str]:
+        return sorted(names, key=lambda n: gid.get(n, 0xFFFFFF))
+
+    for li in sorted(lookup_indices):
+        lu = gsub.LookupList.Lookup[li]
+        if lu.LookupType == 1:
+            for st in lu.SubTable:
+                mapping = getattr(st, "mapping", None)
+                if not mapping:
+                    continue
+                extra = {}
+                for src, dst in list(mapping.items()):
+                    for sfx in MIRROR_SUFFIXES:
+                        vs = variant_glyph_name(src, sfx)
+                        vd = variant_glyph_name(dst, sfx)
+                        if vs in glyph_names and vd in glyph_names:
+                            extra[vs] = vd
+                mapping.update(extra)
+            continue
+        if lu.LookupType != 6:
+            continue
+        for st in lu.SubTable:
+            if getattr(st, "Format", None) != 3:
+                continue
+            for attr in ("BacktrackCoverage", "InputCoverage", "LookAheadCoverage"):
+                covs = getattr(st, attr, None) or []
+                for cov in covs:
+                    glyphs = list(cov.glyphs)
+                    add: List[str] = []
+                    for g in glyphs:
+                        add.extend(_mirror_names(g))
+                    if add:
+                        cov.glyphs = _sort_cov(set(glyphs) | set(add))
+                    else:
+                        # Re-sort even if unchanged — deepcopy may still be fine,
+                        # but keep ID order after any prior name-sort mistakes.
+                        cov.glyphs = _sort_cov(glyphs)
+
+
+def mark_vs_glyphs_in_gdef(font, vs_names: Sequence[str]) -> None:
+    """Ensure VS glyphs are GDEF Mark so Hangul chains can IgnoreMarks."""
+    if "GDEF" not in font:
+        gdef_table = newTable("GDEF")
+        gdef = ot.GDEF()
+        gdef.Version = 0x00010000
+        gdef.GlyphClassDef = None
+        gdef.AttachList = None
+        gdef.LigCaretList = None
+        gdef.MarkAttachClassDef = None
+        gdef_table.table = gdef
+        font["GDEF"] = gdef_table
+    gdef = font["GDEF"].table
+    if gdef.GlyphClassDef is None:
+        gdef.GlyphClassDef = ot.GlyphClassDef()
+        gdef.GlyphClassDef.classDefs = {}
+    for name in vs_names:
+        gdef.GlyphClassDef.classDefs[name] = GDEF_CLASS_MARK
+
+
+def install_hangul_rclt(font) -> None:
+    """Expose ljmo/vjmo/tjmo lookups under ``rclt`` (always-on).
+
+    HarfBuzz's Hangul shaper only applies ``ljmo``/``vjmo``/``tjmo`` inside
+    syllables it recognizes. Mid-cluster VS / UVS-mirrored L/T often fall
+    outside that path. ``rclt`` still runs and reshapes mirrored jamo when
+    Hangul FST skips them (lookups are no-ops if already shaped).
+    """
+    if "GSUB" not in font:
+        return
+    gsub = font["GSUB"].table
+    hangul_tags = ("ljmo", "vjmo", "tjmo")
+    # Preserve feature order: all ljmo, then vjmo, then tjmo (Malgun order).
+    indices: List[int] = []
+    seen: Set[int] = set()
+    for tag in hangul_tags:
+        for fr in gsub.FeatureList.FeatureRecord:
+            if fr.FeatureTag != tag:
+                continue
+            for li in fr.Feature.LookupListIndex:
+                if li not in seen:
+                    indices.append(li)
+                    seen.add(li)
+    if not indices:
+        return
+    fr = ot.FeatureRecord()
+    fr.FeatureTag = "rclt"
+    fr.Feature = ot.Feature()
+    fr.Feature.FeatureParams = None
+    fr.Feature.LookupListIndex = list(indices)
+    fr.Feature.LookupCount = len(indices)
+    gsub.FeatureList.FeatureRecord.append(fr)
+    fi = len(gsub.FeatureList.FeatureRecord) - 1
+    gsub.FeatureList.FeatureCount = len(gsub.FeatureList.FeatureRecord)
+    for rec in gsub.ScriptList.ScriptRecord:
+        if rec.ScriptTag not in ("hang", "DFLT"):
+            continue
+        ls = rec.Script.DefaultLangSys
+        if ls is None:
+            continue
+        if fi not in ls.FeatureIndex:
+            # Before VS ligas: insert after hangul jamo features when present.
+            ls.FeatureIndex.append(fi)
+            ls.FeatureCount = len(ls.FeatureIndex)
+
+
+def hangul_lookups_ignore_marks(font) -> int:
+    """Set IgnoreMarks on ljmo/vjmo/tjmo chain lookups so mid-cluster VS is skipped."""
+    if "GSUB" not in font:
+        return 0
+    gsub = font["GSUB"].table
+    hangul_tags = {"ljmo", "vjmo", "tjmo"}
+    lookup_indices: Set[int] = set()
+    for fr in gsub.FeatureList.FeatureRecord:
+        if fr.FeatureTag in hangul_tags:
+            lookup_indices.update(fr.Feature.LookupListIndex)
+    # Also flag nested lookups referenced by those chains.
+    nested: Set[int] = set()
+    for li in list(lookup_indices):
+        if li >= len(gsub.LookupList.Lookup):
+            continue
+        lu = gsub.LookupList.Lookup[li]
+        if lu.LookupType != 6:
+            continue
+        for st in lu.SubTable:
+            for rec in getattr(st, "SubstLookupRecord", []) or []:
+                nested.add(rec.LookupListIndex)
+    lookup_indices |= nested
+    for li in lookup_indices:
+        lu = gsub.LookupList.Lookup[li]
+        lu.LookupFlag = int(lu.LookupFlag) | LOOKUP_FLAG_IGNORE_MARKS
+    return len(lookup_indices)
 
 
 def install_vs_ligas(
@@ -319,6 +566,9 @@ def install_vs_ligas(
     """Append ``base + vs → variant`` ligas under ccmp/rlig/liga on hang+DFLT+latn.
 
     ``pairs`` is ``(base_glyph, vs_glyph, variant_glyph)``.
+    Early ``ccmp`` turns mid-cluster PUA VS into mirrored L/T before Hangul FST;
+    Hangul GSUB must be extended for those mirrored names (see
+    ``extend_hangul_gsub_for_mirrors``).
     """
     if not pairs:
         return
@@ -382,10 +632,8 @@ def install_vs_ligas(
             script.DefaultLangSys = ls
         return script.DefaultLangSys
 
-    # Add ccmp/rlig/liga feature records pointing at new lookups; share one feature
-    # index set appended to each langsys.
     feat_indices: List[int] = []
-    for tag in COMPOSITION_FEATURE_TAGS:
+    for tag in VS_LIGA_FEATURE_TAGS:
         fr = ot.FeatureRecord()
         fr.FeatureTag = tag
         fr.Feature = ot.Feature()
@@ -480,21 +728,24 @@ def build_panhangul_font(
             cmap[cp] = gname
 
     _inject_vs(glyph_order, glyphs, metrics, cmap)
+    vs_names = [vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES]
 
     print("  Installing axis-mirror variants (whole + L/T)...", flush=True)
     liga_pairs: List[Tuple[str, str, str]] = []
-    mirror_bases: Set[str] = set(cmap[cp] for cp in cmap if cp < VS_BASE or cp > VS_LAST)
+    hangul_cps = [cp for cp in cmap if not is_vs_codepoint(cp)]
+    mirror_bases: Set[str] = set(cmap[cp] for cp in hangul_cps)
     for name, cls in jamo_class.items():
         if cls in ("L", "T") and name in glyphs:
             mirror_bases.add(name)
 
+    cmap_glyph_names = set(cmap[cp] for cp in hangul_cps)
     for base in sorted(mirror_bases):
         if base not in glyphs:
             continue
         # Jungseong bases that only appear as V: skip if classified V and not cmap'd
         # for whole-glyph — cmap'd V jamo still get whole-glyph mirrors.
         cls = jamo_class.get(base)
-        is_cmap_base = base in set(cmap.values())
+        is_cmap_base = base in cmap_glyph_names
         if cls == "V" and not is_cmap_base:
             continue
         # Component VS only for L/T; whole cmap always.
@@ -516,9 +767,10 @@ def build_panhangul_font(
 
     ascent = otRound(target_upem * 0.88)
     descent = otRound(target_upem * -0.12)
+    uvs_rows = build_hangul_uvs_entries(cmap, glyphs)
 
     print(
-        f"  Assembling font ({len(glyphs) - 1} glyphs, {len(cmap) - 4} Hangul CPs)...",
+        f"  Assembling font ({len(glyphs) - 1} glyphs, {len(hangul_cps)} Hangul CPs)...",
         flush=True,
     )
     fb = FontBuilder(target_upem, isTTF=True)
@@ -526,7 +778,7 @@ def build_panhangul_font(
     fb.setupGlyf(glyphs)
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=ascent, descent=descent)
-    fb.setupCharacterMap(cmap)
+    fb.setupCharacterMap(cmap, uvs=uvs_rows)
     fb.setupNameTable(
         {
             "familyName": FAMILY_NAME,
@@ -550,13 +802,20 @@ def build_panhangul_font(
     # Port Hangul GSUB from subset font (glyph names unchanged).
     if "GSUB" in tt:
         fb.font["GSUB"] = copy.deepcopy(tt["GSUB"])
-        print("  Ported ljmo/vjmo/tjmo GSUB from Malgun.", flush=True)
+        extend_hangul_gsub_for_mirrors(fb.font, set(glyphs), glyph_order)
+        n_flagged = hangul_lookups_ignore_marks(fb.font)
+        install_hangul_rclt(fb.font)
+        print(
+            f"  Ported ljmo/vjmo/tjmo GSUB; mirrored coverages; "
+            f"IgnoreMarks on {n_flagged} lookups; rclt fallback.",
+            flush=True,
+        )
     if "GDEF" in tt:
-        # GDEF may reference dropped glyphs; copy cautiously.
         try:
             fb.font["GDEF"] = copy.deepcopy(tt["GDEF"])
         except Exception:
             pass
+    mark_vs_glyphs_in_gdef(fb.font, vs_names)
 
     print(f"  Compiling VS ligas ({len(liga_pairs)} rules)...", flush=True)
     install_vs_ligas(fb.font, liga_pairs)
@@ -641,7 +900,8 @@ def build_all(
 ) -> None:
     print(f"Hangul source: {MALGUN_FILENAME}")
     print(
-        f"  VS U+{VS_BASE:04X}-U+{VS_LAST:04X}: identity / mx / my / mxy "
+        f"  VS U+{VS_BASE:04X}-U+{VS_LAST:04X} / U+{UVS_BASE:04X}-U+{UVS_LAST:04X}: "
+        "identity / mx / my / mxy "
         "(choseong+jongseong+whole; no jungseong component VS)"
     )
     print(f"  Local scale: {local_scale:g} about bbox center")
