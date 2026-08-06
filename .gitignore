@@ -3,4 +3,5 @@ Scripts/data/
 Scripts/dump/
 Scripts/dist/glyphwiki/
 *.pyc
-*/__pycache__/
+**/__pycache__/
+**/private/
