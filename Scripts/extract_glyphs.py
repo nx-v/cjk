@@ -65,195 +65,200 @@ def simplify_path(path_data: str) -> str:
         params = params.strip()
         coords = re.findall(r"[+-]?\d*\.?\d+", params)
 
-        if cmd in "Mm":
-            # Move to - keep first as absolute, others as relative
-            if not result:  # First command
-                current_x = float(coords[0])
-                current_y = float(coords[1])
-                start_x, start_y = current_x, current_y
-                result.append(f"M {current_x} {current_y}")
-            else:
-                dx = float(coords[0]) - current_x
-                dy = float(coords[1]) - current_y
-                current_x += dx
-                current_y += dy
-                start_x, start_y = current_x, current_y
-                result.append(f"m {dx} {dy}")
-            # Implicit lines
-            for i in range(2, len(coords), 2):
-                x = float(coords[i]) if cmd == "M" else current_x + float(coords[i])
-                y = (
-                    float(coords[i + 1])
-                    if cmd == "M"
-                    else current_y + float(coords[i + 1])
-                )
-                dx = x - current_x
-                dy = y - current_y
-                if dx == 0:
-                    result.append(f"v {dy}")
-                elif dy == 0:
-                    result.append(f"h {dx}")
+        match cmd:
+            case "M" | "m":
+                # Move to - keep first as absolute, others as relative
+                if not result:  # First command
+                    current_x = float(coords[0])
+                    current_y = float(coords[1])
+                    start_x, start_y = current_x, current_y
+                    result.append(f"M {current_x} {current_y}")
                 else:
-                    result.append(f"l {dx} {dy}")
-                current_x, current_y = x, y
-        elif cmd in "Ll":
-            for i in range(0, len(coords), 2):
-                x = float(coords[i]) if cmd == "L" else current_x + float(coords[i])
-                y = (
-                    float(coords[i + 1])
-                    if cmd == "L"
-                    else current_y + float(coords[i + 1])
-                )
-                dx = x - current_x
-                dy = y - current_y
-                if dx == 0:
-                    result.append(f"v {dy}")
-                elif dy == 0:
-                    result.append(f"h {dx}")
-                else:
-                    result.append(f"l {dx} {dy}")
-                current_x, current_y = x, y
-        elif cmd in "Hh":
-            for val in coords:
-                if cmd == "H":
-                    x = float(val)
+                    dx = float(coords[0]) - current_x
+                    dy = float(coords[1]) - current_y
+                    current_x += dx
+                    current_y += dy
+                    start_x, start_y = current_x, current_y
+                    result.append(f"m {dx} {dy}")
+                # Implicit lines
+                for i in range(2, len(coords), 2):
+                    x = float(coords[i]) if cmd == "M" else current_x + float(coords[i])
+                    y = (
+                        float(coords[i + 1])
+                        if cmd == "M"
+                        else current_y + float(coords[i + 1])
+                    )
                     dx = x - current_x
-                else:
-                    dx = float(val)
-                    x = current_x + dx
-                result.append(f"h {dx}")
-                current_x = x
-        elif cmd in "Vv":
-            for val in coords:
-                if cmd == "V":
-                    y = float(val)
                     dy = y - current_y
-                else:
-                    dy = float(val)
-                    y = current_y + dy
-                result.append(f"v {dy}")
-                current_y = y
-        elif cmd in "Cc":
-            for i in range(0, len(coords), 6):
-                if cmd == "C":
-                    c1x = float(coords[i])
-                    c1y = float(coords[i + 1])
-                    c2x = float(coords[i + 2])
-                    c2y = float(coords[i + 3])
-                    x = float(coords[i + 4])
-                    y = float(coords[i + 5])
-                else:
-                    c1x = current_x + float(coords[i])
-                    c1y = current_y + float(coords[i + 1])
-                    c2x = current_x + float(coords[i + 2])
-                    c2y = current_y + float(coords[i + 3])
-                    x = current_x + float(coords[i + 4])
-                    y = current_y + float(coords[i + 5])
-                dc1x = c1x - current_x
-                dc1y = c1y - current_y
-                dc2x = c2x - current_x
-                dc2y = c2y - current_y
-                dx = x - current_x
-                dy = y - current_y
-                result.append(f"c {dc1x} {dc1y} {dc2x} {dc2y} {dx} {dy}")
-                last_cx, last_cy = c2x, c2y  # For smooth
-                current_x, current_y = x, y
-        elif cmd in "Ss":
-            for i in range(0, len(coords), 4):
-                if cmd == "S":
-                    c2x = float(coords[i])
-                    c2y = float(coords[i + 1])
-                    x = float(coords[i + 2])
-                    y = float(coords[i + 3])
-                else:
-                    c2x = current_x + float(coords[i])
-                    c2y = current_y + float(coords[i + 1])
-                    x = current_x + float(coords[i + 2])
-                    y = current_y + float(coords[i + 3])
-                if last_cx is not None:
-                    c1x = 2 * current_x - last_cx
-                    c1y = 2 * current_y - last_cy
-                else:
-                    c1x = current_x
-                    c1y = current_y
-                dc1x = c1x - current_x
-                dc1y = c1y - current_y
-                dc2x = c2x - current_x
-                dc2y = c2y - current_y
-                dx = x - current_x
-                dy = y - current_y
-                result.append(f"s {dc2x} {dc2y} {dx} {dy}")
-                last_cx, last_cy = c2x, c2y
-                current_x, current_y = x, y
-        elif cmd in "Qq":
-            for i in range(0, len(coords), 4):
-                if cmd == "Q":
-                    cx = float(coords[i])
-                    cy = float(coords[i + 1])
-                    x = float(coords[i + 2])
-                    y = float(coords[i + 3])
-                else:
-                    cx = current_x + float(coords[i])
-                    cy = current_y + float(coords[i + 1])
-                    x = current_x + float(coords[i + 2])
-                    y = current_y + float(coords[i + 3])
-                dcx = cx - current_x
-                dcy = cy - current_y
-                dx = x - current_x
-                dy = y - current_y
-                result.append(f"q {dcx} {dcy} {dx} {dy}")
-                last_cx, last_cy = cx, cy
-                current_x, current_y = x, y
-        elif cmd in "Tt":
-            for i in range(0, len(coords), 2):
-                if cmd == "T":
-                    x = float(coords[i])
-                    y = float(coords[i + 1])
-                else:
-                    x = current_x + float(coords[i])
-                    y = current_y + float(coords[i + 1])
-                if last_cx is not None:
-                    cx = 2 * current_x - last_cx
-                    cy = 2 * current_y - last_cy
-                else:
-                    cx = current_x
-                    cy = current_y
-                dcx = cx - current_x
-                dcy = cy - current_y
-                dx = x - current_x
-                dy = y - current_y
-                result.append(f"t {dx} {dy}")
-                last_cx, last_cy = cx, cy
-                current_x, current_y = x, y
-        elif cmd in "Aa":
-            for i in range(0, len(coords), 7):
-                if cmd == "A":
-                    rx = float(coords[i])
-                    ry = float(coords[i + 1])
-                    x_axis_rotation = float(coords[i + 2])
-                    large_arc_flag = coords[i + 3]
-                    sweep_flag = coords[i + 4]
-                    x = float(coords[i + 5])
-                    y = float(coords[i + 6])
-                else:
-                    rx = float(coords[i])
-                    ry = float(coords[i + 1])
-                    x_axis_rotation = float(coords[i + 2])
-                    large_arc_flag = coords[i + 3]
-                    sweep_flag = coords[i + 4]
-                    x = current_x + float(coords[i + 5])
-                    y = current_y + float(coords[i + 6])
-                dx = x - current_x
-                dy = y - current_y
-                result.append(
-                    f"a {rx} {ry} {x_axis_rotation} {large_arc_flag} {sweep_flag} {dx} {dy}"
-                )
-                current_x, current_y = x, y
-        elif cmd in "Zz":
-            result.append("z")
-            current_x, current_y = start_x, start_y
-        else:
-            result.append(cmd + params)
+                    match (dx == 0, dy == 0):
+                        case (True, _):
+                            result.append(f"v {dy}")
+                        case (_, True):
+                            result.append(f"h {dx}")
+                        case _:
+                            result.append(f"l {dx} {dy}")
+                    current_x, current_y = x, y
+            case "L" | "l":
+                for i in range(0, len(coords), 2):
+                    x = float(coords[i]) if cmd == "L" else current_x + float(coords[i])
+                    y = (
+                        float(coords[i + 1])
+                        if cmd == "L"
+                        else current_y + float(coords[i + 1])
+                    )
+                    dx = x - current_x
+                    dy = y - current_y
+                    match (dx == 0, dy == 0):
+                        case (True, _):
+                            result.append(f"v {dy}")
+                        case (_, True):
+                            result.append(f"h {dx}")
+                        case _:
+                            result.append(f"l {dx} {dy}")
+                    current_x, current_y = x, y
+            case "H" | "h":
+                for val in coords:
+                    match cmd:
+                        case "H":
+                            x = float(val)
+                            dx = x - current_x
+                        case _:
+                            dx = float(val)
+                            x = current_x + dx
+                    result.append(f"h {dx}")
+                    current_x = x
+            case "V" | "v":
+                for val in coords:
+                    match cmd:
+                        case "V":
+                            y = float(val)
+                            dy = y - current_y
+                        case _:
+                            dy = float(val)
+                            y = current_y + dy
+                    result.append(f"v {dy}")
+                    current_y = y
+            case "C" | "c":
+                for i in range(0, len(coords), 6):
+                    if cmd == "C":
+                        c1x = float(coords[i])
+                        c1y = float(coords[i + 1])
+                        c2x = float(coords[i + 2])
+                        c2y = float(coords[i + 3])
+                        x = float(coords[i + 4])
+                        y = float(coords[i + 5])
+                    else:
+                        c1x = current_x + float(coords[i])
+                        c1y = current_y + float(coords[i + 1])
+                        c2x = current_x + float(coords[i + 2])
+                        c2y = current_y + float(coords[i + 3])
+                        x = current_x + float(coords[i + 4])
+                        y = current_y + float(coords[i + 5])
+                    dc1x = c1x - current_x
+                    dc1y = c1y - current_y
+                    dc2x = c2x - current_x
+                    dc2y = c2y - current_y
+                    dx = x - current_x
+                    dy = y - current_y
+                    result.append(f"c {dc1x} {dc1y} {dc2x} {dc2y} {dx} {dy}")
+                    last_cx, last_cy = c2x, c2y  # For smooth
+                    current_x, current_y = x, y
+            case "S" | "s":
+                for i in range(0, len(coords), 4):
+                    if cmd == "S":
+                        c2x = float(coords[i])
+                        c2y = float(coords[i + 1])
+                        x = float(coords[i + 2])
+                        y = float(coords[i + 3])
+                    else:
+                        c2x = current_x + float(coords[i])
+                        c2y = current_y + float(coords[i + 1])
+                        x = current_x + float(coords[i + 2])
+                        y = current_y + float(coords[i + 3])
+                    if last_cx is not None:
+                        c1x = 2 * current_x - last_cx
+                        c1y = 2 * current_y - last_cy
+                    else:
+                        c1x = current_x
+                        c1y = current_y
+                    dc1x = c1x - current_x
+                    dc1y = c1y - current_y
+                    dc2x = c2x - current_x
+                    dc2y = c2y - current_y
+                    dx = x - current_x
+                    dy = y - current_y
+                    result.append(f"s {dc2x} {dc2y} {dx} {dy}")
+                    last_cx, last_cy = c2x, c2y
+                    current_x, current_y = x, y
+            case "Q" | "q":
+                for i in range(0, len(coords), 4):
+                    if cmd == "Q":
+                        cx = float(coords[i])
+                        cy = float(coords[i + 1])
+                        x = float(coords[i + 2])
+                        y = float(coords[i + 3])
+                    else:
+                        cx = current_x + float(coords[i])
+                        cy = current_y + float(coords[i + 1])
+                        x = current_x + float(coords[i + 2])
+                        y = current_y + float(coords[i + 3])
+                    dcx = cx - current_x
+                    dcy = cy - current_y
+                    dx = x - current_x
+                    dy = y - current_y
+                    result.append(f"q {dcx} {dcy} {dx} {dy}")
+                    last_cx, last_cy = cx, cy
+                    current_x, current_y = x, y
+            case "T" | "t":
+                for i in range(0, len(coords), 2):
+                    if cmd == "T":
+                        x = float(coords[i])
+                        y = float(coords[i + 1])
+                    else:
+                        x = current_x + float(coords[i])
+                        y = current_y + float(coords[i + 1])
+                    if last_cx is not None:
+                        cx = 2 * current_x - last_cx
+                        cy = 2 * current_y - last_cy
+                    else:
+                        cx = current_x
+                        cy = current_y
+                    dcx = cx - current_x
+                    dcy = cy - current_y
+                    dx = x - current_x
+                    dy = y - current_y
+                    result.append(f"t {dx} {dy}")
+                    last_cx, last_cy = cx, cy
+                    current_x, current_y = x, y
+            case "A" | "a":
+                for i in range(0, len(coords), 7):
+                    if cmd == "A":
+                        rx = float(coords[i])
+                        ry = float(coords[i + 1])
+                        x_axis_rotation = float(coords[i + 2])
+                        large_arc_flag = coords[i + 3]
+                        sweep_flag = coords[i + 4]
+                        x = float(coords[i + 5])
+                        y = float(coords[i + 6])
+                    else:
+                        rx = float(coords[i])
+                        ry = float(coords[i + 1])
+                        x_axis_rotation = float(coords[i + 2])
+                        large_arc_flag = coords[i + 3]
+                        sweep_flag = coords[i + 4]
+                        x = current_x + float(coords[i + 5])
+                        y = current_y + float(coords[i + 6])
+                    dx = x - current_x
+                    dy = y - current_y
+                    result.append(
+                        f"a {rx} {ry} {x_axis_rotation} {large_arc_flag} {sweep_flag} {dx} {dy}"
+                    )
+                    current_x, current_y = x, y
+            case "Z" | "z":
+                result.append("z")
+                current_x, current_y = start_x, start_y
+            case _:
+                result.append(cmd + params)
     return "".join(result)
 
 

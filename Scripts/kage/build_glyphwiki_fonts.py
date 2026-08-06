@@ -102,6 +102,23 @@ def kage_to_font_transform(upem: int = DEFAULT_UPEM) -> Transform:
     return Transform(scale, 0, 0, -scale, 0, ascent)
 
 
+def _pathops_add_verb(dest, verb, pts) -> None:
+    """Replay one pathops contour verb onto ``dest``."""
+    import pathops
+
+    match verb:
+        case pathops.PathVerb.MOVE:
+            dest.moveTo(*pts[0])
+        case pathops.PathVerb.LINE:
+            dest.lineTo(*pts[0])
+        case pathops.PathVerb.QUAD:
+            dest.quadTo(*pts[0], *pts[1])
+        case pathops.PathVerb.CUBIC:
+            dest.cubicTo(*pts[0], *pts[1], *pts[2])
+        case pathops.PathVerb.CLOSE:
+            dest.close()
+
+
 def _round_skia_path(path, round_fn=otRound):
     """Round pathops path coords (helps skia-pathops simplify)."""
     import pathops
@@ -110,16 +127,7 @@ def _round_skia_path(path, round_fn=otRound):
     for contour in path.contours:
         for verb, pts in contour:
             rpts = [(round_fn(x), round_fn(y)) for x, y in pts]
-            if verb == pathops.PathVerb.MOVE:
-                rounded.moveTo(*rpts[0])
-            elif verb == pathops.PathVerb.LINE:
-                rounded.lineTo(*rpts[0])
-            elif verb == pathops.PathVerb.QUAD:
-                rounded.quadTo(*rpts[0], *rpts[1])
-            elif verb == pathops.PathVerb.CUBIC:
-                rounded.cubicTo(*rpts[0], *rpts[1], *rpts[2])
-            elif verb == pathops.PathVerb.CLOSE:
-                rounded.close()
+            _pathops_add_verb(rounded, verb, rpts)
     return rounded
 
 
@@ -146,16 +154,7 @@ def _drop_spike_contours(path, *, max_edge_ratio: float = 8.0, upem: int = 1000)
         if longest > max(upem * 0.55, median * max_edge_ratio):
             continue
         for verb, vpts in contour:
-            if verb == pathops.PathVerb.MOVE:
-                kept.moveTo(*vpts[0])
-            elif verb == pathops.PathVerb.LINE:
-                kept.lineTo(*vpts[0])
-            elif verb == pathops.PathVerb.QUAD:
-                kept.quadTo(*vpts[0], *vpts[1])
-            elif verb == pathops.PathVerb.CUBIC:
-                kept.cubicTo(*vpts[0], *vpts[1], *vpts[2])
-            elif verb == pathops.PathVerb.CLOSE:
-                kept.close()
+            _pathops_add_verb(kept, verb, vpts)
         kept_any = True
     return kept if kept_any else path
 

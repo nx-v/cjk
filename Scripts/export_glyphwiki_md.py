@@ -159,9 +159,7 @@ def main(argv: list[str] | None = None) -> int:
 
     for i, marker in enumerate(markers, 1):
         pairs = sorted(by_marker[marker], key=lambda t: t[0])
-        text = markdown_for_marker(
-            marker, pairs, include_mirrors=include_mirrors
-        )
+        text = markdown_for_marker(marker, pairs, include_mirrors=include_mirrors)
         out = args.out_dir / f"{marker:X}.md"
         out.write_text(text, encoding="utf-8")
         print(f"  [{i}/{len(markers)}] {out.name} ({len(pairs):,} glyphs)")

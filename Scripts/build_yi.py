@@ -135,73 +135,81 @@ def _chain_context_format3(
     return st
 
 
-def install_rlig(font, yi_names: Sequence[str]) -> None:
+def install_rlig(
+    font,
+    yi_names: Sequence[str],
+    *,
+    compounds: bool = True,
+) -> None:
     """Install GSUB digraph unpack + standalone VS (``ccmp``/``rlig``/``liga``).
 
     Compounds: ``yi1 + yi2 + VS`` → ``yihL + yihR`` (no joiner). The right-half
     liga is gated by a yihL backtrack so a lone ``yi + VS`` still forms the
-    standalone variant instead of a half-cell.
+    standalone variant instead of a half-cell. Pass ``compounds=False`` to
+    emit only standalone VS ligatures.
     """
     if not yi_names:
         return
 
     yi_list = list(yi_names)
-    left_names = [
-        name
-        for yi in yi_list
-        for name in _mode_names(halfcell_left_name(int(yi[1:], 16)))
-    ]
+    left_chains: List = []
+    left_singles: List = []
+    right_chains: List = []
+    right_ligas: List = []
 
-    # --- Left: SingleSubst yi → yihL[.var] (one per VS mode) ---
-    left_singles = []
-    for _vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
-        mapping = {
-            yi: _mode_target(halfcell_left_name(int(yi[1:], 16)), suffix)
+    if compounds:
+        left_names = [
+            name
             for yi in yi_list
-        }
-        sub = buildSingleSubstSubtable(mapping)
-        lu = buildLookup([sub])
-        lu.LookupType = 1
-        left_singles.append(lu)
+            for name in _mode_names(halfcell_left_name(int(yi[1:], 16)))
+        ]
 
-    # --- Left chain: yi' @yi vsXX → (left single) ---
-    left_chains = []
-    for mode_i, (vs_cp, _r, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
-        vs = vs_glyph_name(vs_cp)
-        st = _chain_context_format3(
-            [yi_list],
-            lookahead_groups=[yi_list, [vs]],
-            subst_lookup_index=mode_i,
-        )
-        lu = buildLookup([st])
-        lu.LookupType = 6
-        left_chains.append(lu)
+        # --- Left: SingleSubst yi → yihL[.var] (one per VS mode) ---
+        for _vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
+            mapping = {
+                yi: _mode_target(halfcell_left_name(int(yi[1:], 16)), suffix)
+                for yi in yi_list
+            }
+            sub = buildSingleSubstSubtable(mapping)
+            lu = buildLookup([sub])
+            lu.LookupType = 1
+            left_singles.append(lu)
 
-    # --- Right: Ligature yi+vs → yihR[.var] (nested; one per VS mode) ---
-    right_ligas = []
-    for vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
-        vs = vs_glyph_name(vs_cp)
-        right_map = {
-            (yi, vs): _mode_target(halfcell_right_name(int(yi[1:], 16)), suffix)
-            for yi in yi_list
-        }
-        sub = buildLigatureSubstSubtable(right_map)
-        lu = buildLookup([sub])
-        lu.LookupType = 4
-        right_ligas.append(lu)
+        # --- Left chain: yi' @yi vsXX → (left single) ---
+        for mode_i, (vs_cp, _r, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
+            vs = vs_glyph_name(vs_cp)
+            st = _chain_context_format3(
+                [yi_list],
+                lookahead_groups=[yi_list, [vs]],
+                subst_lookup_index=mode_i,
+            )
+            lu = buildLookup([st])
+            lu.LookupType = 6
+            left_chains.append(lu)
 
-    # --- Right chain: yihL yi' vsXX → (right liga starting at yi) ---
-    right_chains = []
-    for mode_i, (vs_cp, _r, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
-        vs = vs_glyph_name(vs_cp)
-        st = _chain_context_format3(
-            [yi_list, [vs]],
-            backtrack_groups=[left_names],
-            subst_lookup_index=mode_i,
-        )
-        lu = buildLookup([st])
-        lu.LookupType = 6
-        right_chains.append(lu)
+        # --- Right: Ligature yi+vs → yihR[.var] (nested; one per VS mode) ---
+        for vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
+            vs = vs_glyph_name(vs_cp)
+            right_map = {
+                (yi, vs): _mode_target(halfcell_right_name(int(yi[1:], 16)), suffix)
+                for yi in yi_list
+            }
+            sub = buildLigatureSubstSubtable(right_map)
+            lu = buildLookup([sub])
+            lu.LookupType = 4
+            right_ligas.append(lu)
+
+        # --- Right chain: yihL yi' vsXX → (right liga starting at yi) ---
+        for mode_i, (vs_cp, _r, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
+            vs = vs_glyph_name(vs_cp)
+            st = _chain_context_format3(
+                [yi_list, [vs]],
+                backtrack_groups=[left_names],
+                subst_lookup_index=mode_i,
+            )
+            lu = buildLookup([st])
+            lu.LookupType = 6
+            right_chains.append(lu)
 
     # --- Standalone: yi + VS → variant (identity VS needs no subst) ---
     standalone_map: Dict[Tuple[str, ...], str] = {}
@@ -244,6 +252,8 @@ def install_rlig(font, yi_names: Sequence[str]) -> None:
             )
         )
     )
+    if not all_lookups:
+        return
 
     def _langsys() -> ot.DefaultLangSys:
         ls = ot.DefaultLangSys()
@@ -301,6 +311,7 @@ def build_panyi_font(
     out_dir: str,
     target_upem: int,
     *,
+    compounds: bool = True,
     write_ttf: bool = True,
     write_woff2: bool = True,
 ) -> Tuple[str, int, List[int]]:
@@ -321,8 +332,9 @@ def build_panyi_font(
     finally:
         tt.close()
 
+    what = "standalones + half-cells" if compounds else "standalones only"
     print(
-        f"  Scaling {len(recs)} standalones + half-cells "
+        f"  Scaling {len(recs)} {what} "
         f"(sx {inv.source_advance}→{target_upem}, "
         f"sy maxH {inv.source_max_height:.0f}→{target_upem})...",
         flush=True,
@@ -339,15 +351,16 @@ def build_panyi_font(
         )
         if sa is not None:
             standalones[idx] = sa
-        hc = make_halfwidth_glyph(
-            rec,
-            target_upem,
-            source_advance=inv.source_advance,
-            source_center_y=inv.source_center_y,
-            source_max_height=inv.source_max_height,
-        )
-        if hc is not None:
-            halfcells[idx] = hc
+        if compounds:
+            hc = make_halfwidth_glyph(
+                rec,
+                target_upem,
+                source_advance=inv.source_advance,
+                source_center_y=inv.source_center_y,
+                source_max_height=inv.source_max_height,
+            )
+            if hc is not None:
+                halfcells[idx] = hc
 
     glyph_order = [".notdef"]
     glyphs = {".notdef": empty_glyph()}
@@ -381,42 +394,43 @@ def build_panyi_font(
     _inject_vs(glyph_order, glyphs, metrics, cmap)
 
     # --- Half-cells: left (1em adv) + right (0 adv overlay) + D4 ---
-    print("  Installing half-cell digraph components...", flush=True)
-    for idx, cp in enumerate(inv.src_cps):
-        if idx not in halfcells:
-            continue
-        h_glyph, _h_adv, h_lsb = halfcells[idx]
-        left_name = halfcell_left_name(cp)
-        glyph_order.append(left_name)
-        glyphs[left_name] = h_glyph
-        # Full-em advance so digraph overlay advances one cell.
-        metrics[left_name] = (target_upem, h_lsb)
-        add_d4_variant_glyphs(
-            left_name,
-            advance=target_upem,
-            lsb=h_lsb,
-            target_upem=target_upem,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-        )
+    if compounds:
+        print("  Installing half-cell digraph components...", flush=True)
+        for idx, cp in enumerate(inv.src_cps):
+            if idx not in halfcells:
+                continue
+            h_glyph, _h_adv, h_lsb = halfcells[idx]
+            left_name = halfcell_left_name(cp)
+            glyph_order.append(left_name)
+            glyphs[left_name] = h_glyph
+            # Full-em advance so digraph overlay advances one cell.
+            metrics[left_name] = (target_upem, h_lsb)
+            add_d4_variant_glyphs(
+                left_name,
+                advance=target_upem,
+                lsb=h_lsb,
+                target_upem=target_upem,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+            )
 
-        right_name = halfcell_right_name(cp)
-        r_glyph, r_adv, r_lsb = make_right_half_composite(
-            left_name, target_upem, lsb=0
-        )
-        glyph_order.append(right_name)
-        glyphs[right_name] = r_glyph
-        metrics[right_name] = (r_adv, r_lsb)
-        add_d4_variant_glyphs(
-            right_name,
-            advance=r_adv,
-            lsb=r_lsb,
-            target_upem=target_upem,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-        )
+            right_name = halfcell_right_name(cp)
+            r_glyph, r_adv, r_lsb = make_right_half_composite(
+                left_name, target_upem, lsb=0
+            )
+            glyph_order.append(right_name)
+            glyphs[right_name] = r_glyph
+            metrics[right_name] = (r_adv, r_lsb)
+            add_d4_variant_glyphs(
+                right_name,
+                advance=r_adv,
+                lsb=r_lsb,
+                target_upem=target_upem,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+            )
 
     if not yi_names:
         return out_path, 0, []
@@ -454,8 +468,11 @@ def build_panyi_font(
     )
     fb.setupPost()
 
-    print("  Compiling rlig (compound digraph + standalone VS)...", flush=True)
-    install_rlig(fb.font, yi_names)
+    rlig_note = (
+        "compound digraph + standalone VS" if compounds else "standalone VS only"
+    )
+    print(f"  Compiling rlig ({rlig_note})...", flush=True)
+    install_rlig(fb.font, yi_names, compounds=compounds)
 
     os.makedirs(out_dir, exist_ok=True)
     fb.save(out_path)
@@ -517,8 +534,7 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     fontlist_path = os.path.join(out_dir, "panyi-fontlist.css")
     with open(fontlist_path, "w", encoding="utf-8") as f:
         f.write(
-            "/* Yi font family */\n"
-            f":root {{\n  --font-panyi: '{FAMILY_NAME}';\n}}\n"
+            "/* Yi font family */\n" f":root {{\n  --font-panyi: '{FAMILY_NAME}';\n}}\n"
         )
     print(f"Wrote {fontlist_path}")
 
@@ -529,6 +545,7 @@ def build_all(
     target_upem: int,
     *,
     limit: Optional[int] = None,
+    compounds: bool = True,
     write_ttf: bool = True,
     write_woff2: bool = True,
 ) -> None:
@@ -549,9 +566,10 @@ def build_all(
     else:
         print(f"Yi inventory: {inv.count} glyphs from {NUOSU_FILENAME}")
 
-    print(
-        "  Compounds: rlig  yi1 + yi2 + VS -> yihL + yihR digraph"
-    )
+    if compounds:
+        print("  Compounds: rlig  yi1 + yi2 + VS -> yihL + yihR digraph")
+    else:
+        print("  Compounds: excluded (--no-compounds)")
     print(f"  Transform VS: U+{VS_BASE:X}-U+{VS_LAST:X} (8 unique D4 symmetries)")
     print(f"  Output: single font '{FAMILY_NAME}'")
     fmt_note = (
@@ -566,6 +584,7 @@ def build_all(
         inv,
         out_dir,
         target_upem,
+        compounds=compounds,
         write_ttf=write_ttf,
         write_woff2=write_woff2,
     )
@@ -584,6 +603,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Use only the first N inventory codepoints (smoke test)",
+    )
+    p.add_argument(
+        "--no-compounds",
+        action="store_true",
+        help="Skip half-cell digraphs and compound GSUB (standalones + D4 only)",
     )
     fmt = p.add_mutually_exclusive_group()
     fmt.add_argument(
@@ -607,6 +631,7 @@ if __name__ == "__main__":
         args.out_dir,
         args.upem,
         limit=args.limit,
+        compounds=not args.no_compounds,
         write_ttf=not args.woff2_only,
         write_woff2=not args.ttf_only,
     )
