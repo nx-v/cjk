@@ -72,7 +72,7 @@ STANDALONE_CONTOUR_WIDEN = 0.06
 # Inset from CJK typo top/bottom when fitting Y (fraction of em).
 # Keeps short glyphs from sitting on the raw descent (-0.12em), which reads
 # low next to CJK ink that usually rests nearer the baseline.
-STANDALONE_VERT_PAD = 0.10
+STANDALONE_VERT_PAD = 0.07
 
 # Match build_yi / build_subfonts OS/2 + hhea (CJK ideographic body).
 TYPO_ASCENDER_FRAC = 0.88
@@ -498,9 +498,7 @@ def source_layout_metrics(tt: TTFont, sample_glyph: str) -> Tuple[int, float]:
     return advance, center_y
 
 
-def inventory_max_ink_height(
-    tt: TTFont, glyph_names: Sequence[str]
-) -> float:
+def inventory_max_ink_height(tt: TTFont, glyph_names: Sequence[str]) -> float:
     """Tallest outline height among ``glyph_names`` (design units)."""
     max_h = 0.0
     for gname in glyph_names:

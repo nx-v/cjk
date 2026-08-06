@@ -88,7 +88,6 @@ PRIORITY_FONTS: List[Tuple[str, float]] = [
     ("NazoMin-Classic.ttf", 1.0),
     ("NazoMin+-Classic.ttf", 1.0),
     ("NotoSerifTangut-Regular.ttf", 1.0),
-    ("NuosuSIL-Regular.ttf", 1.0),  # Yi Syllables / Radicals (standalone forms)
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale in PRIORITY_FONTS]
