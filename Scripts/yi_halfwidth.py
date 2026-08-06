@@ -44,7 +44,7 @@ from fontTools.ttLib.tables._g_l_y_f import (
 
 try:
     from kage.mapping import D4_MODES, MirrorVS
-except ImportError:
+except ImportError:  # Scripts.* import style
     from Scripts.kage.mapping import D4_MODES, MirrorVS
 
 # ---------- Constants ----------
@@ -87,9 +87,15 @@ def ideographic_center(target_upem: int) -> Tuple[float, float]:
     UPM scale sits near ``(upem/2, 0.38·upem)``. Centering Yi there keeps
     mixed CJK+Yi lines vertically aligned.
     """
-    ascent = target_upem * TYPO_ASCENDER_FRAC
-    descent = target_upem * TYPO_DESCENDER_FRAC
-    return target_upem / 2.0, (ascent + descent) / 2.0
+    bottom, top, _h = ideographic_bounds(target_upem)
+    return target_upem / 2.0, (top + bottom) / 2.0
+
+
+def ideographic_bounds(target_upem: int) -> Tuple[float, float, float]:
+    """CJK typo box ``(bottom, top, height)`` using ascent 0.88 / descent -0.12."""
+    top = target_upem * TYPO_ASCENDER_FRAC
+    bottom = target_upem * TYPO_DESCENDER_FRAC
+    return bottom, top, top - bottom
 
 
 # (vs_cp, rot90_quarters, flip_x, flip_y, name_suffix or None for identity)
@@ -213,15 +219,14 @@ def add_d4_variant_glyphs(
 
 
 def _rot90_matrix(quarters: int) -> Tuple[Tuple[float, float], Tuple[float, float]]:
-    match quarters % 4:
-        case 0:
-            return ((1.0, 0.0), (0.0, 1.0))
-        case 1:
-            return ((0.0, 1.0), (-1.0, 0.0))
-        case 2:
-            return ((-1.0, 0.0), (0.0, -1.0))
-        case _:
-            return ((0.0, -1.0), (1.0, 0.0))
+    q = quarters % 4
+    if q == 0:
+        return ((1.0, 0.0), (0.0, 1.0))
+    if q == 1:
+        return ((0.0, 1.0), (-1.0, 0.0))
+    if q == 2:
+        return ((-1.0, 0.0), (0.0, -1.0))
+    return ((0.0, -1.0), (1.0, 0.0))
 
 
 def _mul2(
@@ -489,7 +494,9 @@ def source_layout_metrics(tt: TTFont, sample_glyph: str) -> Tuple[int, float]:
     return advance, center_y
 
 
-def inventory_max_ink_height(tt: TTFont, glyph_names: Sequence[str]) -> float:
+def inventory_max_ink_height(
+    tt: TTFont, glyph_names: Sequence[str]
+) -> float:
     """Tallest outline height among ``glyph_names`` (design units)."""
     max_h = 0.0
     for gname in glyph_names:
@@ -620,6 +627,33 @@ def _widen_glyph_x(glyph: TTGlyph, factor: float, center_x: float) -> TTGlyph:
     return apply_transform(rec, t)
 
 
+def _fit_glyph_to_cjk_height(glyph: TTGlyph, target_upem: int) -> TTGlyph:
+    """Match ink to the CJK typo box on Y.
+
+    * Taller than the box → squash Y so height equals the box, bottom on descent.
+    * Shorter (or equal) → translate so the ink bottom sits on descent.
+    """
+    bottom, _top, cell_h = ideographic_bounds(target_upem)
+    try:
+        glyph.recalcBounds(None)
+        y0, y1 = float(glyph.yMin), float(glyph.yMax)
+    except Exception:
+        return glyph
+    h = y1 - y0
+    if h <= 1e-6:
+        return glyph
+    rec = RecordingPen()
+    glyph.draw(rec, None)
+    if h > cell_h + 1e-6:
+        sy = cell_h / h
+        # y' = bottom + sy·(y - y0)
+        return apply_transform(rec, Transform(1, 0, 0, sy, 0, bottom - sy * y0))
+    dy = bottom - y0
+    if abs(dy) < 1e-6:
+        return glyph
+    return apply_transform(rec, Transform(1, 0, 0, 1, 0, dy))
+
+
 def make_standalone_glyph(
     rec: RecordingPen,
     target_upem: int = DEFAULT_UPEM,
@@ -634,9 +668,9 @@ def make_standalone_glyph(
     """Shared ``sx`` from advance, shared ``sy`` from inventory max ink height.
 
     X is placed from the monospace advance center (side bearings preserved).
-    Y is placed from each glyph's own ink midpoint so the tallest sits inside
-    the CJK cell after the shared vertical squash. Contours are then widened
-    slightly on X only (``widen``, default ~6%).
+    Contours are widened slightly on X (``widen``, default ~6%). Then Y is
+    fitted to the CJK typo box: squash if taller, otherwise pin the ink bottom
+    to the CJK descent.
     """
     del stroke_weight
     del source_center_y  # retained for call-site compat / inventory symmetry
@@ -663,6 +697,7 @@ def make_standalone_glyph(
         return None
     if widen > 0:
         glyph = _widen_glyph_x(glyph, 1.0 + widen, dst_cx)
+    glyph = _fit_glyph_to_cjk_height(glyph, target_upem)
     try:
         glyph.recalcBounds(None)
         lsb = int(glyph.xMin)
@@ -707,6 +742,7 @@ def make_halfwidth_glyph(
     )
     if glyph is None:
         return None
+    glyph = _fit_glyph_to_cjk_height(glyph, target_upem)
     try:
         glyph.recalcBounds(None)
         lsb = int(glyph.xMin)

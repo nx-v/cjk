@@ -534,7 +534,8 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     fontlist_path = os.path.join(out_dir, "panyi-fontlist.css")
     with open(fontlist_path, "w", encoding="utf-8") as f:
         f.write(
-            "/* Yi font family */\n" f":root {{\n  --font-panyi: '{FAMILY_NAME}';\n}}\n"
+            "/* Yi font family */\n"
+            f":root {{\n  --font-panyi: '{FAMILY_NAME}';\n}}\n"
         )
     print(f"Wrote {fontlist_path}")
 

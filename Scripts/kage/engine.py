@@ -160,26 +160,26 @@ def _parse_svg_transform(spec: str | None) -> Transform:
         return t
     for kind, argstr in _TRANSFORM_RE.findall(spec):
         nums = [float(x) for x in re.split(r"[,\s]+", argstr.strip()) if x]
-        match kind.lower():
-            case "translate":
-                tx = nums[0] if nums else 0.0
-                ty = nums[1] if len(nums) > 1 else 0.0
-                t = t.transform(Transform(1, 0, 0, 1, tx, ty))
-            case "scale":
-                sx = nums[0] if nums else 1.0
-                sy = nums[1] if len(nums) > 1 else sx
-                t = t.transform(Transform(sx, 0, 0, sy, 0, 0))
-            case "rotate":
-                angle = math.radians(nums[0] if nums else 0.0)
-                if len(nums) >= 3:
-                    cx, cy = nums[1], nums[2]
-                    t = t.transform(Transform(1, 0, 0, 1, cx, cy))
-                    t = t.transform(Transform().rotate(angle))
-                    t = t.transform(Transform(1, 0, 0, 1, -cx, -cy))
-                else:
-                    t = t.transform(Transform().rotate(angle))
-            case "matrix" if len(nums) >= 6:
-                t = t.transform(Transform(*nums[:6]))
+        kind_l = kind.lower()
+        if kind_l == "translate":
+            tx = nums[0] if nums else 0.0
+            ty = nums[1] if len(nums) > 1 else 0.0
+            t = t.transform(Transform(1, 0, 0, 1, tx, ty))
+        elif kind_l == "scale":
+            sx = nums[0] if nums else 1.0
+            sy = nums[1] if len(nums) > 1 else sx
+            t = t.transform(Transform(sx, 0, 0, sy, 0, 0))
+        elif kind_l == "rotate":
+            angle = math.radians(nums[0] if nums else 0.0)
+            if len(nums) >= 3:
+                cx, cy = nums[1], nums[2]
+                t = t.transform(Transform(1, 0, 0, 1, cx, cy))
+                t = t.transform(Transform().rotate(angle))
+                t = t.transform(Transform(1, 0, 0, 1, -cx, -cy))
+            else:
+                t = t.transform(Transform().rotate(angle))
+        elif kind_l == "matrix" and len(nums) >= 6:
+            t = t.transform(Transform(*nums[:6]))
     return t
 
 
@@ -195,25 +195,23 @@ def _path_d(element: Any) -> str:
 def _svg_line_cap(name: str | None):
     import pathops
 
-    match (name or "butt").strip().lower():
-        case "round":
-            return pathops.LineCap.ROUND_CAP
-        case "square":
-            return pathops.LineCap.SQUARE_CAP
-        case _:
-            return pathops.LineCap.BUTT_CAP
+    key = (name or "butt").strip().lower()
+    if key == "round":
+        return pathops.LineCap.ROUND_CAP
+    if key == "square":
+        return pathops.LineCap.SQUARE_CAP
+    return pathops.LineCap.BUTT_CAP
 
 
 def _svg_line_join(name: str | None):
     import pathops
 
-    match (name or "miter").strip().lower():
-        case "round":
-            return pathops.LineJoin.ROUND_JOIN
-        case "bevel":
-            return pathops.LineJoin.BEVEL_JOIN
-        case _:
-            return pathops.LineJoin.MITER_JOIN
+    key = (name or "miter").strip().lower()
+    if key == "round":
+        return pathops.LineJoin.ROUND_JOIN
+    if key == "bevel":
+        return pathops.LineJoin.BEVEL_JOIN
+    return pathops.LineJoin.MITER_JOIN
 
 
 def iter_filled_paths(drawing: svgwrite.Drawing):

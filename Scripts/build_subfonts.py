@@ -119,38 +119,45 @@ BucketEntry = Tuple[int, str, int]
 
 def ranges_to_set(ranges: Iterable[Tuple[int, int, str]]) -> Set[int]:
     s: Set[int] = set()
-    for start, end, _name in ranges: s.update(range(start, end + 1))
+    for start, end, _name in ranges:
+        s.update(range(start, end + 1))
     return s
 
 
 def font_cmap(tt: TTFont) -> Dict[int, str]:
     cmap: Dict[int, str] = {}
     for table in tt["cmap"].tables:
-        if table.isUnicode(): cmap.update(table.cmap)
+        if table.isUnicode():
+            cmap.update(table.cmap)
     return cmap
 
 
 def is_empty_outline(tt: TTFont, glyph_name: str) -> bool:
     if "glyf" in tt:
-        if glyph_name not in tt["glyf"]: return True
+        if glyph_name not in tt["glyf"]:
+            return True
         g = tt["glyf"][glyph_name]
-        if g.isComposite(): return False
+        if g.isComposite():
+            return False
         return g.numberOfContours <= 0
     if "CFF " in tt:
         top = tt["CFF "].cff.topDictIndex[0]
         cs = top.CharStrings
-        if glyph_name in cs: return len(cs[glyph_name].program) == 0
+        if glyph_name in cs:
+            return len(cs[glyph_name].program) == 0
         return True
     if "CFF2" in tt:
         top = tt["CFF2"].cff.topDictIndex[0]
         cs = top.CharStrings
-        if glyph_name in cs: return len(cs[glyph_name].program) == 0
+        if glyph_name in cs:
+            return len(cs[glyph_name].program) == 0
         return True
     return False
 
 
 def is_empty_glyph(tt: TTFont, glyph_name: str) -> bool:
-    if glyph_name in {".notdef", ".null", "nonmarkingreturn"}: return True
+    if glyph_name in {".notdef", ".null", "nonmarkingreturn"}:
+        return True
     return is_empty_outline(tt, glyph_name)
 
 
@@ -177,8 +184,10 @@ class SourceFont:
         self.hmtx = self.tt["hmtx"].metrics
 
     def close(self) -> None:
-        try: self.tt.close()
-        except Exception: pass
+        try:
+            self.tt.close()
+        except Exception:
+            pass
 
     def copy_glyph(
         self,
@@ -192,7 +201,8 @@ class SourceFont:
         Mirrors flip around the contour bounding-box center so the glyph stays
         in place (does not reflect across the em-box / advance midline).
         """
-        if is_empty_outline(self.tt, src_name): return None
+        if is_empty_outline(self.tt, src_name):
+            return None
 
         scale = target_upem / self.upem
         advance_src, lsb_src = self.hmtx[src_name]
@@ -214,14 +224,16 @@ class SourceFont:
         dy = 0.0
         if flip_x or flip_y:
             bpen = BoundsPen(None)
-            try: rec.replay(bpen)
+            try:
+                rec.replay(bpen)
             except Exception as e:
                 print(
                     f"  [!] bounds failed {os.path.basename(self.path)}:{src_name}: {e}",
                     file=sys.stderr,
                 )
                 return None
-            if bpen.bounds is None: return None
+            if bpen.bounds is None:
+                return None
             x_min, y_min, x_max, y_max = bpen.bounds
             cx = (x_min + x_max) / 2.0
             cy = (y_min + y_max) / 2.0
@@ -249,12 +261,14 @@ class SourceFont:
             )
             return None
 
-        if glyph.numberOfContours == 0 and not glyph.isComposite(): return None
+        if glyph.numberOfContours == 0 and not glyph.isComposite():
+            return None
 
         try:
             glyph.recalcBounds(None)
             lsb = int(glyph.xMin)
-        except Exception: lsb = otRound(lsb_src * scale)
+        except Exception:
+            lsb = otRound(lsb_src * scale)
         return glyph, advance, lsb
 
 
@@ -277,8 +291,10 @@ def claim_codepoints(sources: List[SourceFont], target: Set[int]) -> Dict[int, s
         print(f"Scanning {base}...")
         claimed = 0
         for cp, gname in src.cmap.items():
-            if cp not in target or cp in owner: continue
-            if is_empty_glyph(src.tt, gname): continue
+            if cp not in target or cp in owner:
+                continue
+            if is_empty_glyph(src.tt, gname):
+                continue
             owner[cp] = src.path
             claimed += 1
         print(f"  Claimed {claimed} new codepoints (total owned: {len(owner)})")
@@ -293,8 +309,10 @@ def expand_entries(owner: Dict[int, str]) -> List[BucketEntry]:
 def bucket_codepoints(entries: List[BucketEntry]) -> Dict[int, List[BucketEntry]]:
     """bucket_id -> sorted list of bucket entries."""
     buckets: Dict[int, List[BucketEntry]] = defaultdict(list)
-    for entry in entries: buckets[entry[0] >> 8].append(entry)
-    for bid in buckets: buckets[bid].sort(key=lambda t: t[0])
+    for entry in entries:
+        buckets[entry[0] >> 8].append(entry)
+    for bid in buckets:
+        buckets[bid].sort(key=lambda t: t[0])
     return buckets
 
 
@@ -308,7 +326,8 @@ _yi_layout_cache: Dict[str, Tuple[int, float, float]] = {}
 
 def _yi_layout_for_source(path: str) -> Tuple[int, float, float]:
     cached = _yi_layout_cache.get(path)
-    if cached is not None: return cached
+    if cached is not None:
+        return cached
     inv = load_inventory(path)
     layout = (inv.source_advance, inv.source_center_y, inv.source_max_height)
     _yi_layout_cache[path] = layout
@@ -345,7 +364,8 @@ def build_bucket_font(
     for out_cp, path, src_cp in entries:
         src = sources[path]
         src_name = src.cmap.get(src_cp)
-        if src_name is None: continue
+        if src_name is None:
+            continue
 
         # Yi from NuosuSIL: shared sx (advance) + sy (max ink height).
         use_yi_standalone = os.path.basename(path) == NUOSU_FILENAME and is_yi_cp(
@@ -353,7 +373,8 @@ def build_bucket_font(
         )
         if use_yi_standalone:
             rec = record_glyph(src.tt, src_name)
-            if rec is None: continue
+            if rec is None:
+                continue
             src_adv, src_cy, src_max_h = _yi_layout_for_source(path)
             copied = make_standalone_glyph(
                 rec,
@@ -362,10 +383,12 @@ def build_bucket_font(
                 source_center_y=src_cy,
                 source_max_height=src_max_h,
             )
-            if copied is None: continue
+            if copied is None:
+                continue
         else:
             copied = src.copy_glyph(src_name, target_upem, flip_x=False, flip_y=False)
-            if copied is None: continue
+            if copied is None:
+                continue
 
         glyph, advance, lsb = copied
         gname = glyph_name_for_cp(out_cp)
@@ -387,7 +410,8 @@ def build_bucket_font(
             liga_rules.append(f"  sub {gname} {vs_glyph_name(vs_cp)} by {m_name};")
         uvs_rows.extend(build_d4_uvs_entries(out_cp, gname, glyphs=glyphs))
 
-    if len(cmap) == 0: return out_path, 0, []
+    if len(cmap) == 0:
+        return out_path, 0, []
 
     # Inject VS marks so D4 ligatures stay in-font (VS01..VS08)
     for vs_cp, _rot, _fx, _fy, _suffix in TRANSFORM_MODES:
@@ -431,12 +455,15 @@ def build_bucket_font(
 
     if liga_rules:
         fea = composition_fea(liga_rules)
-        if fea: addOpenTypeFeaturesFromString(fb.font, fea)
+        if fea:
+            addOpenTypeFeaturesFromString(fb.font, fea)
 
     fb.save(out_path)
 
-    if write_woff2: compress_woff2(out_path)
-    if not write_ttf: _drop_ttf(out_path)
+    if write_woff2:
+        compress_woff2(out_path)
+    if not write_ttf:
+        _drop_ttf(out_path)
 
     return out_path, len(glyphs) - 1, sorted(cmap.keys())
 
@@ -450,7 +477,8 @@ _WORKER_UPEM: Optional[int] = None
 
 def compress_woff2(ttf_path: str, woff2_path: Optional[str] = None) -> str:
     """Compress TTF→WOFF2 via a temp file (avoids Windows/OneDrive errno 22 races)."""
-    if woff2_path is None: woff2_path = os.path.splitext(ttf_path)[0] + ".woff2"
+    if woff2_path is None:
+        woff2_path = os.path.splitext(ttf_path)[0] + ".woff2"
     out_dir = os.path.dirname(os.path.abspath(woff2_path)) or "."
     os.makedirs(out_dir, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(suffix=".woff2", dir=out_dir)
@@ -469,13 +497,17 @@ def compress_woff2(ttf_path: str, woff2_path: Optional[str] = None) -> str:
         raise last_err
     finally:
         if os.path.exists(tmp_path):
-            try: os.remove(tmp_path)
-            except OSError: pass
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 
 def _drop_ttf(ttf_path: str) -> None:
-    try: os.remove(ttf_path)
-    except OSError: pass
+    try:
+        os.remove(ttf_path)
+    except OSError:
+        pass
 
 
 def _compress_woff2_task(ttf_path: str) -> None:
@@ -537,11 +569,15 @@ def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
         if cp == prev + 1:
             prev = cp
             continue
-        if run_start == prev: runs.append(f"U+{run_start:X}")
-        else: runs.append(f"U+{run_start:X}-{prev:X}")
+        if run_start == prev:
+            runs.append(f"U+{run_start:X}")
+        else:
+            runs.append(f"U+{run_start:X}-{prev:X}")
         run_start = prev = cp
-    if run_start == prev: runs.append(f"U+{run_start:X}")
-    else: runs.append(f"U+{run_start:X}-{prev:X}")
+    if run_start == prev:
+        runs.append(f"U+{run_start:X}")
+    else:
+        runs.append(f"U+{run_start:X}-{prev:X}")
     return ", ".join(runs)
 
 
@@ -569,7 +605,8 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
         lines.append("}")
         lines.append("")
 
-    with open(css_path, "w", encoding="utf-8") as f: f.write("\n".join(lines))
+    with open(css_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
     # CSS-safe quoted family list for stacks
@@ -587,7 +624,8 @@ body {{
     Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
 }}
 """
-    with open(fontlist_path, "w", encoding="utf-8") as f: f.write(fontlist)
+    with open(fontlist_path, "w", encoding="utf-8") as f:
+        f.write(fontlist)
     print(f"Wrote {fontlist_path}")
 
 
@@ -618,19 +656,23 @@ def build_all(
     print(f"Output formats: {fmt_note}")
 
     sources_list = [SourceFont(p) for p in font_paths]
-    try: owner = claim_codepoints(sources_list, target)
+    try:
+        owner = claim_codepoints(sources_list, target)
     finally:
-        for s in sources_list: s.close()
+        for s in sources_list:
+            s.close()
 
     if not owner:
         print("No codepoints claimed.", file=sys.stderr)
         sys.exit(1)
 
     per_source: Dict[str, int] = defaultdict(int)
-    for path in owner.values(): per_source[os.path.basename(path)] += 1
+    for path in owner.values():
+        per_source[os.path.basename(path)] += 1
     print("\nClaimed per source:")
     for name in PRIORITY_FONTS:
-        if name in per_source: print(f"  {name}: {per_source[name]}")
+        if name in per_source:
+            print(f"  {name}: {per_source[name]}")
 
     all_entries = expand_entries(owner)
     print(f"\nGlyphs to build: {len(all_entries)}")
