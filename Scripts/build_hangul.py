@@ -22,11 +22,11 @@ VS4     U+E003     U+FE03     mxy — both axes
 
 * **Jamo (``panhangul``):** VS may follow each jamo (``L+VS V+VS T+VS``).
   Each selector flips that jamo about its **own bbox center** (choseong,
-  jungseong, and jongseong). VS glyphs are GDEF Marks so Hangul shaping
-  still runs. Additionally, a VS after the **jongseong** moves the choseong
-  by point-reflecting it through the CJK cell center (``.swap``) so its
-  slot flips relative to the jongseong, while the jongseong outline flips
-  normally.
+  jungseong, and jongseong). ``U+FE0n`` is applied via cmap-14 UVS (and
+  ``ccmp`` liga for PUA) so Hangul composition still sees contiguous jamo;
+  Hangul GSUB is extended for mirrored L/V/T forms. A VS after the
+  **jongseong** also moves the choseong by point-reflecting it through the
+  CJK cell center (``.swap``).
 * **Syllables (``panhanguls``):** ``char + VS`` / cmap-14 UVS flips the
   whole precomposed (or compat) glyph about its bbox center.
 """
@@ -91,8 +91,9 @@ UVS_BASE = 0xFE00
 UVS_LAST = UVS_BASE + len(HANGUL_MIRROR_MODES) - 1
 MIRROR_SUFFIXES: Tuple[str, ...] = ("mx", "my", "mxy")
 
-# Cluster VS (after Hangul) — not ``ccmp`` (that stage is too early).
-CLUSTER_VS_FEATURE_TAGS: Tuple[str, ...] = ("rlig", "liga")
+# VS ligas: ``ccmp`` early (before Hangul) for browser/DirectWrite paths where
+# mid-cluster marks break the Hangul FST; ``rlig``/``liga`` keep post-shape swap.
+CLUSTER_VS_FEATURE_TAGS: Tuple[str, ...] = ("ccmp", "rlig", "liga")
 # Whole-glyph VS on the syllables font may use early ``ccmp`` safely.
 SYLL_VS_FEATURE_TAGS: Tuple[str, ...] = ("ccmp", "rlig", "liga")
 
@@ -446,6 +447,112 @@ def build_syllable_uvs_entries(
     return rows
 
 
+def build_jamo_uvs_entries(
+    cmap: Dict[int, str],
+    glyphs: Dict[str, TTGlyph],
+) -> List[Tuple[int, int, Optional[str]]]:
+    """Cmap-14 UVS for conjoining L/V/T — consumes ``U+FE0n`` before Hangul FST.
+
+    Browsers often fail mid-cluster mark+liga shaping for Hangul; UVS applies the
+    bbox mirror at cmap time so L/V/T stay contiguous for composition.
+    """
+    rows: List[Tuple[int, int, Optional[str]]] = []
+    for cp, gname in cmap.items():
+        if is_vs_codepoint(cp):
+            continue
+        kind = None
+        if 0x1100 <= cp <= 0x115F or 0xA960 <= cp <= 0xA97F:
+            kind = "L"
+        elif 0x1160 <= cp <= 0x11A7 or 0xD7B0 <= cp <= 0xD7C6:
+            kind = "V"
+        elif 0x11A8 <= cp <= 0x11FF or 0xD7CB <= cp <= 0xD7FB:
+            kind = "T"
+        if kind is None:
+            continue
+        for mode_i, (_pua, _nx, _ny, suffix) in enumerate(HANGUL_MIRROR_MODES):
+            if suffix is None:
+                continue
+            vname = variant_glyph_name(gname, suffix)
+            if vname in glyphs:
+                rows.append((cp, UVS_BASE + mode_i, vname))
+    return rows
+
+
+def extend_hangul_gsub_for_mirrors(
+    font,
+    glyph_names: Set[str],
+    glyph_order: Sequence[str],
+) -> None:
+    """Add ``.mx``/``.my``/``.mxy`` parallels to Hangul chain coverages + singles.
+
+    Required when VS is applied before Hangul (UVS or early ``ccmp`` liga).
+    """
+    if "GSUB" not in font:
+        return
+    gsub = font["GSUB"].table
+    gid = {name: i for i, name in enumerate(glyph_order)}
+    hangul_tags = {"ljmo", "vjmo", "tjmo"}
+    lookup_indices: Set[int] = set()
+    for fr in gsub.FeatureList.FeatureRecord:
+        if fr.FeatureTag in hangul_tags:
+            lookup_indices.update(fr.Feature.LookupListIndex)
+    nested: Set[int] = set()
+    for li in list(lookup_indices):
+        if li >= len(gsub.LookupList.Lookup):
+            continue
+        lu = gsub.LookupList.Lookup[li]
+        if lu.LookupType != 6:
+            continue
+        for st in lu.SubTable:
+            for rec in getattr(st, "SubstLookupRecord", []) or []:
+                nested.add(rec.LookupListIndex)
+    lookup_indices |= nested
+
+    def _mirror_names(name: str) -> List[str]:
+        out = []
+        for sfx in MIRROR_SUFFIXES:
+            vn = variant_glyph_name(name, sfx)
+            if vn in glyph_names:
+                out.append(vn)
+        return out
+
+    def _sort_cov(names: Sequence[str]) -> List[str]:
+        return sorted(names, key=lambda n: gid.get(n, 0xFFFFFF))
+
+    for li in sorted(lookup_indices):
+        lu = gsub.LookupList.Lookup[li]
+        if lu.LookupType == 1:
+            for st in lu.SubTable:
+                mapping = getattr(st, "mapping", None)
+                if not mapping:
+                    continue
+                extra = {}
+                for src, dst in list(mapping.items()):
+                    for sfx in MIRROR_SUFFIXES:
+                        vs = variant_glyph_name(src, sfx)
+                        vd = variant_glyph_name(dst, sfx)
+                        if vs in glyph_names and vd in glyph_names:
+                            extra[vs] = vd
+                mapping.update(extra)
+            continue
+        if lu.LookupType != 6:
+            continue
+        for st in lu.SubTable:
+            if getattr(st, "Format", None) != 3:
+                continue
+            for attr in ("BacktrackCoverage", "InputCoverage", "LookAheadCoverage"):
+                covs = getattr(st, attr, None) or []
+                for cov in covs:
+                    glyphs = list(cov.glyphs)
+                    add: List[str] = []
+                    for g in glyphs:
+                        add.extend(_mirror_names(g))
+                    if add:
+                        cov.glyphs = _sort_cov(set(glyphs) | set(add))
+                    else:
+                        cov.glyphs = _sort_cov(glyphs)
+
+
 def mark_vs_glyphs_in_gdef(font, vs_names: Sequence[str]) -> None:
     if "GDEF" not in font:
         gdef_table = newTable("GDEF")
@@ -693,8 +800,8 @@ def install_jamo_component_vs(
 
     gsub = _ensure_gsub(font)
     staged: List[ot.Lookup] = []
-    # Indices relative to final LookupList (only these go into rlig/liga).
-    feature_lookup_indices: List[int] = []
+    liga_feature_indices: List[int] = []
+    swap_feature_indices: List[int] = []
 
     if liga_pairs:
         liga_map: Dict[Tuple[str, ...], str] = {
@@ -707,7 +814,7 @@ def install_jamo_component_vs(
             sub = buildLigatureSubstSubtable(chunk)
             lu = buildLookup([sub])
             lu.LookupType = 4
-            feature_lookup_indices.append(
+            liga_feature_indices.append(
                 len(gsub.LookupList.Lookup) + len(staged)
             )
             staged.append(lu)
@@ -757,7 +864,7 @@ def install_jamo_component_vs(
         chain.SubstCount = 1
         chain_lu = buildLookup([chain])
         chain_lu.LookupType = 6
-        feature_lookup_indices.append(
+        swap_feature_indices.append(
             len(gsub.LookupList.Lookup) + len(staged)
         )
         staged.append(chain_lu)
@@ -768,7 +875,13 @@ def install_jamo_component_vs(
 
     gsub.LookupList.Lookup.extend(staged)
     gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
-    _attach_features(gsub, feature_lookup_indices, CLUSTER_VS_FEATURE_TAGS)
+    # ccmp (early): component flips only. rlig/liga (late): flips + choseong swap.
+    # Use a single FeatureRecord per tag — duplicate tags are ignored by some shapers.
+    if liga_feature_indices:
+        _attach_features(gsub, liga_feature_indices, ("ccmp",))
+    late = list(liga_feature_indices) + list(swap_feature_indices)
+    if late:
+        _attach_features(gsub, late, ("rlig", "liga"))
     return len(liga_pairs), swap_count
 
 
@@ -950,12 +1063,14 @@ def build_jamo_font(
                 metrics=metrics,
             )
 
+    uvs_rows = build_jamo_uvs_entries(cmap, glyphs)
     hangul_cps = [cp for cp in cmap if not is_vs_codepoint(cp)]
     ascent = otRound(target_upem * 0.88)
     descent = otRound(target_upem * -0.12)
 
     print(
-        f"  Assembling font ({len(glyphs) - 1} glyphs, {len(hangul_cps)} CPs)...",
+        f"  Assembling font ({len(glyphs) - 1} glyphs, {len(hangul_cps)} CPs, "
+        f"{len(uvs_rows)} UVS)...",
         flush=True,
     )
     fb = FontBuilder(target_upem, isTTF=True)
@@ -963,7 +1078,7 @@ def build_jamo_font(
     fb.setupGlyf(glyphs)
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=ascent, descent=descent)
-    fb.setupCharacterMap(cmap)
+    fb.setupCharacterMap(cmap, uvs=uvs_rows)
     fb.setupNameTable(
         {
             "familyName": FAMILY_JAMO,
@@ -986,10 +1101,12 @@ def build_jamo_font(
 
     if "GSUB" in tt:
         fb.font["GSUB"] = copy.deepcopy(tt["GSUB"])
+        extend_hangul_gsub_for_mirrors(fb.font, set(glyphs), glyph_order)
         n_flagged = hangul_lookups_ignore_marks(fb.font)
         install_hangul_rclt(fb.font)
         print(
-            f"  Ported ljmo/vjmo/tjmo; IgnoreMarks on {n_flagged} lookups; rclt.",
+            f"  Ported ljmo/vjmo/tjmo; mirrored coverages; "
+            f"IgnoreMarks on {n_flagged} lookups; rclt.",
             flush=True,
         )
     if "GDEF" in tt:
@@ -1162,7 +1279,7 @@ def write_css(
     ]
     for family, cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
         urange = unicode_range_css(cps)
-        url = f"{CSS_FONT_URL_BASE}/{family}.woff2"
+        url = f"./{family}.woff2"
         lines += [
             "@font-face {",
             f"  font-family: '{family}';",
