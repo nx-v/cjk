@@ -30,8 +30,9 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 from fontTools.feaLib.builder import addOpenTypeFeaturesFromString
 from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
+from fontTools.misc.transform import Transform
 from fontTools.pens.boundsPen import BoundsPen
-from fontTools.pens.recordingPen import DecomposingRecordingPen
+from fontTools.pens.recordingPen import DecomposingRecordingPen, RecordingPen
 from fontTools.pens.reverseContourPen import ReverseContourPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
@@ -68,25 +69,32 @@ CSS_FONT_URL_BASE = (
     "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts"
 )
 
-# ---------- Source priority (highest first) ----------
+# ---------- Source priority (highest first): (filename, local_scale) ----------
+# local_scale is applied about each glyph's contour bbox center after UPM fit
+# (advance width unchanged).
 
-PRIORITY_FONTS = [
-    "NGULIM.TTF",
-    "msjh.ttc",
-    "msyh.ttc",
-    "malgun.ttf",
-    "LXGWZhiSongMN.ttf",
-    "LXGWNeoZhiSongPlus.ttf",
-    "HuayingMinchoT.ttf",
-    "I.MingVarCP-8.10.ttf",
-    "Minh Nguyen Regular.ttf",
-    "simsunb.ttf",
-    "SimsunExtG.ttf",
-    "NazoMin-Classic.ttf",
-    "NazoMin+-Classic.ttf",
-    "NotoSerifTangut-Regular.ttf",
-    "NuosuSIL-Regular.ttf",  # Yi Syllables / Radicals (standalone forms)
+PRIORITY_FONTS: List[Tuple[str, float]] = [
+    ("NGULIM.TTF", 1.05),
+    ("msjh.ttc", 1.05),
+    ("msyh.ttc", 0.95),
+    ("malgun.ttf", 0.95),
+    ("LXGWZhiSongMN.ttf", 1.0),
+    ("LXGWNeoZhiSongPlus.ttf", 1.0),
+    ("HuayingMinchoT.ttf", 1.0),
+    ("I.MingVarCP-8.10.ttf", 1.0),
+    ("Minh Nguyen Regular.ttf", 1.0),
+    ("simsunb.ttf", 1.0),
+    ("SimsunExtG.ttf", 1.0),
+    ("NazoMin-Classic.ttf", 1.0),
+    ("NazoMin+-Classic.ttf", 1.0),
+    ("NotoSerifTangut-Regular.ttf", 1.0),
+    ("NuosuSIL-Regular.ttf", 1.0),  # Yi Syllables / Radicals (standalone forms)
 ]
+
+PRIORITY_FONT_NAMES: List[str] = [name for name, _scale in PRIORITY_FONTS]
+FONT_LOCAL_SCALE: Dict[str, float] = {
+    name: scale for name, scale in PRIORITY_FONTS
+}
 
 # ---------- Unicode ranges (inclusive) ----------
 
@@ -173,11 +181,35 @@ def empty_glyph() -> TTGlyph:
     return g
 
 
+def _scale_glyph_about_bounds_center(glyph: TTGlyph, factor: float) -> TTGlyph:
+    """Isotropic scale about contour bbox center (advance unchanged by caller)."""
+    if abs(factor - 1.0) < 1e-9:
+        return glyph
+    try:
+        glyph.recalcBounds(None)
+        cx = (glyph.xMin + glyph.xMax) / 2.0
+        cy = (glyph.yMin + glyph.yMax) / 2.0
+    except Exception:
+        return glyph
+    rec = RecordingPen()
+    glyph.draw(rec, None)
+    pen = TTGlyphPen(None)
+    t = Transform(factor, 0, 0, factor, (1.0 - factor) * cx, (1.0 - factor) * cy)
+    rec.replay(TransformPen(pen, t))
+    out = pen.glyph()
+    try:
+        out.recalcBounds(None)
+    except Exception:
+        pass
+    return out
+
+
 class SourceFont:
     """Lazy-open source font with cmap and drawing helpers."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, local_scale: float = 1.0):
         self.path = path
+        self.local_scale = float(local_scale)
         self.tt = TTFont(path, fontNumber=0)
         self.upem = int(self.tt["head"].unitsPerEm)
         self.cmap = font_cmap(self.tt)
@@ -197,17 +229,19 @@ class SourceFont:
         flip_x: bool = False,
         flip_y: bool = False,
     ) -> Optional[Tuple[TTGlyph, int, int]]:
-        """Decompose + scale (+ optional axis mirrors). Returns (glyph, advance, lsb).
+        """Decompose + UPM scale + optional local scale / axis mirrors.
 
-        Mirrors flip around the contour bounding-box center so the glyph stays
-        in place (does not reflect across the em-box / advance midline).
+        ``local_scale`` (per source font) scales outlines about the contour
+        bounding-box center; advance width stays the UPM-scaled source advance.
+        Mirrors also flip about that same contour center.
         """
         if is_empty_outline(self.tt, src_name):
             return None
 
-        scale = target_upem / self.upem
+        upem_scale = target_upem / self.upem
+        ls = self.local_scale
         advance_src, lsb_src = self.hmtx[src_name]
-        advance = otRound(advance_src * scale)
+        advance = otRound(advance_src * upem_scale)
 
         try:
             rec = DecomposingRecordingPen(self.glyph_set)
@@ -219,11 +253,9 @@ class SourceFont:
             )
             return None
 
-        sx = scale
-        sy = scale
-        dx = 0.0
-        dy = 0.0
-        if flip_x or flip_y:
+        need_center = abs(ls - 1.0) > 1e-9 or flip_x or flip_y
+        cx = cy = 0.0
+        if need_center:
             bpen = BoundsPen(None)
             try:
                 rec.replay(bpen)
@@ -238,14 +270,15 @@ class SourceFont:
             x_min, y_min, x_max, y_max = bpen.bounds
             cx = (x_min + x_max) / 2.0
             cy = (y_min + y_max) / 2.0
-            # Reflect across contour center, then scale into target UPM.
-            # x' = scale * (2*cx - x) = -scale*x + 2*cx*scale  (flip_y)
-            if flip_y:
-                sx = -scale
-                dx = 2.0 * cx * scale
-            if flip_x:
-                sy = -scale
-                dy = 2.0 * cy * scale
+
+        # p' = upem * (sign * ls * (p - c) + c)
+        # flip_y reflects X; flip_x reflects Y (about contour center).
+        sign_x = -1.0 if flip_y else 1.0
+        sign_y = -1.0 if flip_x else 1.0
+        sx = upem_scale * ls * sign_x
+        sy = upem_scale * ls * sign_y
+        dx = upem_scale * cx * (1.0 - ls * sign_x)
+        dy = upem_scale * cy * (1.0 - ls * sign_y)
 
         pen = TTGlyphPen(None)
         # A single-axis flip makes det(transform) < 0 and reverses winding;
@@ -269,19 +302,24 @@ class SourceFont:
             glyph.recalcBounds(None)
             lsb = int(glyph.xMin)
         except Exception:
-            lsb = otRound(lsb_src * scale)
+            lsb = otRound(lsb_src * upem_scale)
         return glyph, advance, lsb
 
 
-def resolve_priority_paths(in_dir: str) -> List[str]:
-    paths: List[str] = []
-    for name in PRIORITY_FONTS:
+def resolve_priority_fonts(in_dir: str) -> List[Tuple[str, float]]:
+    """Return ``[(path, local_scale), ...]`` for fonts present under ``in_dir``."""
+    found: List[Tuple[str, float]] = []
+    for name, scale in PRIORITY_FONTS:
         path = os.path.join(in_dir, name)
         if not os.path.isfile(path):
             print(f"[!] Missing priority font: {name}", file=sys.stderr)
             continue
-        paths.append(path)
-    return paths
+        found.append((path, scale))
+    return found
+
+
+def resolve_priority_paths(in_dir: str) -> List[str]:
+    return [path for path, _scale in resolve_priority_fonts(in_dir)]
 
 
 def claim_codepoints(sources: List[SourceFont], target: Set[int]) -> Dict[int, str]:
@@ -386,6 +424,14 @@ def build_bucket_font(
             )
             if copied is None:
                 continue
+            if abs(src.local_scale - 1.0) > 1e-9:
+                g, adv, _lsb = copied
+                g = _scale_glyph_about_bounds_center(g, src.local_scale)
+                try:
+                    g.recalcBounds(None)
+                    copied = (g, adv, int(g.xMin))
+                except Exception:
+                    copied = (g, adv, _lsb)
         else:
             copied = src.copy_glyph(src_name, target_upem, flip_x=False, flip_y=False)
             if copied is None:
@@ -516,7 +562,7 @@ def _compress_woff2_task(ttf_path: str) -> None:
 
 
 def _init_build_worker(
-    font_paths: List[str],
+    font_entries: List[Tuple[str, float]],
     out_dir: str,
     target_upem: int,
 ) -> None:
@@ -524,7 +570,7 @@ def _init_build_worker(
     global _WORKER_SOURCES, _WORKER_OUT_DIR, _WORKER_UPEM
     _WORKER_OUT_DIR = out_dir
     _WORKER_UPEM = target_upem
-    _WORKER_SOURCES = {p: SourceFont(p) for p in font_paths}
+    _WORKER_SOURCES = {p: SourceFont(p, local_scale=s) for p, s in font_entries}
 
 
 def _build_bucket_task(
@@ -641,14 +687,17 @@ def build_all(
 ) -> None:
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
-    font_paths = resolve_priority_paths(in_dir)
-    if not font_paths:
+    font_entries = resolve_priority_fonts(in_dir)
+    if not font_entries:
         print("No priority fonts found in", in_dir, file=sys.stderr)
         sys.exit(1)
 
     target = ranges_to_set(CHAR_RANGES)
     print(f"Target range size: {len(target)} codepoints")
-    print(f"Source fonts: {len(font_paths)}")
+    print(f"Source fonts: {len(font_entries)}")
+    for path, scale in font_entries:
+        if abs(scale - 1.0) > 1e-9:
+            print(f"  local_scale {scale:g}: {os.path.basename(path)}")
     fmt_note = (
         "ttf+woff2"
         if write_ttf and write_woff2
@@ -656,7 +705,7 @@ def build_all(
     )
     print(f"Output formats: {fmt_note}")
 
-    sources_list = [SourceFont(p) for p in font_paths]
+    sources_list = [SourceFont(p, local_scale=s) for p, s in font_entries]
     try:
         owner = claim_codepoints(sources_list, target)
     finally:
@@ -671,7 +720,7 @@ def build_all(
     for path in owner.values():
         per_source[os.path.basename(path)] += 1
     print("\nClaimed per source:")
-    for name in PRIORITY_FONTS:
+    for name in PRIORITY_FONT_NAMES:
         if name in per_source:
             print(f"  {name}: {per_source[name]}")
 
@@ -682,6 +731,8 @@ def build_all(
     os.makedirs(out_dir, exist_ok=True)
 
     used_paths = sorted(set(owner.values()))
+    scale_by_path = {p: s for p, s in font_entries}
+    used_entries = [(p, scale_by_path.get(p, 1.0)) for p in used_paths]
     workers = max(1, jobs)
     print(
         f"\nBuilding {len(buckets)} subfonts (glyph-by-glyph, {workers} workers) "
@@ -701,7 +752,7 @@ def build_all(
     with concurrent.futures.ProcessPoolExecutor(
         max_workers=workers,
         initializer=_init_build_worker,
-        initargs=(used_paths, out_dir, target_upem),
+        initargs=(used_entries, out_dir, target_upem),
     ) as executor:
         futures = [executor.submit(_build_bucket_task, task) for task in tasks]
         for fut in concurrent.futures.as_completed(futures):
