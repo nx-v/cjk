@@ -48,18 +48,13 @@ from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
 from fontTools.otlLib.builder import buildLigatureSubstSubtable, buildLookup
 from fontTools.pens.boundsPen import BoundsPen
-from fontTools.pens.recordingPen import DecomposingRecordingPen
+from fontTools.pens.recordingPen import DecomposingRecordingPen, RecordingPen
+from fontTools.pens.reverseContourPen import ReverseContourPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont, newTable, woff2
 from fontTools.ttLib.tables import otTables as ot
-from fontTools.ttLib.tables._g_l_y_f import (
-    ROUND_XY_TO_GRID,
-    UNSCALED_COMPONENT_OFFSET,
-    USE_MY_METRICS,
-    Glyph as TTGlyph,
-    GlyphComponent,
-)
+from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from yi_halfwidth import (
     DEFAULT_UPEM,
@@ -271,30 +266,58 @@ def make_bbox_mirror_composite(
     negate_x: bool,
     negate_y: bool,
 ) -> Tuple[TTGlyph, int, int]:
-    """One-component TT composite: axis mirror about base contour bbox center."""
+    """Bake axis mirror about the base glyph's contour bbox center.
+
+    Outlines are baked (not TT composites with scale −1): many renderers
+    mishandle negative-scale composites and shift the ink, which makes Hangul
+    L/V/T overlays collide. BBox-center flip keeps the same axis-aligned
+    bounds so each jamo stays in its syllable slot.
+    """
     base = glyphs[base_name]
+    rec = RecordingPen()
     try:
-        base.recalcBounds(None)
-        cx = (base.xMin + base.xMax) / 2.0
-        cy = (base.yMin + base.yMax) / 2.0
+        if base.isComposite():
+            # Shallow expand via sibling glyphs in our dict.
+            for comp in base.components:
+                name, (xx, xy, yx, yy, dx, dy) = comp.getComponentInfo()
+                child = glyphs[name]
+                child_rec = RecordingPen()
+                child.draw(child_rec, None)
+                child_rec.replay(
+                    TransformPen(rec, Transform(xx, xy, yx, yy, dx, dy))
+                )
+        else:
+            base.draw(rec, None)
     except Exception:
-        cx = cy = 0.0
+        try:
+            base.draw(rec, None)
+        except Exception:
+            return empty_glyph(), advance, lsb
+
+    bpen = BoundsPen(None)
+    try:
+        rec.replay(bpen)
+    except Exception:
+        bpen.bounds = None
+    if bpen.bounds is None:
+        return empty_glyph(), advance, lsb
+    x0, y0, x1, y1 = bpen.bounds
+    cx = (x0 + x1) / 2.0
+    cy = (y0 + y1) / 2.0
     sx = -1.0 if negate_x else 1.0
     sy = -1.0 if negate_y else 1.0
-    dx = cx * (1.0 - sx)
-    dy = cy * (1.0 - sy)
-    g = TTGlyph()
-    g.numberOfContours = -1
-    comp = GlyphComponent()
-    comp.glyphName = base_name
-    comp.x = otRound(dx)
-    comp.y = otRound(dy)
-    comp.flags = USE_MY_METRICS | ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
-    if (sx, sy) != (1.0, 1.0):
-        # fontTools: ((xx, xy), (yx, yy)); x' = xx·x + yx·y + dx
-        comp.transform = ((sx, 0.0), (0.0, sy))
-    g.components = [comp]
-    return g, advance, lsb
+    # p' = S·(p - c) + c
+    t = Transform(sx, 0, 0, sy, cx * (1.0 - sx), cy * (1.0 - sy))
+    pen = TTGlyphPen(None)
+    dest = ReverseContourPen(pen) if (sx * sy) < 0 else pen
+    rec.replay(TransformPen(dest, t))
+    out = pen.glyph()
+    try:
+        out.recalcBounds(None)
+        new_lsb = int(out.xMin)
+    except Exception:
+        new_lsb = lsb
+    return out, advance, new_lsb
 
 
 def add_mirror_variants(
@@ -372,9 +395,7 @@ def build_hangul_uvs_entries(
         kind = jamo_kind(cp)
         if kind == "V":
             continue
-        if kind is None and not (
-            0xAC00 <= cp <= 0xD7A3 or 0x3131 <= cp <= 0x318E
-        ):
+        if kind is None and not (0xAC00 <= cp <= 0xD7A3 or 0x3131 <= cp <= 0x318E):
             continue
         for mode_i, (_pua, _nx, _ny, suffix) in enumerate(HANGUL_MIRROR_MODES):
             if suffix is None:
@@ -572,9 +593,7 @@ def install_vs_ligas(
     """
     if not pairs:
         return
-    liga_map: Dict[Tuple[str, ...], str] = {
-        (base, vs): var for base, vs, var in pairs
-    }
+    liga_map: Dict[Tuple[str, ...], str] = {(base, vs): var for base, vs, var in pairs}
     # Split to stay under OT 64KB subtable limit (~11k syllables × 3 ≈ ok in a few).
     items = list(liga_map.items())
     chunk_size = 4000
