@@ -74,10 +74,10 @@ CSS_FONT_URL_BASE = (
 # (advance width unchanged).
 
 PRIORITY_FONTS: List[Tuple[str, float]] = [
-    ("NGULIM.TTF", 1.05),
-    ("msjh.ttc", 1.05),
-    ("msyh.ttc", 0.95),
-    ("malgun.ttf", 0.95),
+    ("NGULIM.TTF", 1.03),
+    ("msjh.ttc", 1.03),
+    ("msyh.ttc", 0.96),
+    ("malgun.ttf", 0.96),
     ("LXGWZhiSongMN.ttf", 1.0),
     ("LXGWNeoZhiSongPlus.ttf", 1.0),
     ("HuayingMinchoT.ttf", 1.0),
@@ -92,9 +92,7 @@ PRIORITY_FONTS: List[Tuple[str, float]] = [
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale in PRIORITY_FONTS]
-FONT_LOCAL_SCALE: Dict[str, float] = {
-    name: scale for name, scale in PRIORITY_FONTS
-}
+FONT_LOCAL_SCALE: Dict[str, float] = {name: scale for name, scale in PRIORITY_FONTS}
 
 # ---------- Unicode ranges (inclusive) ----------
 
