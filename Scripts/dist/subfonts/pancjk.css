@@ -1462,7 +1462,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE08, U+18700-187F7;
+  unicode-range: U+FE00-FE08, U+18700-187FF;
 }
 
 @font-face {
@@ -1499,6 +1499,28 @@
 }
 
 @font-face {
+  font-family: 'pancjk 18B';
+  src: url('./18B.woff2') format('woff2'),
+       url('./18B.ttf') format('truetype'),
+       url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/18B.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+FE00-FE08, U+18B00-18BFF;
+}
+
+@font-face {
+  font-family: 'pancjk 18C';
+  src: url('./18C.woff2') format('woff2'),
+       url('./18C.ttf') format('truetype'),
+       url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/18C.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+FE00-FE08, U+18C00-18CD5, U+18CFF;
+}
+
+@font-face {
   font-family: 'pancjk 18D';
   src: url('./18D.woff2') format('woff2'),
        url('./18D.ttf') format('truetype'),
@@ -1506,7 +1528,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE08, U+18D00-18D08;
+  unicode-range: U+FE00-FE08, U+18D00-18D20, U+18D80-18DF2;
 }
 
 @font-face {
@@ -4751,5 +4773,5 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE08, U+33400-3347B;
+  unicode-range: U+FE00-FE08, U+33400-33479;
 }

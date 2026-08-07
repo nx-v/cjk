@@ -84,20 +84,21 @@ PRIORITY_FONTS: List[Tuple[str, float]] = [
     ("NGULIM.TTF", 1.03),
     ("msjh.ttc", 1.03),
     ("malgun.ttf", 0.95),
-    ("Han-Nom Gothic 1.32.otf", 0.94),
+    ("Han-Nom Gothic 1.32.otf", 0.95),
     ("msyh.ttc", 0.95),
     ("LXGWZhiSongMN.ttf", 1.0),
     ("LXGWNeoZhiSongPlus.ttf", 1.0),
-    ("HuayingMinchoT.ttf", 1.0),
     ("I.MingVarCP-8.10.ttf", 1.0),
-    ("Minh Nguyen Regular.ttf", 1.0),
-    ("Han-nom Minh 1.42.otf", 0.98),
-    ("Han-Nom Ming 1.20.otf", 0.98),
+    ("HuayingMinchoT.ttf", 1.0),
+    ("Gothic Nguyen Regular.ttf", 0.95),
+    ("YshiYuanGothicCleaned.ttf", 0.95),
+    ("ChocolateClassicalSans-Regular.ttf", 0.95),
+    ("SukimaGothic.ttf", 0.95),
     ("simsunb.ttf", 1.0),
     ("SimsunExtG.ttf", 1.0),
-    ("NazoMin-Classic.ttf", 0.95),
-    ("NazoMin+-Classic.ttf", 0.95),
     ("NotoSerifTangut-Regular.ttf", 1.0),
+    ("PlangothicP1-Regular.ttf", 0.95),
+    ("PlangothicP2-Regular.ttf", 0.95),
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale in PRIORITY_FONTS]
@@ -123,8 +124,7 @@ CHAR_RANGES: List[Tuple[int, int, str]] = [
     (0x18D00, 0x18D7F, "Tangut Supplement"),
     (0x18800, 0x18AFF, "Tangut Components"),
     (0x18D80, 0x18DFF, "Tangut Components Supplement"),
-    (0x0A000, 0x0A48C, "Yi Syllables"),
-    (0x0A490, 0x0A4CF, "Yi Radicals"),
+    (0x18B00, 0x18CFF, "Khitan Small Script"),
 ]
 
 # (out_cp, source_path, src_cp) — base Unicode claims only; D4 variants in-font
