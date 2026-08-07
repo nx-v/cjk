@@ -9,6 +9,9 @@ Two families
 * ``panhanguls`` — precomposed syllables (U+AC00..D7A3) and compatibility
   jamo (U+3131..318E).
 
+Glyphs use a **1000×1000 em square** (``--upem``, default 1000): full-width
+advances are forced to ``upem``; composed V/T overlays stay zero-width.
+
 VS1..VS4 (axis mirrors)
 -----------------------
 ======= ========== ========== ================================
@@ -82,7 +85,9 @@ OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "hangul")
 MALGUN_FILENAME = "malgun.ttf"
 FAMILY_JAMO = "panhangul"
 FAMILY_SYLL = "panhanguls"
-LOCAL_SCALE = 0.95
+# BBox-center trim after UPM fit. 1.0 keeps full Malgun ink so cells match the
+# 1000×1000 CJK em square used by build_subfonts / build_yi / GlyphWiki.
+LOCAL_SCALE = 1.0
 
 CSS_FONT_URL_BASE = (
     "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/hangul"
@@ -1397,13 +1402,21 @@ def _scale_glyphs_from_subset(
     metrics: Dict[str, Tuple[int, int]] = {".notdef": (target_upem // 2, 0)}
 
     for name in old_order:
+        adv_src, _lsb_src = hmtx.get(name, (src_upem, 0))
+        # Full-width → exact em-square advance (1000×1000 at default UPM).
+        # Zero-advance V/T overlays stay 0 so L+V+T still advances one cell.
+        if adv_src <= 0:
+            advance = 0
+            scale = upem_scale
+        else:
+            advance = target_upem
+            # Map the source advance box onto the target em square.
+            scale = target_upem / float(adv_src)
         g = copy_scaled_glyph(
-            glyph_set, name, upem_scale=upem_scale, local_scale=local_scale
+            glyph_set, name, upem_scale=scale, local_scale=local_scale
         )
         if g is None:
             continue
-        adv_src, _lsb_src = hmtx.get(name, (src_upem, 0))
-        advance = otRound(adv_src * upem_scale)
         try:
             g.recalcBounds(None)
             lsb = int(g.xMin)
