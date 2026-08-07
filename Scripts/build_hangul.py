@@ -25,16 +25,16 @@ VS4     U+E003     U+FE03     mxy — both axes
 
   * **Choseong (initial) + VS** — bbox-flips that initial only (orientation).
   * **Jungseong (medial) + VS** — X/Y-flips about the **ideographic (typo)
-    center** (zero-advance V forms use local pivot ``ideo_x - upem``). Shift
-    amounts for the medial and the choseong are **derived from each jamo's
-    own bounds** (not fixed fractions), then the result is fitted into the
-    ideographic square. Choseong moves right on X, down on Y, down-right on
-    XY. When a batchim follows, L+V rise by per-glyph clearance into the
-    upper band before the final is placed. Choseong orientation is only from
-    a VS on the choseong itself.
+    center** (zero-advance V forms use local pivot ``ideo_x - upem``). The
+    choseong translates on **VS flip axes ∩ the medial's layout group**
+    (X-group ``ㅏ`` → right only, never down; Y-group → down; XY →
+    down-right), by amounts from that choseong's bounds. No rescale. When a
+    batchim follows, L+V rise just enough to clear a per-glyph batchim band.
+    Choseong orientation is only from a VS on the choseong itself.
   * **Jongseong (final) + VS** — bbox-flips the final independently.
-  * **Final present** — raises L+V into the upper ideographic band (per-glyph)
-    so the pair + batchim stay inside the square.
+  * **Final present** — raises L+V above a per-glyph batchim floor (Y-shifted
+    choseong into the lower LV band, Y-flipped jungseong into the upper),
+    translate only, so the final no longer collides with the initial/medial.
 
 * **Syllables (``panhanguls``):** ``char + VS`` / cmap-14 UVS flips the
   whole precomposed (or compat) glyph about its bbox center.
@@ -268,16 +268,10 @@ def copy_scaled_glyph(
 #   xy = compound (ㅘ…) — both
 VowelAxis = str  # "x" | "y" | "xy"
 
-_JUNGSEONG_VERTICAL = frozenset(
-    {"A", "AE", "YA", "YAE", "EO", "E", "YEO", "YE", "I"}
-)
-_JUNGSEONG_HORIZONTAL = frozenset(
-    {"O", "YO", "U", "YU", "EU", "ARAEA", "SSANGARAEA"}
-)
+_JUNGSEONG_VERTICAL = frozenset({"A", "AE", "YA", "YAE", "EO", "E", "YEO", "YE", "I"})
+_JUNGSEONG_HORIZONTAL = frozenset({"O", "YO", "U", "YU", "EU", "ARAEA", "SSANGARAEA"})
 # Modern precomposed digraph names (already mix vertical+horizontal).
-_JUNGSEONG_COMPOUND = frozenset(
-    {"WA", "WAE", "OE", "WEO", "WE", "WI", "YI"}
-)
+_JUNGSEONG_COMPOUND = frozenset({"WA", "WAE", "OE", "WEO", "WE", "WI", "YI"})
 _JUNGSEONG_CP_RANGES: Tuple[Tuple[int, int], ...] = (
     (0x1160, 0x11A7),  # Hangul Jamo medials (+ filler)
     (0xD7B0, 0xD7C6),  # Hangul Jamo Extended-B medials
@@ -457,48 +451,24 @@ def ideo_local_box(
     return (0.0, bottom, float(target_upem), top)
 
 
-def fit_transform_to_box(
+def nudge_into_box(
     bounds: Tuple[float, float, float, float],
     box: Tuple[float, float, float, float],
 ) -> Transform:
-    """Translate (and uniformly scale down if needed) so ``bounds`` ⊆ ``box``."""
+    """Translate only (no scale) so ``bounds`` edges sit inside ``box`` when possible."""
     x0, y0, x1, y1 = bounds
     bx0, by0, bx1, by1 = box
-    bw = max(bx1 - bx0, 1.0)
-    bh = max(by1 - by0, 1.0)
-    gw = max(x1 - x0, 1e-6)
-    gh = max(y1 - y0, 1e-6)
-    scale = min(1.0, bw / gw, bh / gh)
-    gcx = (x0 + x1) / 2.0
-    gcy = (y0 + y1) / 2.0
-    bcx = (bx0 + bx1) / 2.0
-    bcy = (by0 + by1) / 2.0
-    # Scale about glyph center, then translate center onto box center if still
-    # outside; finally nudge so edges stay inside.
-    t = Transform(scale, 0, 0, scale, gcx * (1.0 - scale), gcy * (1.0 - scale))
-    # New bounds after scale about gcx,gcy:
-    nx0 = gcx + (x0 - gcx) * scale
-    ny0 = gcy + (y0 - gcy) * scale
-    nx1 = gcx + (x1 - gcx) * scale
-    ny1 = gcy + (y1 - gcy) * scale
     dx = 0.0
     dy = 0.0
-    if nx0 < bx0:
-        dx = bx0 - nx0
-    elif nx1 > bx1:
-        dx = bx1 - nx1
-    if ny0 < by0:
-        dy = by0 - ny0
-    elif ny1 > by1:
-        dy = by1 - ny1
-    # If both edges overflow (shouldn't after scale), center in box.
-    if nx1 - nx0 <= bw and (nx0 + dx < bx0 or nx1 + dx > bx1):
-        dx = bcx - (nx0 + nx1) / 2.0
-    if ny1 - ny0 <= bh and (ny0 + dy < by0 or ny1 + dy > by1):
-        dy = bcy - (ny0 + ny1) / 2.0
-    if dx or dy:
-        t = Transform(1, 0, 0, 1, dx, dy).transform(t)
-    return t
+    if x0 < bx0:
+        dx = bx0 - x0
+    elif x1 > bx1:
+        dx = bx1 - x1
+    if y0 < by0:
+        dy = by0 - y0
+    elif y1 > by1:
+        dy = by1 - y1
+    return Transform(1, 0, 0, 1, dx, dy)
 
 
 def _replay_glyph(
@@ -548,38 +518,37 @@ def make_layout_shift(
     shift_x: bool,
     shift_y: bool,
 ) -> Tuple[TTGlyph, int, int]:
-    """Translate choseong from its own bounds; fit into the ideographic square.
+    """Translate choseong from its own bounds (no rescale).
 
-    * X: reflect about em mid-x (moves a left-side initial to the right).
-    * Y: drop so the glyph's vertical mid sits on the lower half of the
-      LV band (between ideo center and the batchim floor), amount = f(bounds).
-    * XY: both. Final fit keeps the whole outline inside the square.
+    * X: reflect about ideo mid-x (left-side initial → right).
+    * Y: drop just enough that the glyph's top sits on the ideographic
+      center — clearing the upper band for a Y-flipped jungseong — while
+      leaving a per-glyph batchim reserve below when possible.
     """
     bounds = _glyph_bounds(glyphs, base_name)
     if bounds is None:
         return empty_glyph(), advance, lsb
     x0, y0, x1, y1 = bounds
     gcx = (x0 + x1) / 2.0
-    gcy = (y0 + y1) / 2.0
-    bottom, top, ideo_h = ideographic_bounds(target_upem)
+    bottom, _top, _ideo_h = ideographic_bounds(target_upem)
     icx, icy = ideographic_center(target_upem)
     dx = 0.0
     dy = 0.0
     if shift_x:
         dx = 2.0 * (icx - gcx)
     if shift_y:
-        # Target mid-y: halfway from ideo center down to a batchim floor
-        # reserved as ~this glyph's own height (variable per choseong).
-        gh = max(y1 - y0, 1.0)
-        reserve = min(ideo_h * 0.40, max(ideo_h * 0.18, gh * 0.55))
-        floor = bottom + reserve
-        target_mid = (icy + floor) / 2.0
-        dy = target_mid - gcy
+        # Just enough: top edge to ideo center (upper half kept for flipped V).
+        # Do not nudge this back up — even if the bottom crosses the typo floor;
+        # batchim ``.up`` lifts only enough to clear the final band.
+        dy = icy - y1
     t = Transform(1, 0, 0, 1, dx, dy)
-    # Bounds after translate, then fit into ideo square.
     nb = (x0 + dx, y0 + dy, x1 + dx, y1 + dy)
     box = ideo_local_box(target_upem, advance=advance)
-    t = fit_transform_to_box(nb, box).transform(t)
+    if shift_y:
+        # X-only nudge so Y clearance against the flipped medial is preserved.
+        t = nudge_into_box(nb, (box[0], -1e9, box[2], 1e9)).transform(t)
+    else:
+        t = nudge_into_box(nb, box).transform(t)
     out = _replay_glyph(base_name, glyphs, t)
     if out is None:
         return empty_glyph(), advance, lsb
@@ -590,6 +559,27 @@ def make_layout_shift(
     return out, advance, new_lsb
 
 
+def batchim_lv_bands(
+    target_upem: int, glyph_height: float
+) -> Tuple[float, float, float, float]:
+    """Return ``(batchim_floor, lv_split, gap, ideo_top)`` for packing L/V above T.
+
+    ``batchim_floor`` clears typical jongseong ink; ``lv_split`` divides the
+    remaining upper band (choseong below / Y-flipped jungseong above);
+    ``gap`` is a small clearance so the medial sits a little above the initial.
+    """
+    bottom, top, ideo_h = ideographic_bounds(target_upem)
+    # Finals like ㅀ reach ~y=310 at 1000upem; keep a small gap above that.
+    floor = bottom + max(
+        ideo_h * 0.44, min(ideo_h * 0.52, glyph_height * 0.45 + ideo_h * 0.28)
+    )
+    floor = min(floor, bottom + ideo_h * 0.55)
+    # Higher split → more room for the choseong; medial packs above it.
+    split = floor + (top - floor) * 0.55
+    gap = min(ideo_h * 0.08, max(ideo_h * 0.045, glyph_height * 0.15))
+    return floor, split, gap, top
+
+
 def make_upward_squish(
     base_name: str,
     glyphs: Dict[str, TTGlyph],
@@ -598,29 +588,49 @@ def make_upward_squish(
     lsb: int,
     target_upem: int,
 ) -> Tuple[TTGlyph, int, int]:
-    """Raise glyph into the upper ideographic band, clearing room for a final.
+    """Raise glyph above the batchim band (translate only, no rescale).
 
-    Clearance and final placement are derived from this glyph's own bounds;
-    the result is fitted into the ideographic square.
+    * Always clear ``batchim_floor`` so L/V do not sit on the final.
+    * Y-shifted choseong (``.emmy`` / ``.emmxy``): pack into
+      ``[floor, split - gap]`` when the glyph fits.
+    * Y-flipped jungseong (``.my`` / ``.mxy``): pack into
+      ``[split + gap, top]`` — a little above the initial.
     """
     bounds = _glyph_bounds(glyphs, base_name)
     if bounds is None:
         return empty_glyph(), advance, lsb
     x0, y0, x1, y1 = bounds
-    bottom, top, ideo_h = ideographic_bounds(target_upem)
     gh = max(y1 - y0, 1.0)
-    reserve = min(ideo_h * 0.40, max(ideo_h * 0.18, gh * 0.55))
-    floor = bottom + reserve
-    # Lift so the glyph sits in [floor, top]: prefer flush to the typo top.
-    dy = (top - y1) if (y1 - y0) <= (top - floor) else (floor - y0)
-    if y0 + dy < floor:
-        dy = floor - y0
+    floor, split, gap, top = batchim_lv_bands(target_upem, gh)
+    suffix = base_name.rsplit(".", 1)[-1] if "." in base_name else ""
+    y_shifted_l = suffix in ("emmy", "emmxy")
+    y_flipped_v = suffix in ("my", "mxy")
+    l_top = split - gap
+    v_bot = split + gap
+
+    if y_shifted_l and gh <= (l_top - floor):
+        # Pin into [floor, split - gap]: top just below the medial band.
+        dy = l_top - y1
+        if y0 + dy < floor:
+            dy = floor - y0
+    elif y_flipped_v and gh <= (top - v_bot):
+        # Pin into [split + gap, top]: bottom a little above the initial.
+        dy = v_bot - y0
+        if y1 + dy > top:
+            dy = top - y1
+    else:
+        # Clear the batchim floor; keep top inside the square.
+        dy = max(0.0, floor - y0)
+        if y1 + dy > top:
+            dy = max(0.0, top - y1)
+        # Tall Y-flipped V: still nudge up toward v_bot when possible.
+        if y_flipped_v and y0 + dy < v_bot and y1 + (v_bot - y0) <= top:
+            dy = v_bot - y0
+
     t = Transform(1, 0, 0, 1, 0, dy)
     nb = (x0, y0 + dy, x1, y1 + dy)
     box = ideo_local_box(target_upem, advance=advance)
-    # Fit within the upper band (not the full square — leave batchim zone).
-    upper = (box[0], floor, box[2], top)
-    t = fit_transform_to_box(nb, upper).transform(t)
+    t = nudge_into_box(nb, box).transform(t)
     out = _replay_glyph(base_name, glyphs, t)
     if out is None:
         return empty_glyph(), advance, lsb
@@ -711,9 +721,7 @@ def make_bbox_mirror(
                 child = glyphs[name]
                 child_rec = RecordingPen()
                 child.draw(child_rec, None)
-                child_rec.replay(
-                    TransformPen(rec, Transform(xx, xy, yx, yy, dx, dy))
-                )
+                child_rec.replay(TransformPen(rec, Transform(xx, xy, yx, yy, dx, dy)))
         else:
             base.draw(rec, None)
     except Exception:
@@ -751,6 +759,7 @@ def make_bbox_mirror(
         ny0, ny1 = ny1, ny0
     if about_ideo and negate_y and target_upem is not None:
         bottom, top, ideo_h = ideographic_bounds(target_upem)
+        _icx, icy = ideographic_center(target_upem)
         gh = max(ny1 - ny0, 1.0)
         reserve = min(ideo_h * 0.40, max(ideo_h * 0.18, gh * 0.55))
         floor = bottom + reserve
@@ -758,9 +767,20 @@ def make_bbox_mirror(
         t = Transform(1, 0, 0, 1, 0, rise).transform(t)
         ny0 += rise
         ny1 += rise
+        # Prefer the upper band above ideo center (choseong clears below it).
+        if ny1 - ny0 <= top - icy and ny0 < icy:
+            lift = icy - ny0
+            t = Transform(1, 0, 0, 1, 0, lift).transform(t)
+            ny0 += lift
+            ny1 += lift
+        if ny1 > top:
+            back = top - ny1
+            t = Transform(1, 0, 0, 1, 0, back).transform(t)
+            ny0 += back
+            ny1 += back
     if about_ideo and target_upem is not None:
         box = ideo_local_box(target_upem, advance=advance)
-        t = fit_transform_to_box((nx0, ny0, nx1, ny1), box).transform(t)
+        t = nudge_into_box((nx0, ny0, nx1, ny1), box).transform(t)
     pen = TTGlyphPen(None)
     dest = ReverseContourPen(pen) if (sx * sy) < 0 else pen
     rec.replay(TransformPen(dest, t))
@@ -1110,9 +1130,7 @@ def install_vs_ligas(
     """``base + vs → variant`` ligas (whole-glyph / syllables font)."""
     if not pairs:
         return
-    liga_map: Dict[Tuple[str, ...], str] = {
-        (base, vs): var for base, vs, var in pairs
-    }
+    liga_map: Dict[Tuple[str, ...], str] = {(base, vs): var for base, vs, var in pairs}
     items = list(liga_map.items())
     chunk_size = 4000
     liga_lookups = []
@@ -1227,9 +1245,7 @@ def install_jamo_component_vs(
             sub = buildLigatureSubstSubtable(chunk)
             lu = buildLookup([sub])
             lu.LookupType = 4
-            liga_feature_indices.append(
-                len(gsub.LookupList.Lookup) + len(staged)
-            )
+            liga_feature_indices.append(len(gsub.LookupList.Lookup) + len(staged))
             staged.append(lu)
 
     def _add_chain(
@@ -1269,7 +1285,9 @@ def install_jamo_component_vs(
 
     layout_count = 0
 
-    # --- Medial VS → shift choseong (L.em*) on axes ∩ medial group ---
+    # --- Medial VS → shift choseong on (VS flip axes ∩ medial group) ---
+    # X-group (ㅏ…): X only — no downward L shift even if VS has Y.
+    # Y-group (ㅗ/ㅜ…): Y only. XY-group (ㅘ…): both.
     for v_sfx, v_axes in V_SUFFIX_AXES.items():
         v_sfx_glyphs = sorted(
             (
@@ -1314,14 +1332,10 @@ def install_jamo_component_vs(
     # --- Jongseong present → shift L+V upward (.up) ---
     if t_all:
         l_up_map = {
-            L: up_variant_name(L)
-            for L in l_for_up
-            if up_variant_name(L) in glyphs
+            L: up_variant_name(L) for L in l_for_up if up_variant_name(L) in glyphs
         }
         v_up_map = {
-            V: up_variant_name(V)
-            for V in v_for_up
-            if up_variant_name(V) in glyphs
+            V: up_variant_name(V) for V in v_for_up if up_variant_name(V) in glyphs
         }
         if l_up_map and v_up_map:
             # L' V T -> L.up
@@ -1472,15 +1486,9 @@ def build_jamo_font(
     _inject_vs(glyph_order, glyphs, metrics, cmap)
     vs_names = [vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES]
 
-    l_forms = sorted(
-        n for n, c in jamo_class.items() if c == "L" and n in glyphs
-    )
-    v_forms = sorted(
-        n for n, c in jamo_class.items() if c == "V" and n in glyphs
-    )
-    t_forms = sorted(
-        n for n, c in jamo_class.items() if c == "T" and n in glyphs
-    )
+    l_forms = sorted(n for n, c in jamo_class.items() if c == "L" and n in glyphs)
+    v_forms = sorted(n for n, c in jamo_class.items() if c == "V" and n in glyphs)
+    t_forms = sorted(n for n, c in jamo_class.items() if c == "T" and n in glyphs)
     # Include cmap'd L/V/T that classification might miss as identity forms.
     for cp, gname in list(cmap.items()):
         if is_vs_codepoint(cp) or gname not in glyphs:
@@ -1503,8 +1511,7 @@ def build_jamo_font(
     t_forms = sorted(set(t_forms))
 
     print(
-        "  Installing L/V/T bbox mirrors; per-jamo shifts; "
-        "ideo-square fit...",
+        "  Installing L/V/T bbox mirrors; per-jamo shifts; " "ideo-square fit...",
         flush=True,
     )
     for base in l_forms + t_forms:
