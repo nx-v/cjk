@@ -90,7 +90,7 @@ FAMILY_SYLL = "panhanguls"
 LOCAL_SCALE = 1.0
 # Uniform Y translate after UPM fit (target-upem units). Malgun Hangul sits
 # high vs CJK/kana/Yi (typo mid ~380); negative shifts down to match.
-MALGUN_Y_SHIFT = -50
+MALGUN_Y_SHIFT = -60
 
 CSS_FONT_URL_BASE = (
     "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/hangul"
