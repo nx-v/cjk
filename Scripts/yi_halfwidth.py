@@ -5,8 +5,8 @@ Encoding
 * One font (``panyi``) covering the whole Yi inventory.
 * Standalones: NuosuSIL is monospace (shared advance). Every glyph gets the
   **same** ``sx`` from that advance and the **same** ``sy`` from the tallest
-  ink height, then a small extra horizontal widen; Y is fitted to the CJK
-  typo box (center at 0.38em).
+  ink height, then headless CAPE Weightor Width-mode stretch (``cape_weightor``);
+  Y is fitted to the CJK typo box (center at 0.38em).
 * Orientations: D4 square symmetries on **VS01..VS08** (``U+E000``..``U+E007``,
   UVS ``U+FE00``..``U+FE07``), including ``r90my``. Identity needs no subst;
   the other seven are TrueType composites / baked outlines about the CJK
@@ -46,6 +46,8 @@ try:
 except ImportError:  # Scripts.* import style
     from Scripts.kage.mapping import D4_MODES, MirrorVS
 
+from cape_weightor import widen_ttglyph
+
 # ---------- Constants ----------
 
 YI_SYLLABLES = (0xA000, 0xA48C)
@@ -65,7 +67,8 @@ DEFAULT_UPEM = 1000
 STANDALONE_PAD = 0.0
 HALFWIDTH_PAD = 0.0
 COMPOUND_PAD = 0.0
-# Standalone only: extra horizontal scale after fit (1.0 = none).
+# Standalone only: CAPE Weightor Width-mode factor after fit
+# (0.15 → target outer width 115% of post-fit ink, stems preserved).
 STANDALONE_CONTOUR_WIDEN = 0.15
 # Inset from CJK typo top/bottom when fitting Y (fraction of em).
 # Keeps short glyphs from sitting on the raw descent (-0.12em), which reads
@@ -883,16 +886,6 @@ def _uniform_place(
     return glyph
 
 
-def _widen_glyph_x(glyph: TTGlyph, factor: float, center_x: float) -> TTGlyph:
-    """Scale X about ``center_x`` (Y unchanged). ``factor`` 1.06 → 6% wider."""
-    if abs(factor - 1.0) < 1e-9:
-        return glyph
-    rec = RecordingPen()
-    glyph.draw(rec, None)
-    t = Transform(factor, 0, 0, 1, (1.0 - factor) * center_x, 0)
-    return apply_transform(rec, t)
-
-
 def _fit_glyph_to_cjk_height(
     glyph: TTGlyph,
     target_upem: int,
@@ -949,9 +942,10 @@ def make_standalone_glyph(
     """Shared ``sx`` from advance, shared ``sy`` from inventory max ink height.
 
     X is placed from the monospace advance center (side bearings preserved).
-    Contours are widened slightly on X (``widen``, default ~6%). Then Y is
-    fitted to a padded CJK typo box: squash if taller, otherwise pin the ink
-    bottom to the padded floor (above raw descent).
+    Contours are then stretched with CAPE Weightor Width mode (``widen``,
+    default +15% outer width, vertical stems compensated). Then Y is fitted
+    to a padded CJK typo box: squash if taller, otherwise pin the ink bottom
+    to the padded floor (above raw descent).
     """
     del stroke_weight
     del source_center_y  # retained for call-site compat / inventory symmetry
@@ -977,7 +971,12 @@ def make_standalone_glyph(
     if glyph is None:
         return None
     if widen > 0:
-        glyph = _widen_glyph_x(glyph, 1.0 + widen, dst_cx)
+        glyph, _adv, _lsb = widen_ttglyph(
+            glyph,
+            1.0 + widen,
+            advance=float(target_upem),
+            center_x=dst_cx,
+        )
     glyph = _fit_glyph_to_cjk_height(glyph, target_upem, pad=vert_pad)
     try:
         glyph.recalcBounds(None)

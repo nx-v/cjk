@@ -41,6 +41,7 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont, woff2
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
+from cape_weightor import bolden_ttglyph
 from yi_halfwidth import (
     NUOSU_FILENAME,
     STACK_MARK_CP,
@@ -76,33 +77,40 @@ CSS_FONT_URL_BASE = (
     "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts"
 )
 
-# ---------- Source priority (highest first): (filename, local_scale) ----------
-# local_scale is applied about each glyph's contour bbox center after UPM fit
-# (advance width unchanged).
+# ---------- Source priority (highest first) ----------
+# Each entry: (filename, local_scale, weightor)
+# * local_scale — isotropic scale about contour bbox center after UPM fit
+#   (advance width unchanged).
+# * weightor — CAPE Weightor Weight-mode factor after fit (>1 bolden, <1 lighten,
+#   1.0 = none). Outer width/height are preserved.
 
-PRIORITY_FONTS: List[Tuple[str, float]] = [
-    ("NGULIM.TTF", 1.03),
-    ("msjh.ttc", 1.03),
-    ("malgun.ttf", 0.95),
-    ("Han-Nom Gothic 1.32.otf", 0.95),
-    ("msyh.ttc", 0.95),
-    ("LXGWZhiSongMN.ttf", 1.0),
-    ("LXGWNeoZhiSongPlus.ttf", 1.0),
-    ("I.MingVarCP-8.10.ttf", 1.0),
-    ("HuayingMinchoT.ttf", 1.0),
-    ("Gothic Nguyen Regular.ttf", 0.95),
-    ("YshiYuanGothicCleaned.ttf", 0.95),
-    ("ChocolateClassicalSans-Regular.ttf", 0.95),
-    ("SukimaGothic.ttf", 0.95),
-    ("simsunb.ttf", 1.0),
-    ("SimsunExtG.ttf", 1.0),
-    ("NotoSerifTangut-Regular.ttf", 1.0),
-    ("PlangothicP1-Regular.ttf", 0.95),
-    ("PlangothicP2-Regular.ttf", 0.95),
+PRIORITY_FONTS: List[Tuple[str, float, float]] = [
+    ("NGULIM.TTF", 1.0, 1.05),
+    ("msjh.ttc", 1.0, 1.05),
+    ("malgun.ttf", 0.95, 1.0),
+    ("Han-Nom Gothic 1.32.otf", 0.95, 1.0),
+    ("msyh.ttc", 0.95, 1.0),
+    ("LXGWXiHeiMN.ttf", 1.01, 1.0),
+    ("LXGWXiHeiCL.ttf", 1.01, 1.0),
+    ("LXGWNeoXiHeiPlus.ttf", 1.01, 1.0),
+    ("I.MingVarCP-8.10.ttf", 1.0, 1.02),
+    ("HuayingMinchoT.ttf", 1.0, 1.0),
+    ("Gothic Nguyen Regular.ttf", 0.95, 1.0),
+    ("YshiYuanGothicCleaned.ttf", 0.95, 1.0),
+    ("ChocolateClassicalSans-Regular.ttf", 0.95, 1.0),
+    ("SukimaGothic.ttf", 0.95, 1.0),
+    ("simsunb.ttf", 1.0, 1.03),
+    ("SimsunExtG.ttf", 1.0, 1.03),
+    ("NotoSerifTangut-Regular.ttf", 1.0, 1.0),
+    ("PlangothicP1-Regular.ttf", 0.95, 1.0),
+    ("PlangothicP2-Regular.ttf", 0.95, 1.0),
 ]
 
-PRIORITY_FONT_NAMES: List[str] = [name for name, _scale in PRIORITY_FONTS]
-FONT_LOCAL_SCALE: Dict[str, float] = {name: scale for name, scale in PRIORITY_FONTS}
+PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
+FONT_LOCAL_SCALE: Dict[str, float] = {
+    name: scale for name, scale, _w in PRIORITY_FONTS
+}
+FONT_WEIGHTOR: Dict[str, float] = {name: w for name, _scale, w in PRIORITY_FONTS}
 
 # ---------- Unicode ranges (inclusive) ----------
 
@@ -212,9 +220,15 @@ def _scale_glyph_about_bounds_center(glyph: TTGlyph, factor: float) -> TTGlyph:
 class SourceFont:
     """Lazy-open source font with cmap and drawing helpers."""
 
-    def __init__(self, path: str, local_scale: float = 1.0):
+    def __init__(
+        self,
+        path: str,
+        local_scale: float = 1.0,
+        weightor: float = 1.0,
+    ):
         self.path = path
         self.local_scale = float(local_scale)
+        self.weightor = float(weightor)
         self.tt = TTFont(path, fontNumber=0)
         self.upem = int(self.tt["head"].unitsPerEm)
         self.cmap = font_cmap(self.tt)
@@ -234,10 +248,11 @@ class SourceFont:
         flip_x: bool = False,
         flip_y: bool = False,
     ) -> Optional[Tuple[TTGlyph, int, int]]:
-        """Decompose + UPM scale + optional local scale / axis mirrors.
+        """Decompose + UPM scale + optional local scale / weightor / mirrors.
 
         ``local_scale`` (per source font) scales outlines about the contour
         bounding-box center; advance width stays the UPM-scaled source advance.
+        ``weightor`` then boldens/lightens via CAPE Weightor (bounds preserved).
         Mirrors also flip about that same contour center.
         """
         if is_empty_outline(self.tt, src_name):
@@ -303,6 +318,18 @@ class SourceFont:
         if glyph.numberOfContours == 0 and not glyph.isComposite():
             return None
 
+        if abs(self.weightor - 1.0) > 1e-9:
+            try:
+                glyph, advance, lsb = bolden_ttglyph(
+                    glyph, self.weightor, advance=float(advance)
+                )
+                return glyph, advance, lsb
+            except Exception as e:
+                print(
+                    f"  [!] weightor failed {os.path.basename(self.path)}:{src_name}: {e}",
+                    file=sys.stderr,
+                )
+
         try:
             glyph.recalcBounds(None)
             lsb = int(glyph.xMin)
@@ -311,20 +338,20 @@ class SourceFont:
         return glyph, advance, lsb
 
 
-def resolve_priority_fonts(in_dir: str) -> List[Tuple[str, float]]:
-    """Return ``[(path, local_scale), ...]`` for fonts present under ``in_dir``."""
-    found: List[Tuple[str, float]] = []
-    for name, scale in PRIORITY_FONTS:
+def resolve_priority_fonts(in_dir: str) -> List[Tuple[str, float, float]]:
+    """Return ``[(path, local_scale, weightor), ...]`` for fonts under ``in_dir``."""
+    found: List[Tuple[str, float, float]] = []
+    for name, scale, weightor in PRIORITY_FONTS:
         path = os.path.join(in_dir, name)
         if not os.path.isfile(path):
             print(f"[!] Missing priority font: {name}", file=sys.stderr)
             continue
-        found.append((path, scale))
+        found.append((path, scale, weightor))
     return found
 
 
 def resolve_priority_paths(in_dir: str) -> List[str]:
-    return [path for path, _scale in resolve_priority_fonts(in_dir)]
+    return [path for path, _scale, _w in resolve_priority_fonts(in_dir)]
 
 
 def claim_codepoints(sources: List[SourceFont], target: Set[int]) -> Dict[int, str]:
@@ -430,14 +457,16 @@ def build_bucket_font(
             )
             if copied is None:
                 continue
+            g, adv, _lsb = copied
             if abs(src.local_scale - 1.0) > 1e-9:
-                g, adv, _lsb = copied
                 g = _scale_glyph_about_bounds_center(g, src.local_scale)
-                try:
-                    g.recalcBounds(None)
-                    copied = (g, adv, int(g.xMin))
-                except Exception:
-                    copied = (g, adv, _lsb)
+            if abs(src.weightor - 1.0) > 1e-9:
+                g, adv, _lsb = bolden_ttglyph(g, src.weightor, advance=float(adv))
+            try:
+                g.recalcBounds(None)
+                copied = (g, adv, int(g.xMin))
+            except Exception:
+                copied = (g, adv, _lsb)
         else:
             copied = src.copy_glyph(src_name, target_upem, flip_x=False, flip_y=False)
             if copied is None:
@@ -579,7 +608,7 @@ def _compress_woff2_task(ttf_path: str) -> None:
 
 
 def _init_build_worker(
-    font_entries: List[Tuple[str, float]],
+    font_entries: List[Tuple[str, float, float]],
     out_dir: str,
     target_upem: int,
 ) -> None:
@@ -587,7 +616,9 @@ def _init_build_worker(
     global _WORKER_SOURCES, _WORKER_OUT_DIR, _WORKER_UPEM
     _WORKER_OUT_DIR = out_dir
     _WORKER_UPEM = target_upem
-    _WORKER_SOURCES = {p: SourceFont(p, local_scale=s) for p, s in font_entries}
+    _WORKER_SOURCES = {
+        p: SourceFont(p, local_scale=s, weightor=w) for p, s, w in font_entries
+    }
 
 
 def _build_bucket_task(
@@ -748,9 +779,14 @@ def build_all(
     target = ranges_to_set(CHAR_RANGES)
     print(f"Target range size: {len(target)} codepoints")
     print(f"Source fonts: {len(font_entries)}")
-    for path, scale in font_entries:
+    for path, scale, weightor in font_entries:
+        notes: List[str] = []
         if abs(scale - 1.0) > 1e-9:
-            print(f"  local_scale {scale:g}: {os.path.basename(path)}")
+            notes.append(f"local_scale {scale:g}")
+        if abs(weightor - 1.0) > 1e-9:
+            notes.append(f"weightor {weightor:g}")
+        if notes:
+            print(f"  {', '.join(notes)}: {os.path.basename(path)}")
     fmt_note = (
         "ttf+woff2"
         if write_ttf and write_woff2
@@ -758,7 +794,9 @@ def build_all(
     )
     print(f"Output formats: {fmt_note}")
 
-    sources_list = [SourceFont(p, local_scale=s) for p, s in font_entries]
+    sources_list = [
+        SourceFont(p, local_scale=s, weightor=w) for p, s, w in font_entries
+    ]
     try:
         owner = claim_codepoints(sources_list, target)
     finally:
@@ -784,8 +822,10 @@ def build_all(
     os.makedirs(out_dir, exist_ok=True)
 
     used_paths = sorted(set(owner.values()))
-    scale_by_path = {p: s for p, s in font_entries}
-    used_entries = [(p, scale_by_path.get(p, 1.0)) for p in used_paths]
+    params_by_path = {p: (s, w) for p, s, w in font_entries}
+    used_entries = [
+        (p, *params_by_path.get(p, (1.0, 1.0))) for p in used_paths
+    ]
     workers = max(1, jobs)
     print(
         f"\nBuilding {len(buckets)} subfonts (glyph-by-glyph, {workers} workers) "
