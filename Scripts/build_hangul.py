@@ -88,6 +88,9 @@ FAMILY_SYLL = "panhanguls"
 # BBox-center trim after UPM fit. 1.0 keeps full Malgun ink so cells match the
 # 1000×1000 CJK em square used by build_subfonts / build_yi / GlyphWiki.
 LOCAL_SCALE = 1.0
+# Uniform Y translate after UPM fit (target-upem units). Malgun Hangul sits
+# high vs CJK/kana/Yi (typo mid ~380); negative shifts down to match.
+MALGUN_Y_SHIFT = -40
 
 CSS_FONT_URL_BASE = (
     "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/hangul"
@@ -231,6 +234,7 @@ def copy_scaled_glyph(
     *,
     upem_scale: float,
     local_scale: float,
+    y_shift: float = 0.0,
 ) -> Optional[TTGlyph]:
     try:
         rec = DecomposingRecordingPen(glyph_set)
@@ -252,7 +256,7 @@ def copy_scaled_glyph(
     cy = (y0 + y1) / 2.0
     s = upem_scale * local_scale
     dx = upem_scale * (1.0 - local_scale) * cx
-    dy = upem_scale * (1.0 - local_scale) * cy
+    dy = upem_scale * (1.0 - local_scale) * cy + y_shift
     pen = TTGlyphPen(None)
     try:
         rec.replay(TransformPen(pen, Transform(s, 0, 0, s, dx, dy)))
@@ -1386,6 +1390,7 @@ def _scale_glyphs_from_subset(
     target_upem: int,
     src_upem: int,
     local_scale: float,
+    y_shift: float = 0.0,
 ) -> Tuple[
     List[str],
     Dict[str, TTGlyph],
@@ -1413,7 +1418,11 @@ def _scale_glyphs_from_subset(
             # Map the source advance box onto the target em square.
             scale = target_upem / float(adv_src)
         g = copy_scaled_glyph(
-            glyph_set, name, upem_scale=scale, local_scale=local_scale
+            glyph_set,
+            name,
+            upem_scale=scale,
+            local_scale=local_scale,
+            y_shift=y_shift,
         )
         if g is None:
             continue
@@ -1462,6 +1471,7 @@ def build_jamo_font(
     *,
     limit: Optional[int] = None,
     local_scale: float = LOCAL_SCALE,
+    y_shift: float = MALGUN_Y_SHIFT,
     write_ttf: bool = True,
     write_woff2: bool = True,
 ) -> Tuple[str, int, List[int]]:
@@ -1490,11 +1500,16 @@ def build_jamo_font(
     print(f"  Jamo forms classified: L={n_l} V={n_v} T={n_t}", flush=True)
 
     print(
-        f"  Scaling glyphs (upem {src_upem}->{target_upem}, local {local_scale:g})...",
+        f"  Scaling glyphs (upem {src_upem}->{target_upem}, local {local_scale:g}, "
+        f"y_shift {y_shift:g})...",
         flush=True,
     )
     glyph_order, glyphs, metrics, cmap = _scale_glyphs_from_subset(
-        tt, target_upem=target_upem, src_upem=src_upem, local_scale=local_scale
+        tt,
+        target_upem=target_upem,
+        src_upem=src_upem,
+        local_scale=local_scale,
+        y_shift=y_shift,
     )
     _inject_vs(glyph_order, glyphs, metrics, cmap)
     vs_names = [vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES]
@@ -1706,6 +1721,7 @@ def build_syllables_font(
     *,
     limit: Optional[int] = None,
     local_scale: float = LOCAL_SCALE,
+    y_shift: float = MALGUN_Y_SHIFT,
     write_ttf: bool = True,
     write_woff2: bool = True,
 ) -> Tuple[str, int, List[int]]:
@@ -1729,11 +1745,16 @@ def build_syllables_font(
     tt = subset_malgun(src_path, unicodes)
 
     print(
-        f"  Scaling glyphs (upem {src_upem}->{target_upem}, local {local_scale:g})...",
+        f"  Scaling glyphs (upem {src_upem}->{target_upem}, local {local_scale:g}, "
+        f"y_shift {y_shift:g})...",
         flush=True,
     )
     glyph_order, glyphs, metrics, cmap = _scale_glyphs_from_subset(
-        tt, target_upem=target_upem, src_upem=src_upem, local_scale=local_scale
+        tt,
+        target_upem=target_upem,
+        src_upem=src_upem,
+        local_scale=local_scale,
+        y_shift=y_shift,
     )
     # Drop any leftover jamo GSUB from subset — syllables font is whole-glyph only.
     if "GSUB" in tt:
@@ -1882,6 +1903,7 @@ def build_all(
     *,
     limit: Optional[int] = None,
     local_scale: float = LOCAL_SCALE,
+    y_shift: float = MALGUN_Y_SHIFT,
     write_ttf: bool = True,
     write_woff2: bool = True,
 ) -> None:
@@ -1896,6 +1918,7 @@ def build_all(
     )
     print(f"  Syllables ({FAMILY_SYLL}): whole-glyph VS / UVS")
     print(f"  Local scale: {local_scale:g} about bbox center")
+    print(f"  Y shift: {y_shift:g} (align Malgun to CJK/Yi typo mid)")
     fmt_note = (
         "ttf+woff2"
         if write_ttf and write_woff2
@@ -1909,6 +1932,7 @@ def build_all(
         target_upem,
         limit=limit,
         local_scale=local_scale,
+        y_shift=y_shift,
         write_ttf=write_ttf,
         write_woff2=write_woff2,
     )
@@ -1918,6 +1942,7 @@ def build_all(
         target_upem,
         limit=limit,
         local_scale=local_scale,
+        y_shift=y_shift,
         write_ttf=write_ttf,
         write_woff2=write_woff2,
     )
@@ -1949,6 +1974,13 @@ def parse_args() -> argparse.Namespace:
         default=LOCAL_SCALE,
         help=f"BBox-center scale (default {LOCAL_SCALE})",
     )
+    p.add_argument(
+        "--y-shift",
+        type=float,
+        default=MALGUN_Y_SHIFT,
+        help=f"Vertical shift in target-upem units after fit "
+        f"(default {MALGUN_Y_SHIFT}; negative = down)",
+    )
     fmt = p.add_mutually_exclusive_group()
     fmt.add_argument(
         "--ttf-only",
@@ -1972,6 +2004,7 @@ if __name__ == "__main__":
         args.upem,
         limit=args.limit,
         local_scale=args.local_scale,
+        y_shift=args.y_shift,
         write_ttf=not args.woff2_only,
         write_woff2=not args.ttf_only,
     )
