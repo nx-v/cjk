@@ -76,8 +76,8 @@ CSS_FONT_URL_BASE = (
 PRIORITY_FONTS: List[Tuple[str, float]] = [
     ("NGULIM.TTF", 1.03),
     ("msjh.ttc", 1.03),
-    ("msyh.ttc", 0.96),
-    ("malgun.ttf", 0.96),
+    ("malgun.ttf", 0.95),
+    ("malgun.ttf", 0.95),
     ("LXGWZhiSongMN.ttf", 1.0),
     ("LXGWNeoZhiSongPlus.ttf", 1.0),
     ("HuayingMinchoT.ttf", 1.0),
@@ -85,8 +85,8 @@ PRIORITY_FONTS: List[Tuple[str, float]] = [
     ("Minh Nguyen Regular.ttf", 1.0),
     ("simsunb.ttf", 1.0),
     ("SimsunExtG.ttf", 1.0),
-    ("NazoMin-Classic.ttf", 1.0),
-    ("NazoMin+-Classic.ttf", 1.0),
+    ("NazoMin-Classic.ttf", 0.95),
+    ("NazoMin+-Classic.ttf", 0.95),
     ("NotoSerifTangut-Regular.ttf", 1.0),
 ]
 
