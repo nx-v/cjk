@@ -87,29 +87,26 @@ CSS_FONT_URL_BASE = (
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("NGULIM.TTF", 1.0, 1.05),
     ("msjh.ttc", 1.0, 1.05),
-    ("malgun.ttf", 0.95, 1.0),
     ("Han-Nom Gothic 1.32.otf", 0.95, 1.0),
     ("msyh.ttc", 0.95, 1.0),
     ("LXGWXiHeiMN.ttf", 1.01, 1.0),
     ("LXGWXiHeiCL.ttf", 1.01, 1.0),
     ("LXGWNeoXiHeiPlus.ttf", 1.01, 1.0),
-    ("I.MingVarCP-8.10.ttf", 1.0, 1.02),
-    ("HuayingMinchoT.ttf", 1.0, 1.0),
-    ("Gothic Nguyen Regular.ttf", 0.95, 1.0),
-    ("YshiYuanGothicCleaned.ttf", 0.95, 1.0),
-    ("ChocolateClassicalSans-Regular.ttf", 0.95, 1.0),
-    ("SukimaGothic.ttf", 0.95, 1.0),
+    ("Gothic Nguyen Regular.ttf", 0.97, 1.0),
+    ("YshiYuanGothicCleaned.ttf", 0.97, 1.0),
+    ("ChocolateClassicalSans-Regular.ttf", 0.97, 1.0),
+    ("SukimaGothic.ttf", 0.97, 1.0),
+    ("I.MingVarCP-8.10.ttf", 1.0, 1.03),
+    ("HuayingMinchoT.ttf", 1.0, 1.03),
     ("simsunb.ttf", 1.0, 1.03),
     ("SimsunExtG.ttf", 1.0, 1.03),
-    ("NotoSerifTangut-Regular.ttf", 1.0, 1.0),
-    ("PlangothicP1-Regular.ttf", 0.95, 1.0),
-    ("PlangothicP2-Regular.ttf", 0.95, 1.0),
+    ("NotoSerifTangut-Regular.ttf", 1.0, 1.03),
+    ("PlangothicP1-Regular.ttf", 0.97, 1.0),
+    ("PlangothicP2-Regular.ttf", 0.97, 1.0),
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
-FONT_LOCAL_SCALE: Dict[str, float] = {
-    name: scale for name, scale, _w in PRIORITY_FONTS
-}
+FONT_LOCAL_SCALE: Dict[str, float] = {name: scale for name, scale, _w in PRIORITY_FONTS}
 FONT_WEIGHTOR: Dict[str, float] = {name: w for name, _scale, w in PRIORITY_FONTS}
 
 # ---------- Unicode ranges (inclusive) ----------
@@ -823,9 +820,7 @@ def build_all(
 
     used_paths = sorted(set(owner.values()))
     params_by_path = {p: (s, w) for p, s, w in font_entries}
-    used_entries = [
-        (p, *params_by_path.get(p, (1.0, 1.0))) for p in used_paths
-    ]
+    used_entries = [(p, *params_by_path.get(p, (1.0, 1.0))) for p in used_paths]
     workers = max(1, jobs)
     print(
         f"\nBuilding {len(buckets)} subfonts (glyph-by-glyph, {workers} workers) "
