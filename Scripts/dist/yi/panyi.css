@@ -2,9 +2,11 @@
 
 @font-face {
   font-family: 'panyi';
-  src: url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/yi/panyi.woff2') format('woff2');
+  src: url('./panyi.woff2') format('woff2'),
+       url('./panyi.ttf') format('truetype'),
+       url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/yi/panyi.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+A000-A48C, U+A490-A4C6, U+E000-E007, U+FE08;
+  unicode-range: U+A000-A48C, U+A490-A4C6, U+E000-E007, U+FE00-FE08;
 }

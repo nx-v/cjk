@@ -93,7 +93,7 @@ LOCAL_SCALE = 1.0
 MALGUN_Y_SHIFT = -70
 # Extra Y scale about the ideographic center after UPM fit (1.0 = none).
 # Malgun Hangul syllables are ~935 tall vs CJK median ~901 → ~0.96.
-MALGUN_Y_SCALE = 0.8
+MALGUN_Y_SCALE = 0.85
 
 CSS_FONT_URL_BASE = (
     "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/hangul"

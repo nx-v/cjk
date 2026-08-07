@@ -231,12 +231,16 @@ def install_overlay_gsub(
     *,
     glyphs: Dict[str, TTGlyph],
     glyph_order: Sequence[str],
+    max_stack: int = 8,
 ) -> int:
     """Install FE08 overlay lookups into ``font`` GSUB (create or append).
 
     ``A B FE08`` → ``A.ov`` (0-advance) + ``B`` (keeps advance); FE08 consumed.
+    Longer stacks (``A B FE08 C FE08`` …) work by repeating the zero+consume
+    pair in the feature list (``max_stack`` times).
+
     Requires ``.ov`` forms already present for entries in ``full_forms``.
-    Returns number of feature-attached lookups added (0 or 1).
+    Returns number of feature-attached lookup slots added.
     """
     from fontTools.otlLib.builder import (  # local import keeps module import light
         buildLigatureSubstSubtable,
@@ -267,38 +271,33 @@ def install_overlay_gsub(
     if stack not in glyphs:
         return 0
 
+    # 1) A' with lookahead B FE08 → A.ov  (stack not consumed yet)
     overlay_single = {name: overlay_glyph_name(name) for name in overlayable}
-    consume_map = {(name, stack): name for name in forms}
-
     single_sub = buildSingleSubstSubtable(overlay_single)
     single_lu = buildLookup([single_sub])
     single_lu.LookupType = 1
-
-    consume_sub = buildLigatureSubstSubtable(consume_map)
-    consume_lu = buildLookup([consume_sub])
-    consume_lu.LookupType = 4
 
     st = ot.ChainContextSubst()
     st.Format = 3
     st.BacktrackGlyphCount = 0
     st.BacktrackCoverage = []
-    st.InputGlyphCount = 3
-    st.InputCoverage = [
-        _coverage(overlayable),
-        _coverage(forms),
-        _coverage([stack]),
-    ]
-    st.LookAheadGlyphCount = 0
-    st.LookAheadCoverage = []
-    st.SubstCount = 2
-    st.SubstLookupRecord = []
-    for seq_i in (0, 1):
-        rec = ot.SubstLookupRecord()
-        rec.SequenceIndex = seq_i
-        rec.LookupListIndex = 0  # patched below
-        st.SubstLookupRecord.append(rec)
+    st.InputGlyphCount = 1
+    st.InputCoverage = [_coverage(overlayable)]
+    st.LookAheadGlyphCount = 2
+    st.LookAheadCoverage = [_coverage(forms), _coverage([stack])]
+    st.SubstCount = 1
+    rec = ot.SubstLookupRecord()
+    rec.SequenceIndex = 0
+    rec.LookupListIndex = 0  # patched
+    st.SubstLookupRecord = [rec]
     chain_lu = buildLookup([st])
     chain_lu.LookupType = 6
+
+    # 2) B + FE08 → B  (consume stack; runs after zeroing)
+    consume_map = {(name, stack): name for name in forms}
+    consume_sub = buildLigatureSubstSubtable(consume_map)
+    consume_lu = buildLookup([consume_sub])
+    consume_lu.LookupType = 4
 
     if "GSUB" in font:
         gsub = font["GSUB"].table
@@ -321,13 +320,13 @@ def install_overlay_gsub(
         gsub.ScriptList = ot.ScriptList()
         gsub.ScriptList.ScriptRecord = []
         for tag in script_tags:
-            rec = ot.ScriptRecord()
-            rec.ScriptTag = tag
-            rec.Script = ot.Script()
-            rec.Script.DefaultLangSys = _langsys()
-            rec.Script.LangSysCount = 0
-            rec.Script.LangSysRecord = []
-            gsub.ScriptList.ScriptRecord.append(rec)
+            srec = ot.ScriptRecord()
+            srec.ScriptTag = tag
+            srec.Script = ot.Script()
+            srec.Script.DefaultLangSys = _langsys()
+            srec.Script.LangSysCount = 0
+            srec.Script.LangSysRecord = []
+            gsub.ScriptList.ScriptRecord.append(srec)
         gsub.ScriptList.ScriptCount = len(script_tags)
         gsub.FeatureList = ot.FeatureList()
         gsub.FeatureList.FeatureRecord = []
@@ -345,15 +344,20 @@ def install_overlay_gsub(
         gsub.LookupList.LookupCount = 0
 
     base = gsub.LookupList.LookupCount
+    # Order: chain, nested single, consume. Feature only lists chain + consume
+    # (repeated so A B FE08 C FE08 … can apply multiple times).
     chain_index = base
     single_index = base + 1
     consume_index = base + 2
     st.SubstLookupRecord[0].LookupListIndex = single_index
-    st.SubstLookupRecord[1].LookupListIndex = consume_index
     gsub.LookupList.Lookup.extend([chain_lu, single_lu, consume_lu])
     gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
 
-    # Attach chain lookup to ccmp/rlig/liga (create feature if missing).
+    feature_lookup_idxs: List[int] = []
+    for _ in range(max(1, max_stack)):
+        feature_lookup_idxs.append(chain_index)
+        feature_lookup_idxs.append(consume_index)
+
     tag_to_fr = {
         fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])
     }
@@ -369,7 +373,6 @@ def install_overlay_gsub(
             gsub.FeatureList.FeatureRecord.append(fr)
             gsub.FeatureList.FeatureCount = len(gsub.FeatureList.FeatureRecord)
             tag_to_fr[tag] = fr
-            # Register in every script's default langsys.
             for sr in gsub.ScriptList.ScriptRecord:
                 ls = sr.Script.DefaultLangSys
                 if ls is None:
@@ -381,12 +384,12 @@ def install_overlay_gsub(
                     ls.FeatureIndex = fi
                     ls.FeatureCount = len(fi)
         idxs = list(fr.Feature.LookupListIndex or [])
-        if chain_index not in idxs:
-            idxs.append(chain_index)
-            fr.Feature.LookupListIndex = idxs
-            fr.Feature.LookupCount = len(idxs)
+        for li in feature_lookup_idxs:
+            idxs.append(li)
+        fr.Feature.LookupListIndex = idxs
+        fr.Feature.LookupCount = len(idxs)
 
-    return 1
+    return len(feature_lookup_idxs)
 
 
 # Shared across build_yi / build_subfonts / GlyphWiki.

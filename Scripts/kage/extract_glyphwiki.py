@@ -36,6 +36,7 @@ from .build_glyphwiki_fonts import (
     build_marker_font,
     glyphs_per_file,
     group_mappings_by_marker,
+    regenerate_css_from_dist,
 )
 from .engine import REFERENCE_STROKE, SHOTAI_STYLES, make_engine
 from .mapping import (
@@ -974,6 +975,7 @@ def build_fonts_from_mappings(
                     write_woff2=write_woff2,
                 )
                 print(f"      rendered {rendered}, glyphs in file {total}")
+        regenerate_css_from_dist(FONT_DIR)
         return
 
     from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -1014,6 +1016,8 @@ def build_fonts_from_mappings(
                 f"rendered {rendered}, glyphs in file {total}",
                 flush=True,
             )
+
+    regenerate_css_from_dist(FONT_DIR)
 
 
 def resolve_and_build_pipelined(
@@ -1079,6 +1083,7 @@ def resolve_and_build_pipelined(
                     write_woff2=write_woff2,
                 )
                 print(f"      rendered {rendered}, glyphs in file {total}", flush=True)
+        regenerate_css_from_dist(FONT_DIR)
         return all_strokes
 
     from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
@@ -1141,6 +1146,7 @@ def resolve_and_build_pipelined(
                     flush=True,
                 )
 
+    regenerate_css_from_dist(FONT_DIR)
     return all_strokes
 
 
@@ -1249,6 +1255,11 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--css-only",
+        action="store_true",
+        help="Only regenerate pangw.css / fontlist.css from existing fonts",
+    )
+    parser.add_argument(
         "--no-mirrors",
         action="store_true",
         help="Omit D4 variant outlines and rlig (identity forms only)",
@@ -1313,6 +1324,10 @@ def main(argv: list[str] | None = None) -> int:
     per_file = glyphs_per_file(include_mirrors=include_mirrors)
 
     import os
+
+    if args.css_only:
+        regenerate_css_from_dist(FONT_DIR)
+        return 0
 
     if args.jobs < 0:
         print("Fatal: --jobs must be >= 0", file=sys.stderr)

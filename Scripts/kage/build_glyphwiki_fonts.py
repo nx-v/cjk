@@ -46,6 +46,7 @@ from .engine import (
 )
 from .mapping import (
     BMP_PUA_COUNT,
+    BMP_PUA_END,
     BMP_PUA_START,
     D4_MODES,
     GlyphMapping,
@@ -59,6 +60,8 @@ from yi_halfwidth import (  # noqa: E402
     STACK_MARK_CP,
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,
+    UVS_BASE,
+    UVS_LAST,
     add_overlay_forms,
     center_glyph_in_cell,
     composition_fea,
@@ -66,6 +69,10 @@ from yi_halfwidth import (  # noqa: E402
     inject_stack_mark,
     install_overlay_gsub,
     make_composite_variant,
+)
+
+CSS_FONT_URL_BASE = (
+    "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/glyphwiki"
 )
 
 # One SPUA-marker font: 6400 PUA selectors + 6400*8 rendered D4 variants
@@ -518,11 +525,13 @@ def build_marker_font(
             vs_sel = pua_glyph_name(vs_pua)
             rlig_rules.append(f"  sub {identity_name} {vs_sel} by {m_name};")
 
-    # FE08 overlay mark + .ov forms (identity first; D4 if under 64k budget).
+    # FE08 overlay mark + .ov forms (identity first; D4 if under budget).
+    # post format 2.0 stores 258+extraNameIndex as uint16, so all-custom
+    # name fonts must stay under ~65278 glyphs (not the full 65535 maxp).
     inject_stack_mark(glyph_order, glyphs, metrics, cmap)
     ordered_forms = list(dict.fromkeys(identity_names + variant_names))
-    max_glyphs = 65535
-    budget = max(0, max_glyphs - len(glyph_order))
+    post_safe_max = 65000
+    budget = max(0, post_safe_max - len(glyph_order))
     add_overlay_forms(
         ordered_forms,
         glyph_order=glyph_order,
@@ -599,3 +608,97 @@ def group_mappings_by_marker(
     for m in mappings:
         grouped.setdefault(m.marker, []).append(m)
     return grouped
+
+
+def unicode_range_for_marker(marker: int) -> str:
+    """CSS unicode-range: SPUA marker + BMP PUA + UVS FE00..FE07 + FE08.
+
+    Marker + BMP PUA must share a face for ligatures. FE08 must be listed so
+    the overlay mark loads from this face (not a sibling in a stack).
+    """
+    return (
+        f"U+{marker:X}, U+{BMP_PUA_START:X}-{BMP_PUA_END:X}, "
+        f"U+{UVS_BASE:X}-{UVS_LAST:X}, U+{STACK_MARK_CP:X}"
+    )
+
+
+def write_css(
+    font_dir: Path,
+    built: Sequence[tuple[str, str]],
+) -> None:
+    """Write pangw.css (@font-face) under ``font_dir``.
+
+    ``built`` entries are ``(style, hex_id)`` for fonts already on disk
+    (e.g. ``("mincho", "F0000")`` → ``mincho/F0000.woff2``).
+    """
+    font_dir = Path(font_dir)
+    font_dir.mkdir(parents=True, exist_ok=True)
+    css_path = font_dir / "pangw.css"
+    lines: list[str] = [
+        "/* Auto-generated GlyphWiki marker @font-face rules */",
+        "/* Local src first; GitHub raw as fallback. */",
+        "",
+    ]
+    family_names: list[str] = []
+    for style, hex_id in built:
+        family = f"glyphwiki {style} {hex_id}"
+        family_names.append(family)
+        marker = int(hex_id, 16)
+        urange = unicode_range_for_marker(marker)
+        rel = f"./{style}/{hex_id}"
+        remote = f"{CSS_FONT_URL_BASE}/{style}/{hex_id}"
+        lines.append("@font-face {")
+        lines.append(f"  font-family: '{family}';")
+        lines.append(f"  src: url('{rel}.woff2') format('woff2'),")
+        lines.append(f"       url('{rel}.ttf') format('truetype'),")
+        lines.append(f"       url('{remote}.woff2') format('woff2');")
+        lines.append("  font-weight: normal;")
+        lines.append("  font-style: normal;")
+        lines.append("  font-display: swap;")
+        lines.append(f"  unicode-range: {urange};")
+        lines.append("}")
+        lines.append("")
+
+    css_path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"Wrote {css_path}")
+
+    quoted = ", ".join(f"'{n}'" for n in family_names)
+    fontlist_path = font_dir / "fontlist.css"
+    fontlist_path.write_text(
+        "/* GlyphWiki marker font stack */\n"
+        ":root {\n"
+        f"  --font-pangw: {quoted};\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    print(f"Wrote {fontlist_path}")
+
+
+def regenerate_css_from_dist(font_dir: Path) -> None:
+    """Scan ``font_dir/{{style}}/*.woff2|ttf`` and rewrite pangw.css."""
+    font_dir = Path(font_dir)
+    built: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    if not font_dir.is_dir():
+        print(f"No GlyphWiki fonts under {font_dir}", file=sys.stderr)
+        return
+    for style_dir in sorted(p for p in font_dir.iterdir() if p.is_dir()):
+        style = style_dir.name
+        for path in sorted(style_dir.iterdir()):
+            if path.suffix.lower() not in {".woff2", ".ttf"}:
+                continue
+            hex_id = path.stem
+            key = (style, hex_id)
+            if key in seen:
+                continue
+            try:
+                int(hex_id, 16)
+            except ValueError:
+                continue
+            seen.add(key)
+            built.append(key)
+    if not built:
+        print(f"No marker fonts found under {font_dir}", file=sys.stderr)
+        return
+    print(f"Regenerating CSS for {len(built)} GlyphWiki fonts from {font_dir}")
+    write_css(font_dir, built)

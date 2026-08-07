@@ -326,14 +326,17 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     css_path = os.path.join(out_dir, "panyi.css")
-    urange = unicode_range_css(codepoints)
-    url = f"{CSS_FONT_URL_BASE}/{FAMILY_NAME}.woff2"
+    # Include UVS FE00..FE07 + overlay FE08 even if only PUA VS are cmap'd.
+    extra = set(range(0xFE00, 0xFE08 + 1)) | set(range(0xE000, 0xE007 + 1))
+    urange = unicode_range_css(sorted(set(codepoints) | extra))
     lines = [
         "/* Auto-generated single Yi font */",
         "",
         "@font-face {",
         f"  font-family: '{FAMILY_NAME}';",
-        f"  src: url('{url}') format('woff2');",
+        f"  src: url('./{FAMILY_NAME}.woff2') format('woff2'),",
+        f"       url('./{FAMILY_NAME}.ttf') format('truetype'),",
+        f"       url('{CSS_FONT_URL_BASE}/{FAMILY_NAME}.woff2') format('woff2');",
         "  font-weight: normal;",
         "  font-style: normal;",
         "  font-display: swap;",

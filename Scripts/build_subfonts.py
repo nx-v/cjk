@@ -617,19 +617,24 @@ def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
     bucket used to advertise those codepoints, so the first face stole all VS
     and broke ``base+VS`` ligatures. Prefer cmap format-14 UVS (U+FE00..) which
     stays on the base character's face; keep PUA liga for single-family use
-    (VS still in the font cmap).
+    (VS still in the font cmap). FE08 overlay must be listed so the stack mark
+    loads from this face.
     """
+    bucket_cps = {
+        cp
+        for cp in codepoints
+        if not (VS_BASE <= cp <= VS_LAST) and cp != STACK_MARK_CP
+    }
     cps = sorted(
-        set(codepoints)
+        bucket_cps
         | set(range(UVS_BASE, UVS_LAST + 1))
         | {STACK_MARK_CP}
     )
-    if not codepoints:
+    if not bucket_cps:
         start = bucket_id << 8
         end = start + 0xFF
         return (
-            f"U+{start:X}-{end:X}, U+{UVS_BASE:X}-{UVS_LAST:X}, "
-            f"U+{STACK_MARK_CP:X}"
+            f"U+{start:X}-{end:X}, U+{UVS_BASE:X}-{STACK_MARK_CP:X}"
         )
 
     runs: List[str] = []
@@ -656,6 +661,8 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     css_path = os.path.join(out_dir, "pancjk.css")
     lines: List[str] = [
         "/* Auto-generated Pan-CJK pigeonhole @font-face rules */",
+        "/* Local src first; GitHub raw as fallback. PUA VS omitted from",
+        "   unicode-range so the multi-face stack does not steal UVS. */",
         "",
     ]
     family_names: List[str] = []
@@ -664,10 +671,17 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
         family = f"pancjk {hex_id}"
         family_names.append(family)
         urange = unicode_range_for_bucket(bucket_id, codepoints)
-        url = f"{CSS_FONT_URL_BASE}/{hex_id}.woff2"
         lines.append("@font-face {")
         lines.append(f"  font-family: '{family}';")
-        lines.append(f"  src: url('{url}') format('woff2');")
+        lines.append(
+            f"  src: url('./{hex_id}.woff2') format('woff2'),"
+        )
+        lines.append(
+            f"       url('./{hex_id}.ttf') format('truetype'),"
+        )
+        lines.append(
+            f"       url('{CSS_FONT_URL_BASE}/{hex_id}.woff2') format('woff2');"
+        )
         lines.append("  font-weight: normal;")
         lines.append("  font-style: normal;")
         lines.append("  font-display: swap;")
@@ -697,6 +711,31 @@ body {{
     with open(fontlist_path, "w", encoding="utf-8") as f:
         f.write(fontlist)
     print(f"Wrote {fontlist_path}")
+
+
+def regenerate_css_from_dist(out_dir: str) -> None:
+    """Rewrite pancjk.css / fontlist.css from existing ``*.woff2`` / ``*.ttf``."""
+    seen: Dict[str, None] = {}
+    built: List[Tuple[str, int, List[int]]] = []
+    for name in sorted(os.listdir(out_dir)):
+        if not (name.endswith(".woff2") or name.endswith(".ttf")):
+            continue
+        hex_id = os.path.splitext(name)[0]
+        if hex_id in seen:
+            continue
+        try:
+            bucket_id = int(hex_id, 16)
+        except ValueError:
+            continue
+        seen[hex_id] = None
+        # Bucket-range unicode-range is enough for CSS (no need to open fonts).
+        built.append((hex_id, 0, []))
+        _ = bucket_id
+    if not built:
+        print(f"No bucket fonts found under {out_dir}", file=sys.stderr)
+        sys.exit(1)
+    print(f"Regenerating CSS for {len(built)} buckets from {out_dir}")
+    write_css(out_dir, built)
 
 
 def build_all(
@@ -837,6 +876,11 @@ def parse_args() -> argparse.Namespace:
         default=max(1, os.cpu_count() or 4),
         help="Parallel workers for bucket builds (default: CPU count)",
     )
+    p.add_argument(
+        "--css-only",
+        action="store_true",
+        help="Only regenerate pancjk.css / fontlist.css from existing fonts",
+    )
     fmt = p.add_mutually_exclusive_group()
     fmt.add_argument(
         "--ttf-only",
@@ -853,11 +897,14 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
-    build_all(
-        args.in_dir,
-        args.out_dir,
-        args.upem,
-        args.jobs,
-        write_ttf=not args.woff2_only,
-        write_woff2=not args.ttf_only,
-    )
+    if args.css_only:
+        regenerate_css_from_dist(args.out_dir)
+    else:
+        build_all(
+            args.in_dir,
+            args.out_dir,
+            args.upem,
+            args.jobs,
+            write_ttf=not args.woff2_only,
+            write_woff2=not args.ttf_only,
+        )

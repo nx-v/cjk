@@ -20,6 +20,7 @@ Examples:
   python Scripts/build_glyphwiki.py --cmap-only
   python Scripts/build_glyphwiki.py --from-resolved --cmap-only
   python Scripts/build_glyphwiki.py --cmap-only --no-filters
+  python Scripts/build_glyphwiki.py --css-only
 """
 
 from __future__ import annotations
@@ -67,6 +68,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Skip dump load/resolve; build from existing "
             f"{CMAP_PATH.name} + {RESOLVED_PATH.name}"
         ),
+    )
+    p.add_argument(
+        "--css-only",
+        action="store_true",
+        help="Only regenerate pangw.css / fontlist.css from existing fonts",
     )
     p.add_argument(
         "--no-mirrors",
@@ -157,6 +163,9 @@ def main(argv: list[str] | None = None) -> int:
         )
     print()
 
+    if args.css_only:
+        return extract_main(["--css-only"])
+
     if args.from_resolved:
         if not CMAP_PATH.is_file() or not RESOLVED_PATH.is_file():
             print(
@@ -179,6 +188,8 @@ def main(argv: list[str] | None = None) -> int:
         forwarded += ["--font-markers", str(args.font_markers)]
     if args.from_resolved:
         forwarded.append("--from-resolved")
+    if args.css_only:
+        forwarded.append("--css-only")
     if args.no_mirrors:
         forwarded.append("--no-mirrors")
     if args.mincho:
