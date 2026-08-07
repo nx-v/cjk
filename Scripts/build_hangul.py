@@ -90,7 +90,7 @@ FAMILY_SYLL = "panhanguls"
 LOCAL_SCALE = 1.0
 # Uniform Y translate after UPM fit (target-upem units). Malgun Hangul sits
 # high vs CJK/kana/Yi (typo mid ~380); negative shifts down to match.
-MALGUN_Y_SHIFT = -40
+MALGUN_Y_SHIFT = -50
 
 CSS_FONT_URL_BASE = (
     "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/hangul"
@@ -496,9 +496,7 @@ def _replay_glyph(
                 child = glyphs[name]
                 child_rec = RecordingPen()
                 child.draw(child_rec, None)
-                child_rec.replay(
-                    TransformPen(rec, Transform(xx, xy, yx, yy, dx, dy))
-                )
+                child_rec.replay(TransformPen(rec, Transform(xx, xy, yx, yy, dx, dy)))
         else:
             base.draw(rec, None)
     except Exception:
