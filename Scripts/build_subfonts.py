@@ -85,7 +85,7 @@ PRIORITY_FONTS: List[Tuple[str, float]] = [
     ("msjh.ttc", 1.03),
     ("malgun.ttf", 0.95),
     ("Han-Nom Gothic 1.32.otf", 0.94),
-    ("msyh.ttc", 0.94),
+    ("msyh.ttc", 0.95),
     ("LXGWZhiSongMN.ttf", 1.0),
     ("LXGWNeoZhiSongPlus.ttf", 1.0),
     ("HuayingMinchoT.ttf", 1.0),
