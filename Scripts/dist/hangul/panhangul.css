@@ -1,10 +1,10 @@
 /* Auto-generated Hangul fonts from Malgun Gothic */
 /* panhangul = conjoining jamo; panhanguls = syllables + compat */
-/* Use relative URLs so local testing loads this folder's woff2 (not GitHub). */
 
 @font-face {
   font-family: 'panhangul';
-  src: url('./panhangul.woff2') format('woff2');
+  src: url('./panhangul.woff2') format('woff2'),
+       url('./panhangul.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -13,7 +13,8 @@
 
 @font-face {
   font-family: 'panhanguls';
-  src: url('./panhanguls.woff2') format('woff2');
+  src: url('./panhanguls.woff2') format('woff2'),
+       url('./panhanguls.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
