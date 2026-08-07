@@ -1,14 +1,16 @@
-"""Build GlyphWiki PUA ligature fonts (57 600 glyphs per SPUA marker).
+"""Build GlyphWiki PUA ligature fonts (D4 + FE08 overlay per SPUA marker).
 
 Each output TTF corresponds to one Supplementary PUA marker and contains:
 
 * 6 400 BMP PUA selector glyphs (U+E000..U+F8FF, zero-width)
 * 6 400 × 8 = 51 200 rendered outlines (identity + 7 unique D4 variants)
+* FE08 overlay ``.ov`` forms (identity first; D4 variants if under 64k)
 
-Total = 57 600 glyphs. GSUB:
+GSUB:
 
 * ``marker + pua`` → identity outline
-* ``identity + VS02..VS08`` → D4 variant outlines (center, then outline transform)
+* ``identity + VS02..VS08`` / FE01..FE07 → D4 variant outlines
+* ``A B FE08`` → ``A.ov`` (0-advance) + ``B`` (chain with more FE08)
 
 Rendering uses the in-tree KAGE Serif renderer (filled SVG paths), then
 Cu2Qu for TrueType. Contours are normalized to clockwise winding so
@@ -54,11 +56,15 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 from yi_halfwidth import (  # noqa: E402
+    STACK_MARK_CP,
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,
+    add_overlay_forms,
     center_glyph_in_cell,
     composition_fea,
     ideographic_center,
+    inject_stack_mark,
+    install_overlay_gsub,
     make_composite_variant,
 )
 
@@ -379,6 +385,8 @@ def build_marker_font(
     liga_rules: list[str] = []
     rlig_rules: list[str] = []
     used_names: set[str] = {".notdef"}
+    identity_names: list[str] = []
+    variant_names: list[str] = []
 
     # SPUA marker (zero-width)
     mk_name = marker_glyph_name(marker)
@@ -463,6 +471,7 @@ def build_marker_font(
 
         pua_name = pua_glyph_name(pua)
         liga_rules.append(f"  sub {mk_name} {pua_name} by {identity_name};")
+        identity_names.append(identity_name)
 
         if not include_mirrors:
             continue
@@ -478,6 +487,10 @@ def build_marker_font(
                 continue
             m_name = unique_result_name(mapping, pua, suffix)
             if m_name in glyphs:
+                variant_names.append(m_name)
+                vs_pua = MirrorVS.codepoint(mode)
+                vs_sel = pua_glyph_name(vs_pua)
+                rlig_rules.append(f"  sub {identity_name} {vs_sel} by {m_name};")
                 continue
             glyph_order.append(m_name)
             used_names.add(m_name)
@@ -500,9 +513,23 @@ def build_marker_font(
                 glyphs[m_name] = empty_glyph()
                 metrics[m_name] = (advance, 0)
 
+            variant_names.append(m_name)
             vs_pua = MirrorVS.codepoint(mode)
             vs_sel = pua_glyph_name(vs_pua)
             rlig_rules.append(f"  sub {identity_name} {vs_sel} by {m_name};")
+
+    # FE08 overlay mark + .ov forms (identity first; D4 if under 64k budget).
+    inject_stack_mark(glyph_order, glyphs, metrics, cmap)
+    ordered_forms = list(dict.fromkeys(identity_names + variant_names))
+    max_glyphs = 65535
+    budget = max(0, max_glyphs - len(glyph_order))
+    add_overlay_forms(
+        ordered_forms,
+        glyph_order=glyph_order,
+        glyphs=glyphs,
+        metrics=metrics,
+        limit=budget,
+    )
 
     ascent = otRound(upem * TYPO_ASCENDER_FRAC)
     descent = otRound(upem * TYPO_DESCENDER_FRAC)
@@ -540,6 +567,15 @@ def build_marker_font(
     fea = composition_fea(liga_rules, rlig_rules)
     if fea:
         addOpenTypeFeaturesFromString(fb.font, fea)
+    # Overlay GSUB after marker/D4 ligas (appends to existing GSUB).
+    full_forms = [
+        n
+        for n, (adv, _) in metrics.items()
+        if adv > 0 and n in glyphs and not n.endswith(".ov")
+    ]
+    install_overlay_gsub(
+        fb.font, full_forms, glyphs=glyphs, glyph_order=glyph_order
+    )
 
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")

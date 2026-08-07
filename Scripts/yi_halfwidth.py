@@ -1,23 +1,22 @@
-"""Yi standalone / compound glyph transforms (NuosuSIL).
+"""Yi standalone glyph transforms (NuosuSIL).
 
 Encoding
 --------
 * One font (``panyi``) covering the whole Yi inventory.
-* Standalone / half-cells: NuosuSIL is monospace (shared advance). Every glyph
-  gets the **same** ``sx`` from that advance and the **same** ``sy`` from the
-  tallest ink height in the inventory, so the vertical axis is squashed just
-  enough for the tallest to fit the CJK cell (center at 0.38em). Standalones
-  then get a small extra horizontal widen. Compounds use the same shared
-  ``sy`` in each half-slot (no widen).
-* Compounds: ``yi1 + yi2 + VS0n`` (``rlig``) unpacks to a digraph of shared
-  half-cell glyphs (left slot + zero-width right slot) so all N² pairs fit
-  under the 64k glyph-ID limit — no joiner, no per-pair glyphs, no outline
-  merging. Identity uses VS01; a lone ``yi + VS`` stays standalone.
-* Variants: the 8 unique square symmetries (D4) — 90° rotations and
-  axis reflections — each with its own VS (``U+E000``..``U+E007``).
-  Geometric duplicates are omitted (e.g. ``mxy === r180``).
-  Only the identity form stores outlines; the other seven are one-component
-  TrueType composites referencing identity about the CJK typo center.
+* Standalones: NuosuSIL is monospace (shared advance). Every glyph gets the
+  **same** ``sx`` from that advance and the **same** ``sy`` from the tallest
+  ink height, then a small extra horizontal widen; Y is fitted to the CJK
+  typo box (center at 0.38em).
+* Orientations: D4 square symmetries on **VS01..VS08** (``U+E000``..``U+E007``,
+  UVS ``U+FE00``..``U+FE07``), including ``r90my``. Identity needs no subst;
+  the other seven are TrueType composites / baked outlines about the CJK
+  typo center.
+* Overlay: **``U+FE08``** superimposes preceding glyphs into one cell —
+  everything but the **last** glyph before ``FE08`` becomes zero-advance
+  (``.ov``); the last keeps the em advance. Chain with more ``FE08``
+  (``A B FE08 C FE08`` → ``A.ov B.ov C``).
+* No side-by-side digraph compounds. Full D4 (8 modes) remains available for
+  build_subfonts / GlyphWiki via ``TRANSFORM_MODES``.
 """
 
 from __future__ import annotations
@@ -53,14 +52,13 @@ YI_SYLLABLES = (0xA000, 0xA48C)
 YI_RADICALS = (0xA490, 0xA4CF)
 
 VS_BASE = 0xE000
+# Full D4 set (8) — Yi orientations + build_subfonts / GlyphWiki.
 VS_COUNT = MirrorVS.MODE_COUNT
 VS_LAST = VS_BASE + VS_COUNT - 1  # U+E007
 
-# Standard Unicode Variation Selectors (cmap format 14) — same 8 D4 modes.
-# Browsers apply these on the *base character's* font, so they keep working
-# when a unicode-range stack would otherwise steal PUA U+E000..E007.
 UVS_BASE = 0xFE00  # VS1..VS8 → identity..r90my
-UVS_LAST = UVS_BASE + VS_COUNT - 1
+UVS_LAST = UVS_BASE + VS_COUNT - 1  # U+FE07
+STACK_MARK_CP = 0xFE08  # Unicode VS9 — superimpose (not a D4 mode)
 
 DEFAULT_UPEM = 1000
 # Optional inset of the shared advance box inside the CJK cell (uniform).
@@ -111,14 +109,25 @@ TRANSFORM_MODES: List[TransformMode] = [
     for mode, rot, fx, fy, suffix in D4_MODES
 ]
 
+# Yi uses the full D4 set (VS01..VS08), same as TRANSFORM_MODES.
+YI_ORIENTATION_MODES: List[TransformMode] = TRANSFORM_MODES
+
 
 def vs_glyph_name(vs_cp: int) -> str:
-    return f"vs{vs_cp - VS_BASE + 1:02d}"
+    if vs_cp == STACK_MARK_CP:
+        return "vsStack"
+    if VS_BASE <= vs_cp <= VS_LAST:
+        return f"vs{vs_cp - VS_BASE + 1:02d}"
+    raise ValueError(f"not a Yi VS/stack codepoint: U+{vs_cp:04X}")
+
+
+def stack_glyph_name() -> str:
+    return "vsStack"
 
 
 def uvs_selector_for_mode(mode_index: int) -> int:
     """Unicode VS1..VS8 (U+FE00..) for D4 mode index 0..7."""
-    return UVS_BASE + (mode_index % VS_COUNT)
+    return UVS_BASE + mode_index
 
 
 def build_d4_uvs_entries(
@@ -126,6 +135,7 @@ def build_d4_uvs_entries(
     base_glyph: str,
     *,
     glyphs: Dict[str, TTGlyph],
+    modes: Optional[Sequence[TransformMode]] = None,
 ) -> List[Tuple[int, int, Optional[str]]]:
     """``(base_cp, U+FE0n, variantName)`` rows for ``setupCharacterMap(uvs=...)``.
 
@@ -134,7 +144,9 @@ def build_d4_uvs_entries(
     Non-default mappings are stored one-per-record and have no such limit.
     """
     rows: List[Tuple[int, int, Optional[str]]] = []
-    for mode_i, (_vs_cp, _r, _fx, _fy, suffix) in enumerate(TRANSFORM_MODES):
+    for mode_i, (_vs_cp, _r, _fx, _fy, suffix) in enumerate(
+        modes if modes is not None else TRANSFORM_MODES
+    ):
         if suffix is None:
             continue
         vname = variant_glyph_name(base_glyph, suffix)
@@ -145,6 +157,236 @@ def build_d4_uvs_entries(
 
 def variant_glyph_name(base_name: str, suffix: str) -> str:
     return f"{base_name}.{suffix}"
+
+
+def overlay_glyph_name(base_name: str) -> str:
+    """Zero-advance form of ``base_name`` for FE08 superposition."""
+    return f"{base_name}.ov"
+
+
+def orientation_form_names(
+    base_name: str,
+    *,
+    modes: Optional[Sequence[TransformMode]] = None,
+) -> List[str]:
+    """Identity + non-identity D4 variant names for ``base_name``."""
+    names = [base_name]
+    for _vs, _r, _fx, _fy, suffix in modes if modes is not None else TRANSFORM_MODES:
+        if suffix is not None:
+            names.append(variant_glyph_name(base_name, suffix))
+    return names
+
+
+def inject_stack_mark(
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    cmap: Dict[int, str],
+) -> str:
+    """Ensure FE08 stack mark glyph exists (zero-width) and is cmap'd."""
+    sname = stack_glyph_name()
+    if sname not in glyphs:
+        glyph_order.append(sname)
+        glyphs[sname] = empty_glyph()
+        metrics[sname] = (0, 0)
+    cmap[STACK_MARK_CP] = sname
+    return sname
+
+
+def add_overlay_forms(
+    form_names: Sequence[str],
+    *,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    limit: Optional[int] = None,
+) -> List[str]:
+    """Create zero-advance ``.ov`` composites for each name in ``form_names``.
+
+    ``limit`` caps how many new ``.ov`` glyphs are added (GlyphWiki 64k budget).
+    Returns the list of base form names that received an ``.ov``.
+    """
+    added_bases: List[str] = []
+    for name in form_names:
+        if limit is not None and len(added_bases) >= limit:
+            break
+        if name not in glyphs:
+            continue
+        ov_name = overlay_glyph_name(name)
+        if ov_name in glyphs:
+            added_bases.append(name)
+            continue
+        _adv, lsb = metrics.get(name, (0, 0))
+        ov_glyph, ov_adv, ov_lsb = make_overlay_composite(name, lsb=lsb)
+        glyph_order.append(ov_name)
+        glyphs[ov_name] = ov_glyph
+        metrics[ov_name] = (ov_adv, ov_lsb)
+        added_bases.append(name)
+    return added_bases
+
+
+def install_overlay_gsub(
+    font,
+    full_forms: Sequence[str],
+    *,
+    glyphs: Dict[str, TTGlyph],
+    glyph_order: Sequence[str],
+) -> int:
+    """Install FE08 overlay lookups into ``font`` GSUB (create or append).
+
+    ``A B FE08`` → ``A.ov`` (0-advance) + ``B`` (keeps advance); FE08 consumed.
+    Requires ``.ov`` forms already present for entries in ``full_forms``.
+    Returns number of feature-attached lookups added (0 or 1).
+    """
+    from fontTools.otlLib.builder import (  # local import keeps module import light
+        buildLigatureSubstSubtable,
+        buildLookup,
+        buildSingleSubstSubtable,
+    )
+    from fontTools.ttLib import newTable
+    from fontTools.ttLib.tables import otTables as ot
+
+    order_index = {n: i for i, n in enumerate(glyph_order)}
+
+    def _gid_sort(names: Sequence[str]) -> List[str]:
+        return sorted(set(names), key=lambda n: order_index.get(n, 10**9))
+
+    def _coverage(names: Sequence[str]) -> ot.Coverage:
+        cov = ot.Coverage()
+        cov.glyphs = list(names)
+        return cov
+
+    forms = _gid_sort([n for n in full_forms if n in glyphs])
+    overlayable = _gid_sort(
+        [n for n in forms if overlay_glyph_name(n) in glyphs]
+    )
+    if not overlayable:
+        return 0
+
+    stack = stack_glyph_name()
+    if stack not in glyphs:
+        return 0
+
+    overlay_single = {name: overlay_glyph_name(name) for name in overlayable}
+    consume_map = {(name, stack): name for name in forms}
+
+    single_sub = buildSingleSubstSubtable(overlay_single)
+    single_lu = buildLookup([single_sub])
+    single_lu.LookupType = 1
+
+    consume_sub = buildLigatureSubstSubtable(consume_map)
+    consume_lu = buildLookup([consume_sub])
+    consume_lu.LookupType = 4
+
+    st = ot.ChainContextSubst()
+    st.Format = 3
+    st.BacktrackGlyphCount = 0
+    st.BacktrackCoverage = []
+    st.InputGlyphCount = 3
+    st.InputCoverage = [
+        _coverage(overlayable),
+        _coverage(forms),
+        _coverage([stack]),
+    ]
+    st.LookAheadGlyphCount = 0
+    st.LookAheadCoverage = []
+    st.SubstCount = 2
+    st.SubstLookupRecord = []
+    for seq_i in (0, 1):
+        rec = ot.SubstLookupRecord()
+        rec.SequenceIndex = seq_i
+        rec.LookupListIndex = 0  # patched below
+        st.SubstLookupRecord.append(rec)
+    chain_lu = buildLookup([st])
+    chain_lu.LookupType = 6
+
+    if "GSUB" in font:
+        gsub = font["GSUB"].table
+    else:
+        def _langsys() -> ot.DefaultLangSys:
+            ls = ot.DefaultLangSys()
+            ls.ReqFeatureIndex = 0xFFFF
+            ls.FeatureCount = 0
+            ls.FeatureIndex = []
+            return ls
+
+        script_tags: List[str] = []
+        for line in COMPOSITION_LANGUAGE_SYSTEMS:
+            parts = line.replace(";", "").split()
+            if len(parts) >= 2 and parts[0] == "languagesystem":
+                script_tags.append(parts[1].ljust(4)[:4])
+
+        gsub = ot.GSUB()
+        gsub.Version = 0x00010000
+        gsub.ScriptList = ot.ScriptList()
+        gsub.ScriptList.ScriptRecord = []
+        for tag in script_tags:
+            rec = ot.ScriptRecord()
+            rec.ScriptTag = tag
+            rec.Script = ot.Script()
+            rec.Script.DefaultLangSys = _langsys()
+            rec.Script.LangSysCount = 0
+            rec.Script.LangSysRecord = []
+            gsub.ScriptList.ScriptRecord.append(rec)
+        gsub.ScriptList.ScriptCount = len(script_tags)
+        gsub.FeatureList = ot.FeatureList()
+        gsub.FeatureList.FeatureRecord = []
+        gsub.FeatureList.FeatureCount = 0
+        gsub.LookupList = ot.LookupList()
+        gsub.LookupList.Lookup = []
+        gsub.LookupList.LookupCount = 0
+        table = newTable("GSUB")
+        table.table = gsub
+        font["GSUB"] = table
+
+    if gsub.LookupList is None:
+        gsub.LookupList = ot.LookupList()
+        gsub.LookupList.Lookup = []
+        gsub.LookupList.LookupCount = 0
+
+    base = gsub.LookupList.LookupCount
+    chain_index = base
+    single_index = base + 1
+    consume_index = base + 2
+    st.SubstLookupRecord[0].LookupListIndex = single_index
+    st.SubstLookupRecord[1].LookupListIndex = consume_index
+    gsub.LookupList.Lookup.extend([chain_lu, single_lu, consume_lu])
+    gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
+
+    # Attach chain lookup to ccmp/rlig/liga (create feature if missing).
+    tag_to_fr = {
+        fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])
+    }
+    for tag in COMPOSITION_FEATURE_TAGS:
+        fr = tag_to_fr.get(tag)
+        if fr is None:
+            fr = ot.FeatureRecord()
+            fr.FeatureTag = tag
+            fr.Feature = ot.Feature()
+            fr.Feature.FeatureParams = None
+            fr.Feature.LookupListIndex = []
+            fr.Feature.LookupCount = 0
+            gsub.FeatureList.FeatureRecord.append(fr)
+            gsub.FeatureList.FeatureCount = len(gsub.FeatureList.FeatureRecord)
+            tag_to_fr[tag] = fr
+            # Register in every script's default langsys.
+            for sr in gsub.ScriptList.ScriptRecord:
+                ls = sr.Script.DefaultLangSys
+                if ls is None:
+                    continue
+                fi = list(ls.FeatureIndex or [])
+                new_i = gsub.FeatureList.FeatureCount - 1
+                if new_i not in fi:
+                    fi.append(new_i)
+                    ls.FeatureIndex = fi
+                    ls.FeatureCount = len(fi)
+        idxs = list(fr.Feature.LookupListIndex or [])
+        if chain_index not in idxs:
+            idxs.append(chain_index)
+            fr.Feature.LookupListIndex = idxs
+            fr.Feature.LookupCount = len(idxs)
+
+    return 1
 
 
 # Shared across build_yi / build_subfonts / GlyphWiki.
@@ -193,13 +435,15 @@ def add_d4_variant_glyphs(
     glyph_order: List[str],
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
+    modes: Optional[Sequence[TransformMode]] = None,
 ) -> List[Tuple[int, str, str]]:
     """Create non-identity D4 forms for ``base_name`` (bake 2×2, composite otherwise).
 
     Returns ``[(vs_cp, suffix, variant_glyph_name), ...]`` for GSUB wiring.
     """
     installed: List[Tuple[int, str, str]] = []
-    for vs_cp, rot, flip_x, flip_y, suffix in TRANSFORM_MODES:
+    use_modes = modes if modes is not None else TRANSFORM_MODES
+    for vs_cp, rot, flip_x, flip_y, suffix in use_modes:
         if suffix is None:
             continue
         m_name = variant_glyph_name(base_name, suffix)
@@ -412,6 +656,23 @@ def make_right_half_composite(
     comp = GlyphComponent()
     comp.glyphName = left_name
     comp.x = half
+    comp.y = 0
+    comp.flags = ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
+    g.components = [comp]
+    return g, 0, lsb
+
+
+def make_overlay_composite(
+    base_name: str,
+    *,
+    lsb: int = 0,
+) -> GlyphMetrics:
+    """Zero-advance same-cell overlay of ``base_name`` (FE08 superposition)."""
+    g = TTGlyph()
+    g.numberOfContours = -1
+    comp = GlyphComponent()
+    comp.glyphName = base_name
+    comp.x = 0
     comp.y = 0
     comp.flags = ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
     g.components = [comp]

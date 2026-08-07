@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ii">
+  <head>
+    <meta charset="utf-8" />
+    <title>panyi smoke — orientations + FE08</title>
+    <link rel="stylesheet" href="./panyi.css" />
+    <style>
+      body {
+        background: #111;
+        color: #eee;
+        font-family: panyi, serif;
+        font-size: 96px;
+        padding: 40px;
+      }
+      .row {
+        margin: 24px 0;
+        line-height: 1.4;
+      }
+      label {
+        display: block;
+        font-size: 14px;
+        color: #888;
+        font-family: system-ui, sans-serif;
+      }
+      h2 {
+        font-size: 18px;
+        color: #aaa;
+        font-family: system-ui, sans-serif;
+        font-weight: 600;
+        margin: 40px 0 8px;
+        border-bottom: 1px solid #333;
+        padding-bottom: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Orientations (ꀀ + FE00..FE07)</h2>
+    <div class="row">
+      <label>identity</label>
+      &#xA000;
+    </div>
+    <div class="row">
+      <label>FE01 r90</label>
+      &#xA000;&#xFE01;
+    </div>
+    <div class="row">
+      <label>FE02 r180</label>
+      &#xA000;&#xFE02;
+    </div>
+    <div class="row">
+      <label>FE03 r270</label>
+      &#xA000;&#xFE03;
+    </div>
+    <div class="row">
+      <label>FE04 mx</label>
+      &#xA000;&#xFE04;
+    </div>
+    <div class="row">
+      <label>FE05 my</label>
+      &#xA000;&#xFE05;
+    </div>
+    <div class="row">
+      <label>FE06 r90mx</label>
+      &#xA000;&#xFE06;
+    </div>
+    <div class="row">
+      <label>FE07 r90my</label>
+      &#xA000;&#xFE07;
+    </div>
+
+    <h2>FE08 overlay (superimpose)</h2>
+    <div class="row">
+      <label>ꀀ + ꀁ + FE08</label>
+      &#xA000;&#xA001;&#xFE08;
+    </div>
+    <div class="row">
+      <label>ꀀ FE01 + ꀁ FE05 + FE08</label>
+      &#xA000;&#xFE01;&#xA001;&#xFE05;&#xFE08;
+    </div>
+    <div class="row">
+      <label>chain: ꀀ ꀁ FE08 ꀂ FE08</label>
+      &#xA000;&#xA001;&#xFE08;&#xA002;&#xFE08;
+    </div>
+  </body>
+</html>
