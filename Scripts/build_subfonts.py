@@ -84,12 +84,15 @@ PRIORITY_FONTS: List[Tuple[str, float]] = [
     ("NGULIM.TTF", 1.03),
     ("msjh.ttc", 1.03),
     ("malgun.ttf", 0.95),
-    ("malgun.ttf", 0.95),
+    ("Han-Nom Gothic 1.32.otf", 0.94),
+    ("msyh.ttc", 0.94),
     ("LXGWZhiSongMN.ttf", 1.0),
     ("LXGWNeoZhiSongPlus.ttf", 1.0),
     ("HuayingMinchoT.ttf", 1.0),
     ("I.MingVarCP-8.10.ttf", 1.0),
     ("Minh Nguyen Regular.ttf", 1.0),
+    ("Han-nom Minh 1.42.otf", 0.98),
+    ("Han-Nom Ming 1.20.otf", 0.98),
     ("simsunb.ttf", 1.0),
     ("SimsunExtG.ttf", 1.0),
     ("NazoMin-Classic.ttf", 0.95),
@@ -517,9 +520,7 @@ def build_bucket_font(
         fea = composition_fea(liga_rules)
         if fea:
             addOpenTypeFeaturesFromString(fb.font, fea)
-    install_overlay_gsub(
-        fb.font, form_names, glyphs=glyphs, glyph_order=glyph_order
-    )
+    install_overlay_gsub(fb.font, form_names, glyphs=glyphs, glyph_order=glyph_order)
 
     fb.save(out_path)
 
@@ -625,17 +626,11 @@ def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
         for cp in codepoints
         if not (VS_BASE <= cp <= VS_LAST) and cp != STACK_MARK_CP
     }
-    cps = sorted(
-        bucket_cps
-        | set(range(UVS_BASE, UVS_LAST + 1))
-        | {STACK_MARK_CP}
-    )
+    cps = sorted(bucket_cps | set(range(UVS_BASE, UVS_LAST + 1)) | {STACK_MARK_CP})
     if not bucket_cps:
         start = bucket_id << 8
         end = start + 0xFF
-        return (
-            f"U+{start:X}-{end:X}, U+{UVS_BASE:X}-{STACK_MARK_CP:X}"
-        )
+        return f"U+{start:X}-{end:X}, U+{UVS_BASE:X}-{STACK_MARK_CP:X}"
 
     runs: List[str] = []
     run_start = cps[0]
@@ -673,12 +668,8 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
         urange = unicode_range_for_bucket(bucket_id, codepoints)
         lines.append("@font-face {")
         lines.append(f"  font-family: '{family}';")
-        lines.append(
-            f"  src: url('./{hex_id}.woff2') format('woff2'),"
-        )
-        lines.append(
-            f"       url('./{hex_id}.ttf') format('truetype'),"
-        )
+        lines.append(f"  src: url('./{hex_id}.woff2') format('woff2'),")
+        lines.append(f"       url('./{hex_id}.ttf') format('truetype'),")
         lines.append(
             f"       url('{CSS_FONT_URL_BASE}/{hex_id}.woff2') format('woff2');"
         )
