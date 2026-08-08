@@ -172,7 +172,9 @@ def build_chain_context_format2(
     return st
 
 
-def build_chunked_single_subst_lookup(mapping: Dict[str, str], *, chunk: int = GSUB_SUBST_CHUNK):
+def build_chunked_single_subst_lookup(
+    mapping: Dict[str, str], *, chunk: int = GSUB_SUBST_CHUNK
+):
     from fontTools.otlLib.builder import buildSingleSubstSubtable
 
     items = list(mapping.items())
@@ -245,9 +247,7 @@ def ink_width(glyph: TTGlyph) -> float:
         return 0.0
 
 
-def measure_upright_stems(
-    glyph: TTGlyph, advance: float
-) -> Tuple[float, float]:
+def measure_upright_stems(glyph: TTGlyph, advance: float) -> Tuple[float, float]:
     """``(vertical_stem, horizontal_stem)`` from an upright Yi standalone."""
     layer = layer_from_ttglyph(glyph, advance)
     return estimate_vertical_stem(layer), estimate_horizontal_stem(layer)
@@ -343,9 +343,7 @@ def add_d4_variant_glyphs(
     """
     installed: List[Tuple[int, str, str]] = []
     use_modes = modes if modes is not None else TRANSFORM_MODES
-    do_sideways = (
-        sideways_target_width is not None and sideways_target_width > 1.0
-    )
+    do_sideways = sideways_target_width is not None and sideways_target_width > 1.0
     fit_cx = (
         float(sideways_center_x)
         if sideways_center_x is not None
@@ -364,9 +362,7 @@ def add_d4_variant_glyphs(
     if do_sideways and any(
         suffix in SIDEWAYS_SUFFIXES for _vs, _r, _fx, _fy, suffix in use_modes
     ):
-        upright_v, upright_h = measure_upright_stems(
-            glyphs[base_name], float(advance)
-        )
+        upright_v, upright_h = measure_upright_stems(glyphs[base_name], float(advance))
         if r90_name not in glyphs:
             r90_glyph, r90_adv, r90_lsb = make_composite_variant(
                 base_name,
@@ -585,9 +581,7 @@ def install_overlay_gsub(
         return cov
 
     forms = _gid_sort([n for n in full_forms if n in glyphs])
-    overlayable = _gid_sort(
-        [n for n in forms if overlay_glyph_name(n) in glyphs]
-    )
+    overlayable = _gid_sort([n for n in forms if overlay_glyph_name(n) in glyphs])
     if not overlayable:
         return 0
 
@@ -626,6 +620,7 @@ def install_overlay_gsub(
     if "GSUB" in font:
         gsub = font["GSUB"].table
     else:
+
         def _langsys() -> ot.DefaultLangSys:
             ls = ot.DefaultLangSys()
             ls.ReqFeatureIndex = 0xFFFF
@@ -682,9 +677,7 @@ def install_overlay_gsub(
         feature_lookup_idxs.append(chain_index)
         feature_lookup_idxs.append(consume_index)
 
-    tag_to_fr = {
-        fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])
-    }
+    tag_to_fr = {fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])}
     for tag in COMPOSITION_FEATURE_TAGS:
         fr = tag_to_fr.get(tag)
         if fr is None:

@@ -251,9 +251,7 @@ class _LayerBuildPen(BasePen):
     def _qCurveToOne(self, b, c) -> None:
         if self._path is None:
             return
-        self._path.nodes.append(
-            Node(Point2(float(b[0]), float(b[1])), NODE_OFFCURVE)
-        )
+        self._path.nodes.append(Node(Point2(float(b[0]), float(b[1])), NODE_OFFCURVE))
         self._path.nodes.append(Node(Point2(float(c[0]), float(c[1])), NODE_CURVE))
 
     def _curveToOne(self, b, c, d) -> None:
