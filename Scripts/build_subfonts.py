@@ -94,14 +94,14 @@ PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("LXGWXiHeiMN.ttf", 1.0, 0.975),
     ("LXGWXiHeiCL.ttf", 1.0, 0.975),
     ("LXGWNeoXiHeiPlus.ttf", 1.0, 0.975),
-    ("ChironHeiHK-R.ttf", 0.94, 0.95),
-    ("Gothic Nguyen Regular.ttf", 0.94, 0.95),
-    ("YshiYuanGothicCleaned.ttf", 0.94, 0.95),
-    ("ChocolateClassicalSans-Regular.ttf", 0.94, 0.95),
-    ("SukimaGothic.ttf", 0.94, 1.0),
+    ("ChironHeiHK-R.ttf", 0.96, 0.95),
+    ("Gothic Nguyen Regular.ttf", 0.96, 0.95),
+    ("YshiYuanGothicCleaned.ttf", 0.96, 0.95),
+    ("ChocolateClassicalSans-Regular.ttf", 0.96, 0.95),
+    ("SukimaGothic.ttf", 0.96, 1.0),
     ("NotoSerifTangut-Regular.ttf", 1.0, 1.05),
-    ("PlangothicP1-Regular.ttf", 0.94, 0.95),
-    ("PlangothicP2-Regular.ttf", 0.94, 0.95),
+    ("PlangothicP1-Regular.ttf", 0.96, 0.95),
+    ("PlangothicP2-Regular.ttf", 0.96, 0.95),
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
