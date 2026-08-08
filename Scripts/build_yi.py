@@ -157,9 +157,7 @@ def install_yi_gsub(
     full_forms: List[str] = []
     for yi in yi_bases:
         full_forms.extend(orientation_form_names(yi, modes=YI_ORIENTATION_MODES))
-    install_overlay_gsub(
-        font, full_forms, glyphs=glyphs, glyph_order=glyph_order
-    )
+    install_overlay_gsub(font, full_forms, glyphs=glyphs, glyph_order=glyph_order)
 
 
 def build_panyi_font(
@@ -234,9 +232,7 @@ def build_panyi_font(
             modes=YI_ORIENTATION_MODES,
         )
         uvs_rows.extend(
-            build_d4_uvs_entries(
-                cp, sa_name, glyphs=glyphs, modes=YI_ORIENTATION_MODES
-            )
+            build_d4_uvs_entries(cp, sa_name, glyphs=glyphs, modes=YI_ORIENTATION_MODES)
         )
 
     print("  Installing FE08 overlay (.ov) forms...", flush=True)
@@ -351,8 +347,7 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     fontlist_path = os.path.join(out_dir, "panyi-fontlist.css")
     with open(fontlist_path, "w", encoding="utf-8") as f:
         f.write(
-            "/* Yi font family */\n"
-            f":root {{\n  --font-panyi: '{FAMILY_NAME}';\n}}\n"
+            "/* Yi font family */\n" f":root {{\n  --font-panyi: '{FAMILY_NAME}';\n}}\n"
         )
     print(f"Wrote {fontlist_path}")
 

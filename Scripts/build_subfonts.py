@@ -94,6 +94,7 @@ PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("LXGWXiHeiMN.ttf", 1.01, 0.975),
     ("LXGWXiHeiCL.ttf", 1.01, 0.975),
     ("LXGWNeoXiHeiPlus.ttf", 1.01, 0.975),
+    ("ChironHeiHK-R.ttf", 0.96, 0.95),
     ("Gothic Nguyen Regular.ttf", 0.96, 0.95),
     ("YshiYuanGothicCleaned.ttf", 0.96, 0.95),
     ("ChocolateClassicalSans-Regular.ttf", 0.96, 0.95),

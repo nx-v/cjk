@@ -251,7 +251,9 @@ class _LayerBuildPen(BasePen):
     def _qCurveToOne(self, b, c) -> None:
         if self._path is None:
             return
-        self._path.nodes.append(GSNode(NSPoint(float(b[0]), float(b[1])), NODE_OFFCURVE))
+        self._path.nodes.append(
+            GSNode(NSPoint(float(b[0]), float(b[1])), NODE_OFFCURVE)
+        )
         self._path.nodes.append(GSNode(NSPoint(float(c[0]), float(c[1])), NODE_CURVE))
 
     def _curveToOne(self, b, c, d) -> None:
@@ -467,7 +469,9 @@ def _offset_path(path: GSPath, offset_x: float, offset_y: float) -> None:
         if i in on_off:
             ox, oy = on_off[i]
         else:
-            prev_on = next((on_idx[k] for k in range(m - 1, -1, -1) if on_idx[k] < i), None)
+            prev_on = next(
+                (on_idx[k] for k in range(m - 1, -1, -1) if on_idx[k] < i), None
+            )
             next_on = next((on_idx[k] for k in range(m) if on_idx[k] > i), None)
             if path.closed:
                 if prev_on is None:
