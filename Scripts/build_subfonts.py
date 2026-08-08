@@ -86,7 +86,7 @@ CSS_FONT_URL_BASE = (
 #   1.0 = none). Outer width/height are preserved.
 
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("NGULIM.TTF", 1.0, 1.25),
+    ("NGULIM.TTF", 1.0, 1.15),
     ("malgun.ttf", 1.0, 1.0),
     ("Han-Nom Gothic 1.32.otf", 0.92, 1.0),
     ("msyh.ttc", 0.92, 0.95),
