@@ -33,11 +33,11 @@ Point = Tuple[float, float]
 Affine = Tuple[float, float, float, float, float, float]  # a b c d e f (SVG)
 
 
-# ── Minimal Glyphs-like types ───────────────────────────────────────────────
+# ── Outline model ───────────────────────────────────────────────────────────
 
 
 @dataclass
-class NSPoint:
+class Point2:
     x: float = 0.0
     y: float = 0.0
 
@@ -52,8 +52,8 @@ NODE_OFFCURVE = "offcurve"
 
 
 @dataclass
-class GSNode:
-    position: NSPoint = field(default_factory=NSPoint)
+class Node:
+    position: Point2 = field(default_factory=Point2)
     type: str = NODE_LINE  # line | curve | offcurve
 
     @property
@@ -72,14 +72,14 @@ class GSNode:
     def y(self, v: float) -> None:
         self.position.y = float(v)
 
-    def copy(self) -> "GSNode":
-        return GSNode(NSPoint(self.x, self.y), self.type)
+    def copy(self) -> "Node":
+        return Node(Point2(self.x, self.y), self.type)
 
 
 @dataclass
-class GSAnchor:
+class Anchor:
     name: str = ""
-    position: NSPoint = field(default_factory=NSPoint)
+    position: Point2 = field(default_factory=Point2)
 
     @property
     def x(self) -> float:
@@ -99,54 +99,54 @@ class GSAnchor:
 
 
 @dataclass
-class GSGuide:
-    position: NSPoint = field(default_factory=NSPoint)
+class Guide:
+    position: Point2 = field(default_factory=Point2)
     angle: float = 0.0
     name: str = ""
 
 
 @dataclass
-class GSPath:
-    nodes: List[GSNode] = field(default_factory=list)
+class Path:
+    nodes: List[Node] = field(default_factory=list)
     closed: bool = True
 
-    def copy(self) -> "GSPath":
-        p = GSPath(closed=self.closed)
+    def copy(self) -> "Path":
+        p = Path(closed=self.closed)
         p.nodes = [n.copy() for n in self.nodes]
         return p
 
 
 @dataclass
 class _Bounds:
-    origin: NSPoint
-    size: NSPoint  # size.x = width, size.y = height
+    origin: Point2
+    size: Point2  # size.x = width, size.y = height
 
 
 class _ShapeList:
     """``layer.shapes`` façade: append/remove paths (components ignored)."""
 
-    def __init__(self, layer: "GSLayer") -> None:
+    def __init__(self, layer: "Layer") -> None:
         self._layer = layer
 
     def append(self, obj) -> None:
-        if isinstance(obj, GSPath):
+        if isinstance(obj, Path):
             self._layer.paths.append(obj)
 
     def remove(self, obj) -> None:
-        if isinstance(obj, GSPath) and obj in self._layer.paths:
+        if isinstance(obj, Path) and obj in self._layer.paths:
             self._layer.paths.remove(obj)
 
     def __iter__(self):
         return iter(self._layer.paths)
 
 
-class GSLayer:
-    """Minimal layer: paths, anchors, guides, metrics, applyTransform, bounds."""
+class Layer:
+    """Outline layer: paths, anchors, guides, metrics, applyTransform, bounds."""
 
     def __init__(self) -> None:
-        self.paths: List[GSPath] = []
-        self.anchors: List[GSAnchor] = []
-        self.guides: List[GSGuide] = []
+        self.paths: List[Path] = []
+        self.anchors: List[Anchor] = []
+        self.guides: List[Guide] = []
         self.components: List[object] = []
         self._width: float = 0.0
         self._lsb: float = 0.0
@@ -203,10 +203,10 @@ class GSLayer:
                 xs.append(n.x)
                 ys.append(n.y)
         if not xs:
-            return _Bounds(NSPoint(0, 0), NSPoint(0, 0))
+            return _Bounds(Point2(0, 0), Point2(0, 0))
         x0, x1 = min(xs), max(xs)
         y0, y1 = min(ys), max(ys)
-        return _Bounds(NSPoint(x0, y0), NSPoint(x1 - x0, y1 - y0))
+        return _Bounds(Point2(x0, y0), Point2(x1 - x0, y1 - y0))
 
     def applyTransform(self, t: Affine) -> None:
         a, b, c, d, e, f = (float(x) for x in t)
@@ -226,35 +226,35 @@ class GSLayer:
             g.position.x, g.position.y = nx, ny
 
 
-# ── TTGlyph ↔ GSLayer ───────────────────────────────────────────────────────
+# ── TTGlyph ↔ Layer ─────────────────────────────────────────────────────────
 
 
 class _LayerBuildPen(BasePen):
-    """Record TrueType outlines into GSPath lists (quadratic → on/off nodes)."""
+    """Record TrueType outlines into Path lists (quadratic → on/off nodes)."""
 
-    def __init__(self, layer: GSLayer) -> None:
+    def __init__(self, layer: Layer) -> None:
         super().__init__(None)
         self.layer = layer
-        self._path: Optional[GSPath] = None
+        self._path: Optional[Path] = None
         self._start: Optional[Point] = None
 
     def _moveTo(self, pt) -> None:
-        self._path = GSPath(closed=False)
+        self._path = Path(closed=False)
         self._start = (float(pt[0]), float(pt[1]))
-        self._path.nodes.append(GSNode(NSPoint(*self._start), NODE_LINE))
+        self._path.nodes.append(Node(Point2(*self._start), NODE_LINE))
 
     def _lineTo(self, pt) -> None:
         if self._path is None:
             return
-        self._path.nodes.append(GSNode(NSPoint(float(pt[0]), float(pt[1])), NODE_LINE))
+        self._path.nodes.append(Node(Point2(float(pt[0]), float(pt[1])), NODE_LINE))
 
     def _qCurveToOne(self, b, c) -> None:
         if self._path is None:
             return
         self._path.nodes.append(
-            GSNode(NSPoint(float(b[0]), float(b[1])), NODE_OFFCURVE)
+            Node(Point2(float(b[0]), float(b[1])), NODE_OFFCURVE)
         )
-        self._path.nodes.append(GSNode(NSPoint(float(c[0]), float(c[1])), NODE_CURVE))
+        self._path.nodes.append(Node(Point2(float(c[0]), float(c[1])), NODE_CURVE))
 
     def _curveToOne(self, b, c, d) -> None:
         if self._path is None:
@@ -275,10 +275,10 @@ class _LayerBuildPen(BasePen):
             d[0] + 0.75 * (c[0] - d[0]),
             d[1] + 0.75 * (c[1] - d[1]),
         )
-        self._path.nodes.append(GSNode(NSPoint(*c1), NODE_OFFCURVE))
-        self._path.nodes.append(GSNode(NSPoint(*mid), NODE_CURVE))
-        self._path.nodes.append(GSNode(NSPoint(*c2), NODE_OFFCURVE))
-        self._path.nodes.append(GSNode(NSPoint(*d), NODE_CURVE))
+        self._path.nodes.append(Node(Point2(*c1), NODE_OFFCURVE))
+        self._path.nodes.append(Node(Point2(*mid), NODE_CURVE))
+        self._path.nodes.append(Node(Point2(*c2), NODE_OFFCURVE))
+        self._path.nodes.append(Node(Point2(*d), NODE_CURVE))
 
     def _closePath(self) -> None:
         if self._path is None:
@@ -304,9 +304,9 @@ class _LayerBuildPen(BasePen):
             self._start = None
 
 
-def layer_from_ttglyph(glyph: TTGlyph, advance: float) -> GSLayer:
-    """Decompose a TrueType glyph into a ``GSLayer`` (no components kept)."""
-    layer = GSLayer()
+def layer_from_ttglyph(glyph: TTGlyph, advance: float) -> Layer:
+    """Decompose a TrueType glyph into a ``Layer`` (no components kept)."""
+    layer = Layer()
     layer.width = float(advance)
     pen = _LayerBuildPen(layer)
     try:
@@ -322,7 +322,7 @@ def layer_from_ttglyph(glyph: TTGlyph, advance: float) -> GSLayer:
     return layer
 
 
-def ttglyph_from_layer(layer: GSLayer) -> Tuple[TTGlyph, int, int]:
+def ttglyph_from_layer(layer: Layer) -> Tuple[TTGlyph, int, int]:
     """Build a TT glyph from layer paths; return ``(glyph, advance, lsb)``."""
     pen = TTGlyphPen(None)
     for path in layer.paths:
@@ -371,7 +371,7 @@ def ttglyph_from_layer(layer: GSLayer) -> Tuple[TTGlyph, int, int]:
 
 
 def estimate_vertical_stem(
-    layer: GSLayer,
+    layer: Layer,
     *,
     samples: int = 48,
     max_frac: float = 0.35,
@@ -422,7 +422,7 @@ def estimate_vertical_stem(
 
 
 def estimate_horizontal_stem(
-    layer: GSLayer,
+    layer: Layer,
     *,
     samples: int = 48,
     max_frac: float = 0.35,
@@ -482,7 +482,7 @@ def _unit(dx: float, dy: float) -> Point:
     return (dx / L, dy / L)
 
 
-def _offset_path(path: GSPath, offset_x: float, offset_y: float) -> None:
+def _offset_path(path: Path, offset_x: float, offset_y: float) -> None:
     """Move each node along averaged on-curve normals (Glyphs-like OffsetCurve)."""
     nodes = path.nodes
     n = len(nodes)
@@ -548,7 +548,7 @@ def _offset_path(path: GSPath, offset_x: float, offset_y: float) -> None:
 
 
 def offset_layer(
-    layer: GSLayer,
+    layer: Layer,
     offset_x: float,
     offset_y: float,
     position: float = 0.5,
@@ -585,7 +585,7 @@ def width_scale_params(
 
 
 def apply_width(
-    layer: GSLayer,
+    layer: Layer,
     factor: float,
     *,
     stem: Optional[float] = None,
@@ -630,7 +630,7 @@ def apply_width(
 
 
 def apply_weight(
-    layer: GSLayer,
+    layer: Layer,
     factor: float,
     *,
     stem: Optional[float] = None,
