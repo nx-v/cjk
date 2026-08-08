@@ -421,6 +421,57 @@ def estimate_vertical_stem(
     return float(statistics.median(spans))
 
 
+def estimate_horizontal_stem(
+    layer: GSLayer,
+    *,
+    samples: int = 48,
+    max_frac: float = 0.35,
+) -> float:
+    """Median thin odd–even vertical-ray span — proxy for horizontal stroke thickness."""
+    b = layer.bounds
+    width, height = b.size.x, b.size.y
+    if width <= 1e-6 or height <= 1e-6:
+        return 0.0
+    x0 = b.origin.x
+
+    edges: List[Tuple[Point, Point]] = []
+    for path in layer.paths:
+        pts = [(n.x, n.y) for n in path.nodes]
+        if len(pts) < 2:
+            continue
+        for i in range(len(pts)):
+            a = pts[i]
+            c = (
+                pts[(i + 1) % len(pts)]
+                if path.closed
+                else (pts[i + 1] if i + 1 < len(pts) else None)
+            )
+            if c is None:
+                break
+            edges.append((a, c))
+
+    spans: List[float] = []
+    for i in range(1, samples + 1):
+        x = x0 + width * i / (samples + 1)
+        ys: List[float] = []
+        for (ax, ay), (bx, by) in edges:
+            if abs(ax - bx) < 1e-9:
+                continue
+            lo, hi = (ax, bx) if ax < bx else (bx, ax)
+            if x < lo or x > hi:
+                continue
+            t = (x - ax) / (bx - ax)
+            ys.append(ay + t * (by - ay))
+        ys.sort()
+        for j in range(0, len(ys) - 1, 2):
+            h = ys[j + 1] - ys[j]
+            if 0.0 < h < max_frac * height:
+                spans.append(h)
+    if not spans:
+        return 0.0
+    return float(statistics.median(spans))
+
+
 # ── OffsetCurve stand-in (contour-normal) ───────────────────────────────────
 
 

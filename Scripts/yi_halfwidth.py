@@ -11,7 +11,12 @@ Encoding
   UVS ``U+FE00``..``U+FE07``), including ``r90my``. Identity needs no subst;
   the other seven are TrueType composites / baked outlines about the
   **contour bounding-box center** (not the CJK typo mid — standalones pin
-  ink to the padded floor, so those centers diverge).
+  ink to the padded floor, so those centers diverge). Sideways ``r90`` /
+  ``r270`` / ``r90mx`` / ``r90my`` forms restore upright H/V stroke contrast
+  (horizontal thinner than vertical), then CAPE Weightor **Width mode**
+  squashes ink width to the inventory-average upright Yi width. Only
+  ``r90`` keeps a full outline; ``r270`` / ``r90mx`` / ``r90my`` are
+  composites of that fitted ``r90``.
 * Overlay: **``U+FE08``** superimposes preceding glyphs into one cell —
   everything but the **last** glyph before ``FE08`` becomes zero-advance
   (``.ov``); the last keeps the em advance. Chain with more ``FE08``
@@ -47,7 +52,15 @@ try:
 except ImportError:  # Scripts.* import style
     from Scripts.kage.mapping import D4_MODES, MirrorVS
 
-from cape_weightor import widen_ttglyph
+from cape_weightor import (
+    apply_width,
+    estimate_horizontal_stem,
+    estimate_vertical_stem,
+    layer_from_ttglyph,
+    offset_layer,
+    ttglyph_from_layer,
+    widen_ttglyph,
+)
 
 # ---------- Constants ----------
 
@@ -115,6 +128,207 @@ TRANSFORM_MODES: List[TransformMode] = [
 
 # Yi uses the full D4 set (VS01..VS08), same as TRANSFORM_MODES.
 YI_ORIENTATION_MODES: List[TransformMode] = TRANSFORM_MODES
+
+# 90°/270° orientations (incl. diagonals) — Width-mode fit + contrast restore.
+SIDEWAYS_SUFFIXES = frozenset({"r90", "r270", "r90mx", "r90my"})
+# Derived from fitted ``r90`` via axis-aligned maps (TT composites).
+# ``r270`` = r180(r90); ``r90mx`` = reflect-Y(r90); ``r90my`` = reflect-X(r90).
+SIDEWAYS_FROM_R90: Dict[str, Tuple[int, bool, bool]] = {
+    "r270": (2, False, False),
+    "r90mx": (0, True, False),
+    "r90my": (0, False, True),
+}
+
+
+def ink_width(glyph: TTGlyph) -> float:
+    try:
+        glyph.recalcBounds(None)
+        return float(glyph.xMax - glyph.xMin)
+    except Exception:
+        return 0.0
+
+
+def measure_upright_stems(
+    glyph: TTGlyph, advance: float
+) -> Tuple[float, float]:
+    """``(vertical_stem, horizontal_stem)`` from an upright Yi standalone."""
+    layer = layer_from_ttglyph(glyph, advance)
+    return estimate_vertical_stem(layer), estimate_horizontal_stem(layer)
+
+
+def average_ink_width(glyphs: Sequence[TTGlyph]) -> float:
+    widths = [ink_width(g) for g in glyphs]
+    widths = [w for w in widths if w > 1.0]
+    if not widths:
+        return 0.0
+    return sum(widths) / len(widths)
+
+
+def fit_sideways_yi_glyph(
+    glyph: TTGlyph,
+    advance: int,
+    *,
+    target_ink_width: float,
+    vertical_stem: float,
+    horizontal_stem: float,
+    center_x: Optional[float] = None,
+) -> GlyphMetrics:
+    """Restore upright H/V contrast, then Width-mode squash to ``target_ink_width``.
+
+    A plain 90°/270° rotate swaps stem roles (thick upright verticals become
+    thick horizontals). Signed contour offsets put H back thinner than V using
+    the upright stem pair, then CAPE Width mode condenses to the average
+    upright Yi ink width while compensating vertical stems.
+    """
+    try:
+        glyph.recalcBounds(None)
+        cx0 = (glyph.xMin + glyph.xMax) / 2.0
+        cy0 = (glyph.yMin + glyph.yMax) / 2.0
+    except Exception:
+        cx0 = float(advance) / 2.0 if advance else 500.0
+        cy0 = 380.0
+    if center_x is None:
+        center_x = cx0
+
+    layer = layer_from_ttglyph(glyph, float(advance))
+    cur_v = estimate_vertical_stem(layer)
+    cur_h = estimate_horizontal_stem(layer)
+    # On these TT outlines, negative X thickens verticals; positive Y thins
+    # horizontals (opposite the "positive expands fill" mnemonic).
+    dx = (cur_v - vertical_stem) / 2.0 if vertical_stem > 0 and cur_v > 0 else 0.0
+    dy = (cur_h - horizontal_stem) / 2.0 if horizontal_stem > 0 and cur_h > 0 else 0.0
+    if abs(dx) > 1e-6 or abs(dy) > 1e-6:
+        offset_layer(layer, dx, dy)
+
+    bw = layer.bounds.size.x
+    if target_ink_width > 1.0 and bw > 1.0:
+        factor = target_ink_width / bw
+        stem = vertical_stem if vertical_stem > 0 else None
+        apply_width(layer, factor, stem=stem, center_x=center_x)
+
+    # Keep the pre-fit contour center (Width already pinned X via center_x).
+    try:
+        b = layer.bounds
+        cy1 = b.origin.y + 0.5 * b.size.y
+        mid_y = cy0 - cy1
+        if abs(mid_y) > 1e-6:
+            layer.applyTransform((1, 0, 0, 1, 0, mid_y))
+    except Exception:
+        pass
+
+    out, _out_adv, out_lsb = ttglyph_from_layer(layer)
+    return out, int(advance), int(out_lsb)
+
+
+def add_d4_variant_glyphs(
+    base_name: str,
+    *,
+    advance: int,
+    lsb: int,
+    target_upem: int,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    modes: Optional[Sequence[TransformMode]] = None,
+    sideways_target_width: Optional[float] = None,
+) -> List[Tuple[int, str, str]]:
+    """Create non-identity D4 forms for ``base_name`` (bake 2×2, composite otherwise).
+
+    When ``sideways_target_width`` is set, ``r90`` is baked with contrast restore
+    + Width-mode fit; ``r270`` / ``r90mx`` / ``r90my`` are TT composites of that
+    fitted ``r90`` (r180 / reflect-Y / reflect-X) to save outline space.
+
+    Returns ``[(vs_cp, suffix, variant_glyph_name), ...]`` for GSUB wiring.
+    """
+    installed: List[Tuple[int, str, str]] = []
+    use_modes = modes if modes is not None else TRANSFORM_MODES
+    do_sideways = (
+        sideways_target_width is not None and sideways_target_width > 1.0
+    )
+    upright_v = upright_h = 0.0
+    r90_name = variant_glyph_name(base_name, "r90")
+
+    def _install(name: str, glyph: TTGlyph, adv: int, glyph_lsb: int) -> None:
+        if name in glyphs:
+            return
+        glyph_order.append(name)
+        glyphs[name] = glyph
+        metrics[name] = (adv, glyph_lsb)
+
+    if do_sideways and any(
+        suffix in SIDEWAYS_SUFFIXES for _vs, _r, _fx, _fy, suffix in use_modes
+    ):
+        upright_v, upright_h = measure_upright_stems(
+            glyphs[base_name], float(advance)
+        )
+        if r90_name not in glyphs:
+            r90_glyph, r90_adv, r90_lsb = make_composite_variant(
+                base_name,
+                target_upem,
+                rot90_quarters=1,
+                flip_x=False,
+                flip_y=False,
+                advance=advance,
+                lsb=lsb,
+                base_glyph=glyphs[base_name],
+                glyph_set=glyphs,
+            )
+            r90_glyph, r90_adv, r90_lsb = fit_sideways_yi_glyph(
+                r90_glyph,
+                r90_adv,
+                target_ink_width=sideways_target_width,
+                vertical_stem=upright_v,
+                horizontal_stem=upright_h,
+                center_x=target_upem / 2.0,
+            )
+            _install(r90_name, r90_glyph, r90_adv, r90_lsb)
+
+    for vs_cp, rot, flip_x, flip_y, suffix in use_modes:
+        if suffix is None:
+            continue
+        m_name = variant_glyph_name(base_name, suffix)
+        if m_name not in glyphs:
+            if do_sideways and suffix in SIDEWAYS_FROM_R90:
+                rel_rot, rel_fx, rel_fy = SIDEWAYS_FROM_R90[suffix]
+                m_glyph, m_adv, m_lsb = make_composite_variant(
+                    r90_name,
+                    target_upem,
+                    rot90_quarters=rel_rot,
+                    flip_x=rel_fx,
+                    flip_y=rel_fy,
+                    advance=metrics[r90_name][0],
+                    lsb=metrics[r90_name][1],
+                    base_glyph=glyphs[r90_name],
+                    glyph_set=glyphs,
+                )
+            elif do_sideways and suffix == "r90":
+                # Already installed above when sideways fitting is on.
+                installed.append((vs_cp, suffix, m_name))
+                continue
+            else:
+                m_glyph, m_adv, m_lsb = make_composite_variant(
+                    base_name,
+                    target_upem,
+                    rot90_quarters=rot,
+                    flip_x=flip_x,
+                    flip_y=flip_y,
+                    advance=advance,
+                    lsb=lsb,
+                    base_glyph=glyphs[base_name],
+                    glyph_set=glyphs,
+                )
+                if do_sideways and suffix in SIDEWAYS_SUFFIXES:
+                    m_glyph, m_adv, m_lsb = fit_sideways_yi_glyph(
+                        m_glyph,
+                        m_adv,
+                        target_ink_width=sideways_target_width,
+                        vertical_stem=upright_v,
+                        horizontal_stem=upright_h,
+                        center_x=target_upem / 2.0,
+                    )
+            _install(m_name, m_glyph, m_adv, m_lsb)
+        installed.append((vs_cp, suffix, m_name))
+    return installed
 
 
 def vs_glyph_name(vs_cp: int) -> str:
@@ -431,46 +645,6 @@ def composition_fea(*rule_groups: Sequence[str]) -> str:
         parts.append(f"}} {tag};")
         parts.append("")
     return "\n".join(parts)
-
-
-def add_d4_variant_glyphs(
-    base_name: str,
-    *,
-    advance: int,
-    lsb: int,
-    target_upem: int,
-    glyph_order: List[str],
-    glyphs: Dict[str, TTGlyph],
-    metrics: Dict[str, Tuple[int, int]],
-    modes: Optional[Sequence[TransformMode]] = None,
-) -> List[Tuple[int, str, str]]:
-    """Create non-identity D4 forms for ``base_name`` (bake 2×2, composite otherwise).
-
-    Returns ``[(vs_cp, suffix, variant_glyph_name), ...]`` for GSUB wiring.
-    """
-    installed: List[Tuple[int, str, str]] = []
-    use_modes = modes if modes is not None else TRANSFORM_MODES
-    for vs_cp, rot, flip_x, flip_y, suffix in use_modes:
-        if suffix is None:
-            continue
-        m_name = variant_glyph_name(base_name, suffix)
-        if m_name not in glyphs:
-            m_glyph, m_adv, m_lsb = make_composite_variant(
-                base_name,
-                target_upem,
-                rot90_quarters=rot,
-                flip_x=flip_x,
-                flip_y=flip_y,
-                advance=advance,
-                lsb=lsb,
-                base_glyph=glyphs[base_name],
-                glyph_set=glyphs,
-            )
-            glyph_order.append(m_name)
-            glyphs[m_name] = m_glyph
-            metrics[m_name] = (m_adv, m_lsb)
-        installed.append((vs_cp, suffix, m_name))
-    return installed
 
 
 def _rot90_matrix(quarters: int) -> Tuple[Tuple[float, float], Tuple[float, float]]:

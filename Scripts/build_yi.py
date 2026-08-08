@@ -35,6 +35,7 @@ from yi_halfwidth import (
     YiInventory,
     add_d4_variant_glyphs,
     add_overlay_forms,
+    average_ink_width,
     build_d4_uvs_entries,
     empty_glyph,
     inject_stack_mark,
@@ -203,6 +204,15 @@ def build_panyi_font(
         if sa is not None:
             standalones[idx] = sa
 
+    avg_upright_width = average_ink_width(
+        [standalones[i][0] for i in sorted(standalones)]
+    )
+    print(
+        f"  Sideways: fitted r90 outline; r270/r90mx/r90my composite from r90 "
+        f"(Width-fit avg upright ink width {avg_upright_width:.0f})",
+        flush=True,
+    )
+
     glyph_order = [".notdef"]
     glyphs = {".notdef": empty_glyph()}
     metrics: Dict[str, Tuple[int, int]] = {".notdef": (target_upem // 2, 0)}
@@ -230,6 +240,7 @@ def build_panyi_font(
             glyphs=glyphs,
             metrics=metrics,
             modes=YI_ORIENTATION_MODES,
+            sideways_target_width=avg_upright_width,
         )
         uvs_rows.extend(
             build_d4_uvs_entries(cp, sa_name, glyphs=glyphs, modes=YI_ORIENTATION_MODES)
@@ -380,7 +391,7 @@ def build_all(
 
     print(
         "  Orientations: VS01..VS08 / FE00..FE07 "
-        "(D4 about contour bbox center, 8 modes)"
+        "(D4 about contour center; sideways Width-fit)"
     )
     print(
         f"  Overlay: U+{STACK_MARK_CP:04X} "

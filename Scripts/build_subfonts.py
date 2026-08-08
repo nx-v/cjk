@@ -55,6 +55,7 @@ from yi_halfwidth import (
     build_d4_uvs_entries,
     center_glyph_in_cell,
     composition_fea,
+    ink_width,
     inject_stack_mark,
     install_overlay_gsub,
     is_yi_cp,
@@ -496,6 +497,7 @@ def build_bucket_font(
             glyph_order=glyph_order,
             glyphs=glyphs,
             metrics=metrics,
+            sideways_target_width=ink_width(glyph) if use_yi_standalone else None,
         )
         for vs_cp, _suffix, m_name in installed:
             liga_rules.append(f"  sub {gname} {vs_glyph_name(vs_cp)} by {m_name};")
