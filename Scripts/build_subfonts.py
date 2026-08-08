@@ -87,6 +87,7 @@ CSS_FONT_URL_BASE = (
 
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("YuGothM.ttc", 1.0, 1.4),
+    ("malgun.ttf", 1.0, 1),
     ("msjh.ttc", 1.0, 1.5),
     ("NGULIM.TTF", 1.0, 1.3),
     ("Han-Nom Gothic 1.32.otf", 0.95, 1.0),
