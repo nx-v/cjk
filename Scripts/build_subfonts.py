@@ -53,6 +53,7 @@ from yi_halfwidth import (
     add_d4_variant_glyphs,
     add_overlay_forms,
     build_d4_uvs_entries,
+    center_glyph_in_cell,
     composition_fea,
     inject_stack_mark,
     install_overlay_gsub,
@@ -89,6 +90,7 @@ PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("msjh.ttc", 1.0, 1.1),
     ("Han-Nom Gothic 1.32.otf", 0.95, 1.0),
     ("msyh.ttc", 0.95, 0.95),
+    ("LXGWClearGothic-Regular.ttf", 1.01, 0.975),
     ("LXGWXiHeiMN.ttf", 1.01, 0.975),
     ("LXGWXiHeiCL.ttf", 1.01, 0.975),
     ("LXGWNeoXiHeiPlus.ttf", 1.01, 0.975),
@@ -311,10 +313,11 @@ class SourceFont:
         if glyph.numberOfContours == 0 and not glyph.isComposite():
             return None
 
-        # Some Ext-B sources ship inked glyphs with hmtx advance 0 (and a
-        # large negative LSB). Pan-CJK cells are full-em; force that when
-        # the outline has ink but the scaled advance collapsed.
-        if advance <= 0:
+        # Some Ext-B sources ship inked glyphs with hmtx advance 0 and ink
+        # centered on x=0 (large negative LSB). Pan-CJK cells are full-em;
+        # force the advance and recenter ink in the typo square.
+        force_cell = advance <= 0
+        if force_cell:
             advance = target_upem
 
         if abs(self.weightor - 1.0) > 1e-9:
@@ -324,12 +327,15 @@ class SourceFont:
                 )
                 if advance <= 0:
                     advance = target_upem
-                return glyph, advance, lsb
+                    force_cell = True
             except Exception as e:
                 print(
                     f"  [!] weightor failed {os.path.basename(self.path)}:{src_name}: {e}",
                     file=sys.stderr,
                 )
+
+        if force_cell:
+            glyph = center_glyph_in_cell(glyph, target_upem)
 
         try:
             glyph.recalcBounds(None)
