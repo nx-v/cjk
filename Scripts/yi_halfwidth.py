@@ -17,10 +17,11 @@ Encoding
   squashes ink width to the inventory-average upright Yi width. Only
   ``r90`` keeps a full outline; ``r270`` / ``r90mx`` / ``r90my`` are
   composites of that fitted ``r90``.
-* Overlay: **``U+FE08``** superimposes preceding glyphs into one cell —
-  everything but the **last** glyph before ``FE08`` becomes zero-advance
-  (``.ov``); the last keeps the em advance. Chain with more ``FE08``
-  (``A B FE08 C FE08`` → ``A.ov B.ov C``).
+* Overlay (GlyphWiki / build_subfonts): **``U+FE08``** superimposes preceding
+  glyphs into one cell — everything but the **last** glyph before ``FE08``
+  becomes zero-advance (``.ov``); the last keeps the em advance.
+* panyi slice overlays use ``U+FE08``/``U+FE09`` instead (see ``yi_slice``):
+  horizontal / vertical half-plane joins.
 * No side-by-side digraph compounds. Full D4 (8 modes) remains available for
   build_subfonts / GlyphWiki via ``TRANSFORM_MODES``.
 """
@@ -97,6 +98,102 @@ NUOSU_FILENAME = "NuosuSIL-Regular.ttf"
 
 Bounds = Tuple[float, float, float, float]
 GlyphMetrics = Tuple[TTGlyph, int, int]
+
+# Keep GSUB subst subtables under Offset16 limits (and avoid hb.repack
+# trying — and failing — to split ChainContext type 6).
+GSUB_SUBST_CHUNK = 2048
+
+
+def build_ext_gsub_lookup(subtables: Sequence) -> object:
+    """GSUB lookup wrapped as Extension (type 7) for 32-bit offsets."""
+    from fontTools.otlLib.builder import buildLookup
+
+    return buildLookup(list(subtables), table="GSUB", extension=True)
+
+
+def build_class_def(glyph_to_class: Dict[str, int]):
+    """``ClassDef`` from glyph→class map (class 0 omitted)."""
+    from fontTools.ttLib.tables import otTables as ot
+
+    cd = ot.ClassDef()
+    cd.classDefs = {g: c for g, c in glyph_to_class.items() if c}
+    return cd
+
+
+def build_chain_context_format2(
+    *,
+    coverage_glyphs: Sequence[str],
+    input_classes: Dict[str, int],
+    input_class: int,
+    backtrack_classes: Optional[Dict[str, int]] = None,
+    lookahead_classes: Optional[Dict[str, int]] = None,
+    backtrack_seq: Sequence[int] = (),
+    lookahead_seq: Sequence[int] = (),
+):
+    """Compact class-based ChainContextSubst (Format 2), single input glyph.
+
+    ``backtrack_seq`` is closest-to-input first (OpenType backtrack order).
+    ``SubstLookupRecord.LookupListIndex`` is left 0 for the caller to patch.
+    """
+    from fontTools.ttLib.tables import otTables as ot
+
+    st = ot.ChainContextSubst()
+    st.Format = 2
+    cov = ot.Coverage()
+    cov.glyphs = list(coverage_glyphs)
+    st.Coverage = cov
+    st.BacktrackClassDef = build_class_def(backtrack_classes or {})
+    st.InputClassDef = build_class_def(input_classes)
+    st.LookAheadClassDef = build_class_def(lookahead_classes or {})
+
+    max_in = max(input_classes.values(), default=0)
+    class_sets: List[Optional[object]] = [None] * (max_in + 1)
+
+    rule = ot.ChainSubClassRule()
+    rule.Backtrack = list(backtrack_seq)
+    rule.BacktrackGlyphCount = len(backtrack_seq)
+    rule.Input = []
+    rule.InputGlyphCount = 1
+    rule.LookAhead = list(lookahead_seq)
+    rule.LookAheadGlyphCount = len(lookahead_seq)
+    rec = ot.SubstLookupRecord()
+    rec.SequenceIndex = 0
+    rec.LookupListIndex = 0
+    rule.SubstLookupRecord = [rec]
+    rule.SubstCount = 1
+
+    cset = ot.ChainSubClassSet()
+    cset.ChainSubClassRule = [rule]
+    cset.ChainSubClassRuleCount = 1
+    class_sets[input_class] = cset
+
+    st.ChainSubClassSet = class_sets
+    st.ChainSubClassSetCount = len(class_sets)
+    return st
+
+
+def build_chunked_single_subst_lookup(mapping: Dict[str, str], *, chunk: int = GSUB_SUBST_CHUNK):
+    from fontTools.otlLib.builder import buildSingleSubstSubtable
+
+    items = list(mapping.items())
+    subs = [
+        buildSingleSubstSubtable(dict(items[i : i + chunk]))
+        for i in range(0, len(items), chunk)
+    ]
+    return build_ext_gsub_lookup(subs)
+
+
+def build_chunked_multiple_subst_lookup(
+    mapping: Dict[str, List[str]], *, chunk: int = GSUB_SUBST_CHUNK
+):
+    from fontTools.otlLib.builder import buildMultipleSubstSubtable
+
+    items = list(mapping.items())
+    subs = [
+        buildMultipleSubstSubtable(dict(items[i : i + chunk]))
+        for i in range(0, len(items), chunk)
+    ]
+    return build_ext_gsub_lookup(subs)
 
 
 def ideographic_center(target_upem: int) -> Tuple[float, float]:

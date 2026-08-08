@@ -41,6 +41,13 @@ VS4     U+E003     U+FE03     mxy — both axes
 
 * **Syllables (``panhanguls``):** ``char + VS`` / cmap-14 UVS flips the
   whole precomposed (or compat) glyph about its bbox center.
+
+Dakuten (JuliaMono combining marks)
+------------------------------------
+Same inventory and corner order as ``panyi``: successive marks fill CJK
+corners **TR → BR → TL → BL** via GSUB slot cycling + GPOS ``mark``/``abvm``.
+Installed in both ``panhangul`` and ``panhanguls`` (zero-advance V/T bases
+use local X shifted by ``-upem``).
 """
 
 from __future__ import annotations
@@ -76,6 +83,16 @@ from yi_halfwidth import (
     ideographic_bounds,
     ideographic_center,
     variant_glyph_name,
+)
+from yi_dakuten import (
+    JULIAMONO_FILENAME,
+    add_dakuten_mark_glyphs,
+    cjk_corner_anchors,
+    DAKUTEN_SLOTS,
+    install_dakuten_gpos,
+    install_dakuten_slot_gsub,
+    load_dakuten_marks,
+    resolve_juliamono_path,
 )
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -361,6 +378,134 @@ def em_variant_name(base_name: str, suffix: str) -> str:
 def up_variant_name(base_name: str) -> str:
     """Fixed upward-shift form when a final is present (``.up``)."""
     return f"{base_name}.{UP_SUFFIX}"
+
+
+def hangul_orientation_forms(base: str, glyphs: Dict[str, TTGlyph]) -> List[str]:
+    """Identity + ``.mx``/``.my``/``.mxy`` (+ ``.em*`` / ``.up`` chains if present)."""
+    out: List[str] = []
+    stack = [base]
+    seen: Set[str] = set()
+    while stack:
+        name = stack.pop()
+        if name in seen or name not in glyphs:
+            continue
+        seen.add(name)
+        out.append(name)
+        for sfx in MIRROR_SUFFIXES:
+            stack.append(variant_glyph_name(name, sfx))
+            stack.append(em_variant_name(name, sfx))
+        stack.append(up_variant_name(name))
+    return out
+
+
+def hangul_dakuten_bases(
+    seed_names: Sequence[str],
+    glyphs: Dict[str, TTGlyph],
+) -> List[str]:
+    """All orientation / layout forms reachable from ``seed_names``."""
+    names: List[str] = []
+    seen: Set[str] = set()
+    for seed in seed_names:
+        for n in hangul_orientation_forms(seed, glyphs):
+            if n not in seen:
+                seen.add(n)
+                names.append(n)
+    return names
+
+
+def collect_hangul_dakuten_base_anchors(
+    base_names: Sequence[str],
+    *,
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    target_upem: int,
+) -> Dict[str, Dict[int, Tuple[int, int]]]:
+    """Four CJK corners; zero-advance V/T forms shift anchors by ``-upem`` in X."""
+    corners = cjk_corner_anchors(target_upem)
+    class_xy = {i: corners[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)}
+    anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
+    for name in base_names:
+        if name not in glyphs:
+            continue
+        adv = int(metrics.get(name, (target_upem, 0))[0])
+        dx = -int(target_upem) if adv == 0 else 0
+        anchors[name] = {
+            cid: (xy[0] + dx, xy[1]) for cid, xy in class_xy.items()
+        }
+    return anchors
+
+
+def prepare_hangul_dakuten(
+    *,
+    in_dir: str,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    cmap: Dict[int, str],
+    seed_bases: Sequence[str],
+    target_upem: int,
+) -> Optional[Tuple[List[int], List[str], Dict[str, Dict[int, Tuple[int, int]]]]]:
+    """Load JuliaMono marks into the glyph set (call before FontBuilder assemble)."""
+    try:
+        juliamono = resolve_juliamono_path(in_dir)
+    except FileNotFoundError as exc:
+        print(f"  Skipping dakuten marks: {exc}", flush=True)
+        return None
+
+    print(f"  Loading dakuten marks from {JULIAMONO_FILENAME}...", flush=True)
+    mark_cps, mark_glyphs = load_dakuten_marks(juliamono, target_upem)
+    mark_names = add_dakuten_mark_glyphs(
+        mark_cps,
+        mark_glyphs,
+        glyph_order=glyph_order,
+        glyphs=glyphs,
+        metrics=metrics,
+        cmap=cmap,
+    )
+    bases = hangul_dakuten_bases(seed_bases, glyphs)
+    base_anchors = collect_hangul_dakuten_base_anchors(
+        bases,
+        glyphs=glyphs,
+        metrics=metrics,
+        target_upem=target_upem,
+    )
+    print(
+        f"  Dakuten: {len(mark_cps)} marks × 4 corners, "
+        f"{len(base_anchors)} bases (TR→BR→TL→BL)",
+        flush=True,
+    )
+    if not mark_names or not base_anchors:
+        return None
+    return mark_cps, mark_names, base_anchors
+
+
+def compile_hangul_dakuten(
+    font,
+    *,
+    mark_cps: Sequence[int],
+    mark_names: Sequence[str],
+    base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
+    glyphs: Dict[str, TTGlyph],
+    glyph_order: Sequence[str],
+) -> None:
+    """Install dakuten slot GSUB + corner GPOS (call after Hangul/VS GSUB exists)."""
+    print("  Compiling GSUB (dakuten corner slots TR→BR→TL→BL)...", flush=True)
+    install_dakuten_slot_gsub(
+        font,
+        mark_cps,
+        glyphs=glyphs,
+        glyph_order=glyph_order,
+        base_names=list(base_anchors),
+    )
+    print("  Compiling GPOS (dakuten mark @ CJK corners)...", flush=True)
+    install_dakuten_gpos(
+        font,
+        base_anchors=base_anchors,
+        mark_cps=mark_cps,
+        mark_names=mark_names,
+        glyph_order=glyph_order,
+        extra_script_tags=("hang",),
+    )
 
 
 def pair_em_suffix(use_x: bool, use_y: bool) -> Optional[str]:
@@ -1660,6 +1805,16 @@ def build_jamo_font(
         flush=True,
     )
 
+    dakuten = prepare_hangul_dakuten(
+        in_dir=in_dir,
+        glyph_order=glyph_order,
+        glyphs=glyphs,
+        metrics=metrics,
+        cmap=cmap,
+        seed_bases=l_forms + v_forms + t_forms,
+        target_upem=target_upem,
+    )
+
     uvs_rows = build_jamo_uvs_entries(cmap, glyphs)
     hangul_cps = [cp for cp in cmap if not is_vs_codepoint(cp)]
     ascent = otRound(target_upem * 0.88)
@@ -1725,6 +1880,16 @@ def build_jamo_font(
         f"  Component VS: {n_liga} ligas; {n_swap} layout lookups",
         flush=True,
     )
+    if dakuten is not None:
+        mark_cps, mark_names, base_anchors = dakuten
+        compile_hangul_dakuten(
+            fb.font,
+            mark_cps=mark_cps,
+            mark_names=mark_names,
+            base_anchors=base_anchors,
+            glyphs=glyphs,
+            glyph_order=glyph_order,
+        )
 
     out_path = _save_font(
         fb, out_dir, FAMILY_JAMO, write_ttf=write_ttf, write_woff2=write_woff2
@@ -1805,6 +1970,21 @@ def build_syllables_font(
         for vs_cp, _suffix, vname in installed:
             liga_pairs.append((base, vs_glyph_name(vs_cp), vname))
 
+    syll_seeds = [
+        cmap[cp]
+        for cp in hangul_cps
+        if cmap[cp] in glyphs
+    ]
+    dakuten = prepare_hangul_dakuten(
+        in_dir=in_dir,
+        glyph_order=glyph_order,
+        glyphs=glyphs,
+        metrics=metrics,
+        cmap=cmap,
+        seed_bases=syll_seeds,
+        target_upem=target_upem,
+    )
+
     uvs_rows = build_syllable_uvs_entries(cmap, glyphs)
     ascent = otRound(target_upem * 0.88)
     descent = otRound(target_upem * -0.12)
@@ -1842,6 +2022,16 @@ def build_syllables_font(
     mark_vs_glyphs_in_gdef(fb.font, vs_names)
     print(f"  Compiling VS ligas ({len(liga_pairs)} rules)...", flush=True)
     install_vs_ligas(fb.font, liga_pairs, feature_tags=SYLL_VS_FEATURE_TAGS)
+    if dakuten is not None:
+        mark_cps, mark_names, base_anchors = dakuten
+        compile_hangul_dakuten(
+            fb.font,
+            mark_cps=mark_cps,
+            mark_names=mark_names,
+            base_anchors=base_anchors,
+            glyphs=glyphs,
+            glyph_order=glyph_order,
+        )
 
     out_path = _save_font(
         fb, out_dir, FAMILY_SYLL, write_ttf=write_ttf, write_woff2=write_woff2
@@ -1939,6 +2129,10 @@ def build_all(
         f"T present=per-jamo L+V clearance; all fit in ideo square"
     )
     print(f"  Syllables ({FAMILY_SYLL}): whole-glyph VS / UVS")
+    print(
+        f"  Dakuten: {JULIAMONO_FILENAME} \\p{{M}} @ CJK corners "
+        "(TR→BR→TL→BL; both families)"
+    )
     print(f"  Local scale: {local_scale:g} about bbox center")
     print(f"  Y shift: {y_shift:g} (align Malgun to CJK/Yi typo mid)")
     print(f"  Y scale: {y_scale:g} about ideo center (match CJK height)")
