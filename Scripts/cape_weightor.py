@@ -255,7 +255,6 @@ class _LayerBuildPen(BasePen):
         self._path.nodes.append(GSNode(NSPoint(float(c[0]), float(c[1])), NODE_CURVE))
 
     def _curveToOne(self, b, c, d) -> None:
-        # Approximate cubic as two quadratics for TT-friendly node stream.
         if self._path is None:
             return
         a = (self._path.nodes[-1].x, self._path.nodes[-1].y)
@@ -283,7 +282,6 @@ class _LayerBuildPen(BasePen):
         if self._path is None:
             return
         self._path.closed = True
-        # Drop duplicate closing on-curve if present.
         if len(self._path.nodes) >= 2:
             first, last = self._path.nodes[0], self._path.nodes[-1]
             if (
@@ -329,7 +327,6 @@ def ttglyph_from_layer(layer: GSLayer) -> Tuple[TTGlyph, int, int]:
         nodes = path.nodes
         if not nodes:
             continue
-        # Ensure start on-curve
         i0 = 0
         while i0 < len(nodes) and nodes[i0].type == NODE_OFFCURVE:
             i0 += 1
@@ -350,7 +347,6 @@ def ttglyph_from_layer(layer: GSLayer) -> Tuple[TTGlyph, int, int]:
                     pen.qCurveTo(*(offs + [end]))
                     i += 1
                 else:
-                    # Contour ends on offcurves — close to start
                     pen.qCurveTo(*(offs + [(ordered[0].x, ordered[0].y)]))
             else:
                 pen.lineTo((n.x, n.y))
@@ -392,8 +388,10 @@ def estimate_vertical_stem(
             continue
         for i in range(len(pts)):
             a = pts[i]
-            c = pts[(i + 1) % len(pts)] if path.closed else (
-                pts[i + 1] if i + 1 < len(pts) else None
+            c = (
+                pts[(i + 1) % len(pts)]
+                if path.closed
+                else (pts[i + 1] if i + 1 < len(pts) else None)
             )
             if c is None:
                 break
@@ -432,12 +430,7 @@ def _unit(dx: float, dy: float) -> Point:
 
 
 def _offset_path(path: GSPath, offset_x: float, offset_y: float) -> None:
-    """Move each node along averaged on-curve normals (Glyphs-like OffsetCurve).
-
-    Normals are computed on the on-curve polyline only so quadratic handles do
-    not skew stem directions; off-curve points inherit a lerp of the adjacent
-    on-curve offset vectors.
-    """
+    """Move each node along averaged on-curve normals (Glyphs-like OffsetCurve)."""
     nodes = path.nodes
     n = len(nodes)
     if n < 2:
@@ -453,7 +446,6 @@ def _offset_path(path: GSPath, offset_x: float, offset_y: float) -> None:
         ux, uy = _unit(dx, dy)
         return (uy, -ux)
 
-    # Offset vector per on-curve node.
     on_off: dict[int, Point] = {}
     m = len(on_idx)
     for k, i in enumerate(on_idx):
@@ -470,13 +462,11 @@ def _offset_path(path: GSPath, offset_x: float, offset_y: float) -> None:
             ux, uy = d1 if (d1[0] or d1[1]) else d0
         on_off[i] = (ux * offset_x, uy * offset_y)
 
-    # Propagate to off-curve nodes by lerping surrounding on-curve offsets.
     new_pts: List[Point] = []
     for i in range(n):
         if i in on_off:
             ox, oy = on_off[i]
         else:
-            # Previous / next on-curve indices
             prev_on = next((on_idx[k] for k in range(m - 1, -1, -1) if on_idx[k] < i), None)
             next_on = next((on_idx[k] for k in range(m) if on_idx[k] > i), None)
             if path.closed:
@@ -491,7 +481,6 @@ def _offset_path(path: GSPath, offset_x: float, offset_y: float) -> None:
             elif next_on is None:
                 ox, oy = on_off[prev_on]
             else:
-                # Distance-weighted lerp along index span
                 span = next_on - prev_on
                 t = (i - prev_on) / span if span else 0.5
                 a, b = on_off[prev_on], on_off[next_on]
@@ -510,7 +499,7 @@ def offset_layer(
     position: float = 0.5,
 ) -> None:
     """Symmetric OffsetCurve stand-in (``position`` kept for API parity)."""
-    del position  # symmetric only; outer/inner split not implemented
+    del position
     if abs(offset_x) < 1e-9 and abs(offset_y) < 1e-9:
         return
     for path in layer.paths:
@@ -548,10 +537,7 @@ def apply_width(
     preserve_sidebearings: bool = False,
     center_x: Optional[float] = None,
 ) -> None:
-    """Width mode: stretch/condense horizontally, keep vertical stem thickness.
-
-    ``factor`` is target/original outer width (e.g. 1.15 for +15%).
-    """
+    """Width mode: stretch/condense horizontally, keep vertical stem thickness."""
     if abs(factor - 1.0) < 1e-9:
         return
     b = layer.bounds
@@ -565,7 +551,6 @@ def apply_width(
     if not do_scale:
         return
 
-    # Horizontal scale, left edge pinned
     tx = up_x * (1.0 - s)
     layer.applyTransform((s, 0, 0, 1, tx, 0))
     if abs(offset_per_side) > 1e-6:
@@ -586,7 +571,6 @@ def apply_width(
         dx = center_x - mid
         if abs(dx) > 1e-6:
             layer.applyTransform((1, 0, 0, 1, dx, 0))
-            # Keep advance; sidebearings shift with outline
             layer.LSB = layer.LSB + dx
 
 
@@ -598,11 +582,7 @@ def apply_weight(
     preserve_width: bool = True,
     preserve_height: bool = True,
 ) -> None:
-    """Weight mode: bolden (``factor > 1``) or lighten (``factor < 1``).
-
-    Per-side offset is ``stem · (factor − 1) / 2``. Outer box is restored when
-    ``preserve_width`` / ``preserve_height`` are set (Weightor defaults).
-    """
+    """Weight mode: bolden (``factor > 1``) or lighten (``factor < 1``)."""
     if abs(factor - 1.0) < 1e-9:
         return
     b = layer.bounds
@@ -629,18 +609,19 @@ def apply_weight(
         sy = orig_h / nh if preserve_height else 1.0
         tx = orig_x - nb.origin.x * sx if preserve_width else 0.0
         ty = orig_y - nb.origin.y * sy if preserve_height else 0.0
-        if abs(sx - 1.0) > 1e-9 or abs(sy - 1.0) > 1e-9 or abs(tx) > 1e-6 or abs(ty) > 1e-6:
+        if (
+            abs(sx - 1.0) > 1e-9
+            or abs(sy - 1.0) > 1e-9
+            or abs(tx) > 1e-6
+            or abs(ty) > 1e-6
+        ):
             layer.applyTransform((sx, 0, 0, sy, tx, ty))
 
     if preserve_width:
-        # Keep advance; LSB follows ink
         try:
             layer.LSB = layer.bounds.origin.x
         except Exception:
             pass
-
-
-# ── Convenience wrappers for TTGlyph builds ─────────────────────────────────
 
 
 def widen_ttglyph(
@@ -678,7 +659,6 @@ def bolden_ttglyph(
         except Exception:
             advance = 1000.0
     layer = layer_from_ttglyph(glyph, advance)
-    # Preserve original advance through weight
     adv0 = layer.width
     apply_weight(layer, factor, stem=stem)
     layer.width = adv0
