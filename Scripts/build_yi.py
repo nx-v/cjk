@@ -378,7 +378,10 @@ def build_all(
     else:
         print(f"Yi inventory: {inv.count} glyphs from {NUOSU_FILENAME}")
 
-    print("  Orientations: VS01..VS08 / FE00..FE07 (D4, 8 modes inc. r90my)")
+    print(
+        "  Orientations: VS01..VS08 / FE00..FE07 "
+        "(D4 about contour bbox center, 8 modes)"
+    )
     print(
         f"  Overlay: U+{STACK_MARK_CP:04X} "
         "→ prior glyphs .ov (0-width), last before FE08 keeps advance"

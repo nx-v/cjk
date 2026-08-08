@@ -9,8 +9,9 @@ Encoding
   Y is fitted to the CJK typo box (center at 0.38em).
 * Orientations: D4 square symmetries on **VS01..VS08** (``U+E000``..``U+E007``,
   UVS ``U+FE00``..``U+FE07``), including ``r90my``. Identity needs no subst;
-  the other seven are TrueType composites / baked outlines about the CJK
-  typo center.
+  the other seven are TrueType composites / baked outlines about the
+  **contour bounding-box center** (not the CJK typo mid — standalones pin
+  ink to the padded floor, so those centers diverge).
 * Overlay: **``U+FE08``** superimposes preceding glyphs into one cell —
   everything but the **last** glyph before ``FE08`` becomes zero-advance
   (``.ov``); the last keeps the em advance. Chain with more ``FE08``
@@ -515,6 +516,23 @@ def variant_matrix(
     return _mul2(s, r)
 
 
+def contour_center(
+    glyph: TTGlyph,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> Optional[Tuple[float, float]]:
+    """Axis-aligned ink bbox midpoint (contour center)."""
+    try:
+        if glyph.isComposite():
+            if glyph_set is None:
+                return None
+            glyph.recalcBounds(glyph_set)
+        else:
+            glyph.recalcBounds(None)
+        return (glyph.xMin + glyph.xMax) / 2.0, (glyph.yMin + glyph.yMax) / 2.0
+    except Exception:
+        return None
+
+
 def variant_transform(
     target_upem: int,
     *,
@@ -546,25 +564,30 @@ def make_composite_variant(
     lsb: int = 0,
     base_glyph: Optional[TTGlyph] = None,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    center: Optional[Tuple[float, float]] = None,
 ) -> GlyphMetrics:
-    """D4 variant of ``base_name`` about the CJK typo center.
+    """D4 variant of ``base_name`` about the contour bounding-box center.
 
     Axis-aligned maps (r180 / mx / my) stay one-component TT composites.
     Rotations that need a full 2×2 matrix (r90 / r270 / diagonals) are baked
     to outlines — many viewers mishandle ``WE_HAVE_A_TWO_BY_TWO``, which is
     why those cells looked empty.
     """
+    src = base_glyph
+    if src is None and glyph_set is not None:
+        src = glyph_set.get(base_name)
+    pivot = center
+    if pivot is None and src is not None:
+        pivot = contour_center(src, glyph_set)
     t = variant_transform(
         target_upem,
         rot90_quarters=rot90_quarters,
         flip_x=flip_x,
         flip_y=flip_y,
+        center=pivot,
     )
     needs_2x2 = abs(t.xy) > 1e-9 or abs(t.yx) > 1e-9
     if needs_2x2:
-        src = base_glyph
-        if src is None and glyph_set is not None:
-            src = glyph_set.get(base_name)
         if src is None:
             raise ValueError(
                 f"2x2 variant of {base_name!r} needs base_glyph or glyph_set"
@@ -584,7 +607,14 @@ def make_composite_variant(
         # fontTools: ((xx, xy), (yx, yy)) with x' = xx·x + yx·y + dx
         comp.transform = ((t.xx, t.xy), (t.yx, t.yy))
     g.components = [comp]
-    return g, advance, lsb
+    out_lsb = lsb
+    if glyph_set is not None:
+        try:
+            g.recalcBounds(glyph_set)
+            out_lsb = int(g.xMin)
+        except Exception:
+            pass
+    return g, advance, out_lsb
 
 
 def _recording_from_glyph(
@@ -1096,20 +1126,12 @@ def apply_variant_recording(
     flip_x: bool = False,
     flip_y: bool = False,
 ) -> Optional[GlyphMetrics]:
-    """Center in the CJK typo box, then D4-rotate/reflect about that center."""
+    """D4-rotate/reflect about the recording's contour bbox center."""
     bounds = recording_bounds(rec)
     if bounds is None:
         return None
     x0, y0, x1, y1 = bounds
-    cx, cy = ideographic_center(target_upem)
-    # Center first so rotations/reflections orbit the CJK midpoint.
-    sx = cx - (x0 + x1) / 2.0
-    sy = cy - (y0 + y1) / 2.0
-    centered = RecordingPen()
-    if abs(sx) > 1e-6 or abs(sy) > 1e-6:
-        rec.replay(TransformPen(centered, Transform(1, 0, 0, 1, sx, sy)))
-    else:
-        rec.replay(centered)
+    cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
     t = variant_transform(
         target_upem,
         rot90_quarters=rot90_quarters,
@@ -1118,11 +1140,9 @@ def apply_variant_recording(
         center=(cx, cy),
     )
     det = t.xx * t.yy - t.xy * t.yx
-    glyph = apply_transform(centered, t, reverse_winding=det < 0)
+    glyph = apply_transform(rec, t, reverse_winding=det < 0)
     if glyph.numberOfContours == 0 and not glyph.isComposite():
         return None
-    # Asymmetric shapes can drift slightly after orthogonal maps.
-    glyph = center_glyph_in_cell(glyph, target_upem, center=(cx, cy))
     try:
         glyph.recalcBounds(None)
         lsb = int(glyph.xMin)
