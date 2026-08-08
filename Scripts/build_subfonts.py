@@ -85,20 +85,20 @@ CSS_FONT_URL_BASE = (
 #   1.0 = none). Outer width/height are preserved.
 
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("NGULIM.TTF", 1.0, 1.05),
-    ("msjh.ttc", 1.0, 1.05),
+    ("NGULIM.TTF", 1.0, 1.1),
+    ("msjh.ttc", 1.0, 1.1),
     ("Han-Nom Gothic 1.32.otf", 0.95, 1.0),
-    ("msyh.ttc", 0.95, 0.97),
-    ("LXGWXiHeiMN.ttf", 1.01, 0.97),
-    ("LXGWXiHeiCL.ttf", 1.01, 0.97),
-    ("LXGWNeoXiHeiPlus.ttf", 1.01, 1.0),
-    ("Gothic Nguyen Regular.ttf", 0.96, 0.97),
-    ("YshiYuanGothicCleaned.ttf", 0.96, 0.97),
-    ("ChocolateClassicalSans-Regular.ttf", 0.96, 0.97),
+    ("msyh.ttc", 0.95, 0.95),
+    ("LXGWXiHeiMN.ttf", 1.01, 0.975),
+    ("LXGWXiHeiCL.ttf", 1.01, 0.975),
+    ("LXGWNeoXiHeiPlus.ttf", 1.01, 0.975),
+    ("Gothic Nguyen Regular.ttf", 0.96, 0.95),
+    ("YshiYuanGothicCleaned.ttf", 0.96, 0.95),
+    ("ChocolateClassicalSans-Regular.ttf", 0.96, 0.95),
     ("SukimaGothic.ttf", 0.96, 1.0),
     ("NotoSerifTangut-Regular.ttf", 1.0, 1.05),
-    ("PlangothicP1-Regular.ttf", 0.96, 0.97),
-    ("PlangothicP2-Regular.ttf", 0.96, 0.97),
+    ("PlangothicP1-Regular.ttf", 0.96, 0.95),
+    ("PlangothicP2-Regular.ttf", 0.96, 0.95),
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
