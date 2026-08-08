@@ -317,8 +317,7 @@ def install_slice_gsub(
 
         first_map = {name: half_glyph_name(name, first_half) for name in forms}
         second_map = {
-            name: [half_glyph_name(name, second_half), SLICE_ADV_NAME]
-            for name in forms
+            name: [half_glyph_name(name, second_half), SLICE_ADV_NAME] for name in forms
         }
 
         first_lu = build_chunked_single_subst_lookup(first_map)
@@ -372,9 +371,7 @@ def install_slice_gsub(
     if not feature_lookup_idxs:
         return 0
 
-    tag_to_fr = {
-        fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])
-    }
+    tag_to_fr = {fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])}
     for tag in COMPOSITION_FEATURE_TAGS:
         fr = tag_to_fr.get(tag)
         if fr is None:

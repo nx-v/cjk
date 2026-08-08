@@ -16,8 +16,8 @@ marker, no cmap offsets. GlyphWiki content uses SPUA+BMP-PUA ligatures
 (see ``kage.mapping``).
 
 Vietnamese combining marks ``U+16FF0`` / ``U+16FF1`` (from Plangothic P2)
-attach on the right after optional VS1–7; the CJK form is Width-squished
-left (``.dk``) when a mark follows. Marks take full D4 (sideways Width-fit).
+attach on the right (left-squish ``.dk``) or left (right-squish ``.dkl`` via
+``FE09`` + mark) after optional VS1–8 — one side only. Marks take full D4.
 
 Also writes pancjk.css (@font-face) and fontlist.css (CSS-safe stack).
 """
@@ -48,6 +48,7 @@ from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 from cape_weightor import bolden_ttglyph
 from cjk_viet_marks import (
     PLANGOTHIC_P2_FILENAME,
+    VIET_LEFT_SELECTOR_CP,
     VIET_MARK_CPS,
     compile_viet_marks_layout,
     prepare_viet_marks,
@@ -688,33 +689,36 @@ def _build_bucket_task(
 
 
 def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
-    """CSS unicode-range for this bucket's CJK + UVS FE00..FE07 + FE08 + Viet marks.
+    """CSS unicode-range for this bucket's CJK + UVS FE00..FE09 + Viet marks.
 
     PUA U+E000..E007 is intentionally *not* listed: in a multi-face stack every
     bucket used to advertise those codepoints, so the first face stole all VS
     and broke ``base+VS`` ligatures. Prefer cmap format-14 UVS (U+FE00..) which
     stays on the base character's face; keep PUA liga for single-family use
-    (VS still in the font cmap). FE08 overlay and U+16FF0/16FF1 must be listed
-    so those marks load from this face.
+    (VS still in the font cmap). FE08 overlay, FE09 left-Viet selector, and
+    U+16FF0/16FF1 must be listed so those marks load from this face.
     """
     bucket_cps = {
         cp
         for cp in codepoints
         if not (VS_BASE <= cp <= VS_LAST)
         and cp != STACK_MARK_CP
+        and cp != VIET_LEFT_SELECTOR_CP
         and cp not in VIET_MARK_CPS
     }
     cps = sorted(
         bucket_cps
         | set(range(UVS_BASE, UVS_LAST + 1))
-        | {STACK_MARK_CP}
+        | {STACK_MARK_CP, VIET_LEFT_SELECTOR_CP}
         | set(VIET_MARK_CPS)
     )
     if not bucket_cps:
         start = bucket_id << 8
         end = start + 0xFF
         viet = f", U+{VIET_MARK_CPS[0]:X}-{VIET_MARK_CPS[-1]:X}"
-        return f"U+{start:X}-{end:X}, U+{UVS_BASE:X}-{STACK_MARK_CP:X}{viet}"
+        return (
+            f"U+{start:X}-{end:X}, U+{UVS_BASE:X}-{VIET_LEFT_SELECTOR_CP:X}{viet}"
+        )
 
     runs: List[str] = []
     run_start = cps[0]
@@ -848,7 +852,7 @@ def build_all(
     print(f"Output formats: {fmt_note}")
     print(
         "Viet marks: U+16FF0/U+16FF1 from Plangothic P2 "
-        "(after VS1–7; left-squish .dk; mark D4 right-side)"
+        "(right=.dk / left=.dkl via FE09; one side only; mark D4)"
     )
 
     sources_list = [

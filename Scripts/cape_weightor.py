@@ -609,9 +609,10 @@ def apply_width(
     tx = up_x * (1.0 - s)
     layer.applyTransform((s, 0, 0, 1, tx, 0))
     if abs(offset_per_side) > 1e-6:
-        # Headless right-normal OffsetCurve: positive X expands fill. Weightor's
-        # offset_per_side is Glyphs-signed (negative when expanding); flip it.
-        offset_layer(layer, -offset_per_side, 0.0)
+        # Right-normal OffsetCurve: positive X expands fill. ``offset_per_side``
+        # is positive when condensing (s < 1) so stems thicken back after the
+        # X-scale, and negative when widening — pass it through unflipped.
+        offset_layer(layer, offset_per_side, 0.0)
 
     if preserve_sidebearings:
         layer.LSB = orig_lsb

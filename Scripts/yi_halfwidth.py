@@ -328,6 +328,7 @@ def add_d4_variant_glyphs(
     metrics: Dict[str, Tuple[int, int]],
     modes: Optional[Sequence[TransformMode]] = None,
     sideways_target_width: Optional[float] = None,
+    sideways_center_x: Optional[float] = None,
 ) -> List[Tuple[int, str, str]]:
     """Create non-identity D4 forms for ``base_name`` (bake 2×2, composite otherwise).
 
@@ -335,12 +336,20 @@ def add_d4_variant_glyphs(
     + Width-mode fit; ``r270`` / ``r90mx`` / ``r90my`` are TT composites of that
     fitted ``r90`` (r180 / reflect-Y / reflect-X) to save outline space.
 
+    ``sideways_center_x`` pins the Width-fit X mid (default: half em). Pass ``0``
+    for origin-centered combining marks so sideways forms are not pulled to em mid.
+
     Returns ``[(vs_cp, suffix, variant_glyph_name), ...]`` for GSUB wiring.
     """
     installed: List[Tuple[int, str, str]] = []
     use_modes = modes if modes is not None else TRANSFORM_MODES
     do_sideways = (
         sideways_target_width is not None and sideways_target_width > 1.0
+    )
+    fit_cx = (
+        float(sideways_center_x)
+        if sideways_center_x is not None
+        else float(target_upem) / 2.0
     )
     upright_v = upright_h = 0.0
     r90_name = variant_glyph_name(base_name, "r90")
@@ -376,7 +385,7 @@ def add_d4_variant_glyphs(
                 target_ink_width=sideways_target_width,
                 vertical_stem=upright_v,
                 horizontal_stem=upright_h,
-                center_x=target_upem / 2.0,
+                center_x=fit_cx,
             )
             _install(r90_name, r90_glyph, r90_adv, r90_lsb)
 
@@ -421,7 +430,7 @@ def add_d4_variant_glyphs(
                         target_ink_width=sideways_target_width,
                         vertical_stem=upright_v,
                         horizontal_stem=upright_h,
-                        center_x=target_upem / 2.0,
+                        center_x=fit_cx,
                     )
             _install(m_name, m_glyph, m_adv, m_lsb)
         installed.append((vs_cp, suffix, m_name))

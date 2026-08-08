@@ -1,16 +1,18 @@
 """Vietnamese combining marks U+16FF0 / U+16FF1 for Pan-CJK subfonts.
 
-Sourced from Plangothic P2. Encoding::
+Sourced from Plangothic P2. Marks attach on **one** side only (never both)::
 
-    CJK  ( VS01..VS07 )?  ( U+16FF0 | U+16FF1 )  ( VS01..VS08 )?
+    CJK  ( VS01..VS08 )?  ( U+16FF0 | U+16FF1 )  ( VS01..VS08 )?
+        → right attach; ideograph left-squished (``.dk``)
 
-* When a Viet mark follows, the CJK form (identity or VS1–7) is Width-squished
-  left (``.dk``) so a niche opens on the right — CAPE Weightor preserves
-  vertical stem thickness.
-* Marks themselves take full D4; sideways forms (r90 / r270 / r90mx / r90my)
-  restore H/V contrast and Width-fit to the average upright mark ink width.
-* GPOS ``mark``/``abvm`` pins every mark form to a fixed CJK **right-side**
-  anchor (marks stay on the right regardless of their own orientation).
+    CJK  ( VS01..VS08 )?  FE09  ( U+16FF0 | U+16FF1 )  ( VS01..VS08 )?
+        → left attach; ideograph right-squished (``.dkl``)
+
+* CAPE Weightor Width mode preserves vertical stem thickness.
+* Marks take full D4: ``r90`` Weightor-fit about the mark origin; other
+  sideways forms are composites of that ``r90``.
+* GPOS: right marks hang in the niche on the right of ``.dk``; left marks
+  hang in the niche on the left of ``.dkl``.
 """
 
 from __future__ import annotations
@@ -24,7 +26,12 @@ from fontTools.pens.recordingPen import DecomposingRecordingPen, RecordingPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont, newTable
 from fontTools.ttLib.tables import otTables as ot
-from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
+from fontTools.ttLib.tables._g_l_y_f import (
+    ROUND_XY_TO_GRID,
+    UNSCALED_COMPONENT_OFFSET,
+    Glyph as TTGlyph,
+    GlyphComponent,
+)
 
 from cape_weightor import (
     apply_width,
@@ -44,6 +51,7 @@ from yi_halfwidth import (
     build_ext_gsub_lookup,
     build_chunked_single_subst_lookup,
     build_chain_context_format2,
+    empty_glyph,
     orientation_form_names,
     recording_bounds,
     variant_glyph_name,
@@ -52,15 +60,23 @@ from yi_halfwidth import (
 
 PLANGOTHIC_P2_FILENAME = "PlangothicP2-Regular.ttf"
 VIET_MARK_CPS: Tuple[int, ...] = (0x16FF0, 0x16FF1)
+# Left-only side switch (VS10); FE08 is already overlay in subfonts.
+VIET_LEFT_SELECTOR_CP = 0xFE09
+VIET_LEFT_SELECTOR_NAME = "vsLeft"
 
-# VS01..VS07 only (identity + six non-identity); VS08 / r90my excluded.
-VIET_BASE_VS_MODE_COUNT = 7
-VIET_SQUISH_FACTOR = 0.88
+# Full D4 (identity + VS02..VS08 / FE01..FE07), including r90my.
+VIET_BASE_VS_MODE_COUNT = 8
+# Fallback when mark width is unknown; normally computed from mark ink.
+VIET_SQUISH_FACTOR = 0.72
+VIET_SQUISH_FACTOR_MIN = 0.52
+VIET_SQUISH_FACTOR_MAX = 0.88
 VIET_EDGE_PAD_FRAC = 0.03
 VIET_GAP_FRAC = 0.02
 
 GDEF_CLASS_BASE = 1
 GDEF_CLASS_MARK = 3
+MARK_CLASS_RIGHT = 0
+MARK_CLASS_LEFT = 1
 MARK_FEATURE_TAGS: Tuple[str, ...] = ("mark", "abvm")
 
 
@@ -72,7 +88,17 @@ def resolve_plangothic_p2(in_dir: str) -> str:
 
 
 def viet_squish_name(base_name: str) -> str:
+    """Left-squished form (right niche)."""
     return f"{base_name}.dk"
+
+
+def viet_squish_left_name(base_name: str) -> str:
+    """Right-squished form (left niche)."""
+    return f"{base_name}.dkl"
+
+
+def viet_left_mark_name(mark_name: str) -> str:
+    return f"{mark_name}.L"
 
 
 def viet_base_orientation_modes(
@@ -87,7 +113,7 @@ def viet_squishable_forms(
     *,
     modes=None,
 ) -> List[str]:
-    """Identity + VS01..VS07 forms that may take a Viet mark."""
+    """Identity + all D4 forms (VS01..VS08) that may take a Viet mark."""
     names: List[str] = []
     for base in cjk_bases:
         names.extend(
@@ -109,6 +135,59 @@ def _bake_simple_glyph(
     from yi_halfwidth import _recording_from_glyph
 
     rec = _recording_from_glyph(glyph, glyph_set)
+    pen = TTGlyphPen(None)
+    rec.replay(pen)
+    out = pen.glyph()
+    try:
+        out.recalcBounds(None)
+    except Exception:
+        pass
+    return out
+
+
+def _signed_area(glyph: TTGlyph) -> float:
+    try:
+        glyph.recalcBounds(None)
+        coords = glyph.coordinates
+    except Exception:
+        return 0.0
+    if not coords or not glyph.endPtsOfContours:
+        return 0.0
+    total = 0.0
+    start = 0
+    for end in glyph.endPtsOfContours:
+        pts = [coords[j] for j in range(start, end + 1)]
+        start = end + 1
+        if len(pts) < 3:
+            continue
+        a = 0.0
+        for i in range(len(pts)):
+            x1, y1 = pts[i]
+            x2, y2 = pts[(i + 1) % len(pts)]
+            a += x1 * y2 - x2 * y1
+        total += a
+    return total * 0.5
+
+
+def _normalize_winding(glyph: TTGlyph, glyph_set: Optional[Dict[str, TTGlyph]] = None) -> TTGlyph:
+    """Ensure outer-CCW winding so Width-mode stem offset expands fill.
+
+    Axis mirrors (``mx`` / ``my``) reverse contour orientation; without this,
+    CAPE ``apply_width`` thins verticals instead of restoring them.
+    """
+    if glyph.isComposite():
+        glyph = _bake_simple_glyph(glyph, glyph_set)
+    if _signed_area(glyph) >= 0:
+        return glyph
+    from fontTools.pens.recordingPen import RecordingPen
+    from fontTools.pens.reverseContourPen import ReverseContourPen
+
+    rec = RecordingPen()
+    rev = ReverseContourPen(rec)
+    try:
+        glyph.draw(rev, glyph_set)
+    except TypeError:
+        glyph.draw(rev)
     pen = TTGlyphPen(None)
     rec.replay(pen)
     out = pen.glyph()
@@ -184,6 +263,77 @@ def load_viet_marks(
         tt.close()
 
 
+def mark_ink_width(glyph: TTGlyph, glyph_set: Optional[Dict[str, TTGlyph]] = None) -> float:
+    try:
+        if glyph.isComposite() and glyph_set is not None:
+            glyph.recalcBounds(glyph_set)
+        else:
+            glyph.recalcBounds(None)
+        return float(glyph.xMax - glyph.xMin)
+    except Exception:
+        return 0.0
+
+
+def viet_squish_factor_for_marks(
+    mark_names: Sequence[str],
+    *,
+    glyphs: Dict[str, TTGlyph],
+    target_upem: int,
+) -> float:
+    """Width factor so one side niche fits the widest mark + pads."""
+    widths = [
+        mark_ink_width(glyphs[n], glyphs) for n in mark_names if n in glyphs
+    ]
+    max_w = max((w for w in widths if w > 1.0), default=0.0)
+    if max_w <= 1.0:
+        return VIET_SQUISH_FACTOR
+    gap = target_upem * VIET_GAP_FRAC
+    edge = target_upem * VIET_EDGE_PAD_FRAC
+    side_pad = target_upem * 0.06
+    niche = max_w + gap + edge
+    usable = max(target_upem - side_pad - niche, target_upem * 0.35)
+    factor = usable / max(target_upem - side_pad, 1.0)
+    return float(
+        min(VIET_SQUISH_FACTOR_MAX, max(VIET_SQUISH_FACTOR_MIN, factor))
+    )
+
+
+def mark_attach_anchor(
+    glyph: TTGlyph,
+    *,
+    side: str = "right",
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> Tuple[int, int]:
+    """Mark GPOS anchor.
+
+    * ``side="right"`` — left ink edge (mark hangs to the right of the base).
+    * ``side="left"`` — right ink edge (mark hangs to the left of the base).
+    """
+    try:
+        if glyph.isComposite() and glyph_set is not None:
+            glyph.recalcBounds(glyph_set)
+        else:
+            glyph.recalcBounds(None)
+        ax = float(glyph.xMin if side == "right" else glyph.xMax)
+        ay = (float(glyph.yMin) + float(glyph.yMax)) / 2.0
+        return otRound(ax), otRound(ay)
+    except Exception:
+        return 0, 0
+
+
+def _mark_slot_composite(base_name: str) -> TTGlyph:
+    """Zero-offset composite alias (extra mark-class GID)."""
+    g = TTGlyph()
+    g.numberOfContours = -1
+    comp = GlyphComponent()
+    comp.glyphName = base_name
+    comp.x = 0
+    comp.y = 0
+    comp.flags = ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
+    g.components = [comp]
+    return g
+
+
 def add_viet_mark_glyphs(
     mark_cps: Sequence[int],
     mark_glyphs: Dict[int, TTGlyph],
@@ -193,8 +343,11 @@ def add_viet_mark_glyphs(
     metrics: Dict[str, Tuple[int, int]],
     cmap: Dict[int, str],
     target_upem: int,
-) -> List[str]:
-    """Install upright marks + full D4 (sideways Width-fit). Returns all mark names."""
+) -> Tuple[List[str], List[str]]:
+    """Install upright marks + D4 + left-slot ``.L`` aliases.
+
+    Returns ``(right_mark_names, left_mark_names)``.
+    """
     upright: List[str] = []
     upright_glyphs: List[TTGlyph] = []
     for cp in mark_cps:
@@ -216,7 +369,7 @@ def add_viet_mark_glyphs(
         upright_glyphs.append(g)
 
     avg_w = average_ink_width(upright_glyphs)
-    all_names: List[str] = list(upright)
+    right_names: List[str] = list(upright)
     for name in upright:
         installed = add_d4_variant_glyphs(
             name,
@@ -227,16 +380,27 @@ def add_viet_mark_glyphs(
             glyphs=glyphs,
             metrics=metrics,
             sideways_target_width=avg_w if avg_w > 1.0 else None,
+            sideways_center_x=0.0,
         )
         for _vs, _sfx, vname in installed:
-            # Oriented marks stay zero-advance.
             metrics[vname] = (0, metrics[vname][1])
-            all_names.append(vname)
-    return all_names
+            right_names.append(vname)
+
+    left_names: List[str] = []
+    for name in list(right_names):
+        ln = viet_left_mark_name(name)
+        if ln in glyphs:
+            left_names.append(ln)
+            continue
+        glyph_order.append(ln)
+        glyphs[ln] = _mark_slot_composite(name)
+        metrics[ln] = (0, metrics[name][1])
+        left_names.append(ln)
+    return right_names, left_names
 
 
 def viet_mark_liga_rules(mark_cps: Sequence[int], glyphs: Dict[str, TTGlyph]) -> List[str]:
-    """FEA ``sub mark vsNN by mark.suffix`` lines for mark D4."""
+    """FEA ``sub mark vsNN by mark.suffix`` + ``sub vsLeft mark by mark.L``."""
     rules: List[str] = []
     for cp in mark_cps:
         base = glyph_name_for_cp(cp)
@@ -249,6 +413,22 @@ def viet_mark_liga_rules(mark_cps: Sequence[int], glyphs: Dict[str, TTGlyph]) ->
             if vname not in glyphs:
                 continue
             rules.append(f"  sub {base} {vs_glyph_name(vs_cp)} by {vname};")
+    # FE09 + any right mark → left-slot mark (left-only encoding).
+    right_forms: List[str] = []
+    for cp in mark_cps:
+        base = glyph_name_for_cp(cp)
+        if base in glyphs:
+            right_forms.append(base)
+        for _vs, _r, _fx, _fy, suffix in TRANSFORM_MODES:
+            if suffix is None:
+                continue
+            vname = variant_glyph_name(base, suffix)
+            if vname in glyphs:
+                right_forms.append(vname)
+    for name in right_forms:
+        ln = viet_left_mark_name(name)
+        if ln in glyphs:
+            rules.append(f"  sub {VIET_LEFT_SELECTOR_NAME} {name} by {ln};")
     return rules
 
 
@@ -258,19 +438,29 @@ def make_viet_squished_glyph(
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     factor: float = VIET_SQUISH_FACTOR,
+    pin: str = "left",
 ) -> Tuple[TTGlyph, int, int]:
-    """Left-condense with CAPE Width mode; keep em advance; pin left ink edge."""
-    simple = _bake_simple_glyph(glyph, glyph_set)
+    """Width-condense with CAPE; keep em advance.
+
+    ``pin="left"`` / ``"right"`` pins that ink edge after squish.
+    """
+    simple = _normalize_winding(_bake_simple_glyph(glyph, glyph_set), glyph_set)
     layer = layer_from_ttglyph(simple, float(advance))
     if not layer.paths:
         return simple, int(advance), int(getattr(simple, "xMin", 0) or 0)
 
     _ = estimate_horizontal_stem(layer)
     vstem = estimate_vertical_stem(layer)
-    left = layer.bounds.origin.x
+    b0 = layer.bounds
+    left0 = b0.origin.x
+    right0 = b0.origin.x + b0.size.x
+
     apply_width(layer, factor, stem=vstem if vstem > 0 else None)
     nb = layer.bounds
-    dx = left - nb.origin.x
+    if pin == "right":
+        dx = right0 - (nb.origin.x + nb.size.x)
+    else:
+        dx = left0 - nb.origin.x
     if abs(dx) > 1e-6:
         layer.applyTransform((1, 0, 0, 1, dx, 0))
         layer.LSB = layer.LSB + dx
@@ -286,26 +476,34 @@ def add_viet_squish_forms(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     factor: float = VIET_SQUISH_FACTOR,
+    target_upem: int = 1000,
 ) -> List[str]:
-    """Create ``.dk`` left-squished forms. Returns base names that received ``.dk``."""
+    """Create ``.dk`` (left-squish) and ``.dkl`` (right-squish) forms."""
     added: List[str] = []
     for name in base_names:
         if name not in glyphs:
             continue
+        adv, _lsb = metrics.get(name, (target_upem, 0))
+        src = glyphs[name]
+
         dk = viet_squish_name(name)
-        if dk in glyphs:
-            added.append(name)
-            continue
-        adv, _lsb = metrics.get(name, (1000, 0))
-        sq, sq_adv, sq_lsb = make_viet_squished_glyph(
-            glyphs[name],
-            adv,
-            glyph_set=glyphs,
-            factor=factor,
-        )
-        glyph_order.append(dk)
-        glyphs[dk] = sq
-        metrics[dk] = (sq_adv, sq_lsb)
+        if dk not in glyphs:
+            sq, sq_adv, sq_lsb = make_viet_squished_glyph(
+                src, adv, glyph_set=glyphs, factor=factor, pin="left"
+            )
+            glyph_order.append(dk)
+            glyphs[dk] = sq
+            metrics[dk] = (sq_adv, sq_lsb)
+
+        dkl = viet_squish_left_name(name)
+        if dkl not in glyphs:
+            sq, sq_adv, sq_lsb = make_viet_squished_glyph(
+                src, adv, glyph_set=glyphs, factor=factor, pin="right"
+            )
+            glyph_order.append(dkl)
+            glyphs[dkl] = sq
+            metrics[dkl] = (sq_adv, sq_lsb)
+
         added.append(name)
     return added
 
@@ -317,7 +515,7 @@ def cjk_right_anchor(
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[int, int]:
-    """Right-side attach point (niche after squish, clamped to CJK cell)."""
+    """Right-side attach point just past squished ink."""
     typo_top = target_upem * TYPO_ASCENDER_FRAC
     typo_bot = target_upem * TYPO_DESCENDER_FRAC
     right = float(advance) if advance > 0 else float(target_upem)
@@ -325,20 +523,48 @@ def cjk_right_anchor(
     edge = target_upem * VIET_EDGE_PAD_FRAC
     mid_y = (typo_top + typo_bot) / 2.0
 
-    x1 = right * 0.85
-    y_mid = mid_y
+    x1 = right * 0.65
     try:
         if glyph.isComposite() and glyph_set is not None:
             glyph.recalcBounds(glyph_set)
         else:
             glyph.recalcBounds(None)
         x1 = float(glyph.xMax)
-        y_mid = (float(glyph.yMin) + float(glyph.yMax)) / 2.0
     except Exception:
         pass
 
     ax = min(max(x1 + gap, edge), right - edge)
-    ay = min(max(y_mid, typo_bot + edge), typo_top - edge)
+    ay = min(max(mid_y, typo_bot + edge), typo_top - edge)
+    return otRound(ax), otRound(ay)
+
+
+def cjk_left_anchor(
+    glyph: TTGlyph,
+    advance: int,
+    target_upem: int,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> Tuple[int, int]:
+    """Left-side attach point just before squished ink."""
+    typo_top = target_upem * TYPO_ASCENDER_FRAC
+    typo_bot = target_upem * TYPO_DESCENDER_FRAC
+    right = float(advance) if advance > 0 else float(target_upem)
+    gap = target_upem * VIET_GAP_FRAC
+    edge = target_upem * VIET_EDGE_PAD_FRAC
+    mid_y = (typo_top + typo_bot) / 2.0
+
+    x0 = right * 0.35
+    try:
+        if glyph.isComposite() and glyph_set is not None:
+            glyph.recalcBounds(glyph_set)
+        else:
+            glyph.recalcBounds(None)
+        x0 = float(glyph.xMin)
+    except Exception:
+        pass
+
+    ax = min(max(x0 - gap, edge), right - edge)
+    ay = min(max(mid_y, typo_bot + edge), typo_top - edge)
     return otRound(ax), otRound(ay)
 
 
@@ -348,17 +574,26 @@ def collect_viet_base_anchors(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
-) -> Dict[str, Tuple[int, int]]:
-    """Map ``.dk`` forms → right-side anchors."""
-    anchors: Dict[str, Tuple[int, int]] = {}
+) -> Dict[str, Dict[int, Tuple[int, int]]]:
+    """Map squish forms → ``{mark_class: (x, y)}`` (one side each)."""
+    anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
     for name in squishable_bases:
         dk = viet_squish_name(name)
-        if dk not in glyphs:
-            continue
-        adv, _lsb = metrics.get(dk, (target_upem, 0))
-        anchors[dk] = cjk_right_anchor(
-            glyphs[dk], adv, target_upem, glyph_set=glyphs
-        )
+        dkl = viet_squish_left_name(name)
+        if dk in glyphs:
+            adv, _ = metrics.get(dk, (target_upem, 0))
+            anchors[dk] = {
+                MARK_CLASS_RIGHT: cjk_right_anchor(
+                    glyphs[dk], adv, target_upem, glyph_set=glyphs
+                )
+            }
+        if dkl in glyphs:
+            adv, _ = metrics.get(dkl, (target_upem, 0))
+            anchors[dkl] = {
+                MARK_CLASS_LEFT: cjk_left_anchor(
+                    glyphs[dkl], adv, target_upem, glyph_set=glyphs
+                )
+            }
     return anchors
 
 
@@ -450,11 +685,16 @@ def install_viet_squish_gsub(
     font,
     *,
     squishable_bases: Sequence[str],
-    mark_names: Sequence[str],
+    right_marks: Sequence[str],
+    left_marks: Sequence[str],
     glyphs: Dict[str, TTGlyph],
     glyph_order: Sequence[str],
 ) -> int:
-    """``base' mark → base.dk`` (Format 2 chain + Extension)."""
+    """One-side squish (Format 2 chain + Extension).
+
+    * ``base' markR → base.dk``  (right attach)
+    * ``base' markL → base.dkl`` (left attach)
+    """
     if "GSUB" not in font:
         return 0
 
@@ -464,23 +704,18 @@ def install_viet_squish_gsub(
         return sorted(set(names), key=lambda n: order_index.get(n, 10**9))
 
     bases = _gid_sort(
-        [n for n in squishable_bases if n in glyphs and viet_squish_name(n) in glyphs]
+        [
+            n
+            for n in squishable_bases
+            if n in glyphs
+            and viet_squish_name(n) in glyphs
+            and viet_squish_left_name(n) in glyphs
+        ]
     )
-    marks = _gid_sort([n for n in mark_names if n in glyphs])
-    if not bases or not marks:
+    marks_r = _gid_sort([n for n in right_marks if n in glyphs])
+    marks_l = _gid_sort([n for n in left_marks if n in glyphs])
+    if not bases or (not marks_r and not marks_l):
         return 0
-
-    squish_map = {n: viet_squish_name(n) for n in bases}
-    single_lu = build_chunked_single_subst_lookup(squish_map)
-
-    st = build_chain_context_format2(
-        coverage_glyphs=bases,
-        input_classes={n: 1 for n in bases},
-        input_class=1,
-        lookahead_classes={n: 1 for n in marks},
-        lookahead_seq=(1,),
-    )
-    chain_lu = build_ext_gsub_lookup([st])
 
     gsub = font["GSUB"].table
     if gsub.LookupList is None:
@@ -488,13 +723,52 @@ def install_viet_squish_gsub(
         gsub.LookupList.Lookup = []
         gsub.LookupList.LookupCount = 0
 
-    chain_index = gsub.LookupList.LookupCount
-    single_index = chain_index + 1
-    st.ChainSubClassSet[1].ChainSubClassRule[0].SubstLookupRecord[
-        0
-    ].LookupListIndex = single_index
-    gsub.LookupList.Lookup.extend([chain_lu, single_lu])
-    gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
+    feature_lookup_idxs: List[int] = []
+
+    def _append_chain(coverage, input_cls_map, input_cls, mapping, **chain_kw):
+        if not coverage or not mapping:
+            return
+        single_lu = build_chunked_single_subst_lookup(mapping)
+        st = build_chain_context_format2(
+            coverage_glyphs=coverage,
+            input_classes=input_cls_map,
+            input_class=input_cls,
+            **chain_kw,
+        )
+        chain_lu = build_ext_gsub_lookup([st])
+        base_i = gsub.LookupList.LookupCount
+        chain_i = base_i
+        single_i = base_i + 1
+        st.ChainSubClassSet[input_cls].ChainSubClassRule[0].SubstLookupRecord[
+            0
+        ].LookupListIndex = single_i
+        gsub.LookupList.Lookup.extend([chain_lu, single_lu])
+        gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
+        feature_lookup_idxs.append(chain_i)
+
+    # base' + markR → .dk
+    if marks_r:
+        _append_chain(
+            bases,
+            {n: 1 for n in bases},
+            1,
+            {n: viet_squish_name(n) for n in bases},
+            lookahead_classes={n: 1 for n in marks_r},
+            lookahead_seq=(1,),
+        )
+    # base' + markL → .dkl
+    if marks_l:
+        _append_chain(
+            bases,
+            {n: 1 for n in bases},
+            1,
+            {n: viet_squish_left_name(n) for n in bases},
+            lookahead_classes={n: 1 for n in marks_l},
+            lookahead_seq=(1,),
+        )
+
+    if not feature_lookup_idxs:
+        return 0
 
     tag_to_fr = {fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])}
     for tag in COMPOSITION_FEATURE_TAGS:
@@ -502,8 +776,9 @@ def install_viet_squish_gsub(
         if fr is None:
             continue
         idxs = list(fr.Feature.LookupListIndex or [])
-        if chain_index not in idxs:
-            idxs.append(chain_index)
+        for chain_index in feature_lookup_idxs:
+            if chain_index not in idxs:
+                idxs.append(chain_index)
         fr.Feature.LookupListIndex = idxs
         fr.Feature.LookupCount = len(idxs)
     return len(bases)
@@ -512,13 +787,14 @@ def install_viet_squish_gsub(
 def install_viet_mark_gpos(
     font,
     *,
-    base_anchors: Dict[str, Tuple[int, int]],
-    mark_names: Sequence[str],
+    base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
+    right_marks: Sequence[str],
+    left_marks: Sequence[str],
     glyph_order: Sequence[str],
     base_chunk: int = 2048,
 ) -> int:
-    """MarkToBase at right-side anchors (Extension + chunked subtables)."""
-    if not base_anchors or not mark_names:
+    """MarkToBase: class 0 = right niche, class 1 = left niche."""
+    if not base_anchors or (not right_marks and not left_marks):
         return 0
 
     from fontTools.otlLib.builder import (
@@ -534,9 +810,14 @@ def install_viet_mark_gpos(
             script_tags.append(parts[1].ljust(4)[:4])
 
     order_index = {n: i for i, n in enumerate(glyph_order)}
-    marks_sorted = [
+    marks_r = [
         n
-        for n in sorted(set(mark_names), key=lambda n: order_index.get(n, 10**9))
+        for n in sorted(set(right_marks), key=lambda n: order_index.get(n, 10**9))
+        if n in order_index
+    ]
+    marks_l = [
+        n
+        for n in sorted(set(left_marks), key=lambda n: order_index.get(n, 10**9))
         if n in order_index
     ]
     bases_sorted = [
@@ -544,19 +825,36 @@ def install_viet_mark_gpos(
         for n in sorted(base_anchors, key=lambda n: order_index.get(n, 10**9))
         if n in order_index
     ]
-    if not marks_sorted or not bases_sorted:
+    if (not marks_r and not marks_l) or not bases_sorted:
         return 0
 
     glyph_map = {n: i for i, n in enumerate(glyph_order)}
-    marks = {n: (0, buildAnchor(0, 0)) for n in marks_sorted}
+    glyf = font["glyf"] if "glyf" in font else {}
+    marks = {}
+    for n in marks_r:
+        mx, my = (
+            mark_attach_anchor(glyf[n], side="right", glyph_set=glyf)
+            if n in glyf
+            else (0, 0)
+        )
+        marks[n] = (MARK_CLASS_RIGHT, buildAnchor(mx, my))
+    for n in marks_l:
+        mx, my = (
+            mark_attach_anchor(glyf[n], side="left", glyph_set=glyf)
+            if n in glyf
+            else (0, 0)
+        )
+        marks[n] = (MARK_CLASS_LEFT, buildAnchor(mx, my))
 
     subs = []
     for i in range(0, len(bases_sorted), max(1, base_chunk)):
         chunk = bases_sorted[i : i + base_chunk]
-        bases = {
-            n: {0: buildAnchor(base_anchors[n][0], base_anchors[n][1])}
-            for n in chunk
-        }
+        bases = {}
+        for n in chunk:
+            class_map = {}
+            for cls, (ax, ay) in base_anchors[n].items():
+                class_map[cls] = buildAnchor(ax, ay)
+            bases[n] = class_map
         subs.append(buildMarkBasePosSubtable(marks, bases, glyph_map))
     lookup = buildLookup(subs, table="GPOS", extension=True)
 
@@ -618,7 +916,7 @@ def install_viet_mark_gpos(
     _ensure_gdef_classes(
         font,
         bases=bases_sorted,
-        marks=marks_sorted,
+        marks=marks_r + marks_l,
         glyph_order=glyph_order,
     )
     return len(bases_sorted)
@@ -636,8 +934,8 @@ def prepare_viet_marks(
     liga_rules: List[str],
     uvs_rows: Optional[List[Tuple[int, int, Optional[str]]]] = None,
     local_scale: float = 0.96,
-) -> Optional[Dict[str, List[str]]]:
-    """Load marks + ``.dk`` forms and append mark D4 ligas (before FontBuilder).
+) -> Optional[Dict]:
+    """Load marks + squish forms and append mark D4 / FE09 ligas.
 
     Returns state for ``compile_viet_marks_layout``, or ``None`` if skipped.
     """
@@ -654,7 +952,14 @@ def prepare_viet_marks(
     if not mark_cps:
         return None
 
-    mark_names = add_viet_mark_glyphs(
+    # FE09 left-only selector (zero-advance).
+    if VIET_LEFT_SELECTOR_NAME not in glyphs:
+        glyph_order.append(VIET_LEFT_SELECTOR_NAME)
+        glyphs[VIET_LEFT_SELECTOR_NAME] = empty_glyph()
+        metrics[VIET_LEFT_SELECTOR_NAME] = (0, 0)
+    cmap[VIET_LEFT_SELECTOR_CP] = VIET_LEFT_SELECTOR_NAME
+
+    right_marks, left_marks = add_viet_mark_glyphs(
         mark_cps,
         mark_glyphs,
         glyph_order=glyph_order,
@@ -671,34 +976,43 @@ def prepare_viet_marks(
             )
 
     squishable = viet_squishable_forms(cjk_bases)
+    factor = viet_squish_factor_for_marks(
+        right_marks, glyphs=glyphs, target_upem=target_upem
+    )
     add_viet_squish_forms(
         squishable,
         glyph_order=glyph_order,
         glyphs=glyphs,
         metrics=metrics,
+        factor=factor,
+        target_upem=target_upem,
     )
     return {
-        "mark_names": list(mark_names),
+        "right_marks": list(right_marks),
+        "left_marks": list(left_marks),
         "squishable": list(squishable),
+        "squish_factor": factor,
     }
 
 
 def compile_viet_marks_layout(
     font,
-    state: Dict[str, List[str]],
+    state: Dict,
     *,
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     glyph_order: Sequence[str],
     target_upem: int,
 ) -> int:
-    """Install squish GSUB + right-side MarkToBase GPOS (after other GSUB)."""
-    mark_names = state["mark_names"]
+    """Install squish GSUB + left/right MarkToBase GPOS (after other GSUB)."""
+    right_marks = state["right_marks"]
+    left_marks = state["left_marks"]
     squishable = state["squishable"]
     install_viet_squish_gsub(
         font,
         squishable_bases=squishable,
-        mark_names=mark_names,
+        right_marks=right_marks,
+        left_marks=left_marks,
         glyphs=glyphs,
         glyph_order=glyph_order,
     )
@@ -711,6 +1025,7 @@ def compile_viet_marks_layout(
     return install_viet_mark_gpos(
         font,
         base_anchors=anchors,
-        mark_names=mark_names,
+        right_marks=right_marks,
+        left_marks=left_marks,
         glyph_order=glyph_order,
     )
