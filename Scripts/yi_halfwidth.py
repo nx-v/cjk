@@ -11,8 +11,9 @@ Encoding
   UVS ``U+FE00``..``U+FE07``), including ``r90my``. Pipeline for the two
   outline sources: **transform / reorient first**, then stem-normalize
   (``id`` = identity; ``r90`` = rotate from the un-normalized upright).
-  Stem normalize retries smaller/larger targets until strokes stay thick and
-  non-self-intersecting; only then falls back to the un-normalized transform.
+  Stem normalize probes targets pseudorandomly, then binary-searches toward
+  the reference while keeping strokes thick and non-self-intersecting; only
+  then falls back to the un-normalized transform.
   Other D4 forms are TT composites of those two (``r180`` / ``mx`` / ``my`` ←
   id; ``r270`` / ``r90mx`` / ``r90my`` ← r90). After each outline and each
   composite, ink is re-pinned to the padded CJK floor.
@@ -27,7 +28,9 @@ Encoding
 
 from __future__ import annotations
 
+import hashlib
 import os
+import random
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -280,7 +283,7 @@ def average_ink_height(glyphs: Sequence[TTGlyph]) -> float:
 
 
 # Fixed post-transform stem targets (target-UPM units @ 1000).
-REFERENCE_VERTICAL_STEM = 80.0  # match U+4E28-like vertical weight
+REFERENCE_VERTICAL_STEM = 70.0  # match U+4E28-like vertical weight
 REFERENCE_HORIZONTAL_STEM = 60.0  # match U+4E00-like horizontal weight
 
 # Post-offset contour heal: snap near-coincident on-curve points (UPM@1000).
@@ -288,12 +291,13 @@ CONTOUR_SNAP_EPSILON = 1.5
 # Cap each stem-offset axis step so large estimate errors don't shred joins.
 MAX_STEM_OFFSET_STEP = 10.0
 # After normalize, reject if a stem falls below this fraction of its reference
-# (or of the pre-normalize stem). Retry other target scales first.
+# (or of the pre-normalize stem).
 MIN_NORM_STEM_FRAC = 0.4
-# Blend weights toward the reference (1 = full match, 0 = no change).
-NORM_BLEND_STEPS: Tuple[float, ...] = (1.0, 0.85, 0.7, 0.55, 0.4, 0.25, 0.15)
-# Extra absolute scale factors on the reference stems (larger / smaller).
-NORM_REF_SCALES: Tuple[float, ...] = (1.15, 0.85, 1.3, 0.7, 1.45, 0.55)
+# Pseudorandom stem-target probes, then binary search toward the reference.
+NORM_RANDOM_PROBES = 16
+NORM_BINARY_ITERS = 8
+NORM_SCALE_LO = 0.5
+NORM_SCALE_HI = 1.5
 
 # CJK single-stroke references (optional measure; builds use fixed targets above).
 CJK_REF_HORIZONTAL_CP = 0x4E00  # 一 — horizontal stroke weight
@@ -448,11 +452,7 @@ def _collapse_spike_points_on_glyph(
                 continue
             dist = abs((px - ax) * aby - (py - ay) * abx) / ab_len
             # Needle: sticks out farther than the base width between A and B.
-            if (
-                dist < min_protrusion
-                or dist > max_protrusion
-                or dist < 0.75 * ab_len
-            ):
+            if dist < min_protrusion or dist > max_protrusion or dist < 0.75 * ab_len:
                 continue
             t = ((px - ax) * abx + (py - ay) * aby) / (ab_len * ab_len)
             t = max(0.0, min(1.0, t))
@@ -743,9 +743,7 @@ def _measure_glyph_stems(
     if g.isComposite():
         if glyph_set is None:
             return 0.0, 0.0
-        g, adv, _ = _bake_transformed_glyph(
-            g, Transform(), adv, glyph_set=glyph_set
-        )
+        g, adv, _ = _bake_transformed_glyph(g, Transform(), adv, glyph_set=glyph_set)
     layer = layer_from_ttglyph(g, float(adv))
     return estimate_vertical_stem(layer), estimate_horizontal_stem(layer)
 
@@ -819,41 +817,60 @@ def _norm_result_ok(
     return True
 
 
-def _stem_target_candidates(
+def _norm_seed_from_glyph(glyph: TTGlyph) -> int:
+    """Stable RNG seed from outline samples (reproducible across rebuilds)."""
+    h = hashlib.blake2b(digest_size=8)
+    try:
+        if glyph.isComposite() or glyph.numberOfContours <= 0:
+            h.update(b"empty")
+        else:
+            h.update(str(glyph.numberOfContours).encode())
+            # Sample a few coordinates — enough entropy, cheap.
+            coords = glyph.coordinates
+            step = max(1, len(coords) // 32)
+            for i in range(0, len(coords), step):
+                x, y = coords[i]
+                h.update(f"{int(x)}:{int(y)};".encode())
+    except Exception:
+        h.update(b"fallback")
+    return int.from_bytes(h.digest(), "little")
+
+
+def _lerp(a: float, b: float, t: float) -> float:
+    return a + (b - a) * t
+
+
+def _random_stem_target(
+    rng: random.Random,
     pre_v: float,
     pre_h: float,
     ref_v: float,
     ref_h: float,
-) -> List[Tuple[float, float]]:
-    """Ordered (V, H) stem targets: full ref, blends, then larger/smaller refs."""
-    seen: set[Tuple[int, int]] = set()
-    out: List[Tuple[float, float]] = []
-
-    def _add(tv: float, th: float) -> None:
-        if tv <= 0 and th <= 0:
-            return
-        key = (int(round(tv * 10)), int(round(th * 10)))
-        if key in seen:
-            return
-        seen.add(key)
-        out.append((tv, th))
-
-    # 1) Full reference, then gentler blends back toward the pre-norm stems.
-    for t in NORM_BLEND_STEPS:
-        tv = pre_v + t * (ref_v - pre_v) if pre_v > 0 else ref_v * t
-        th = pre_h + t * (ref_h - pre_h) if pre_h > 0 else ref_h * t
-        _add(tv, th)
-
-    # 2) Larger / smaller absolute references (same scale on both axes).
-    for s in NORM_REF_SCALES:
-        _add(ref_v * s, ref_h * s)
-
-    # 3) Per-axis larger/smaller around the reference (one axis at a time).
-    for s in (1.2, 0.8, 1.35, 0.65):
-        _add(ref_v * s, ref_h)
-        _add(ref_v, ref_h * s)
-
-    return out
+) -> Tuple[float, float]:
+    """One pseudorandom (V, H) stem target in a plausible search band."""
+    mode = rng.randrange(3)
+    if mode == 0:
+        # Shared blend from pre → ref.
+        t = rng.uniform(0.05, 1.0)
+        tv = _lerp(pre_v, ref_v, t) if pre_v > 0 else ref_v * t
+        th = _lerp(pre_h, ref_h, t) if pre_h > 0 else ref_h * t
+    elif mode == 1:
+        # Independent blends per axis.
+        tv = (
+            _lerp(pre_v, ref_v, rng.uniform(0.05, 1.0))
+            if pre_v > 0
+            else ref_v * rng.uniform(0.05, 1.0)
+        )
+        th = (
+            _lerp(pre_h, ref_h, rng.uniform(0.05, 1.0))
+            if pre_h > 0
+            else ref_h * rng.uniform(0.05, 1.0)
+        )
+    else:
+        # Absolute scales of the reference (larger / smaller).
+        tv = ref_v * rng.uniform(NORM_SCALE_LO, NORM_SCALE_HI)
+        th = ref_h * rng.uniform(NORM_SCALE_LO, NORM_SCALE_HI)
+    return max(1.0, tv), max(1.0, th)
 
 
 def normalize_glyph_stems_with_retry(
@@ -864,11 +881,13 @@ def normalize_glyph_stems_with_retry(
     horizontal_stem: float,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> GlyphMetrics:
-    """Transform-ready glyph → try stem targets until thick and non-intersecting.
+    """Transform-ready glyph → probe stem targets, then binary-search to ref.
 
-    Tries the full reference, then smaller blends toward the pre-normalize
-    stems, then larger/smaller absolute targets. Returns the first acceptable
-    result, or the un-normalized glyph if every attempt fails.
+    1. Try the full reference once.
+    2. Pseudorandomly sample targets around pre/ref (deterministic seed).
+    3. From the working sample closest to the reference, binary-search toward
+       the full reference for the strongest still-valid normalize.
+    4. If nothing works, keep the un-normalized outline.
     """
     if glyph.isComposite():
         if glyph_set is None:
@@ -887,7 +906,7 @@ def normalize_glyph_stems_with_retry(
     except Exception:
         raw_lsb = 0
 
-    for tv, th in _stem_target_candidates(pre_v, pre_h, vertical_stem, horizontal_stem):
+    def _try(tv: float, th: float) -> Optional[GlyphMetrics]:
         norm_g, norm_a, norm_l = normalize_glyph_stems_after_transform(
             glyph,
             advance,
@@ -906,9 +925,54 @@ def normalize_glyph_stems_with_retry(
             glyph_set=glyph_set,
         ):
             return norm_g, norm_a, norm_l
+        return None
 
-    # Give up — keep the reoriented outline as-is.
-    return glyph, int(advance), raw_lsb
+    def _ref_dist(tv: float, th: float) -> float:
+        return abs(tv - vertical_stem) + abs(th - horizontal_stem)
+
+    # 1) Full reference.
+    hit = _try(vertical_stem, horizontal_stem)
+    if hit is not None:
+        return hit
+
+    # 2) Pseudorandom probes (stable per glyph).
+    rng = random.Random(_norm_seed_from_glyph(glyph))
+    best_tv = best_th = 0.0
+    best_gm: Optional[GlyphMetrics] = None
+    best_dist = float("inf")
+    for _ in range(max(1, NORM_RANDOM_PROBES)):
+        tv, th = _random_stem_target(
+            rng, pre_v, pre_h, vertical_stem, horizontal_stem
+        )
+        got = _try(tv, th)
+        if got is None:
+            continue
+        d = _ref_dist(tv, th)
+        if d < best_dist:
+            best_dist = d
+            best_tv, best_th = tv, th
+            best_gm = got
+
+    if best_gm is None:
+        return glyph, int(advance), raw_lsb
+
+    # 3) Binary-search from the best working probe toward the full reference.
+    lo_tv, lo_th = best_tv, best_th
+    hi_tv, hi_th = vertical_stem, horizontal_stem
+    result = best_gm
+    for _ in range(max(1, NORM_BINARY_ITERS)):
+        mid_tv = 0.5 * (lo_tv + hi_tv)
+        mid_th = 0.5 * (lo_th + hi_th)
+        if abs(mid_tv - lo_tv) < 0.25 and abs(mid_th - lo_th) < 0.25:
+            break
+        got = _try(mid_tv, mid_th)
+        if got is not None:
+            lo_tv, lo_th = mid_tv, mid_th
+            result = got
+        else:
+            hi_tv, hi_th = mid_tv, mid_th
+
+    return result
 
 
 def add_d4_variant_glyphs(
@@ -974,9 +1038,7 @@ def add_d4_variant_glyphs(
         metrics[name] = (adv, glyph_lsb)
 
     def _pin(glyph: TTGlyph, adv: int) -> GlyphMetrics:
-        return pin_glyph_ink_to_cjk_floor(
-            glyph, adv, target_upem, glyph_set=glyphs
-        )
+        return pin_glyph_ink_to_cjk_floor(glyph, adv, target_upem, glyph_set=glyphs)
 
     def _composite_from(
         parent_name: str,

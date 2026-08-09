@@ -241,7 +241,7 @@ def build_panyi_font(
     print(
         "  Orientations: transform id+r90, then stem-normalize "
         f"(V={ref_v_stem:.0f} / H={ref_h_stem:.0f}; "
-        "retry smaller/larger targets before skip); other D4 = composites",
+        "pseudorandom probes + binary search toward ref); other D4 = composites",
         flush=True,
     )
 
