@@ -46,8 +46,10 @@ Dakuten (combining marks)
 -------------------------
 Stack: JuliaMono → Nexsevka-Regular → mkanaplus. Marks are fixed-height and
 left-/right-aligned to CJK cell corners. Same TR → BR → TL → BL slot order as
-``panyi`` via GSUB + GPOS ``mark``/``abvm``. Installed in both families
-(zero-advance V/T bases shift local X by ``-upem``).
+``panyi`` via GSUB + GPOS ``mark``/``abvm``. Every orientation / layout form
+(identity + ``mx``/``my``/``mxy`` + ``.em*`` / ``.up`` chains) gets corner
+anchors — no VS form is skipped. Installed in both families (zero-advance
+V/T bases shift local X by ``-upem``).
 """
 
 from __future__ import annotations
@@ -403,7 +405,11 @@ def hangul_dakuten_bases(
     seed_names: Sequence[str],
     glyphs: Dict[str, TTGlyph],
 ) -> List[str]:
-    """All orientation / layout forms reachable from ``seed_names``."""
+    """All orientation / layout forms reachable from ``seed_names``.
+
+    Includes every ``mx`` / ``my`` / ``mxy`` (and ``.em*`` / ``.up``) variant
+    present in ``glyphs`` so no VS form loses MarkToBase anchors.
+    """
     names: List[str] = []
     seen: Set[str] = set()
     for seed in seed_names:

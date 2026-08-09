@@ -9,16 +9,12 @@ Contents
       yi + VS02..VS08 / FE01..FE07   →   oriented variant
       (VS01 / FE00 = identity, no subst)
 
-  Bases: NuosuSIL Yi syllables/radicals, plus JuliaMono **Runic letters**
-  (U+16A0–16FF excluding U+16EB/16EC/16ED punctuation). Runic gets the same
-  orientations, slices, and dakuten as Yi.
-
 * Slice overlays via FE08–FE09 (half-plane clips + shared ``sliceAdv`` advance):
 
       A B FE08  →  A.top  + B.bot   sliceAdv   # horizontal
       A B FE09  →  A.left + B.right sliceAdv   # vertical
 
-* Dakuten marks (JuliaMono / Nexsevka / mkanaplus ``\\p{M}``):
+* Dakuten marks (JuliaMono ``\\p{M}`` minus letter / overlay / oversized):
   GPOS ``mark`` at fixed CJK corners on VS01..VS07 forms and ``sliceAdv``.
   Successive marks fill TR → BR → TL → BL. No left-squish ``.dk`` forms.
 """
@@ -34,7 +30,6 @@ from fontTools.misc.roundTools import otRound
 from fontTools.ttLib import TTFont, woff2
 
 from yi_dakuten import (
-    JULIAMONO_FILENAME,
     add_dakuten_mark_glyphs,
     collect_dakuten_base_anchors,
     dakuten_mark_stack_label,
@@ -42,7 +37,6 @@ from yi_dakuten import (
     install_dakuten_slot_gsub,
     load_dakuten_marks_from_stack,
     resolve_dakuten_mark_font_stack,
-    resolve_juliamono_path,
     yi_forms_for_dakuten,
 )
 from yi_halfwidth import (
@@ -53,12 +47,12 @@ from yi_halfwidth import (
     YI_ORIENTATION_MODES,
     YiInventory,
     add_d4_variant_glyphs,
-    average_ink_width,
     build_d4_uvs_entries,
     empty_glyph,
     load_inventory,
-    load_runic_inventory,
     make_standalone_glyph,
+    REFERENCE_HORIZONTAL_STEM,
+    REFERENCE_VERTICAL_STEM,
     orientation_form_names,
     record_glyph,
     resolve_nuosu_path,
@@ -191,49 +185,11 @@ def install_yi_gsub(
     install_slice_gsub(font, full_forms, glyphs=glyphs, glyph_order=glyph_order)
 
 
-def _scale_inventory_standalones(
-    inv: YiInventory,
-    target_upem: int,
-) -> Dict[int, Tuple]:
-    """Record + scale one inventory; return ``{cp: (glyph, adv, lsb)}``."""
-    label = os.path.basename(inv.source_path)
-    print(f"  Recording {label} outlines ({inv.count} CPs)...", flush=True)
-    tt = TTFont(inv.source_path, fontNumber=0)
-    try:
-        recs: Dict[int, object] = {}
-        for cp in inv.src_cps:
-            rec = record_glyph(tt, inv.glyph_names[cp])
-            if rec is not None:
-                recs[cp] = rec
-    finally:
-        tt.close()
-
-    print(
-        f"  Scaling {len(recs)} standalones from {label} "
-        f"(sx {inv.source_advance}→{target_upem}, "
-        f"sy maxH {inv.source_max_height:.0f}→{target_upem})...",
-        flush=True,
-    )
-    standalones: Dict[int, Tuple] = {}
-    for cp, rec in recs.items():
-        sa = make_standalone_glyph(
-            rec,
-            target_upem,
-            source_advance=inv.source_advance,
-            source_center_y=inv.source_center_y,
-            source_max_height=inv.source_max_height,
-        )
-        if sa is not None:
-            standalones[cp] = sa
-    return standalones
-
-
 def build_panyi_font(
     inv: YiInventory,
     out_dir: str,
     target_upem: int,
     *,
-    extra_inventories: Sequence[YiInventory] = (),
     write_ttf: bool = True,
     write_woff2: bool = True,
 ) -> Tuple[str, int, List[int]]:
@@ -242,23 +198,50 @@ def build_panyi_font(
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
 
     out_path = os.path.join(out_dir, f"{FAMILY_NAME}.ttf")
-    inventories: List[YiInventory] = [inv, *extra_inventories]
 
-    standalones: Dict[int, Tuple] = {}
-    ordered_cps: List[int] = []
-    for src in inventories:
-        for cp, sa in _scale_inventory_standalones(src, target_upem).items():
-            if cp in standalones:
-                continue
-            standalones[cp] = sa
-            ordered_cps.append(cp)
+    print("  Recording source outlines...", flush=True)
+    tt = TTFont(inv.source_path, fontNumber=0)
+    try:
+        recs: Dict[int, object] = {}
+        for idx, cp in enumerate(inv.src_cps):
+            rec = record_glyph(tt, inv.glyph_names[cp])
+            if rec is not None:
+                recs[idx] = rec
+    finally:
+        tt.close()
 
-    avg_upright_width = average_ink_width(
-        [standalones[cp][0] for cp in ordered_cps]
-    )
     print(
-        f"  Sideways: fitted r90 outline; r270/r90mx/r90my composite from r90 "
-        f"(Width-fit avg upright ink width {avg_upright_width:.0f})",
+        f"  Scaling {len(recs)} standalones "
+        f"(sx {inv.source_advance}→{target_upem}, "
+        f"sy maxH {inv.source_max_height:.0f}→{target_upem})...",
+        flush=True,
+    )
+    standalones: Dict[int, Tuple] = {}
+    for idx, rec in recs.items():
+        sa = make_standalone_glyph(
+            rec,
+            target_upem,
+            source_advance=inv.source_advance,
+            source_center_y=inv.source_center_y,
+            source_max_height=inv.source_max_height,
+        )
+        if sa is not None:
+            standalones[idx] = sa
+
+    # Scale fixed stem targets if building at a non-default UPM.
+    stem_scale = float(target_upem) / float(DEFAULT_UPEM)
+    ref_v_stem = REFERENCE_VERTICAL_STEM * stem_scale
+    ref_h_stem = REFERENCE_HORIZONTAL_STEM * stem_scale
+    print(
+        f"  Stem refs: V={ref_v_stem:.0f} / H={ref_h_stem:.0f} "
+        f"(measure after convert, adjust both axes)",
+        flush=True,
+    )
+
+    print(
+        "  Orientations: normalize id + r90 only "
+        f"(V={ref_v_stem:.0f} / H={ref_h_stem:.0f}); "
+        "other D4 forms / slices are composites",
         flush=True,
     )
 
@@ -270,8 +253,10 @@ def build_panyi_font(
     uvs_rows: List[Tuple[int, int, Optional[str]]] = []
 
     print("  Installing standalones + VS01..VS08 orientations...", flush=True)
-    for cp in ordered_cps:
-        sa_glyph, sa_adv, sa_lsb = standalones[cp]
+    for idx, cp in enumerate(inv.src_cps):
+        if idx not in standalones:
+            continue
+        sa_glyph, sa_adv, sa_lsb = standalones[idx]
         sa_name = glyph_name_for_cp(cp)
         glyph_order.append(sa_name)
         glyphs[sa_name] = sa_glyph
@@ -287,22 +272,25 @@ def build_panyi_font(
             glyphs=glyphs,
             metrics=metrics,
             modes=YI_ORIENTATION_MODES,
-            sideways_target_width=avg_upright_width,
+            reference_vertical_stem=ref_v_stem,
+            reference_horizontal_stem=ref_h_stem,
         )
         uvs_rows.extend(
             build_d4_uvs_entries(cp, sa_name, glyphs=glyphs, modes=YI_ORIENTATION_MODES)
         )
 
-    print("  Installing FE08–FE09 slice halves...", flush=True)
-    form_names: List[str] = []
-    for base in yi_names:
-        form_names.extend(orientation_form_names(base, modes=YI_ORIENTATION_MODES))
+    print(
+        "  Installing FE08–FE09 slice halves "
+        "(bake id+r90; composite other D4 forms)...",
+        flush=True,
+    )
     add_slice_halves(
-        form_names,
+        yi_names,
         glyph_order=glyph_order,
         glyphs=glyphs,
         metrics=metrics,
         target_upem=target_upem,
+        modes=YI_ORIENTATION_MODES,
     )
 
     _inject_vs(glyph_order, glyphs, metrics, cmap)
@@ -357,8 +345,7 @@ def build_panyi_font(
     descent = otRound(target_upem * -0.12)
 
     print(
-        f"  Assembling font ({len(glyphs) - 1} glyphs, "
-        f"{len(yi_names)} base CPs)...",
+        f"  Assembling font ({len(glyphs) - 1} glyphs, {len(yi_names)} Yi CPs)...",
         flush=True,
     )
     fb = FontBuilder(target_upem, isTTF=True)
@@ -503,35 +490,10 @@ def build_all(
     else:
         print(f"Yi inventory: {inv.count} glyphs from {NUOSU_FILENAME}")
 
-    extras: List[YiInventory] = []
-    try:
-        julia = resolve_juliamono_path(in_dir)
-        runic = load_runic_inventory(julia)
-        if limit is not None:
-            runic = YiInventory(
-                runic.source_path,
-                runic.src_cps[:limit],
-                {cp: runic.glyph_names[cp] for cp in runic.src_cps[:limit]},
-                runic.source_advance,
-                runic.source_center_y,
-                runic.source_max_height,
-            )
-            print(
-                f"Runic inventory: first {runic.count} letters "
-                f"from {JULIAMONO_FILENAME} (--limit)"
-            )
-        else:
-            print(
-                f"Runic inventory: {runic.count} letters from "
-                f"{JULIAMONO_FILENAME} (excl. U+16EB–16ED punct)"
-            )
-        extras.append(runic)
-    except (FileNotFoundError, ValueError) as exc:
-        print(f"  Skipping Runic letters: {exc}", flush=True)
-
     print(
         "  Orientations: VS01..VS08 / FE00..FE07 "
-        "(D4 about contour center; sideways Width-fit)"
+        f"(stem-normalize id+r90 only → V={REFERENCE_VERTICAL_STEM:g} "
+        f"H={REFERENCE_HORIZONTAL_STEM:g}; other D4 = composites)"
     )
     print(
         f"  Slice: U+{SLICE_H_CP:04X}..U+{SLICE_V_CP:04X} "
@@ -539,7 +501,7 @@ def build_all(
     )
     print(
         "  Dakuten: JuliaMono + Nexsevka + mkanaplus \\p{M} @ CJK corners "
-        "(TR→BR→TL→BL; fixed H, L/R align; VS01..VS07 + sliceAdv)"
+        "(TR→BR→TL→BL; fixed H, L/R align; all D4 incl. r90my + sliceAdv)"
     )
     print(f"  Output: single font '{FAMILY_NAME}'")
     fmt_note = (
@@ -554,7 +516,6 @@ def build_all(
         inv,
         out_dir,
         target_upem,
-        extra_inventories=extras,
         write_ttf=write_ttf,
         write_woff2=write_woff2,
     )

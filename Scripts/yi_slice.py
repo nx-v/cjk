@@ -7,8 +7,10 @@ Encoding
 
 Budget
 ------
-Each Yi form stores **four** CJK-box half-plane clips (all zero-advance). A single
-shared ``sliceAdv`` empty glyph carries the em advance after the second half.
+Each identity / ``r90`` form stores **four** baked CJK-box half-plane clips
+(all zero-advance). Other D4 orientations reuse those via TrueType composites
+(same id/r90 split as full-glyph orientations). A shared ``sliceAdv`` empty
+glyph carries the em advance after the second half.
 """
 
 from __future__ import annotations
@@ -20,10 +22,16 @@ from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 from yi_halfwidth import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
+    SIDEWAYS_FROM_R90,
+    TRANSFORM_MODES,
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,
+    TransformMode,
     _recording_from_glyph,
+    contour_center,
     empty_glyph,
+    make_composite_variant,
+    variant_glyph_name,
 )
 
 # FE08 / FE09 slice joiners.
@@ -39,6 +47,20 @@ SLICE_MODES: Tuple[Tuple[int, str, str, str], ...] = (
 )
 
 HALF_SUFFIXES: Tuple[str, ...] = ("top", "bot", "left", "right")
+
+# Dest half → source half on the parent outline, for axis-aligned maps.
+# Matches ``variant_matrix``: flip_x ⇒ sy=-1 (mx); flip_y ⇒ sx=-1 (my).
+_AXIS_HALF_SOURCE: Dict[str, Dict[str, str]] = {
+    "mx": {"top": "bot", "bot": "top", "left": "left", "right": "right"},
+    "my": {"top": "top", "bot": "bot", "left": "right", "right": "left"},
+    "r180": {"top": "bot", "bot": "top", "left": "right", "right": "left"},
+}
+# Relative maps applied to r90 halves (same flags as SIDEWAYS_FROM_R90).
+_R90_HALF_SOURCE: Dict[str, Dict[str, str]] = {
+    "r270": _AXIS_HALF_SOURCE["r180"],
+    "r90mx": _AXIS_HALF_SOURCE["mx"],
+    "r90my": _AXIS_HALF_SOURCE["my"],
+}
 
 
 def slice_mark_cps() -> List[int]:
@@ -142,42 +164,169 @@ def ensure_slice_adv(
     return SLICE_ADV_NAME
 
 
-def add_slice_halves(
-    form_names: Sequence[str],
+def _bake_halves_for_form(
+    form_name: str,
     *,
     glyph_order: List[str],
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
+) -> None:
+    """Clip ``form_name`` into four baked zero-advance half-plane glyphs."""
+    for half in HALF_SUFFIXES:
+        hname = half_glyph_name(form_name, half)
+        if hname in glyphs:
+            continue
+        clipped = clip_glyph_to_half(
+            glyphs[form_name], half, target_upem, glyph_set=glyphs
+        )
+        try:
+            clipped.recalcBounds(None)
+            h_lsb = int(clipped.xMin)
+        except Exception:
+            h_lsb = 0
+        glyph_order.append(hname)
+        glyphs[hname] = clipped
+        metrics[hname] = (0, h_lsb)
+
+
+def _composite_halves_for_form(
+    form_name: str,
+    parent_name: str,
+    *,
+    rot90_quarters: int,
+    flip_x: bool,
+    flip_y: bool,
+    half_source: Dict[str, str],
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    target_upem: int,
+) -> None:
+    """Build half glyphs as composites of ``parent`` halves (same pivot as form)."""
+    parent = glyphs[parent_name]
+    pivot = contour_center(parent, glyphs)
+    for half in HALF_SUFFIXES:
+        hname = half_glyph_name(form_name, half)
+        if hname in glyphs:
+            continue
+        src_name = half_glyph_name(parent_name, half_source[half])
+        if src_name not in glyphs:
+            continue
+        m_glyph, _adv, m_lsb = make_composite_variant(
+            src_name,
+            target_upem,
+            rot90_quarters=rot90_quarters,
+            flip_x=flip_x,
+            flip_y=flip_y,
+            advance=0,
+            lsb=metrics[src_name][1],
+            base_glyph=glyphs[src_name],
+            glyph_set=glyphs,
+            center=pivot,
+        )
+        glyph_order.append(hname)
+        glyphs[hname] = m_glyph
+        metrics[hname] = (0, m_lsb)
+
+
+def add_slice_halves(
+    base_names: Sequence[str],
+    *,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    target_upem: int,
+    modes: Optional[Sequence[TransformMode]] = None,
     limit: Optional[int] = None,
 ) -> List[str]:
-    """Install four zero-advance half-plane clips per form (+ shared ``sliceAdv``).
+    """Install slice halves: bake id + r90; composite the other D4 forms.
 
-    Returns the list of base form names that received halves.
+    ``base_names`` are identity glyph names (not pre-expanded orientations).
+    Returns every form name (id + variants) that received a full half set.
     """
     ensure_slice_adv(glyph_order, glyphs, metrics, target_upem)
+    use_modes = list(modes) if modes is not None else list(TRANSFORM_MODES)
     added: List[str] = []
-    for name in form_names:
+
+    for base in base_names:
         if limit is not None and len(added) >= limit:
             break
-        if name not in glyphs:
+        if base not in glyphs:
             continue
-        for half in HALF_SUFFIXES:
-            hname = half_glyph_name(name, half)
-            if hname in glyphs:
-                continue
-            clipped = clip_glyph_to_half(
-                glyphs[name], half, target_upem, glyph_set=glyphs
+
+        # Bake halves for the two outline sources only.
+        _bake_halves_for_form(
+            base,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+        )
+        r90_name = variant_glyph_name(base, "r90")
+        if r90_name in glyphs:
+            _bake_halves_for_form(
+                r90_name,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+                target_upem=target_upem,
             )
-            try:
-                clipped.recalcBounds(None)
-                h_lsb = int(clipped.xMin)
-            except Exception:
-                h_lsb = 0
-            glyph_order.append(hname)
-            glyphs[hname] = clipped
-            metrics[hname] = (0, h_lsb)
-        added.append(name)
+
+        if all(half_glyph_name(base, h) in glyphs for h in HALF_SUFFIXES):
+            added.append(base)
+
+        for _vs, rot, flip_x, flip_y, suffix in use_modes:
+            if suffix is None:
+                continue
+            form = variant_glyph_name(base, suffix)
+            if form not in glyphs:
+                continue
+            if suffix == "r90":
+                if all(half_glyph_name(form, h) in glyphs for h in HALF_SUFFIXES):
+                    added.append(form)
+                continue
+            if suffix in SIDEWAYS_FROM_R90:
+                if r90_name not in glyphs:
+                    continue
+                rel_rot, rel_fx, rel_fy = SIDEWAYS_FROM_R90[suffix]
+                _composite_halves_for_form(
+                    form,
+                    r90_name,
+                    rot90_quarters=rel_rot,
+                    flip_x=rel_fx,
+                    flip_y=rel_fy,
+                    half_source=_R90_HALF_SOURCE[suffix],
+                    glyph_order=glyph_order,
+                    glyphs=glyphs,
+                    metrics=metrics,
+                    target_upem=target_upem,
+                )
+            elif suffix in _AXIS_HALF_SOURCE:
+                _composite_halves_for_form(
+                    form,
+                    base,
+                    rot90_quarters=rot,
+                    flip_x=flip_x,
+                    flip_y=flip_y,
+                    half_source=_AXIS_HALF_SOURCE[suffix],
+                    glyph_order=glyph_order,
+                    glyphs=glyphs,
+                    metrics=metrics,
+                    target_upem=target_upem,
+                )
+            else:
+                # Unknown suffix — bake from the form outline.
+                _bake_halves_for_form(
+                    form,
+                    glyph_order=glyph_order,
+                    glyphs=glyphs,
+                    metrics=metrics,
+                    target_upem=target_upem,
+                )
+            if all(half_glyph_name(form, h) in glyphs for h in HALF_SUFFIXES):
+                added.append(form)
+
     return added
 
 

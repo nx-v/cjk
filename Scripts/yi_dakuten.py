@@ -20,8 +20,9 @@ Successive marks fill slots via GSUB cycling::
     3rd → top-left
     4th → bottom-left
 
-Bases include Yi identity + VS01..VS07 orientations and shared ``sliceAdv``
-after FE08–FE09 expansion. No left-squish forms.
+Bases include Yi identity + all D4 orientations (VS02..VS08 / FE01..FE07,
+including ``r90my``) and shared ``sliceAdv`` after FE08–FE09 expansion.
+No left-squish forms.
 """
 
 from __future__ import annotations
@@ -70,8 +71,8 @@ MAX_DIACRITIC_FRAC = 0.48
 # Uniform ink height after load (fraction of target UPM).
 DAKUTEN_MARK_HEIGHT_FRAC = 0.14
 
-# VS01..VS07 (modes 0..6); VS08 / r90my is not a dakuten base.
-DAKUTEN_VS_MODE_COUNT = 7
+# Full D4: identity + VS02..VS08 (FE01..FE07), including r90my.
+DAKUTEN_VS_MODE_COUNT = 8
 
 DAKUTEN_EDGE_PAD_FRAC = 0.03
 
@@ -188,8 +189,10 @@ def dakuten_mark_slot_name(cp: int, slot_suffix: Optional[str]) -> str:
 def dakuten_orientation_modes(
     modes: Optional[Sequence] = None,
 ) -> List:
+    """Orientation modes that receive dakuten anchors (full D4 by default)."""
     use = list(modes) if modes is not None else list(YI_ORIENTATION_MODES)
-    return use[:DAKUTEN_VS_MODE_COUNT]
+    n = min(DAKUTEN_VS_MODE_COUNT, len(use))
+    return use[:n]
 
 
 def yi_forms_for_dakuten(
@@ -197,7 +200,7 @@ def yi_forms_for_dakuten(
     *,
     modes=None,
 ) -> List[str]:
-    """Identity + VS01..VS07 forms that may take dakuten."""
+    """Identity + VS02..VS08 forms (incl. ``r90my``) that may take dakuten."""
     names: List[str] = []
     for base in yi_bases:
         names.extend(

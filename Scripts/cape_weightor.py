@@ -480,8 +480,20 @@ def _unit(dx: float, dy: float) -> Point:
     return (dx / L, dy / L)
 
 
-def _offset_path(path: Path, offset_x: float, offset_y: float) -> None:
-    """Move each node along averaged on-curve normals (Glyphs-like OffsetCurve)."""
+def _offset_path(
+    path: Path,
+    offset_x: float,
+    offset_y: float,
+    *,
+    miter_limit: float = 2.5,
+) -> None:
+    """Move each node along averaged on-curve normals (Glyphs-like OffsetCurve).
+
+    Sharp corners make the summed unit normals near-zero; renormalizing that
+    sum into a full offset creates long miter spikes. When the corner is
+    sharper than ``miter_limit``, fall back to a bevel (average of the two
+    segment offsets) so joins stay intact.
+    """
     nodes = path.nodes
     n = len(nodes)
     if n < 2:
@@ -497,6 +509,10 @@ def _offset_path(path: Path, offset_x: float, offset_y: float) -> None:
         ux, uy = _unit(dx, dy)
         return (uy, -ux)
 
+    # |n0+n1| = 2·cos(θ/2) for unit normals; miter length ∝ 1/cos(θ/2).
+    # Bevel when that would exceed miter_limit × the axis offset magnitude.
+    min_sum = 2.0 / max(miter_limit, 1.0)
+
     on_off: dict[int, Point] = {}
     m = len(on_idx)
     for k, i in enumerate(on_idx):
@@ -508,10 +524,17 @@ def _offset_path(path: Path, offset_x: float, offset_y: float) -> None:
             inn = on_idx[min(k + 1, m - 1)]
         d0 = _fill_expand_normal(pts[i][0] - pts[ip][0], pts[i][1] - pts[ip][1])
         d1 = _fill_expand_normal(pts[inn][0] - pts[i][0], pts[inn][1] - pts[i][1])
-        ux, uy = _unit(d0[0] + d1[0], d0[1] + d1[1])
-        if ux == 0.0 and uy == 0.0:
-            ux, uy = d1 if (d1[0] or d1[1]) else d0
-        on_off[i] = (ux * offset_x, uy * offset_y)
+        sx, sy = d0[0] + d1[0], d0[1] + d1[1]
+        slen = math.hypot(sx, sy)
+        if slen < min_sum:
+            # Bevel: average the two segment offsets (no renormalize spike).
+            on_off[i] = (
+                0.5 * (d0[0] + d1[0]) * offset_x,
+                0.5 * (d0[1] + d1[1]) * offset_y,
+            )
+        else:
+            ux, uy = sx / slen, sy / slen
+            on_off[i] = (ux * offset_x, uy * offset_y)
 
     new_pts: List[Point] = []
     for i in range(n):

@@ -53,7 +53,6 @@ from yi_halfwidth import (
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,
     add_d4_variant_glyphs,
-    average_ink_width,
     build_ext_gsub_lookup,
     build_chunked_single_subst_lookup,
     build_chain_context_format2,
@@ -539,7 +538,6 @@ def add_viet_mark_glyphs(
     side ``r90``).
     """
     upright: List[str] = []
-    upright_glyphs: List[TTGlyph] = []
     for cp in mark_cps:
         g = mark_glyphs.get(cp)
         if g is None:
@@ -556,9 +554,7 @@ def add_viet_mark_glyphs(
             metrics[name] = (0, lsb)
         cmap[cp] = name
         upright.append(name)
-        upright_glyphs.append(g)
 
-    avg_w = average_ink_width(upright_glyphs)
     right_names: List[str] = list(upright)
     for name in upright:
         installed = add_d4_variant_glyphs(
@@ -569,8 +565,6 @@ def add_viet_mark_glyphs(
             glyph_order=glyph_order,
             glyphs=glyphs,
             metrics=metrics,
-            sideways_target_width=avg_w if avg_w > 1.0 else None,
-            sideways_center_x=0.0,
         )
         for _vs, _sfx, vname in installed:
             metrics[vname] = (0, metrics[vname][1])

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Build an HTML gallery of Yi orientations × slices × dakuten.
 
-Inventory: NuosuSIL Yi syllables / radicals plus JuliaMono Runic letters
-present in ``panyi`` (punctuation U+16EB–16ED excluded).
+Inventory: NuosuSIL Yi syllables / radicals present in ``panyi``.
 
 Combinations (rendered on demand):
 
@@ -59,27 +58,15 @@ SLICE_MODES = [
 
 
 def yi_entries() -> List[dict]:
-    from yi_dakuten import resolve_juliamono_path
-    from yi_halfwidth import load_runic_inventory
-
-    inventories = [load_inventory(resolve_nuosu_path(IN_DIR))]
-    try:
-        inventories.append(load_runic_inventory(resolve_juliamono_path(IN_DIR)))
-    except (FileNotFoundError, ValueError):
-        pass
+    inv = load_inventory(resolve_nuosu_path(IN_DIR))
     out: List[dict] = []
-    seen: set[int] = set()
-    for inv in inventories:
-        for cp in inv.src_cps:
-            if cp in seen:
-                continue
-            seen.add(cp)
-            try:
-                name = unicodedata.name(chr(cp), f"U+{cp:04X}")
-            except ValueError:
-                name = f"U+{cp:04X}"
-            short = name.split()[-1] if name else f"{cp:04X}"
-            out.append({"cp": cp, "ch": chr(cp), "name": name, "short": short})
+    for cp in inv.src_cps:
+        try:
+            name = unicodedata.name(chr(cp), f"U+{cp:04X}")
+        except ValueError:
+            name = f"U+{cp:04X}"
+        short = name.split()[-1] if name else f"{cp:04X}"
+        out.append({"cp": cp, "ch": chr(cp), "name": name, "short": short})
     return out
 
 
@@ -89,9 +76,7 @@ def dakuten_mark_entries(limit: int = 64) -> List[dict]:
         tt = TTFont(YI_FONT)
         try:
             cmap = tt.getBestCmap() or {}
-            cps = sorted(
-                cp for cp, name in cmap.items() if str(name).endswith(".mk")
-            )
+            cps = sorted(cp for cp, name in cmap.items() if str(name).endswith(".mk"))
         finally:
             tt.close()
     if not cps:
