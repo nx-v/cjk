@@ -5,9 +5,11 @@ Core marks from Plangothic P2: U+16FF0 (ca) / U+16FF1 (nhay) only.
 Squish = occupy **one half** of the CJK ideographic area (left / right /
 top / bottom). Same half-cell glyphs serve FE0C–FE0F access and ca/nhay
 placement: when a mark follows, GSUB selects the complementary half-form
-and GPOS puts ca/nhay in the free half. Upright H/V halves are stretched
-anisotropically into the slot (full height for LR, full width for TB);
-mirrors/D4 niches stay TT composites (no stem normalize).
+and GPOS puts ca/nhay in the free half. Base ideographs are proportionally
+scaled (contour bbox) into the padded ideographic cell. CAPE Width/Height
+stroke weight adjustment runs on upright H (``.dkl``) / V (``.dkt``)
+half-cells and on ca/nhay only; ``.dk`` / ``.dkb``, D4 niches, overlays, and
+mark D4 stay simple affine (translate / rotate / reflect).
 
     CJK MARK          → base ``.dk`` (left half)  + mark in right half
     CJK FE08 MARK     → base ``.dkl`` (right half) + mark in left half
@@ -43,6 +45,7 @@ from fontTools.ttLib.tables._g_l_y_f import (
 )
 
 from cape_weightor import (
+    apply_height,
     apply_width,
     estimate_horizontal_stem,
     estimate_vertical_stem,
@@ -414,13 +417,13 @@ def make_tb_mark_glyph(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     base_name: str = "_tb",
 ) -> Tuple[TTGlyph, int]:
-    """Bake TB mark: r90 of upright, then Width-stretch to near-full cell.
+    """TB mark = r90 of LR-fitted upright (pure rotation about origin).
 
-    Outline is baked once; ``.B`` and D4 TB aliases composite this glyph.
+    Upright ca/nhay already fills the LR half; 90° maps that box onto the TB
+    half, so no extra stretch/normalize. ``.B`` / D4 TB aliases composite this.
     """
     from yi_halfwidth import make_composite_variant
 
-    # Stretch first via a temporary r90 bake (2×2 must bake for CAPE).
     rotated, _adv, _lsb = make_composite_variant(
         base_name,
         target_upem,
@@ -432,35 +435,11 @@ def make_tb_mark_glyph(
         center=(0.0, 0.0),
         allow_2x2=False,
     )
-    layer = layer_from_ttglyph(rotated, 0.0)
-    if not layer.paths:
-        try:
-            rotated.recalcBounds(None)
-            return rotated, int(rotated.xMin)
-        except Exception:
-            return rotated, 0
-
-    target_w = float(target_upem) * 0.90
-    bw = layer.bounds.size.x
-    if bw > 1.0 and target_w > 1.0:
-        factor = target_w / bw
-        if abs(factor - 1.0) > 1e-6:
-            vstem = estimate_vertical_stem(layer)
-            apply_width(
-                layer,
-                factor,
-                stem=vstem if vstem > 0 else None,
-                center_x=0.0,
-            )
-
-    b = layer.bounds
-    cx = b.origin.x + 0.5 * b.size.x
-    cy = b.origin.y + 0.5 * b.size.y
-    if abs(cx) > 1e-6 or abs(cy) > 1e-6:
-        layer.applyTransform((1, 0, 0, 1, -cx, -cy))
-
-    out, _a, out_lsb = ttglyph_from_layer(layer)
-    return out, int(out_lsb)
+    try:
+        rotated.recalcBounds(None)
+        return rotated, int(rotated.xMin)
+    except Exception:
+        return rotated, 0
 
 
 def add_mark_d4_composites(
@@ -1051,29 +1030,56 @@ def fit_mark_to_halfcell(
     glyph: TTGlyph,
     target_upem: int,
     *,
+    axis: str = "x",
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> TTGlyph:
-    """Scale mark so its ink fits inside one half of the ideographic cell."""
-    from yi_halfwidth import apply_transform, _recording_from_glyph
+    """Fit mark into one half-cell with CAPE Width/Height (stems preserved).
 
+    ``axis="x"`` → LR niche (half width × full ideo height).
+    ``axis="y"`` → TB niche (full width × half ideo height).
+    Ink is centered at the origin for GPOS attachment.
+    """
+    pin = "right" if axis == "x" else "bottom"
+    src = _normalize_winding(_bake_simple_glyph(glyph, glyph_set), glyph_set)
+    layer = layer_from_ttglyph(src, 0.0)
+    if not layer.paths:
+        return src
+
+    x0, y0, x1, y1 = _half_slot_rect(float(target_upem), pin=pin, axis=axis)
+    tw = max(x1 - x0, 1.0)
+    th = max(y1 - y0, 1.0)
+    b = layer.bounds
+    bw = max(b.size.x, 1.0)
+    bh = max(b.size.y, 1.0)
+    fx = tw / bw
+    fy = th / bh
+    vstem = estimate_vertical_stem(layer)
+    hstem = estimate_horizontal_stem(layer)
+    if abs(fx - 1.0) > 1e-4:
+        apply_width(
+            layer,
+            fx,
+            stem=vstem if vstem > 0 else None,
+            center_x=0.0,
+        )
+    if abs(fy - 1.0) > 1e-4:
+        apply_height(
+            layer,
+            fy,
+            stem=hstem if hstem > 0 else None,
+            center_y=0.0,
+        )
+    b = layer.bounds
+    cx = b.origin.x + 0.5 * b.size.x
+    cy = b.origin.y + 0.5 * b.size.y
+    if abs(cx) > 1e-6 or abs(cy) > 1e-6:
+        layer.applyTransform((1, 0, 0, 1, -cx, -cy))
+    out, _a, _l = ttglyph_from_layer(layer)
     try:
-        if glyph.isComposite() and glyph_set is not None:
-            glyph.recalcBounds(glyph_set)
-        else:
-            glyph.recalcBounds(None)
-        w = float(glyph.xMax - glyph.xMin)
-        h = float(glyph.yMax - glyph.yMin)
+        out.recalcBounds(None)
     except Exception:
-        return glyph
-    if w <= 0 or h <= 0:
-        return glyph
-    pad = target_upem * HALF_PAD_FRAC
-    budget = max(target_upem * 0.5 - 2.0 * pad, target_upem * 0.35)
-    scale = min(budget / w, budget / h, 1.0)
-    if scale >= 0.999:
-        return glyph
-    rec = _recording_from_glyph(glyph, glyph_set)
-    return apply_transform(rec, Transform(scale, 0, 0, scale, 0, 0))
+        pass
+    return out
 
 
 def _half_slot_rect(
@@ -1109,17 +1115,23 @@ def place_glyph_in_half(
     target_upem: int = 1000,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Anisotropic stretch + translate ink to fill one half of the cell.
+    """Map the full ideographic cell frame into one half-slot.
 
-    Horizontal niches (``axis="x"``) keep full ideographic height and compress
-    width into the left/right half. Vertical niches keep full width and
-    compress height into the top/bottom half. Axes scale independently — no
-    uniform/min fit.
+    Source frame is the same padded typo cell that
+    ``fit_glyph_to_ideographic_cell`` centers ink into (not a second contour
+    fit). ``sx = half_w/cell_w``, ``sy = half_h/cell_h``. Composites bake once.
+
+    Prefer ``make_squished_glyph`` for upright H/V bakes (CAPE then translate);
+    this affine map is the empty-outline / no-CAPE fallback.
     """
-    from yi_halfwidth import apply_transform, _recording_from_glyph
+    from yi_halfwidth import (
+        STANDALONE_VERT_PAD,
+        apply_transform,
+        cjk_padded_floor,
+        _recording_from_glyph,
+    )
 
     upem = float(target_upem)
-    # Composites must bake once; simple glyphs keep their contours.
     src = glyph
     try:
         is_comp = bool(glyph.isComposite())
@@ -1128,22 +1140,21 @@ def place_glyph_in_half(
     if is_comp:
         src = _bake_simple_glyph(glyph, glyph_set)
 
-    try:
-        src.recalcBounds(None)
-        x_min, y_min = float(src.xMin), float(src.yMin)
-        x_max, y_max = float(src.xMax), float(src.yMax)
-    except Exception:
-        return src, int(upem), int(getattr(src, "xMin", 0) or 0)
+    # Full-cell frame in current glyph space (= fit_glyph destination).
+    bottom, top, _ = cjk_padded_floor(int(target_upem), pad=STANDALONE_VERT_PAD)
+    inset = upem * STANDALONE_VERT_PAD
+    sx0, sx1 = inset, upem - inset
+    sy0, sy1 = bottom, top
+    sw = max(sx1 - sx0, 1.0)
+    sh = max(sy1 - sy0, 1.0)
 
-    bw = max(x_max - x_min, 1.0)
-    bh = max(y_max - y_min, 1.0)
     x0, y0, x1, y1 = _half_slot_rect(upem, pin=pin, axis=axis)
     tw = max(x1 - x0, 1.0)
     th = max(y1 - y0, 1.0)
-    sx = tw / bw
-    sy = th / bh
-    src_cx = (x_min + x_max) / 2.0
-    src_cy = (y_min + y_max) / 2.0
+    sx = tw / sw
+    sy = th / sh
+    src_cx = (sx0 + sx1) / 2.0
+    src_cy = (sy0 + sy1) / 2.0
     dst_cx = (x0 + x1) / 2.0
     dst_cy = (y0 + y1) / 2.0
     t = Transform(sx, 0, 0, sy, dst_cx - sx * src_cx, dst_cy - sy * src_cy)
@@ -1158,6 +1169,43 @@ def place_glyph_in_half(
     return out, int(upem), lsb
 
 
+def _translate_ink_to_half_center(
+    glyph: TTGlyph,
+    *,
+    pin: str,
+    axis: str,
+    target_upem: int,
+) -> Tuple[TTGlyph, int, int]:
+    """Translate only so ink center sits at the half-slot center (no re-scale)."""
+    from yi_halfwidth import apply_transform, _recording_from_glyph
+
+    upem = float(target_upem)
+    x0, y0, x1, y1 = _half_slot_rect(upem, pin=pin, axis=axis)
+    dst_cx = (x0 + x1) / 2.0
+    dst_cy = (y0 + y1) / 2.0
+    try:
+        glyph.recalcBounds(None)
+        src_cx = (float(glyph.xMin) + float(glyph.xMax)) / 2.0
+        src_cy = (float(glyph.yMin) + float(glyph.yMax)) / 2.0
+    except Exception:
+        return glyph, int(upem), int(getattr(glyph, "xMin", 0) or 0)
+    dx = dst_cx - src_cx
+    dy = dst_cy - src_cy
+    if abs(dx) < 0.5 and abs(dy) < 0.5:
+        try:
+            return glyph, int(upem), int(glyph.xMin)
+        except Exception:
+            return glyph, int(upem), 0
+    rec = _recording_from_glyph(glyph, None)
+    out = apply_transform(rec, Transform(1, 0, 0, 1, dx, dy))
+    try:
+        out.recalcBounds(None)
+        lsb = int(out.xMin)
+    except Exception:
+        lsb = 0
+    return out, int(upem), lsb
+
+
 def make_squished_glyph(
     glyph: TTGlyph,
     advance: int,
@@ -1168,16 +1216,47 @@ def make_squished_glyph(
     axis: str = "x",
     target_upem: Optional[int] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Occupy one half of the ideographic area (axis stretch; no CAPE/norm)."""
-    del factor  # half-cell slot size is fixed; kept for call-site compat
+    """Half-cell via CAPE Width/Height, then translate into the slot.
+
+    ``axis="x"`` → Width-condense (vertical stems kept); ``axis="y"`` →
+    Height-condense (horizontal stems kept). CAPE already halves the outer
+    size — do **not** also map cell→slot (that was double-scaling to ~¼).
+    """
     upem = int(target_upem if target_upem is not None else (advance if advance > 0 else 1000))
-    return place_glyph_in_half(
-        glyph,
-        advance if advance > 0 else upem,
-        pin=pin,
-        axis=axis,
-        target_upem=upem,
-        glyph_set=glyph_set,
+    use = float(min(SQUISH_FACTOR_MAX, max(SQUISH_FACTOR_MIN, factor)))
+    simple = _normalize_winding(_bake_simple_glyph(glyph, glyph_set), glyph_set)
+    layer = layer_from_ttglyph(simple, float(advance if advance > 0 else upem))
+    if not layer.paths:
+        return place_glyph_in_half(
+            simple,
+            advance if advance > 0 else upem,
+            pin=pin,
+            axis=axis,
+            target_upem=upem,
+            glyph_set=None,
+        )
+
+    cell_cx, cell_cy = ideographic_center(upem)
+    hstem = estimate_horizontal_stem(layer)
+    vstem = estimate_vertical_stem(layer)
+    if axis == "y":
+        apply_height(
+            layer,
+            use,
+            stem=hstem if hstem > 0 else None,
+            center_y=cell_cy,
+        )
+    else:
+        apply_width(
+            layer,
+            use,
+            stem=vstem if vstem > 0 else None,
+            center_x=cell_cx,
+        )
+
+    out, _adv, _lsb = ttglyph_from_layer(layer)
+    return _translate_ink_to_half_center(
+        out, pin=pin, axis=axis, target_upem=upem
     )
 
 
@@ -1195,7 +1274,7 @@ def add_squish_forms(
 
     Per identity base::
 
-        bake ``.dkl`` (H) / ``.dkt`` (V) once via anisotropic stretch into the half
+        bake ``.dkl`` (H) / ``.dkt`` (V): CAPE Width/Height + translate to slot
         ``.dk`` / ``.dkb`` = my / mx composites about cell center
 
     Oriented bases (``.r90``, …) pick the upright niche that maps to the
@@ -1938,7 +2017,7 @@ def prepare_squish_vs_access(
 
     Returns the squishable form name list (identity + D4).
     """
-    del in_dir  # kept for call-site compat (formerly stem-ref lookup)
+    del in_dir  # kept for call-site compat
 
     for cp, name in (
         (OV_SELECTOR_CP, OV_SELECTOR_NAME),
@@ -2031,8 +2110,9 @@ def prepare_marks(
         return None
 
     for cp in list(core_glyphs):
+        # CAPE Width/Height into LR half-cell (legacy stroke weight adjust).
         core_glyphs[cp] = fit_mark_to_halfcell(
-            core_glyphs[cp], target_upem, glyph_set=None
+            core_glyphs[cp], target_upem, axis="x", glyph_set=None
         )
 
     set_mark_cps(core_cps)
@@ -2072,6 +2152,7 @@ def prepare_marks(
         uvs_rows=uvs_rows,
         width_factor=SQUISH_FACTOR,
         height_factor=SQUISH_FACTOR,
+        in_dir=in_dir,
     )
 
     return {

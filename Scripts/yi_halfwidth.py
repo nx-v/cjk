@@ -1013,7 +1013,7 @@ def add_d4_variant_glyphs(
         2. stem-normalize, retrying smaller/larger targets until strokes stay
            thick and non-self-intersecting (else keep step-1)
         3. place ink: ``anchor="floor"`` pins to padded CJK floor (Yi);
-           ``anchor="cell"`` anisotropically fills the padded ideographic cell (CJK)
+           ``anchor="cell"`` keeps the proportional cell fit (CJK; rotate only)
 
     Other orientations are simple rotate/reflect composites (no further stem
     offset)::
@@ -1087,6 +1087,17 @@ def add_d4_variant_glyphs(
             allow_2x2=(anchor == "cell"),
         )
 
+    def _keep(glyph: TTGlyph, adv: int) -> GlyphMetrics:
+        """Identity metrics refresh (no second ideo-square map)."""
+        try:
+            if glyph.isComposite():
+                glyph.recalcBounds(glyphs)
+            else:
+                glyph.recalcBounds(None)
+            return glyph, int(adv), int(glyph.xMin)
+        except Exception:
+            return glyph, int(adv), 0
+
     def _transform_then_normalize(
         transformed: TTGlyph,
         adv: int,
@@ -1099,7 +1110,8 @@ def add_d4_variant_glyphs(
         else:
             baked = transformed
         if not use_ref:
-            return _place(baked, adv)
+            # CJK: caller already cell-fitted; Yi: floor-pin.
+            return _keep(baked, adv) if anchor == "cell" else _place(baked, adv)
 
         norm_g, norm_a, _norm_l = normalize_glyph_stems_with_retry(
             baked,
@@ -1108,13 +1120,13 @@ def add_d4_variant_glyphs(
             horizontal_stem=ref_h,
             glyph_set=glyphs,
         )
-        return _place(norm_g, norm_a)
+        return _keep(norm_g, norm_a) if anchor == "cell" else _place(norm_g, norm_a)
 
     # Keep the un-normalized upright as the transform source for r90.
     src_glyph = glyphs[base_name]
     src_adv, src_lsb = int(metrics[base_name][0]), int(metrics[base_name][1])
 
-    # 1) id: identity transform, then place (floor-pin or cell-fill).
+    # 1) id: identity transform, then place (floor-pin or keep cell fit).
     g0, a0, l0 = _transform_then_normalize(src_glyph, src_adv)
     glyphs[base_name] = g0
     metrics[base_name] = (int(a0), int(l0))
@@ -1123,7 +1135,8 @@ def add_d4_variant_glyphs(
     # 2) r90: from un-normalized upright (Yi) or fitted upright (CJK cell).
     if need_r90 and r90_name not in glyphs:
         if anchor == "cell":
-            r90_raw, r90_adv, _r90_lsb = _composite_from(
+            # Pure rotate about cell center — do not re-map the ideo square.
+            r90_glyph, r90_adv, r90_lsb = _composite_from(
                 base_name,
                 glyphs[base_name],
                 advance,
@@ -1132,7 +1145,7 @@ def add_d4_variant_glyphs(
                 flip_x=False,
                 flip_y=False,
             )
-            r90_glyph, r90_adv, r90_lsb = _place(r90_raw, r90_adv)
+            r90_glyph, r90_adv, r90_lsb = _keep(r90_glyph, r90_adv)
         else:
             r90_raw, r90_adv, _r90_lsb = _composite_from(
                 base_name,
@@ -1970,11 +1983,12 @@ def fit_glyph_to_ideographic_cell(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     pad: float = STANDALONE_VERT_PAD,
 ) -> GlyphMetrics:
-    """Anisotropic stretch ink to fill the padded ideographic cell.
+    """Proportionally scale contour ink to fit inside the padded ideo cell.
 
-    Every outline — regardless of canonical size — is scaled independently in X
-    and Y so its bbox matches the padded typo square (not floor-pinned, not
-    uniform/min fit). Composites are baked once.
+    Uniform ``s = min(cell_w / ink_w, cell_h / ink_h)`` about the ink center,
+    then translate so the scaled bbox sits at the cell center. Short glyphs
+    grow; overflowing ones shrink — aspect ratio is preserved. Composites bake
+    once. (Not anisotropic fill, and not a fixed ``(0,0)…(upem,upem)`` map.)
     """
     bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
     inset = float(target_upem) * max(pad, 0.0)
@@ -1988,27 +2002,28 @@ def fit_glyph_to_ideographic_cell(
             src, adv, _ = _bake_transformed_glyph(
                 glyph, Transform(), adv, glyph_set=glyph_set
             )
-        src.recalcBounds(None)
-        x_min, y_min = float(src.xMin), float(src.yMin)
-        x_max, y_max = float(src.xMax), float(src.yMax)
     except Exception:
-        try:
-            lsb = int(getattr(src, "xMin", 0) or 0)
-        except Exception:
-            lsb = 0
-        return src, adv, lsb
+        pass
 
-    bw = max(x_max - x_min, 1.0)
-    bh = max(y_max - y_min, 1.0)
+    try:
+        src.recalcBounds(None)
+        sx0 = float(src.xMin)
+        sy0 = float(src.yMin)
+        sx1 = float(src.xMax)
+        sy1 = float(src.yMax)
+    except Exception:
+        return src, int(target_upem), int(getattr(src, "xMin", 0) or 0)
+
+    sw = max(sx1 - sx0, 1.0)
+    sh = max(sy1 - sy0, 1.0)
     tw = max(x1 - x0, 1.0)
     th = max(y1 - y0, 1.0)
-    sx = tw / bw
-    sy = th / bh
-    src_cx = (x_min + x_max) / 2.0
-    src_cy = (y_min + y_max) / 2.0
+    s = min(tw / sw, th / sh)
+    src_cx = (sx0 + sx1) / 2.0
+    src_cy = (sy0 + sy1) / 2.0
     dst_cx = (x0 + x1) / 2.0
     dst_cy = (y0 + y1) / 2.0
-    t = Transform(sx, 0, 0, sy, dst_cx - sx * src_cx, dst_cy - sy * src_cy)
+    t = Transform(s, 0, 0, s, dst_cx - s * src_cx, dst_cy - s * src_cy)
     rec = _recording_from_glyph(src, None)
     out = apply_transform(rec, t)
     try:

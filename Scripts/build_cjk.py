@@ -337,8 +337,7 @@ class SourceFont:
                     file=sys.stderr,
                 )
 
-        # Stretch ink to the padded ideographic cell (not floor-pinned /
-        # canonical-size). Short glyphs like U+4E00 fill the same box as tall ones.
+        # Uniform scale + center contour ink into the padded ideographic cell.
         glyph, advance, lsb = fit_glyph_to_ideographic_cell(
             glyph, advance if advance > 0 else target_upem, target_upem
         )
