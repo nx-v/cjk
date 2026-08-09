@@ -628,6 +628,40 @@ def apply_width(
             layer.LSB = layer.LSB + dx
 
 
+def apply_height(
+    layer: Layer,
+    factor: float,
+    *,
+    stem: Optional[float] = None,
+    center_y: Optional[float] = None,
+) -> None:
+    """Height mode: stretch/condense vertically, keep horizontal stem thickness."""
+    if abs(factor - 1.0) < 1e-9:
+        return
+    b = layer.bounds
+    up_y, up_h = b.origin.y, b.size.y
+    if up_h <= 1e-6:
+        return
+
+    n = float(stem) if stem is not None else estimate_horizontal_stem(layer)
+    do_scale, s, offset_per_side = width_scale_params(up_h, factor, n)
+    if not do_scale:
+        return
+
+    ty = up_y * (1.0 - s)
+    layer.applyTransform((1, 0, 0, s, 0, ty))
+    if abs(offset_per_side) > 1e-6:
+        # Positive Y expands fill on these TT outlines (same as Width's +X).
+        offset_layer(layer, 0.0, offset_per_side)
+
+    if center_y is not None:
+        nb = layer.bounds
+        mid = nb.origin.y + 0.5 * nb.size.y
+        dy = center_y - mid
+        if abs(dy) > 1e-6:
+            layer.applyTransform((1, 0, 0, 1, 0, dy))
+
+
 def apply_weight(
     layer: Layer,
     factor: float,

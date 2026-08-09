@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Build an HTML gallery of CJK × VS1–7 × Viet marks U+16FF0/U+16FF1.
+"""Build an HTML gallery of CJK × VS1–8 × reading marks.
 
 Encoding (matches ``cjk_viet_marks`` / ``build_subfonts``)::
 
-    CJK  ( FE01..FE07 )?  ( U+16FF0 | U+16FF1 )  ( FE01..FE07 )?
-        → right attach; ideograph left-squished (``.dk``)
+    U+16FF0/16FF1 (ca/nhay):
+      MARK       → right  (``.dk``)
+      FE09 MARK  → left   (``.dkl``)
+      FE0A MARK  → top    (``.dkt``, r90 mark)
+      FE0B MARK  → bottom (``.dkb``, r90 mark)
 
-    CJK  ( FE01..FE07 )?  FE09  MARK  ( FE01..FE07 )?
-        → left attach; ideograph right-squished (``.dkl``)
-
-One side only — never both.
+One niche only — never two sides at once.
 
 Usage
 -----
@@ -30,7 +30,12 @@ import unicodedata
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from build_subfonts import CHAR_RANGES, OUT_DIR as SUBFONTS_OUT
-from cjk_viet_marks import VIET_LEFT_SELECTOR_CP, VIET_MARK_CPS
+from cjk_viet_marks import (
+    VIET_BOT_SELECTOR_CP,
+    VIET_LEFT_SELECTOR_CP,
+    VIET_MARK_CPS,
+    VIET_TOP_SELECTOR_CP,
+)
 from yi_halfwidth import TRANSFORM_MODES, uvs_selector_for_mode
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -118,8 +123,25 @@ def assigned_cps(ranges: Sequence[Tuple[int, int]], *, limit: int) -> List[dict]
     return out
 
 
-def pancjk_font_stack(font_dir: str) -> str:
-    """Quoted ``'pancjk XX'`` stack from fonts on disk, else from CHAR_RANGES."""
+def pancjk_font_stack(
+    font_dir: str,
+    *,
+    ranges: Optional[Sequence[Tuple[int, int]]] = None,
+) -> str:
+    """Quoted ``'pancjk XX'`` stack from fonts on disk, else from CHAR_RANGES.
+
+    When ``ranges`` covers a single bucket, use only that face so reading marks
+    (also in that face's unicode-range) are not stolen by an earlier bucket or
+    by Plangothic's spacing outlines.
+    """
+    if ranges:
+        buckets: set = set()
+        for a, b in ranges:
+            buckets.update(range(a >> 8, (b >> 8) + 1))
+        if len(buckets) == 1:
+            hex_id = f"{next(iter(buckets)):X}"
+            return f"'pancjk {hex_id}'"
+
     ids: List[str] = []
     if os.path.isdir(font_dir):
         seen = set()
@@ -164,7 +186,7 @@ def write_html(
     n_mark_vs = n * n_marks * n_mark_o
     total = n_plain + n_with_mark + n_base_vs_mark + n_mark_vs
 
-    stack = pancjk_font_stack(font_dir)
+    stack = pancjk_font_stack(font_dir, ranges=ranges)
     marks = [
         {
             "cp": cp,
@@ -182,6 +204,8 @@ def write_html(
         "MARK_ORIENT_VS": MARK_ORIENT_VS,
         "MARK_ORIENT_LABEL": MARK_ORIENT_LABEL,
         "LEFT_SEL": VIET_LEFT_SELECTOR_CP,
+        "TOP_SEL": VIET_TOP_SELECTOR_CP,
+        "BOT_SEL": VIET_BOT_SELECTOR_CP,
         "n": n,
         "total": total,
     }
@@ -228,7 +252,7 @@ h1 {{ font-size: 18px; font-weight: 600; color: #ccc; margin: 0 0 6px; }}
 #status {{ font-size: 12px; color: #8af; margin: 10px 20px 0; min-height: 1.2em; }}
 main {{ padding: 12px 20px 80px; }}
 #out {{
-  font-family: {stack}, "Plangothic P1", "Plangothic P2", serif;
+  font-family: {stack}, serif;
   font-size: var(--fs);
   line-height: 1.35;
   display: flex; flex-wrap: wrap; gap: 2px 4px;
@@ -252,13 +276,13 @@ h2 {{
 </head>
 <body>
 <header>
-  <h1>pancjk — CJK × VS1–8 × Viet diacritics</h1>
+  <h1>pancjk — CJK × VS1–8 × reading marks</h1>
   <p class="meta">
     Range: {range_note} · {n:,} characters embedded<br/>
-    Base VS: identity / FE01..FE07 (full D4) ·
-    Marks: U+16FF0 (ca), U+16FF1 (nhay) · mark D4: FE01..FE07<br/>
-    Right attach + left-squish <code>.dk</code> · left attach + right-squish
-    <code>.dkl</code> (FE09+mark) · one side only · gallery ≈ {total:,} (on demand)
+    Base VS: identity / FE01..FE07 (full D4) · mark D4: FE01..FE07<br/>
+    U+16FF0/16FF1: right <code>.dk</code> · FE09 left <code>.dkl</code> ·
+    FE0A top <code>.dkt</code> (r90) · FE0B bottom <code>.dkb</code> (r90) ·
+    one niche · gallery ≈ {total:,} (on demand)
   </p>
   <div class="controls">
     <label>CJK start index
@@ -270,7 +294,7 @@ h2 {{
     <label>Base orient
       <select id="baseOrient"></select>
     </label>
-    <label>Viet mark
+    <label>Mark
       <select id="markSel"></select>
     </label>
     <label>Mark orient
@@ -278,8 +302,10 @@ h2 {{
     </label>
     <button type="button" id="btnSlice">Render slice</button>
     <button type="button" id="btnPlain">Plain CJK</button>
-    <button type="button" id="btnMarks">+ marks (right)</button>
-    <button type="button" id="btnLeft">+ marks (left / FE09)</button>
+    <button type="button" id="btnMarks">+ right</button>
+    <button type="button" id="btnLeft">+ left (FE09)</button>
+    <button type="button" id="btnTop">+ top (FE0A)</button>
+    <button type="button" id="btnBot">+ bottom (FE0B)</button>
     <button type="button" id="btnBaseGrid">Base VS × mark</button>
     <button type="button" id="btnMarkGrid">Mark D4 grid</button>
     <button type="button" id="btnEverything" class="danger">Render everything</button>
@@ -312,7 +338,7 @@ function fillOrient(sel, labels, vs) {{
 }}
 function fillMarks(sel) {{
   const all = document.createElement('option');
-  all.value = 'all'; all.textContent = 'both marks';
+  all.value = 'all'; all.textContent = 'all marks';
   sel.appendChild(all);
   DATA.MARKS.forEach((m, i) => {{
     const o = document.createElement('option');
@@ -348,8 +374,12 @@ function markPiece(mi, markOi) {{
   const m = DATA.MARKS[mi];
   return m.ch + vsChar(DATA.MARK_ORIENT_VS[markOi]);
 }}
-function leftMarkPiece(mi, markOi) {{
-  return String.fromCodePoint(DATA.LEFT_SEL) + markPiece(mi, markOi);
+function sideMarkPiece(side, mi, markOi) {{
+  const sel = side === 'L' ? DATA.LEFT_SEL
+    : side === 'T' ? DATA.TOP_SEL
+    : side === 'B' ? DATA.BOT_SEL
+    : null;
+  return (sel != null ? String.fromCodePoint(sel) : '') + markPiece(mi, markOi);
 }}
 function tagFor(idx, baseOi, mi, markOi, side) {{
   const c = DATA.CJK[idx];
@@ -384,6 +414,13 @@ function heading(s) {{
 function clearOut() {{ out.replaceChildren(); }}
 function setStatus(s) {{ status.textContent = s; }}
 
+const SIDE_LABEL = {{
+  R: 'right /.dk',
+  L: 'left FE09 /.dkl',
+  T: 'top FE0A /.dkt',
+  B: 'bottom FE0B /.dkb',
+}};
+
 function renderPlain(indices) {{
   clearOut();
   out.appendChild(heading('Plain CJK'));
@@ -395,32 +432,18 @@ function renderPlain(indices) {{
   setStatus('Rendered ' + n.toLocaleString() + ' plain cells');
 }}
 
-function renderWithMarks(indices, baseOi, markIndices, markOi) {{
+function renderSide(indices, baseOi, markIndices, markOi, side) {{
   clearOut();
-  out.appendChild(heading('CJK + Viet mark (right attach / .dk)'));
+  out.appendChild(heading('CJK + mark (' + SIDE_LABEL[side] + ')'));
   let n = 0;
   for (const i of indices) {{
     for (const mi of markIndices) {{
-      const text = cjkPiece(i, baseOi) + markPiece(mi, markOi);
-      out.appendChild(cell(text, tagFor(i, baseOi, mi, markOi, 'R')));
+      const text = cjkPiece(i, baseOi) + sideMarkPiece(side, mi, markOi);
+      out.appendChild(cell(text, tagFor(i, baseOi, mi, markOi, side)));
       n++;
     }}
   }}
-  setStatus('Rendered ' + n.toLocaleString() + ' right-mark cells');
-}}
-
-function renderLeftMarks(indices, baseOi, markIndices, markOi) {{
-  clearOut();
-  out.appendChild(heading('CJK + FE09 + Viet mark (left attach / .dkl)'));
-  let n = 0;
-  for (const i of indices) {{
-    for (const mi of markIndices) {{
-      const text = cjkPiece(i, baseOi) + leftMarkPiece(mi, markOi);
-      out.appendChild(cell(text, tagFor(i, baseOi, mi, markOi, 'L')));
-      n++;
-    }}
-  }}
-  setStatus('Rendered ' + n.toLocaleString() + ' left-mark cells');
+  setStatus('Rendered ' + n.toLocaleString() + ' ' + side + '-side mark cells');
 }}
 
 function renderBaseGrid(indices, markIndices) {{
@@ -457,7 +480,7 @@ function renderMarkGrid(indices, baseOi, markIndices) {{
 
 function renderEverything() {{
   const indices = DATA.CJK.map((_, i) => i);
-  if (!confirm('Render ~' + DATA.total.toLocaleString() +
+  if (!confirm('Render ~' + (DATA.total * 2).toLocaleString() +
       ' cells for ' + DATA.n.toLocaleString() + ' CJK? This can lock the tab.')) return;
   clearOut();
   let n = 0;
@@ -466,22 +489,15 @@ function renderEverything() {{
     out.appendChild(cell(DATA.CJK[i].ch, DATA.CJK[i].short));
     n++;
   }}
-  out.appendChild(heading('Right marks'));
-  for (const i of indices) {{
-    for (let mi = 0; mi < DATA.MARKS.length; mi++) {{
-      out.appendChild(cell(
-        cjkPiece(i, 0) + markPiece(mi, 0),
-        tagFor(i, 0, mi, 0, 'R')));
-      n++;
-    }}
-  }}
-  out.appendChild(heading('Left marks (FE09)'));
-  for (const i of indices) {{
-    for (let mi = 0; mi < DATA.MARKS.length; mi++) {{
-      out.appendChild(cell(
-        cjkPiece(i, 0) + leftMarkPiece(mi, 0),
-        tagFor(i, 0, mi, 0, 'L')));
-      n++;
+  for (const side of ['R', 'L', 'T', 'B']) {{
+    out.appendChild(heading(SIDE_LABEL[side]));
+    for (const i of indices) {{
+      for (let mi = 0; mi < DATA.MARKS.length; mi++) {{
+        out.appendChild(cell(
+          cjkPiece(i, 0) + sideMarkPiece(side, mi, 0),
+          tagFor(i, 0, mi, 0, side)));
+        n++;
+      }}
     }}
   }}
   setStatus('Rendered ' + n.toLocaleString() + ' cells');
@@ -490,24 +506,28 @@ function renderEverything() {{
 document.getElementById('btnPlain').onclick = () =>
   renderPlain(sliceIndices());
 document.getElementById('btnMarks').onclick = () =>
-  renderWithMarks(sliceIndices(), +baseOrient.value, markList(), +markOrient.value);
+  renderSide(sliceIndices(), +baseOrient.value, markList(), +markOrient.value, 'R');
 document.getElementById('btnLeft').onclick = () =>
-  renderLeftMarks(sliceIndices(), +baseOrient.value, markList(), +markOrient.value);
+  renderSide(sliceIndices(), +baseOrient.value, markList(), +markOrient.value, 'L');
+document.getElementById('btnTop').onclick = () =>
+  renderSide(sliceIndices(), +baseOrient.value, markList(), +markOrient.value, 'T');
+document.getElementById('btnBot').onclick = () =>
+  renderSide(sliceIndices(), +baseOrient.value, markList(), +markOrient.value, 'B');
 document.getElementById('btnSlice').onclick = () =>
-  renderWithMarks(sliceIndices(), +baseOrient.value, markList(), +markOrient.value);
+  renderSide(sliceIndices(), +baseOrient.value, markList(), +markOrient.value, 'R');
 document.getElementById('btnBaseGrid').onclick = () =>
   renderBaseGrid(sliceIndices(), markList());
 document.getElementById('btnMarkGrid').onclick = () =>
   renderMarkGrid(sliceIndices(), +baseOrient.value, markList());
 document.getElementById('btnEverything').onclick = renderEverything;
 
-renderWithMarks(sliceIndices(), 0, [0, 1], 0);
+renderSide(sliceIndices(), 0, DATA.MARKS.map((_, i) => i), 0, 'R');
 </script>
 </body>
 </html>
 """
         )
-    print(f"CJK: N={n:,}  range={range_note}  " f"gallery≈{total:,}  → {path}")
+    print(f"CJK: N={n:,}  range={range_note}  gallery~{total:,}  -> {path}")
 
 
 def parse_args() -> argparse.Namespace:

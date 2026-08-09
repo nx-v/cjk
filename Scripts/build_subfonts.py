@@ -15,9 +15,9 @@ zero-advance ``.ov`` forms; chain with more FE08). No Supplementary PUA
 marker, no cmap offsets. GlyphWiki content uses SPUA+BMP-PUA ligatures
 (see ``kage.mapping``).
 
-Vietnamese combining marks ``U+16FF0`` / ``U+16FF1`` (from Plangothic P2)
-attach on the right (left-squish ``.dk``) or left (right-squish ``.dkl`` via
-``FE09`` + mark) after optional VS1–8 — one side only. Marks take full D4.
+Vietnamese reading marks from Plangothic P2: ``U+16FF0``/``U+16FF1`` (ca/nhay).
+Bare mark = right; ``FE09`` = left; ``FE0A`` = top (r90 mark); ``FE0B`` = bottom
+(r90 mark). One niche only. Full D4 on marks.
 
 Also writes pancjk.css (@font-face) and fontlist.css (CSS-safe stack).
 """
@@ -48,8 +48,8 @@ from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 from cape_weightor import bolden_ttglyph
 from cjk_viet_marks import (
     PLANGOTHIC_P2_FILENAME,
-    VIET_LEFT_SELECTOR_CP,
     VIET_MARK_CPS,
+    VIET_SIDE_SELECTOR_CPS,
     compile_viet_marks_layout,
     prepare_viet_marks,
 )
@@ -535,7 +535,7 @@ def build_bucket_font(
         form_names, glyph_order=glyph_order, glyphs=glyphs, metrics=metrics
     )
 
-    # Viet marks U+16FF0/16FF1 (Plangothic P2) + left-squish .dk for VS1–7 forms.
+    # Reading marks U+16FF0/16FF1; FE09 left / FE0A top / FE0B bottom.
     in_dir = os.path.dirname(next(iter(sources.keys()))) if sources else IN_DIR
     viet_scale = FONT_LOCAL_SCALE.get(PLANGOTHIC_P2_FILENAME, 0.96)
     viet_state = prepare_viet_marks(
@@ -689,35 +689,39 @@ def _build_bucket_task(
 
 
 def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
-    """CSS unicode-range for this bucket's CJK + UVS FE00..FE09 + Viet marks.
+    """CSS unicode-range for this bucket's CJK + UVS FE00..FE0B + Viet marks.
 
     PUA U+E000..E007 is intentionally *not* listed: in a multi-face stack every
     bucket used to advertise those codepoints, so the first face stole all VS
     and broke ``base+VS`` ligatures. Prefer cmap format-14 UVS (U+FE00..) which
     stays on the base character's face; keep PUA liga for single-family use
-    (VS still in the font cmap). FE08 overlay, FE09 left-Viet selector, and
+    (VS still in the font cmap). FE08 overlay, FE09–FE0B side selectors, and
     U+16FF0/16FF1 must be listed so those marks load from this face.
     """
+    side_sels = set(VIET_SIDE_SELECTOR_CPS)
     bucket_cps = {
         cp
         for cp in codepoints
         if not (VS_BASE <= cp <= VS_LAST)
         and cp != STACK_MARK_CP
-        and cp != VIET_LEFT_SELECTOR_CP
+        and cp not in side_sels
         and cp not in VIET_MARK_CPS
     }
+    selector_cps = {STACK_MARK_CP} | side_sels
     cps = sorted(
         bucket_cps
         | set(range(UVS_BASE, UVS_LAST + 1))
-        | {STACK_MARK_CP, VIET_LEFT_SELECTOR_CP}
+        | selector_cps
         | set(VIET_MARK_CPS)
     )
     if not bucket_cps:
         start = bucket_id << 8
         end = start + 0xFF
-        viet = f", U+{VIET_MARK_CPS[0]:X}-{VIET_MARK_CPS[-1]:X}"
-        return (
-            f"U+{start:X}-{end:X}, U+{UVS_BASE:X}-{VIET_LEFT_SELECTOR_CP:X}{viet}"
+        cps = sorted(
+            set(range(start, end + 1))
+            | set(range(UVS_BASE, UVS_LAST + 1))
+            | selector_cps
+            | set(VIET_MARK_CPS)
         )
 
     runs: List[str] = []
@@ -780,11 +784,11 @@ body {{
   --font-editor-theme: '';
   --font-editor: var(--font-editor-theme), var(--font-text);
   --font-text-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2, monospace;
   --font-interface-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2, monospace;
   --font-monospace-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, Malgun Gothic, Plangothic P1, Plangothic P2, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2, monospace;
 }}
 """
     with open(fontlist_path, "w", encoding="utf-8") as f:
@@ -851,8 +855,8 @@ def build_all(
     )
     print(f"Output formats: {fmt_note}")
     print(
-        "Viet marks: U+16FF0/U+16FF1 from Plangothic P2 "
-        "(right=.dk / left=.dkl via FE09; one side only; mark D4)"
+        "Reading marks: U+16FF0/16FF1 from Plangothic P2 "
+        "(FE09 left / FE0A top / FE0B bottom; one niche; mark D4)"
     )
 
     sources_list = [
