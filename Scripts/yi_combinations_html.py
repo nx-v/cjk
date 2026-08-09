@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Build an HTML gallery of Yi orientations + FE08 overlays.
+"""Build an HTML gallery of Yi orientations × slices × dakuten.
 
 Inventory: NuosuSIL Yi syllables / radicals present in ``panyi``.
 
-Combinations available (rendered on demand — full static dump is huge):
+Combinations (rendered on demand):
 
-  * Every Yi × {∅, FE01..FE07} orientation
-  * Every ordered pair A×B with orientations, joined by FE08 (superimpose)
-  * Longer FE08 chains (A B FE08 C FE08 …)
+  * Every Yi × {{∅, FE01..FE07}} orientation
+  * Slice pairs: A × B × {{FE08 horizontal, FE09 vertical}}
+  * Optional dakuten marks (0–4; corners TR→BR→TL→BL)
 
 Usage
 -----
@@ -23,19 +23,23 @@ import os
 import unicodedata
 from typing import List
 
+from fontTools.ttLib import TTFont
+
 from yi_halfwidth import (
-    STACK_MARK_CP,
     YI_ORIENTATION_MODES,
     load_inventory,
     resolve_nuosu_path,
     uvs_selector_for_mode,
 )
+from yi_slice import SLICE_H_CP, SLICE_V_CP
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "yi", "all-yi-vs.html")
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
+YI_FONT = os.path.join(SCRIPT_DIR, "dist", "yi", "panyi.woff2")
+JULIAMONO = os.path.join(SCRIPT_DIR, "src", "JuliaMono-Regular.ttf")
 
-# Orientation UVS: FE00 = identity (omit from string), FE01..FE07 = non-id.
+# Orientation UVS: FE00 = identity (omit), FE01..FE07 = non-id.
 ORIENT_VS: List[int | None] = [None] + [
     uvs_selector_for_mode(i)
     for i, (_vs, _r, _fx, _fy, suffix) in enumerate(YI_ORIENTATION_MODES)
@@ -44,6 +48,12 @@ ORIENT_VS: List[int | None] = [None] + [
 ORIENT_MARK = ["", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷"]
 ORIENT_LABEL = ["id"] + [
     suffix for _vs, _r, _fx, _fy, suffix in YI_ORIENTATION_MODES if suffix is not None
+]
+
+SLICE_MODES = [
+    {"id": "none", "cp": None, "label": "none"},
+    {"id": "H", "cp": SLICE_H_CP, "label": "H FE08 (top+bot)"},
+    {"id": "V", "cp": SLICE_V_CP, "label": "V FE09 (left+right)"},
 ]
 
 
@@ -60,8 +70,49 @@ def yi_entries() -> List[dict]:
     return out
 
 
-def write_html(path: str, *, font_size: int) -> None:
+def dakuten_mark_entries(limit: int = 64) -> List[dict]:
+    cps: List[int] = []
+    if os.path.isfile(YI_FONT):
+        tt = TTFont(YI_FONT)
+        try:
+            cmap = tt.getBestCmap() or {}
+            cps = sorted(
+                cp for cp, name in cmap.items() if str(name).endswith(".mk")
+            )
+        finally:
+            tt.close()
+    if not cps and os.path.isfile(JULIAMONO):
+        from yi_dakuten import iter_dakuten_codepoints, load_dakuten_marks
+
+        try:
+            kept, _ = load_dakuten_marks(JULIAMONO, 1000)
+            cps = kept
+        except Exception:
+            tt = TTFont(JULIAMONO, fontNumber=0)
+            try:
+                cmap = {}
+                for table in tt["cmap"].tables:
+                    if table.isUnicode():
+                        cmap.update(table.cmap)
+                cps = iter_dakuten_codepoints(cmap)
+            finally:
+                tt.close()
+
+    out: List[dict] = []
+    for cp in cps[: max(0, limit) or None]:
+        ch = chr(cp)
+        try:
+            name = unicodedata.name(ch)
+        except ValueError:
+            name = f"U+{cp:04X}"
+        short = name.split()[-1].replace("-", "") if name else f"{cp:04X}"
+        out.append({"cp": cp, "ch": ch, "name": name, "short": short})
+    return out
+
+
+def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
     yi = yi_entries()
+    marks = dakuten_mark_entries(limit=mark_limit)
     n = len(yi)
     n_orient = n * len(ORIENT_VS)
     n_pair = n * n * len(ORIENT_VS) * len(ORIENT_VS)
@@ -69,10 +120,11 @@ def write_html(path: str, *, font_size: int) -> None:
 
     payload = {
         "YI": yi,
+        "MARKS": marks,
         "ORIENT_VS": ORIENT_VS,
         "ORIENT_MARK": ORIENT_MARK,
         "ORIENT_LABEL": ORIENT_LABEL,
-        "STACK": STACK_MARK_CP,
+        "SLICE_MODES": SLICE_MODES,
         "n": n,
         "n_orient": n_orient,
         "n_pair": n_pair,
@@ -86,7 +138,7 @@ def write_html(path: str, *, font_size: int) -> None:
 <html lang="ii">
 <head>
 <meta charset="utf-8"/>
-<title>panyi — Yi orientations × FE08 overlays</title>
+<title>panyi — Yi × orientations × slices × dakuten</title>
 <link rel="stylesheet" href="./panyi.css"/>
 <style>
   :root {{ color-scheme: dark; }}
@@ -102,6 +154,7 @@ def write_html(path: str, *, font_size: int) -> None:
     margin-bottom: 16px; padding: 12px; background: #1a1a1a; border-radius: 8px;
   }}
   label {{ display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #aaa; }}
+  label.row {{ flex-direction: row; align-items: center; gap: 6px; }}
   select, button, input[type=number] {{
     font: inherit; font-size: 14px; padding: 6px 10px;
     background: #222; color: #eee; border: 1px solid #444; border-radius: 4px;
@@ -124,7 +177,7 @@ def write_html(path: str, *, font_size: int) -> None:
   .glyph {{ line-height: 1; }}
   .tag {{
     font-family: system-ui, sans-serif; font-size: 9px; color: #666;
-    max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    max-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }}
   h2 {{
     font-size: 14px; color: #aaa; width: 100%; margin: 20px 0 8px;
@@ -134,12 +187,12 @@ def write_html(path: str, *, font_size: int) -> None:
 </style>
 </head>
 <body>
-<h1>panyi — Yi × orientations × FE08 overlays</h1>
+<h1>panyi — Yi × orientations × slices × dakuten</h1>
 <p class="meta">
-  {n:,} Yi characters · {len(ORIENT_VS)} orientations (FE00 identity / FE01..FE07 D4) ·
-  FE08: all but the last glyph before it become zero-width; chain with more FE08.<br/>
-  Orientation gallery: {n_orient:,} · pairwise overlays: {n_pair:,}
-  (render on demand — full static dump would be multi-GB).
+  {n:,} Yi · {len(ORIENT_VS)} orientations (FE00 id / FE01..FE07) ·
+  slices FE08 horizontal / FE09 vertical · dakuten {len(marks)} (sample).<br/>
+  Orientation gallery: {n_orient:,} · pairwise slices: {n_pair:,} each mode
+  (on demand). Diacritics optional: 1–4 marks → TR→BR→TL→BL.
 </p>
 
 <div class="controls">
@@ -155,16 +208,26 @@ def write_html(path: str, *, font_size: int) -> None:
   <label>B orientation
     <select id="orientB"></select>
   </label>
-  <label>Third Yi (C, optional)
-    <select id="selC"><option value="">—</option></select>
+  <label>Slice
+    <select id="sliceMode"></select>
   </label>
-  <label>C orientation
-    <select id="orientC"></select>
+  <label class="row"><input type="checkbox" id="wantMarks"/> diacritics</label>
+  <label>Mark
+    <select id="pickMark"></select>
   </label>
-  <button type="button" id="btnPair">Render this overlay</button>
+  <label>Mark count
+    <select id="markCount">
+      <option value="1">1 (TR)</option>
+      <option value="2">2 (+BR)</option>
+      <option value="3">3 (+TL)</option>
+      <option value="4">4 (+BL)</option>
+    </select>
+  </label>
   <button type="button" id="btnOrientA">All orientations of A</button>
   <button type="button" id="btnAllOrient">All orientations (all Yi)</button>
-  <button type="button" id="btnPairsForA">All B overlays for A</button>
+  <button type="button" id="btnSlice">Render slice A×B</button>
+  <button type="button" id="btnSlicesForA">All B slices for A</button>
+  <button type="button" id="btnSliceOrientGrid">A×B all orients (slice)</button>
   <button type="button" id="btnEverything" class="danger">Render everything</button>
 </div>
 <div id="status"></div>
@@ -177,17 +240,12 @@ const out = document.getElementById('out');
 const status = document.getElementById('status');
 const selA = document.getElementById('selA');
 const selB = document.getElementById('selB');
-const selC = document.getElementById('selC');
 const orientA = document.getElementById('orientA');
 const orientB = document.getElementById('orientB');
-const orientC = document.getElementById('orientC');
+const sliceMode = document.getElementById('sliceMode');
+const pickMark = document.getElementById('pickMark');
 
-function fillYiSelect(sel, withEmpty) {{
-  if (withEmpty) {{
-    const o = document.createElement('option');
-    o.value = ''; o.textContent = '—';
-    sel.appendChild(o);
-  }}
+function fillYiSelect(sel) {{
   DATA.YI.forEach((y, i) => {{
     const o = document.createElement('option');
     o.value = String(i);
@@ -200,22 +258,45 @@ function fillOrient(sel) {{
     const o = document.createElement('option');
     o.value = String(i);
     o.textContent = lab + (DATA.ORIENT_VS[i] != null
-      ? ' (FE0' + (DATA.ORIENT_VS[i] - 0xFE00).toString(16).toUpperCase() + ')'
+      ? ' (FE' + (DATA.ORIENT_VS[i] - 0xFE00).toString(16).toUpperCase().padStart(2, '0') + ')'
       : '');
     sel.appendChild(o);
   }});
 }}
-fillYiSelect(selA, false);
-fillYiSelect(selB, false);
-fillYiSelect(selC, true);
+function fillSlice() {{
+  DATA.SLICE_MODES.forEach((m, i) => {{
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = m.label;
+    sliceMode.appendChild(o);
+  }});
+}}
+function fillMarks() {{
+  if (!DATA.MARKS.length) {{
+    const o = document.createElement('option');
+    o.value = '0'; o.textContent = '(no marks in font)';
+    pickMark.appendChild(o);
+    return;
+  }}
+  DATA.MARKS.forEach((m, i) => {{
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = m.ch + ' U+' + m.cp.toString(16).toUpperCase() + ' ' + m.short;
+    pickMark.appendChild(o);
+  }});
+}}
+fillYiSelect(selA);
+fillYiSelect(selB);
 fillOrient(orientA);
 fillOrient(orientB);
-fillOrient(orientC);
+fillSlice();
+fillMarks();
 selA.value = '0';
 selB.value = '1';
 orientA.value = '0';
 orientB.value = '0';
-orientC.value = '0';
+sliceMode.value = '1'; // default H slice
+pickMark.value = '0';
 
 function vsChar(vs) {{
   return vs == null ? '' : String.fromCodePoint(vs);
@@ -228,6 +309,24 @@ function tagFor(idx, orientIdx) {{
   const y = DATA.YI[idx];
   const mark = DATA.ORIENT_MARK[orientIdx] || '';
   return y.short + mark;
+}}
+function markSuffix() {{
+  if (!document.getElementById('wantMarks').checked) return '';
+  if (!DATA.MARKS.length) return '';
+  const m = DATA.MARKS[+pickMark.value];
+  if (!m) return '';
+  const n = Math.max(1, Math.min(4, +document.getElementById('markCount').value || 1));
+  return m.ch.repeat(n);
+}}
+function markTag() {{
+  if (!document.getElementById('wantMarks').checked) return '';
+  if (!DATA.MARKS.length) return '';
+  const m = DATA.MARKS[+pickMark.value];
+  const n = Math.max(1, Math.min(4, +document.getElementById('markCount').value || 1));
+  return m ? ('+' + m.short + '×' + n) : '';
+}}
+function currentSlice() {{
+  return DATA.SLICE_MODES[+sliceMode.value] || DATA.SLICE_MODES[0];
 }}
 function cell(text, tag) {{
   const d = document.createElement('div');
@@ -252,110 +351,128 @@ function setStatus(s) {{ status.textContent = s; }}
 
 function renderOrientations(indices) {{
   clearOut();
-  out.appendChild(heading('Orientations (id / FE01..FE07)'));
+  out.appendChild(heading('Orientations (id / FE01..FE07)'
+    + (document.getElementById('wantMarks').checked ? ' + dakuten' : '')));
   let n = 0;
+  const ms = markSuffix();
+  const mt = markTag();
   for (const i of indices) {{
     for (let o = 0; o < DATA.ORIENT_VS.length; o++) {{
-      out.appendChild(cell(yiPiece(i, o), tagFor(i, o)));
+      out.appendChild(cell(yiPiece(i, o) + ms, tagFor(i, o) + mt));
       n++;
     }}
   }}
   setStatus('Rendered ' + n.toLocaleString() + ' orientation cells');
 }}
 
-function renderPair(ai, ao, bi, bo, ci, co) {{
-  clearOut();
-  const stack = String.fromCodePoint(DATA.STACK);
-  let text = yiPiece(ai, ao) + yiPiece(bi, bo) + stack;
-  let tag = tagFor(ai, ao) + '+' + tagFor(bi, bo) + '+FE08';
-  if (ci != null && ci !== '') {{
-    text += yiPiece(+ci, co) + stack;
-    tag += '+' + tagFor(+ci, co) + '+FE08';
+function sliceText(ai, ao, bi, bo, mode) {{
+  let text = yiPiece(ai, ao) + yiPiece(bi, bo);
+  let tag = tagFor(ai, ao) + '+' + tagFor(bi, bo);
+  if (mode.cp != null) {{
+    text += String.fromCodePoint(mode.cp);
+    tag += '+' + mode.id;
   }}
-  out.appendChild(heading('Overlay'));
-  out.appendChild(cell(text, tag));
-  // Also show each orientation of the pair for context
+  text += markSuffix();
+  tag += markTag();
+  return {{text, tag}};
+}}
+
+function renderSlice(ai, ao, bi, bo) {{
+  clearOut();
+  const mode = currentSlice();
+  out.appendChild(heading('Slice: ' + mode.label));
+  const one = sliceText(ai, ao, bi, bo, mode);
+  out.appendChild(cell(one.text, one.tag));
   out.appendChild(heading('Same pair · all orientation combos'));
   let n = 0;
   for (let oa = 0; oa < DATA.ORIENT_VS.length; oa++) {{
     for (let ob = 0; ob < DATA.ORIENT_VS.length; ob++) {{
-      const t = yiPiece(ai, oa) + yiPiece(bi, ob) + stack;
-      out.appendChild(cell(t, tagFor(ai, oa) + '+' + tagFor(bi, ob)));
+      const s = sliceText(ai, oa, bi, ob, mode);
+      out.appendChild(cell(s.text, s.tag));
       n++;
     }}
   }}
-  setStatus('Rendered overlay + ' + n + ' orientation combos for this pair');
+  setStatus('Rendered slice + ' + n + ' orientation combos');
 }}
 
-function renderPairsForA(ai, ao) {{
+function renderSlicesForA(ai, ao) {{
   clearOut();
-  const stack = String.fromCodePoint(DATA.STACK);
-  out.appendChild(heading('A=' + tagFor(ai, ao) + ' × every B (identity orient)'));
+  const mode = currentSlice();
+  if (mode.cp == null) {{
+    setStatus('Pick FE08 or FE09 slice mode first');
+    return;
+  }}
+  out.appendChild(heading('A=' + tagFor(ai, ao) + ' × every B · ' + mode.label));
   let n = 0;
   for (let bi = 0; bi < DATA.YI.length; bi++) {{
-    const t = yiPiece(ai, ao) + yiPiece(bi, 0) + stack;
-    out.appendChild(cell(t, tagFor(ai, ao) + '+' + tagFor(bi, 0)));
+    const s = sliceText(ai, ao, bi, 0, mode);
+    out.appendChild(cell(s.text, s.tag));
     n++;
   }}
-  setStatus('Rendered ' + n.toLocaleString() + ' overlays for A');
+  setStatus('Rendered ' + n.toLocaleString() + ' slices for A');
 }}
 
 function renderEverything() {{
-  if (!confirm('Render all ' + DATA.total.toLocaleString() +
-      ' cells? This will stress the browser.')) return;
+  if (!confirm('Render orientations + identity pairwise H and V slices?')) return;
   clearOut();
-  const stack = String.fromCodePoint(DATA.STACK);
-  out.appendChild(heading('All orientations'));
   let n = 0;
+  const ms = markSuffix();
+  const mt = markTag();
+  out.appendChild(heading('All orientations'));
   for (let i = 0; i < DATA.YI.length; i++) {{
     for (let o = 0; o < DATA.ORIENT_VS.length; o++) {{
-      out.appendChild(cell(yiPiece(i, o), tagFor(i, o)));
+      out.appendChild(cell(yiPiece(i, o) + ms, tagFor(i, o) + mt));
       n++;
     }}
   }}
-  out.appendChild(heading('All pairwise FE08 overlays (identity×identity)'));
-  for (let ai = 0; ai < DATA.YI.length; ai++) {{
-    for (let bi = 0; bi < DATA.YI.length; bi++) {{
-      const t = yiPiece(ai, 0) + yiPiece(bi, 0) + stack;
-      out.appendChild(cell(t, tagFor(ai, 0) + '+' + tagFor(bi, 0)));
-      n++;
+  for (const mode of DATA.SLICE_MODES) {{
+    if (mode.cp == null) continue;
+    out.appendChild(heading('All pairwise ' + mode.label + ' (identity×identity)'));
+    for (let ai = 0; ai < DATA.YI.length; ai++) {{
+      for (let bi = 0; bi < DATA.YI.length; bi++) {{
+        const s = sliceText(ai, 0, bi, 0, mode);
+        out.appendChild(cell(s.text, s.tag));
+        n++;
+      }}
     }}
   }}
-  setStatus('Rendered ' + n.toLocaleString() +
-    ' cells (identity pairwise only; full orient×orient skipped)');
+  setStatus('Rendered ' + n.toLocaleString() + ' cells');
 }}
 
 document.getElementById('btnOrientA').onclick = () =>
   renderOrientations([+selA.value]);
 document.getElementById('btnAllOrient').onclick = () =>
   renderOrientations(DATA.YI.map((_, i) => i));
-document.getElementById('btnPair').onclick = () =>
-  renderPair(+selA.value, +orientA.value, +selB.value, +orientB.value,
-             selC.value, +orientC.value);
-document.getElementById('btnPairsForA').onclick = () =>
-  renderPairsForA(+selA.value, +orientA.value);
+document.getElementById('btnSlice').onclick = () =>
+  renderSlice(+selA.value, +orientA.value, +selB.value, +orientB.value);
+document.getElementById('btnSliceOrientGrid').onclick = () =>
+  renderSlice(+selA.value, +orientA.value, +selB.value, +orientB.value);
+document.getElementById('btnSlicesForA').onclick = () =>
+  renderSlicesForA(+selA.value, +orientA.value);
 document.getElementById('btnEverything').onclick = renderEverything;
 
-// Default smoke: first pair overlay
-renderPair(0, 0, 1, 0, '', 0);
+renderSlice(0, 0, 1, 0);
 </script>
 </body>
 </html>
 """
         )
     print(
-        f"Yi: N={n}  orientations={n_orient:,}  "
-        f"pairwise={n_pair:,}  → {path}"
+        f"Yi: N={n} marks={len(marks)}  orientations={n_orient:,}  "
+        f"pairwise={n_pair:,}  -> {path}"
     )
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Build Yi orientation/overlay HTML gallery")
+    p = argparse.ArgumentParser(
+        description="Build Yi orientation/slice/dakuten HTML gallery"
+    )
     p.add_argument("-o", "--out", default=DEFAULT_OUT)
     p.add_argument("--font-size", type=int, default=48)
+    p.add_argument("--mark-limit", type=int, default=64)
     return p.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    write_html(args.out, font_size=args.font_size)
+    write_html(args.out, font_size=args.font_size, mark_limit=args.mark_limit)

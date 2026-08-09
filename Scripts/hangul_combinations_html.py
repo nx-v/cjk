@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build one HTML gallery of *all* Unicode Hangul conjoining jamo × VS.
+"""Build one HTML gallery of *all* Unicode Hangul conjoining jamo × VS × dakuten.
 
 Jamo inventories (Unicode, excluding fillers / unassigned):
   Choseong  U+1100..115E, U+A960..A97C
@@ -7,8 +7,7 @@ Jamo inventories (Unicode, excluding fillers / unassigned):
   Jongseong U+11A8..11FF, U+D7CB..D7FB
 
 Every L × {∅,FE01,FE02,FE03} × V × {∅,FE01,FE02,FE03} × (∅ | T × VS)
-is available. The page embeds the codepoint lists and renders sections on
-demand in the browser (full static expansion would be ~100M cells / multi-GB).
+is available, optionally followed by 0–4 dakuten marks (TR→BR→TL→BL).
 
 See: https://en.wikipedia.org/wiki/List_of_Hangul_jamo
 
@@ -26,8 +25,12 @@ import os
 import unicodedata
 from typing import List, Tuple
 
+from fontTools.ttLib import TTFont
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "hangul", "all-jamo-vs.html")
+HANGUL_FONT = os.path.join(SCRIPT_DIR, "dist", "hangul", "panhangul.woff2")
+JULIAMONO = os.path.join(SCRIPT_DIR, "src", "JuliaMono-Regular.ttf")
 
 L_RANGES = ((0x1100, 0x115E), (0xA960, 0xA97C))
 V_RANGES = ((0x1161, 0x11A7), (0xD7B0, 0xD7C6))
@@ -47,16 +50,59 @@ def assigned_cps(ranges: Tuple[Tuple[int, int], ...]) -> List[dict]:
                 continue
             if "FILLER" in name:
                 continue
-            # Short label: last token of Unicode name, or the character itself.
             short = name.split()[-1].replace("-", "")
             out.append({"cp": cp, "ch": chr(cp), "name": name, "short": short})
     return out
 
 
-def write_html(path: str, *, font_size: int) -> None:
+def dakuten_mark_entries(limit: int = 64) -> List[dict]:
+    """Marks installed in panhangul (``.mk`` cmap), else JuliaMono inventory."""
+    cps: List[int] = []
+    if os.path.isfile(HANGUL_FONT):
+        tt = TTFont(HANGUL_FONT)
+        try:
+            cmap = tt.getBestCmap() or {}
+            cps = sorted(
+                cp for cp, name in cmap.items() if str(name).endswith(".mk")
+            )
+        finally:
+            tt.close()
+    if not cps and os.path.isfile(JULIAMONO):
+        from yi_dakuten import iter_dakuten_codepoints, load_dakuten_marks
+
+        tt = TTFont(JULIAMONO, fontNumber=0)
+        try:
+            cmap = {}
+            for table in tt["cmap"].tables:
+                if table.isUnicode():
+                    cmap.update(table.cmap)
+            cps = iter_dakuten_codepoints(cmap)
+        finally:
+            tt.close()
+        # Prefer marks that survive load filters.
+        try:
+            kept, _ = load_dakuten_marks(JULIAMONO, 1000)
+            cps = kept
+        except Exception:
+            pass
+
+    out: List[dict] = []
+    for cp in cps[: max(0, limit) or None]:
+        ch = chr(cp)
+        try:
+            name = unicodedata.name(ch)
+        except ValueError:
+            name = f"U+{cp:04X}"
+        short = name.split()[-1].replace("-", "") if name else f"{cp:04X}"
+        out.append({"cp": cp, "ch": ch, "name": name, "short": short})
+    return out
+
+
+def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
     L = assigned_cps(L_RANGES)
     V = assigned_cps(V_RANGES)
     T = assigned_cps(T_RANGES)
+    marks = dakuten_mark_entries(limit=mark_limit)
     n_open = len(L) * 4 * len(V) * 4
     n_closed = len(L) * 4 * len(V) * 4 * len(T) * 4
     total = n_open + n_closed
@@ -65,6 +111,7 @@ def write_html(path: str, *, font_size: int) -> None:
         "L": L,
         "V": V,
         "T": T,
+        "MARKS": marks,
         "VS": [None, 0xFE01, 0xFE02, 0xFE03],
         "VS_MARK": VS_MARK,
         "total": total,
@@ -77,7 +124,7 @@ def write_html(path: str, *, font_size: int) -> None:
 <html lang="ko">
 <head>
 <meta charset="utf-8"/>
-<title>panhangul — all Unicode Hangul jamo × VS</title>
+<title>panhangul — all Unicode Hangul jamo × VS × dakuten</title>
 <link rel="stylesheet" href="./panhangul.css"/>
 <style>
 :root {{ --fs: {font_size}px; }}
@@ -134,14 +181,14 @@ section h2 {{
 </head>
 <body>
 <header>
-  <h1>All Unicode Hangul jamo × VS</h1>
+  <h1>All Unicode Hangul jamo × VS × dakuten</h1>
   <p class="meta">
-    Choseong {len(L)} · Jungseong {len(V)} · Jongseong {len(T)}
-    (conjoining jamo from Unicode / 
-    <a href="https://en.wikipedia.org/wiki/List_of_Hangul_jamo" style="color:#6af">List of Hangul jamo</a>).
-    Combinations: <strong>{total:,}</strong>
-    = L×VS×V×VS×(∅ | T×VS). Sections render on demand — open a pair below.
-    ¹ FE01 · ² FE02 · ³ FE03. Hard-refresh after rebuilding fonts.
+    Choseong {len(L)} · Jungseong {len(V)} · Jongseong {len(T)} ·
+    dakuten marks {len(marks)} (sample)
+    (<a href="https://en.wikipedia.org/wiki/List_of_Hangul_jamo" style="color:#6af">List of Hangul jamo</a>).
+    Syllable combos: <strong>{total:,}</strong>
+    = L×VS×V×VS×(∅ | T×VS). Toggle diacritics to append 1–4 marks
+    (corners TR→BR→TL→BL). ¹ FE01 · ² FE02 · ³ FE03.
   </p>
   <div class="controls">
     <label>Choseong
@@ -150,8 +197,20 @@ section h2 {{
     <label>Jungseong
       <select id="pickV"></select>
     </label>
-    <label><input type="checkbox" id="wantT" checked/> include batchim</label>
-    <label><input type="checkbox" id="wantVS" checked/> include VS</label>
+    <label><input type="checkbox" id="wantT" checked/> batchim</label>
+    <label><input type="checkbox" id="wantVS" checked/> VS</label>
+    <label><input type="checkbox" id="wantMarks"/> diacritics</label>
+    <label>Mark
+      <select id="pickMark"></select>
+    </label>
+    <label>Mark count
+      <select id="markCount">
+        <option value="1">1 (TR)</option>
+        <option value="2">2 (+BR)</option>
+        <option value="3">3 (+TL)</option>
+        <option value="4">4 (+BL)</option>
+      </select>
+    </label>
     <label><input type="checkbox" id="labels" checked/> labels</label>
     <button type="button" id="btnOne">Render this L+V</button>
     <button type="button" id="btnAllL">Render all V for this L</button>
@@ -171,6 +230,16 @@ function vsList(want) {{
 }}
 function mark(i) {{ return DATA.VS_MARK[i] || ""; }}
 
+function markSuffix() {{
+  if (!document.getElementById("wantMarks").checked) return [];
+  if (!DATA.MARKS.length) return [];
+  const mi = +document.getElementById("pickMark").value;
+  const m = DATA.MARKS[mi];
+  if (!m) return [];
+  const n = Math.max(1, Math.min(4, +document.getElementById("markCount").value || 1));
+  return Array(n).fill(m.cp);
+}}
+
 function buildSeq(L, li, V, vi, T, ti) {{
   const cps = [L.cp];
   if (DATA.VS[li] != null) cps.push(DATA.VS[li]);
@@ -180,12 +249,18 @@ function buildSeq(L, li, V, vi, T, ti) {{
     cps.push(T.cp);
     if (DATA.VS[ti] != null) cps.push(DATA.VS[ti]);
   }}
+  cps.push(...markSuffix());
   return cps;
 }}
 
 function labelFor(L, li, V, vi, T, ti) {{
   let s = L.ch + mark(li) + "+" + V.ch + mark(vi);
   if (T) s += "+" + T.ch + mark(ti);
+  const ms = markSuffix();
+  if (ms.length) {{
+    const m = DATA.MARKS[+document.getElementById("pickMark").value];
+    s += "+" + (m ? m.short : "mk") + "×" + ms.length;
+  }}
   return s;
 }}
 
@@ -204,7 +279,6 @@ function renderPair(L, V, {{wantT, wantVS, labels}}) {{
   const frag = document.createDocumentFragment();
   for (let li = 0; li < Lvs.length; li++) {{
     for (let vi = 0; vi < Vvs.length; vi++) {{
-      // open
       {{
         const cell = document.createElement("div");
         cell.className = "cell";
@@ -246,6 +320,7 @@ function renderPair(L, V, {{wantT, wantVS, labels}}) {{
 function fillSelects() {{
   const pickL = document.getElementById("pickL");
   const pickV = document.getElementById("pickV");
+  const pickMark = document.getElementById("pickMark");
   for (const x of DATA.L) {{
     const o = document.createElement("option");
     o.value = x.cp;
@@ -258,9 +333,21 @@ function fillSelects() {{
     o.textContent = x.ch + " U+" + x.cp.toString(16).toUpperCase();
     pickV.appendChild(o);
   }}
-  // Default to ᄑ + ᅮ (common smoke pair) when present.
-  pickL.value = "4369"; // U+1111
-  pickV.value = "4462"; // U+116E
+  if (!DATA.MARKS.length) {{
+    const o = document.createElement("option");
+    o.value = "0"; o.textContent = "(no marks in font)";
+    pickMark.appendChild(o);
+  }} else {{
+    DATA.MARKS.forEach((m, i) => {{
+      const o = document.createElement("option");
+      o.value = String(i);
+      o.textContent = m.ch + " U+" + m.cp.toString(16).toUpperCase() + " " + m.short;
+      pickMark.appendChild(o);
+    }});
+  }}
+  pickL.value = "4369";
+  pickV.value = "4462";
+  pickMark.value = "0";
 }}
 
 function opts() {{
@@ -342,8 +429,8 @@ document.getElementById("btnOne").click();
 """
         )
     print(
-        f"Jamo: L={len(L)} V={len(V)} T={len(T)}  "
-        f"combinations={total:,}  → {path}"
+        f"Jamo: L={len(L)} V={len(V)} T={len(T)} marks={len(marks)}  "
+        f"combinations={total:,}  -> {path}"
     )
 
 
@@ -351,8 +438,14 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("-o", "--output", default=DEFAULT_OUT)
     ap.add_argument("--font-size", type=int, default=40)
+    ap.add_argument(
+        "--mark-limit",
+        type=int,
+        default=64,
+        help="Max dakuten marks to list in the Mark select (default 64)",
+    )
     args = ap.parse_args()
-    write_html(args.output, font_size=args.font_size)
+    write_html(args.output, font_size=args.font_size, mark_limit=args.mark_limit)
 
 
 if __name__ == "__main__":

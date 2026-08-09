@@ -1,0 +1,6 @@
+/* Hangul font families */
+:root {
+  --font-panhangul: 'panhangul', 'panhanguls';
+  --font-panhangul-jamo: 'panhangul';
+  --font-panhanguls: 'panhanguls';
+}

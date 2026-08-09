@@ -5,9 +5,9 @@ Encoding (matches ``cjk_viet_marks`` / ``build_subfonts``)::
 
     U+16FF0/16FF1 (ca/nhay):
       MARK       → right  (``.dk``)
-      FE09 MARK  → left   (``.dkl``)
-      FE0A MARK  → top    (``.dkt``, r90 mark)
-      FE0B MARK  → bottom (``.dkb``, r90 mark)
+      FE08 MARK  → left   (``.dkl``)
+      FE09 MARK  → top    (``.dkt``, r90 mark)
+      FE0A MARK  → bottom (``.dkb``, r90 mark)
 
 One niche only — never two sides at once.
 
@@ -280,8 +280,8 @@ h2 {{
   <p class="meta">
     Range: {range_note} · {n:,} characters embedded<br/>
     Base VS: identity / FE01..FE07 (full D4) · mark D4: FE01..FE07<br/>
-    U+16FF0/16FF1: right <code>.dk</code> · FE09 left <code>.dkl</code> ·
-    FE0A top <code>.dkt</code> (r90) · FE0B bottom <code>.dkb</code> (r90) ·
+    U+16FF0/16FF1: right <code>.dk</code> · FE08 left <code>.dkl</code> ·
+    FE09 top <code>.dkt</code> (r90) · FE0A bottom <code>.dkb</code> (r90) ·
     one niche · gallery ≈ {total:,} (on demand)
   </p>
   <div class="controls">
@@ -303,9 +303,9 @@ h2 {{
     <button type="button" id="btnSlice">Render slice</button>
     <button type="button" id="btnPlain">Plain CJK</button>
     <button type="button" id="btnMarks">+ right</button>
-    <button type="button" id="btnLeft">+ left (FE09)</button>
-    <button type="button" id="btnTop">+ top (FE0A)</button>
-    <button type="button" id="btnBot">+ bottom (FE0B)</button>
+    <button type="button" id="btnLeft">+ left (FE08)</button>
+    <button type="button" id="btnTop">+ top (FE09)</button>
+    <button type="button" id="btnBot">+ bottom (FE0A)</button>
     <button type="button" id="btnBaseGrid">Base VS × mark</button>
     <button type="button" id="btnMarkGrid">Mark D4 grid</button>
     <button type="button" id="btnEverything" class="danger">Render everything</button>
@@ -416,9 +416,9 @@ function setStatus(s) {{ status.textContent = s; }}
 
 const SIDE_LABEL = {{
   R: 'right /.dk',
-  L: 'left FE09 /.dkl',
-  T: 'top FE0A /.dkt',
-  B: 'bottom FE0B /.dkb',
+  L: 'left FE08 /.dkl',
+  T: 'top FE09 /.dkt',
+  B: 'bottom FE0A /.dkb',
 }};
 
 function renderPlain(indices) {{

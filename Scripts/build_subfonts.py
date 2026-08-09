@@ -10,13 +10,10 @@ D4 variants for bucket fonts are emitted **in the same TTF**:
 transformed outlines (2×2 rotates baked; axis mirrors as composites) plus
 GSUB ``ccmp``/``rlig``/``liga`` for ``unicode + VS01..VS08``
 (U+E000..U+E007 / UVS U+FE00..FE07) — the 8 unique square symmetries.
-``U+FE08`` overlays the preceding pair (all but the last glyph become
-zero-advance ``.ov`` forms; chain with more FE08). No Supplementary PUA
-marker, no cmap offsets. GlyphWiki content uses SPUA+BMP-PUA ligatures
-(see ``kage.mapping``).
+No FE08 overlay in panCJK (GlyphWiki keeps its own FE08 overlays).
 
 Vietnamese reading marks from Plangothic P2: ``U+16FF0``/``U+16FF1`` (ca/nhay).
-Bare mark = right; ``FE09`` = left; ``FE0A`` = top (r90 mark); ``FE0B`` = bottom
+Bare mark = right; ``FE08`` = left; ``FE09`` = top (r90 mark); ``FE0A`` = bottom
 (r90 mark). One niche only. Full D4 on marks.
 
 Also writes pancjk.css (@font-face) and fontlist.css (CSS-safe stack).
@@ -55,24 +52,19 @@ from cjk_viet_marks import (
 )
 from yi_halfwidth import (
     NUOSU_FILENAME,
-    STACK_MARK_CP,
     TRANSFORM_MODES,
     UVS_BASE,
     UVS_LAST,
     VS_BASE,
     VS_LAST,
     add_d4_variant_glyphs,
-    add_overlay_forms,
     build_d4_uvs_entries,
     center_glyph_in_cell,
     composition_fea,
     ink_width,
-    inject_stack_mark,
-    install_overlay_gsub,
     is_yi_cp,
     load_inventory,
     make_standalone_glyph,
-    orientation_form_names,
     record_glyph,
     vs_glyph_name,
 )
@@ -438,7 +430,7 @@ def build_bucket_font(
     """Build one pigeonhole font with in-font D4 variant ligatures.
 
     Returns (ttf_path, glyph_count, codepoints) where codepoints are the
-    Unicode cmap keys (bases + VS01..VS08 + FE08 when present).
+    Unicode cmap keys (bases + VS01..VS08 + FE08..FE0A side selectors).
     """
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
@@ -525,17 +517,8 @@ def build_bucket_font(
             glyphs[vname] = empty_glyph()
             metrics[vname] = (0, 0)
         cmap[vs_cp] = vname
-    inject_stack_mark(glyph_order, glyphs, metrics, cmap)
 
-    # FE08 overlay forms (identity + all D4 variants)
-    form_names: List[str] = []
-    for base in base_names:
-        form_names.extend(orientation_form_names(base))
-    add_overlay_forms(
-        form_names, glyph_order=glyph_order, glyphs=glyphs, metrics=metrics
-    )
-
-    # Reading marks U+16FF0/16FF1; FE09 left / FE0A top / FE0B bottom.
+    # Reading marks U+16FF0/16FF1; FE08 left / FE09 top / FE0A bottom.
     in_dir = os.path.dirname(next(iter(sources.keys()))) if sources else IN_DIR
     viet_scale = FONT_LOCAL_SCALE.get(PLANGOTHIC_P2_FILENAME, 0.96)
     viet_state = prepare_viet_marks(
@@ -586,7 +569,6 @@ def build_bucket_font(
         fea = composition_fea(liga_rules)
         if fea:
             addOpenTypeFeaturesFromString(fb.font, fea)
-    install_overlay_gsub(fb.font, form_names, glyphs=glyphs, glyph_order=glyph_order)
     if viet_state is not None:
         compile_viet_marks_layout(
             fb.font,
@@ -689,29 +671,27 @@ def _build_bucket_task(
 
 
 def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
-    """CSS unicode-range for this bucket's CJK + UVS FE00..FE0B + Viet marks.
+    """CSS unicode-range for this bucket's CJK + UVS FE00..FE0A + Viet marks.
 
     PUA U+E000..E007 is intentionally *not* listed: in a multi-face stack every
     bucket used to advertise those codepoints, so the first face stole all VS
     and broke ``base+VS`` ligatures. Prefer cmap format-14 UVS (U+FE00..) which
     stays on the base character's face; keep PUA liga for single-family use
-    (VS still in the font cmap). FE08 overlay, FE09–FE0B side selectors, and
-    U+16FF0/16FF1 must be listed so those marks load from this face.
+    (VS still in the font cmap). FE08–FE0A side selectors and U+16FF0/16FF1
+    must be listed so those marks load from this face.
     """
     side_sels = set(VIET_SIDE_SELECTOR_CPS)
     bucket_cps = {
         cp
         for cp in codepoints
         if not (VS_BASE <= cp <= VS_LAST)
-        and cp != STACK_MARK_CP
         and cp not in side_sels
         and cp not in VIET_MARK_CPS
     }
-    selector_cps = {STACK_MARK_CP} | side_sels
     cps = sorted(
         bucket_cps
         | set(range(UVS_BASE, UVS_LAST + 1))
-        | selector_cps
+        | side_sels
         | set(VIET_MARK_CPS)
     )
     if not bucket_cps:
@@ -720,7 +700,7 @@ def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
         cps = sorted(
             set(range(start, end + 1))
             | set(range(UVS_BASE, UVS_LAST + 1))
-            | selector_cps
+            | side_sels
             | set(VIET_MARK_CPS)
         )
 
@@ -856,7 +836,7 @@ def build_all(
     print(f"Output formats: {fmt_note}")
     print(
         "Reading marks: U+16FF0/16FF1 from Plangothic P2 "
-        "(FE09 left / FE0A top / FE0B bottom; one niche; mark D4)"
+        "(FE08 left / FE09 top / FE0A bottom; one niche; mark D4)"
     )
 
     sources_list = [

@@ -5,18 +5,18 @@ Vietnamese U+16FF0 (ca) / U+16FF1 (nhay) only::
     CJK  ( VS )?  MARK  ( VS )?
         → right; base ``.dk``; upright mark
 
-    CJK  ( VS )?  FE09  MARK  ( VS )?
+    CJK  ( VS )?  FE08  MARK  ( VS )?
         → left; base ``.dkl``; mark ``.L``
 
-    CJK  ( VS )?  FE0A  MARK  ( VS )?
+    CJK  ( VS )?  FE09  MARK  ( VS )?
         → top; base ``.dkt``; mark ``.T`` (r90 of ca/nhay)
 
-    CJK  ( VS )?  FE0B  MARK  ( VS )?
+    CJK  ( VS )?  FE0A  MARK  ( VS )?
         → bottom; base ``.dkb``; mark ``.B`` (r90 of ca/nhay)
 
-One niche only. CAPE Width/Height preserve cross-axis stems. Identity marks
-and FE09/FE0A/FE0B slots ligate into one precomposed glyph; mark D4 still
-uses chain-squish + GPOS as fallback.
+One niche only (no FE08 overlay in panCJK). CAPE Width/Height preserve
+cross-axis stems. Identity marks and FE08–FE0A slots ligate into one
+precomposed glyph; mark D4 still uses chain-squish + GPOS as fallback.
 """
 
 from __future__ import annotations
@@ -67,14 +67,14 @@ from yi_halfwidth import (
 PLANGOTHIC_P2_FILENAME = "PlangothicP2-Regular.ttf"
 VIET_MARK_CPS: Tuple[int, ...] = (0x16FF0, 0x16FF1)
 VIET_LR_MARK_CPS: Tuple[int, ...] = VIET_MARK_CPS  # compat export
-# Side selectors (FE08 is overlay in subfonts).
-VIET_ALT_SELECTOR_CP = 0xFE09
+# Side selectors (FE08–FE0A; panCJK no longer uses FE08 overlay).
+VIET_ALT_SELECTOR_CP = 0xFE08
 VIET_ALT_SELECTOR_NAME = "vsLeft"  # left niche
 VIET_LEFT_SELECTOR_CP = VIET_ALT_SELECTOR_CP  # compat export
 VIET_LEFT_SELECTOR_NAME = VIET_ALT_SELECTOR_NAME
-VIET_TOP_SELECTOR_CP = 0xFE0A
+VIET_TOP_SELECTOR_CP = 0xFE09
 VIET_TOP_SELECTOR_NAME = "vsTop"
-VIET_BOT_SELECTOR_CP = 0xFE0B
+VIET_BOT_SELECTOR_CP = 0xFE0A
 VIET_BOT_SELECTOR_NAME = "vsBot"
 VIET_SIDE_SELECTOR_CPS: Tuple[int, ...] = (
     VIET_ALT_SELECTOR_CP,
@@ -110,22 +110,22 @@ def resolve_plangothic_p2(in_dir: str) -> str:
 
 
 def viet_squish_name(base_name: str) -> str:
-    """Left-squished form (right niche)."""
+    """Left-squished form (right niche) — ``my`` composite of ``.dkl``."""
     return f"{base_name}.dk"
 
 
 def viet_squish_left_name(base_name: str) -> str:
-    """Right-squished form (left niche)."""
+    """Right-squished form (left niche); canonical LR bake."""
     return f"{base_name}.dkl"
 
 
 def viet_squish_top_name(base_name: str) -> str:
-    """Bottom-squished form (top niche)."""
+    """Bottom-squished form (top niche); canonical TB bake."""
     return f"{base_name}.dkt"
 
 
 def viet_squish_bot_name(base_name: str) -> str:
-    """Top-squished form (bottom niche)."""
+    """Top-squished form (bottom niche) — ``mx`` composite of ``.dkt``."""
     return f"{base_name}.dkb"
 
 
@@ -147,7 +147,7 @@ def viet_liga_name(base_name: str, mark_name: str) -> str:
 
 
 def _is_upright_liga_mark(name: str) -> bool:
-    """Identity mark or FE09/FE0A/FE0B slot — not mark D4 variants."""
+    """Identity mark or FE08/FE09/FE0A slot — not mark D4 variants."""
     if "." not in name:
         return name.startswith("u")
     base, suf = name.rsplit(".", 1)
@@ -532,7 +532,7 @@ def add_viet_mark_glyphs(
     cmap: Dict[int, str],
     target_upem: int,
 ) -> Tuple[List[str], List[str], List[str], List[str]]:
-    """Install upright marks + D4 + FE09/FE0A/FE0B slot aliases.
+    """Install upright marks + D4 + FE08/FE09/FE0A slot aliases.
 
     Returns ``(right, left, top, bottom)`` mark form names.
     Top/bottom slots are full-width r90 of upright ca/nhay (not niche-narrow
@@ -651,7 +651,7 @@ def viet_mark_liga_rules(
     mark_cps: Sequence[int],
     glyphs: Dict[str, TTGlyph],
 ) -> List[str]:
-    """FEA mark D4 ligas + FE09/FE0A/FE0B → side slots."""
+    """FEA mark D4 ligas + FE08/FE09/FE0A → side slots."""
     rules: List[str] = []
     for cp in mark_cps:
         base = glyph_name_for_cp(cp)
@@ -737,7 +737,14 @@ def add_viet_squish_forms(
     height_factor: float = VIET_SQUISH_FACTOR,
     target_upem: int = 1000,
 ) -> List[str]:
-    """Create ``.dk``/``.dkl`` (LR) and ``.dkt``/``.dkb`` (TB) squish forms."""
+    """Create squish forms: bake ``.dkl``/``.dkt``; mirror to ``.dk``/``.dkb``.
+
+    Left (``.dkl``) and top (``.dkt``) are the CAPE-baked defaults. Right
+    (``.dk``) is a ``my`` composite of ``.dkl``; bottom (``.dkb``) is an ``mx``
+    composite of ``.dkt``.
+    """
+    from yi_halfwidth import make_composite_variant
+
     added: List[str] = []
     for name in base_names:
         if name not in glyphs:
@@ -745,26 +752,66 @@ def add_viet_squish_forms(
         adv, _lsb = metrics.get(name, (target_upem, 0))
         src = glyphs[name]
 
-        specs = (
-            (viet_squish_name(name), "x", "left", width_factor),
-            (viet_squish_left_name(name), "x", "right", width_factor),
-            (viet_squish_top_name(name), "y", "bottom", height_factor),
-            (viet_squish_bot_name(name), "y", "top", height_factor),
-        )
-        for out_name, axis, pin, factor in specs:
-            if out_name in glyphs:
-                continue
+        left_name = viet_squish_left_name(name)
+        right_name = viet_squish_name(name)
+        top_name = viet_squish_top_name(name)
+        bot_name = viet_squish_bot_name(name)
+
+        if left_name not in glyphs:
             sq, sq_adv, sq_lsb = make_viet_squished_glyph(
                 src,
                 adv,
                 glyph_set=glyphs,
-                factor=factor,
-                pin=pin,
-                axis=axis,
+                factor=width_factor,
+                pin="right",
+                axis="x",
             )
-            glyph_order.append(out_name)
-            glyphs[out_name] = sq
-            metrics[out_name] = (sq_adv, sq_lsb)
+            glyph_order.append(left_name)
+            glyphs[left_name] = sq
+            metrics[left_name] = (sq_adv, sq_lsb)
+
+        if right_name not in glyphs and left_name in glyphs:
+            # my: reflect X about ideographic center (left↔right niche).
+            mirrored, m_adv, m_lsb = make_composite_variant(
+                left_name,
+                target_upem,
+                flip_y=True,
+                advance=metrics[left_name][0],
+                lsb=metrics[left_name][1],
+                base_glyph=glyphs[left_name],
+                glyph_set=glyphs,
+            )
+            glyph_order.append(right_name)
+            glyphs[right_name] = mirrored
+            metrics[right_name] = (m_adv, m_lsb)
+
+        if top_name not in glyphs:
+            sq, sq_adv, sq_lsb = make_viet_squished_glyph(
+                src,
+                adv,
+                glyph_set=glyphs,
+                factor=height_factor,
+                pin="bottom",
+                axis="y",
+            )
+            glyph_order.append(top_name)
+            glyphs[top_name] = sq
+            metrics[top_name] = (sq_adv, sq_lsb)
+
+        if bot_name not in glyphs and top_name in glyphs:
+            # mx: reflect Y about ideographic center (top↔bottom niche).
+            mirrored, m_adv, m_lsb = make_composite_variant(
+                top_name,
+                target_upem,
+                flip_x=True,
+                advance=metrics[top_name][0],
+                lsb=metrics[top_name][1],
+                base_glyph=glyphs[top_name],
+                glyph_set=glyphs,
+            )
+            glyph_order.append(bot_name)
+            glyphs[bot_name] = mirrored
+            metrics[bot_name] = (m_adv, m_lsb)
 
         added.append(name)
     return added
@@ -782,7 +829,7 @@ def add_viet_liga_forms(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
 ) -> Dict[Tuple[str, str], str]:
-    """Build precomposed ``base + mark`` composites (identity marks / FE09 slots).
+    """Build precomposed ``base + mark`` composites (identity / FE08–FE0A slots).
 
     Returns ``{(base, mark): liga_name}`` for GSUB LigatureSubst.
     """
@@ -1372,7 +1419,7 @@ def prepare_viet_marks(
     uvs_rows: Optional[List[Tuple[int, int, Optional[str]]]] = None,
     local_scale: float = 0.96,
 ) -> Optional[Dict]:
-    """Load ca/nhay + squish/liga forms; FE09/FE0A/FE0B side selectors."""
+    """Load ca/nhay + squish/liga forms; FE08/FE09/FE0A side selectors."""
     from yi_halfwidth import build_d4_uvs_entries
 
     try:
