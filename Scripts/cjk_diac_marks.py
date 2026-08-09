@@ -5,8 +5,9 @@ Core marks from Plangothic P2: U+16FF0 (ca) / U+16FF1 (nhay) only.
 Squish = occupy **one half** of the CJK ideographic area (left / right /
 top / bottom). Same half-cell glyphs serve FE0C–FE0F access and ca/nhay
 placement: when a mark follows, GSUB selects the complementary half-form
-and GPOS puts ca/nhay in the free half. Upright H/V halves are scaled into
-the slot once; mirrors/D4 niches stay TT composites (no stem normalize).
+and GPOS puts ca/nhay in the free half. Upright H/V halves are stretched
+anisotropically into the slot (full height for LR, full width for TB);
+mirrors/D4 niches stay TT composites (no stem normalize).
 
     CJK MARK          → base ``.dk`` (left half)  + mark in right half
     CJK FE08 MARK     → base ``.dkl`` (right half) + mark in left half
@@ -1108,7 +1109,13 @@ def place_glyph_in_half(
     target_upem: int = 1000,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Uniform-scale + translate ink into one half of the ideographic cell."""
+    """Anisotropic stretch + translate ink to fill one half of the cell.
+
+    Horizontal niches (``axis="x"``) keep full ideographic height and compress
+    width into the left/right half. Vertical niches keep full width and
+    compress height into the top/bottom half. Axes scale independently — no
+    uniform/min fit.
+    """
     from yi_halfwidth import apply_transform, _recording_from_glyph
 
     upem = float(target_upem)
@@ -1133,12 +1140,13 @@ def place_glyph_in_half(
     x0, y0, x1, y1 = _half_slot_rect(upem, pin=pin, axis=axis)
     tw = max(x1 - x0, 1.0)
     th = max(y1 - y0, 1.0)
-    fit = min(tw / bw, th / bh)
+    sx = tw / bw
+    sy = th / bh
     src_cx = (x_min + x_max) / 2.0
     src_cy = (y_min + y_max) / 2.0
     dst_cx = (x0 + x1) / 2.0
     dst_cy = (y0 + y1) / 2.0
-    t = Transform(fit, 0, 0, fit, dst_cx - fit * src_cx, dst_cy - fit * src_cy)
+    t = Transform(sx, 0, 0, sy, dst_cx - sx * src_cx, dst_cy - sy * src_cy)
     rec = _recording_from_glyph(src, None)
     out = apply_transform(rec, t)
     try:
@@ -1160,7 +1168,7 @@ def make_squished_glyph(
     axis: str = "x",
     target_upem: Optional[int] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Occupy one half of the ideographic area (one scale+place; no CAPE/norm)."""
+    """Occupy one half of the ideographic area (axis stretch; no CAPE/norm)."""
     del factor  # half-cell slot size is fixed; kept for call-site compat
     upem = int(target_upem if target_upem is not None else (advance if advance > 0 else 1000))
     return place_glyph_in_half(
@@ -1187,7 +1195,7 @@ def add_squish_forms(
 
     Per identity base::
 
-        bake ``.dkl`` (H) / ``.dkt`` (V) once via uniform scale into the half
+        bake ``.dkl`` (H) / ``.dkt`` (V) once via anisotropic stretch into the half
         ``.dk`` / ``.dkb`` = my / mx composites about cell center
 
     Oriented bases (``.r90``, …) pick the upright niche that maps to the
