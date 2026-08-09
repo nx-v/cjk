@@ -44,7 +44,8 @@ VS4     U+E003     U+FE03     mxy — both axes
 
 Dakuten (combining marks)
 -------------------------
-Stack: JuliaMono → Nexsevka-Regular → mkanaplus. Marks are fixed-height and
+Stack: mkanaplus → Nexsevka → JuliaMono → Constructium → Droid Sans →
+Arial Unicode MS → Gentium. Marks are fixed-height and
 left-/right-aligned to CJK cell corners. Same TR → BR → TL → BL slot order as
 ``panyi`` via GSUB + GPOS ``mark``/``abvm``. Every orientation / layout form
 (identity + ``mx``/``my``/``mxy`` + ``.em*`` / ``.up`` chains) gets corner
@@ -87,7 +88,7 @@ from yi_halfwidth import (
     ideographic_center,
     variant_glyph_name,
 )
-from yi_dakuten import (
+from shared_diacritics import (
     add_dakuten_mark_glyphs,
     cjk_corner_anchors,
     DAKUTEN_SLOTS,
@@ -106,7 +107,7 @@ MALGUN_FILENAME = "malgun.ttf"
 FAMILY_JAMO = "panhangul"
 FAMILY_SYLL = "panhanguls"
 # BBox-center trim after UPM fit. 1.0 keeps full Malgun ink so cells match the
-# 1000×1000 CJK em square used by build_subfonts / build_yi / GlyphWiki.
+# 1000×1000 CJK em square used by build_cjk / build_yi / GlyphWiki.
 LOCAL_SCALE = 1.0
 # Uniform Y translate after UPM fit (target-upem units). Malgun Hangul sits
 # high vs CJK/kana/Yi (typo mid ~380); negative shifts down to match.
@@ -2142,7 +2143,8 @@ def build_all(
     )
     print(f"  Syllables ({FAMILY_SYLL}): whole-glyph VS / UVS")
     print(
-        "  Dakuten: JuliaMono + Nexsevka + mkanaplus \\p{M} @ CJK corners "
+        "  Dakuten: mkanaplus + Nexsevka + JuliaMono + Constructium + "
+        "Droid Sans + Arial Unicode MS + Gentium \\p{M} @ CJK corners "
         "(TR→BR→TL→BL; fixed H, L/R align; both families)"
     )
     print(f"  Local scale: {local_scale:g} about bbox center")

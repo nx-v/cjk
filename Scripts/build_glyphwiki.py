@@ -3,7 +3,7 @@
 Build GlyphWiki PUA ligature fonts.
 
 Resolves the GlyphWiki dump under Scripts/dump/, assigns SPUA+BMP-PUA
-ligatures (related code points limited to build_subfonts.CHAR_RANGES plus
+ligatures (related code points limited to build_cjk.CHAR_RANGES plus
 CJK/Kangxi radicals), and writes TTF/WOFF2 per SPUA marker × KAGE style into
 Scripts/dist/glyphwiki/{mincho,gothic,rounded}/.
 

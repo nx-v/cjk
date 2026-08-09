@@ -80,7 +80,7 @@ def dakuten_mark_entries(limit: int = 64) -> List[dict]:
         finally:
             tt.close()
     if not cps:
-        from yi_dakuten import (
+        from shared_diacritics import (
             load_dakuten_marks_from_stack,
             resolve_dakuten_mark_font_stack,
         )

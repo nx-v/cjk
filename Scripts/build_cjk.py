@@ -925,7 +925,7 @@ def build_all(
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Build Pan-CJK pigeonhole subfonts")
+    p = argparse.ArgumentParser(description="Build Pan-CJK pigeonhole fonts (build_cjk)")
     p.add_argument("--in", dest="in_dir", default=IN_DIR, help="Input fonts directory")
     p.add_argument("--out", dest="out_dir", default=OUT_DIR, help="Output directory")
     p.add_argument(

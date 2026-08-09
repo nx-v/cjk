@@ -1,4 +1,4 @@
-"""Yi / Hangul corner \"dakuten\" diacritics from a multi-font mark stack.
+"""Shared corner diacritics (Yi / Hangul) from a multi-font mark stack.
 
 Inventory: ``(\\p{M} ∩ stack) ∖ {names containing \"letter\"}``, then drop
 enclosing / overlay marks and oversized outlines. First font in the stack
@@ -6,7 +6,8 @@ wins per codepoint.
 
 Stack (priority order)::
 
-    JuliaMono-Regular → Nexsevka-Regular → mkanaplus
+    mkanaplus → Nexsevka-Regular → JuliaMono-Regular → Constructium
+    → Droid Sans → Arial Unicode MS → Gentium-Regular
 
 Marks are normalized to a **fixed ink height**, then attach via GPOS
 ``mark`` / ``abvm`` at fixed CJK cell corners. Each mark’s matching ink
@@ -58,9 +59,23 @@ from yi_halfwidth import (
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_SCRIPTS_DIR)
 
-JULIAMONO_FILENAME = "JuliaMono-Regular.ttf"
+MKANAPLUS_FILENAMES: Tuple[str, ...] = ("mkanaplus.ttf", "mkanaplus-regular.ttf")
 NEXSEVKA_FILENAME = "Nexsevka-Regular.ttf"
-MKANAPLUS_FILENAME = "mkanaplus.ttf"
+JULIAMONO_FILENAME = "JuliaMono-Regular.ttf"
+CONSTRUCTIUM_FILENAMES: Tuple[str, ...] = ("Constructium.ttf", "constructium.ttf")
+DROID_SANS_FILENAMES: Tuple[str, ...] = (
+    "DroidSansFallbackFull.ttf",
+    "DroidSansFallback.ttf",
+    "DroidSans.ttf",
+)
+ARIAL_UNICODE_FILENAMES: Tuple[str, ...] = (
+    "arial unicode ms.otf",
+    "arial unicode ms.ttf",
+    "ARIALUNI.TTF",
+    "Arial Unicode MS.ttf",
+    "ArialUnicodeMS.ttf",
+)
+GENTIUM_FILENAME = "Gentium-Regular.ttf"
 
 # Unicode Mark = Mn | Mc | Me  (regex \p{M}).
 MARK_CATS = frozenset({"Mn", "Mc", "Me"})
@@ -90,36 +105,64 @@ GDEF_CLASS_MARK = 3
 MARK_FEATURE_TAGS: Tuple[str, ...] = ("mark", "abvm")
 
 
+def _first_existing(paths: Iterable[str]) -> Optional[str]:
+    for path in paths:
+        if os.path.isfile(path):
+            return os.path.normpath(path)
+    return None
+
+
+def _paths_for_names(in_dir: str, names: Sequence[str], *extra: str) -> Tuple[str, ...]:
+    """Candidate paths: ``in_dir``, Scripts/src, repo root, then extras."""
+    out: List[str] = []
+    for name in names:
+        out.append(os.path.join(in_dir, name))
+        out.append(os.path.join(_SCRIPTS_DIR, "src", name))
+        out.append(os.path.join(_REPO_ROOT, name))
+    out.extend(extra)
+    return tuple(out)
+
+
 def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
     """Return existing mark-source paths in priority order.
 
-    Looks under ``in_dir`` first, then well-known repo locations for
-    Nexsevka / MKanaPlus.
+    Priority: mkanaplus → Nexsevka → JuliaMono → Constructium →
+    Droid Sans → Arial Unicode MS → Gentium.
+    Looks under ``in_dir`` first, then well-known repo locations.
     """
-    groups = (
-        (
-            os.path.join(in_dir, MKANAPLUS_FILENAME),
-            os.path.join(_SCRIPTS_DIR, "src", MKANAPLUS_FILENAME),
+    groups: Tuple[Tuple[str, ...], ...] = (
+        _paths_for_names(
+            in_dir,
+            MKANAPLUS_FILENAMES,
+            os.path.join(_REPO_ROOT, "Kana", "mkanaplus.ttf"),
+            os.path.join(_REPO_ROOT, "mkanaplus-regular.ttf"),
         ),
-        (
-            os.path.join(in_dir, JULIAMONO_FILENAME),
-            os.path.join(_SCRIPTS_DIR, "src", JULIAMONO_FILENAME),
+        _paths_for_names(
+            in_dir,
+            (NEXSEVKA_FILENAME,),
+            os.path.join(_REPO_ROOT, "Nexsevka", "TTF", NEXSEVKA_FILENAME),
         ),
-        (
-            os.path.join(in_dir, NEXSEVKA_FILENAME),
-            os.path.join(_SCRIPTS_DIR, "src", NEXSEVKA_FILENAME),
+        _paths_for_names(in_dir, (JULIAMONO_FILENAME,)),
+        _paths_for_names(in_dir, CONSTRUCTIUM_FILENAMES),
+        _paths_for_names(in_dir, DROID_SANS_FILENAMES),
+        _paths_for_names(in_dir, ARIAL_UNICODE_FILENAMES),
+        _paths_for_names(
+            in_dir,
+            (GENTIUM_FILENAME,),
+            os.path.join(_REPO_ROOT, "Gentium", GENTIUM_FILENAME),
         ),
     )
     out: List[str] = []
     for candidates in groups:
-        for path in candidates:
-            if os.path.isfile(path):
-                out.append(os.path.normpath(path))
-                break
+        found = _first_existing(candidates)
+        if found is not None:
+            out.append(found)
     if not out:
         raise FileNotFoundError(
-            "No dakuten mark source fonts found "
-            f"(JuliaMono / Nexsevka / mkanaplus; in_dir={in_dir!r})"
+            "No shared-diacritic mark source fonts found "
+            "(mkanaplus / Nexsevka / JuliaMono / Constructium / "
+            "Droid Sans / Arial Unicode MS / Gentium; "
+            f"in_dir={in_dir!r})"
         )
     return out
 
@@ -129,7 +172,7 @@ def dakuten_mark_stack_label(paths: Sequence[str]) -> str:
 
 
 def resolve_juliamono_path(in_dir: str) -> str:
-    """Back-compat: first JuliaMono path from the mark stack (or raise)."""
+    """Back-compat: JuliaMono path from the mark stack (or raise)."""
     for path in (
         os.path.join(in_dir, JULIAMONO_FILENAME),
         os.path.join(_SCRIPTS_DIR, "src", JULIAMONO_FILENAME),

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build an HTML gallery of CJK × VS1–8 × reading marks.
 
-Encoding (matches ``cjk_viet_marks`` / ``build_subfonts``)::
+Encoding (matches ``cjk_viet_marks`` / ``build_cjk``)::
 
     U+16FF0/16FF1 (ca/nhay):
       MARK       → right  (``.dk``)
@@ -29,7 +29,7 @@ import re
 import unicodedata
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from build_subfonts import CHAR_RANGES, OUT_DIR as SUBFONTS_OUT
+from build_cjk import CHAR_RANGES, OUT_DIR as SUBFONTS_OUT
 from cjk_viet_marks import (
     VIET_BOT_SELECTOR_CP,
     VIET_LEFT_SELECTOR_CP,
@@ -41,7 +41,7 @@ from yi_halfwidth import TRANSFORM_MODES, uvs_selector_for_mode
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "subfonts", "viet-cjk.html")
 
-# Named subsets → inclusive ranges (aligned with build_subfonts.CHAR_RANGES).
+# Named subsets → inclusive ranges (aligned with build_cjk.CHAR_RANGES).
 NAMED_RANGES: Dict[str, Tuple[Tuple[int, int], ...]] = {
     "URO": ((0x4E00, 0x9FFF),),
     "ExtA": ((0x3400, 0x4DBF),),

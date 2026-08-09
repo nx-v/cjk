@@ -16,13 +16,13 @@ Encoding
   Other D4 forms are TT composites of those two (``r180`` / ``mx`` / ``my`` ←
   id; ``r270`` / ``r90mx`` / ``r90my`` ← r90). After each outline and each
   composite, ink is re-pinned to the padded CJK floor.
-* Overlay (GlyphWiki / build_subfonts): **``U+FE08``** superimposes preceding
+* Overlay (GlyphWiki / build_cjk): **``U+FE08``** superimposes preceding
   glyphs into one cell — everything but the **last** glyph before ``FE08``
   becomes zero-advance (``.ov``); the last keeps the em advance.
 * panyi slice overlays use ``U+FE08``/``U+FE09`` instead (see ``yi_slice``):
   horizontal / vertical half-plane joins.
 * No side-by-side digraph compounds. Full D4 (8 modes) remains available for
-  build_subfonts / GlyphWiki via ``TRANSFORM_MODES``.
+  build_cjk / GlyphWiki via ``TRANSFORM_MODES``.
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ YI_SYLLABLES = (0xA000, 0xA48C)
 YI_RADICALS = (0xA490, 0xA4CF)
 
 VS_BASE = 0xE000
-# Full D4 set (8) — Yi orientations + build_subfonts / GlyphWiki.
+# Full D4 set (8) — Yi orientations + build_cjk / GlyphWiki.
 VS_COUNT = MirrorVS.MODE_COUNT
 VS_LAST = VS_BASE + VS_COUNT - 1  # U+E007
 
@@ -90,7 +90,7 @@ STANDALONE_CONTOUR_WIDEN = 0.15
 # low next to CJK ink that usually rests nearer the baseline.
 STANDALONE_VERT_PAD = 0.05
 
-# Match build_yi / build_subfonts OS/2 + hhea (CJK ideographic body).
+# Match build_yi / build_cjk OS/2 + hhea (CJK ideographic body).
 TYPO_ASCENDER_FRAC = 0.88
 TYPO_DESCENDER_FRAC = -0.12
 
@@ -217,7 +217,7 @@ def ideographic_bounds(target_upem: int) -> Tuple[float, float, float]:
 
 
 # (vs_cp, rot90_quarters, flip_x, flip_y, name_suffix or None for identity)
-# Shared with build_subfonts / GlyphWiki via kage.mapping.D4_MODES.
+# Shared with build_cjk / GlyphWiki via kage.mapping.D4_MODES.
 TransformMode = Tuple[int, int, bool, bool, Optional[str]]
 
 TRANSFORM_MODES: List[TransformMode] = [
@@ -1360,7 +1360,7 @@ def install_overlay_gsub(
     return len(feature_lookup_idxs)
 
 
-# Shared across build_yi / build_subfonts / GlyphWiki.
+# Shared across build_yi / build_cjk / GlyphWiki.
 COMPOSITION_FEATURE_TAGS: Tuple[str, ...] = ("ccmp", "rlig", "liga")
 COMPOSITION_LANGUAGE_SYSTEMS: Tuple[str, ...] = (
     "languagesystem DFLT dflt;",

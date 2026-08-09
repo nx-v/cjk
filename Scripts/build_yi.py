@@ -14,7 +14,7 @@ Contents
       A B FE08  →  A.top  + B.bot   sliceAdv   # horizontal
       A B FE09  →  A.left + B.right sliceAdv   # vertical
 
-* Dakuten marks (JuliaMono ``\\p{M}`` minus letter / overlay / oversized):
+* Dakuten marks (shared stack ``\\p{M}`` minus letter / overlay / oversized):
   GPOS ``mark`` at fixed CJK corners on VS01..VS07 forms and ``sliceAdv``.
   Successive marks fill TR → BR → TL → BL. No left-squish ``.dk`` forms.
 """
@@ -29,7 +29,7 @@ from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
 from fontTools.ttLib import TTFont, woff2
 
-from yi_dakuten import (
+from shared_diacritics import (
     add_dakuten_mark_glyphs,
     collect_dakuten_base_anchors,
     dakuten_mark_stack_label,
@@ -500,7 +500,8 @@ def build_all(
         "(H / V half-planes + shared sliceAdv)"
     )
     print(
-        "  Dakuten: JuliaMono + Nexsevka + mkanaplus \\p{M} @ CJK corners "
+        "  Dakuten: mkanaplus + Nexsevka + JuliaMono + Constructium + "
+        "Droid Sans + Arial Unicode MS + Gentium \\p{M} @ CJK corners "
         "(TR→BR→TL→BL; fixed H, L/R align; all D4 incl. r90my + sliceAdv)"
     )
     print(f"  Output: single font '{FAMILY_NAME}'")

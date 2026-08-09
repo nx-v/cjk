@@ -2,7 +2,7 @@
 
 ## Roles
 
-* **Bucket / pigeonhole fonts** (``build_subfonts.py``) cover real Unicode
+* **Bucket / pigeonhole fonts** (``build_cjk.py``) cover real Unicode
   Hanzi, Hangul, Tangut, and Yi. They run independently of the GlyphWiki
   PUA font. D4 variants use **VS01..VS08 directly** after the character
   (no Supplementary PUA marker).
@@ -50,7 +50,7 @@ midpoint. Result glyph names are the GlyphWiki canonical names
     <identity>     <VS02..08>  → D4 variant outline
 
 Only dump entries whose ``related`` code point falls in
-``build_subfonts.CHAR_RANGES``, plus CJK Radicals Supplement
+``build_cjk.CHAR_RANGES``, plus CJK Radicals Supplement
 (U+2E80..2EFF), Kangxi Radicals (U+2F00..2FDF), and GETA MARK
 (U+3013 〓 — GlyphWiki's unencoded/placeholder related), are packed.
 HKCS annotation overlays, non-mincho styles (sans/gothic/calligraphy/bitmap/
@@ -242,7 +242,7 @@ def related_codepoint(related: str) -> int | None:
     return None if cp >= 0x110000 else cp
 
 
-# Same blocks as ``build_subfonts.CHAR_RANGES``, plus GlyphWiki-only extras
+# Same blocks as ``build_cjk.CHAR_RANGES``, plus GlyphWiki-only extras
 # (radicals; GETA MARK used as related for unencoded / placeholder glyphs).
 RELATED_EXTRA_RANGES: list[tuple[int, int, str]] = [
     (0x2E80, 0x2EFF, "CJK Radicals Supplement"),
@@ -253,7 +253,7 @@ RELATED_EXTRA_RANGES: list[tuple[int, int, str]] = [
 
 def related_allow_ranges() -> list[tuple[int, int, str]]:
     """Inclusive ranges whose related code points are packed into GlyphWiki fonts."""
-    from ..build_subfonts import CHAR_RANGES
+    from ..build_cjk import CHAR_RANGES
 
     return list(CHAR_RANGES) + list(RELATED_EXTRA_RANGES)
 

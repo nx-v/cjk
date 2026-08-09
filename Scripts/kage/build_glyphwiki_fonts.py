@@ -103,7 +103,7 @@ def empty_glyph() -> TTGlyph:
 def kage_to_font_transform(upem: int = DEFAULT_UPEM) -> Transform:
     """Affine map from KAGE 200×200 (y-down) onto the CJK typo box (y-up).
 
-    The typo box matches ``build_yi`` / ``build_subfonts`` metrics
+    The typo box matches ``build_yi`` / ``build_cjk`` metrics
     (ascender 0.88em, descender -0.12em), so GlyphWiki outlines share the
     same vertical band as Han/Yi rather than the geometric em midpoint.
     """
