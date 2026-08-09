@@ -2071,17 +2071,20 @@ def write_css(
     lines = [
         "/* Auto-generated Hangul fonts from Malgun Gothic */",
         "/* panhangul = conjoining jamo; panhanguls = syllables + compat */",
+        "/* Local src first; GitHub raw as fallback. */",
         "",
     ]
     for family, cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
         urange = unicode_range_css(cps)
         url = f"./{family}.woff2"
         ttf = f"./{family}.ttf"
+        remote = f"{CSS_FONT_URL_BASE}/{family}.woff2"
         lines += [
             "@font-face {",
             f"  font-family: '{family}';",
             f"  src: url('{url}') format('woff2'),",
-            f"       url('{ttf}') format('truetype');",
+            f"       url('{ttf}') format('truetype'),",
+            f"       url('{remote}') format('woff2');",
             "  font-weight: normal;",
             "  font-style: normal;",
             "  font-display: swap;",
