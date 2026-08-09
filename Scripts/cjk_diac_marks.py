@@ -16,11 +16,12 @@ mark D4 stay simple affine (translate / rotate / reflect).
     CJK FE09 MARK     → base ``.dkt`` (bottom half) + mark in top half
     CJK FE0A MARK     → base ``.dkb`` (top half) + mark in bottom half
 
-Squish / overlay access (same ``.dk*`` glyphs)::
+Squish / overlay access (same ``.dk*`` glyphs; GSUB liga, not cmap-14 UVS)::
 
     CJK  ( D4 VS )?  FE0B              → zero-width ``.ov``
     CJK  ( D4 VS )?  FE0C..FE0F        → half-cell ``.dk`` / ``.dkl`` / ``.dkt`` / ``.dkb``
     CJK  ( D4 VS )?  FE0B FE0C..FE0F   → zero-width half-cell overlay
+    (either order FE0B↔FE0C–F; UVS would eat FE0B and drop the niche VS)
 """
 
 from __future__ import annotations
@@ -1876,18 +1877,25 @@ def d4_liga_map(
     *,
     glyphs: Dict[str, TTGlyph],
 ) -> Dict[Tuple[str, ...], str]:
-    """``base + VS01..VS08`` → orientation form."""
+    """``base + VS01..VS08`` (PUA / FE00..FE07) → orientation form.
+
+    ``FE00`` / VS01 is a no-op (``base + vs01 → base``) so identity can be
+    spelled explicitly and later FE0B–FE0F still reach GSUB as ligatures.
+    """
     liga: Dict[Tuple[str, ...], str] = {}
     for base in bases:
         if base not in glyphs:
             continue
         for vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
+            sel = vs_glyph_name(vs_cp)
             if suffix is None:
+                # Identity no-op — consumes FE00 without changing the base.
+                liga[(base, sel)] = base
                 continue
             vname = variant_glyph_name(base, suffix)
             if vname not in glyphs:
                 continue
-            liga[(base, vs_glyph_name(vs_cp))] = vname
+            liga[(base, sel)] = vname
     return liga
 
 
@@ -1902,9 +1910,11 @@ def install_cjk_composition_gsub(
 ) -> int:
     """Programmatic ``ccmp``/``rlig``/``liga``: D4 + FE0B–FE0F + mark niches.
 
-    Avoids feaLib (tens of thousands of ``sub`` lines → minutes per bucket).
-    Longer (3-glyph) squish+overlay ligas are installed before 2-glyph ones.
-    Returns number of ligature lookups attached to composition features.
+    Lookup order matters so ``B FE02 FE0D`` works::
+
+        1. D4 (incl. FE00 no-op)  — ``B+FE02 → B.r180``
+        2. 3-glyph squish+overlay — ``A+FE0B+FE0C → A.dk.ov``
+        3. 2-glyph squish/overlay + mark niches — ``B.r180+FE0D → B.r180.dkl``
     """
     from fontTools.ttLib import newTable
     from fontTools.ttLib.tables import otTables as ot
@@ -1914,15 +1924,17 @@ def install_cjk_composition_gsub(
     del glyph_order  # reserved for future GID-ordered class builders
     forms = list(squishable) if squishable is not None else squishable_forms(cjk_bases)
 
+    d4_map = d4_liga_map(cjk_bases, glyphs=glyphs)
     long_map: Dict[Tuple[str, ...], str] = {}
     short_map: Dict[Tuple[str, ...], str] = {}
     for comps, out in squish_vs_liga_map(forms, glyphs=glyphs).items():
         (long_map if len(comps) >= 3 else short_map)[comps] = out
-    short_map.update(d4_liga_map(cjk_bases, glyphs=glyphs))
     if mark_cps:
         short_map.update(mark_liga_map(mark_cps, glyphs))
 
     lookups: List = []
+    if d4_map:
+        lookups.append(build_chunked_ligature_subst_lookup(d4_map))
     if long_map:
         lookups.append(build_chunked_ligature_subst_lookup(long_map))
     if short_map:
@@ -1986,16 +1998,15 @@ def build_squish_vs_uvs_entries(
     *,
     glyphs: Dict[str, TTGlyph],
 ) -> List[Tuple[int, int, Optional[str]]]:
-    """cmap-14 UVS for identity base + FE0B / FE0C–FE0F."""
-    rows: List[Tuple[int, int, Optional[str]]] = []
-    ov = overlay_glyph_name(base_glyph)
-    if ov in glyphs:
-        rows.append((base_cp, OV_SELECTOR_CP, ov))
-    for sel_cp, _name, suf in SQUISH_VS_SLOTS:
-        sq = _squish_form_name(base_glyph, suf)
-        if sq in glyphs:
-            rows.append((base_cp, sel_cp, sq))
-    return rows
+    """No cmap-14 UVS for FE0B–FE0F — access is GSUB liga only.
+
+    UVS would map ``base+FE0B`` → ``.ov`` and then drop a following ``FE0C``
+    (Default_Ignorable), so ``base FE0B FE0C`` never reached the 3-glyph liga
+    for squish-overlay. Plain squish / overlay / squish-overlay all use
+    ``ccmp``/``rlig``/``liga`` on cmap selector glyphs instead.
+    """
+    del base_cp, base_glyph, glyphs
+    return []
 
 
 def prepare_squish_vs_access(

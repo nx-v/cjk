@@ -60,12 +60,12 @@ from yi_halfwidth import (
     VS_BASE,
     VS_LAST,
     add_d4_variant_glyphs,
-    build_d4_uvs_entries,
     fit_glyph_to_ideographic_cell,
     is_yi_cp,
     load_inventory,
     make_standalone_glyph,
     record_glyph,
+    uvs_selector_for_mode,
     vs_glyph_name,
 )
 
@@ -495,19 +495,23 @@ def build_bucket_font(
             metrics=metrics,
             anchor="cell",
         )
-        uvs_rows.extend(build_d4_uvs_entries(out_cp, gname, glyphs=glyphs))
+        # No D4 cmap-14 UVS — FE00..FE07 + FE0B..FE0F are GSUB ligatures only.
 
     if len(cmap) == 0:
         return out_path, 0, []
 
-    # Inject VS marks so D4 ligatures stay in-font (VS01..VS08 / FE00..FE07)
-    for vs_cp, _rot, _fx, _fy, _suffix in TRANSFORM_MODES:
+    # Inject VS marks so D4 ligatures stay in-font.
+    # PUA U+E000..E007 and Unicode VS U+FE00..FE07 share the same empty glyphs
+    # (FE00 = identity no-op liga). No cmap-14 UVS, so a following FE0B–FE0F
+    # is not dropped as a Default_Ignorable after UVS.
+    for mode_i, (vs_cp, _rot, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
         vname = vs_glyph_name(vs_cp)
         if vname not in glyphs:
             glyph_order.append(vname)
             glyphs[vname] = empty_glyph()
             metrics[vname] = (0, 0)
         cmap[vs_cp] = vname
+        cmap[uvs_selector_for_mode(mode_i)] = vname
 
     # Reading marks: ca/nhay niche GPOS; FE0B–FE0F squish/overlay access.
     in_dir = os.path.dirname(next(iter(sources.keys()))) if sources else IN_DIR
@@ -686,33 +690,29 @@ def _build_bucket_task(
 
 
 def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
-    """CSS unicode-range for this bucket's CJK + UVS FE00..FE0F + reading marks.
+    """CSS unicode-range for this bucket's CJK + reading marks.
 
-    PUA U+E000..E007 is intentionally *not* listed: in a multi-face stack every
-    bucket used to advertise those codepoints, so the first face stole all VS
-    and broke ``base+VS`` ligatures. Prefer cmap format-14 UVS (U+FE00..) which
-    stays on the base character's face; keep PUA liga for single-family use
-    (VS still in the font cmap). FE0B–FE0F selectors and U+16FF0/16FF1 in
-    ``MARK_CPS`` must be listed so those codepoints load from this face.
+    PUA U+E000..E007 and all VS U+FE00..FE0F are *not* listed: in a multi-face
+    stack the first face would steal them and break `base+VS` GSUB ligatures.
+    D4 (FE00..FE07, FE00=no-op) and squish/overlay (FE0B..FE0F) stay cmap+GSUB;
+    VS glyphs remain in each face's cmap so shaping pulls them with the base.
+    U+16FF0/16FF1 (`MARK_CPS`) stay listed so marks load from this face.
     """
     side_sels = set(SIDE_SELECTOR_CPS)
+    uvs_sels = set(range(UVS_BASE, UVS_LAST + 1))
     bucket_cps = {
         cp
         for cp in codepoints
-        if not (VS_BASE <= cp <= VS_LAST) and cp not in side_sels and cp not in MARK_CPS
+        if not (VS_BASE <= cp <= VS_LAST)
+        and cp not in side_sels
+        and cp not in uvs_sels
+        and cp not in MARK_CPS
     }
-    cps = sorted(
-        bucket_cps | set(range(UVS_BASE, UVS_LAST + 1)) | side_sels | set(MARK_CPS)
-    )
+    cps = sorted(bucket_cps | set(MARK_CPS))
     if not bucket_cps:
         start = bucket_id << 8
         end = start + 0xFF
-        cps = sorted(
-            set(range(start, end + 1))
-            | set(range(UVS_BASE, UVS_LAST + 1))
-            | side_sels
-            | set(MARK_CPS)
-        )
+        cps = sorted(set(range(start, end + 1)) | set(MARK_CPS))
 
     runs: List[str] = []
     run_start = cps[0]
@@ -738,16 +738,14 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     css_path = os.path.join(out_dir, "pancjk.css")
     lines: List[str] = [
         "/* Auto-generated Pan-CJK pigeonhole @font-face rules */",
-        "/* Local src first; GitHub raw as fallback. PUA VS omitted from",
-        "   unicode-range so the multi-face stack does not steal UVS. */",
+        "/* Per-bucket family 'pancjk XX' plus shared family 'pancjk' (same",
+        "   unicode-range faces). FE08–FE0F omitted from unicode-range so the",
+        "   first face cannot steal squish/mark selectors from GSUB liga. */",
         "",
     ]
     family_names: List[str] = []
-    for hex_id, _count, codepoints in built:
-        bucket_id = int(hex_id, 16)
-        family = f"pancjk {hex_id}"
-        family_names.append(family)
-        urange = unicode_range_for_bucket(bucket_id, codepoints)
+
+    def _face(family: str, hex_id: str, urange: str) -> None:
         lines.append("@font-face {")
         lines.append(f"  font-family: '{family}';")
         lines.append(f"  src: url('./{hex_id}.woff2') format('woff2'),")
@@ -762,12 +760,22 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
         lines.append("}")
         lines.append("")
 
+    for hex_id, _count, codepoints in built:
+        bucket_id = int(hex_id, 16)
+        family = f"pancjk {hex_id}"
+        family_names.append(family)
+        urange = unicode_range_for_bucket(bucket_id, codepoints)
+        _face(family, hex_id, urange)
+        # Shared family: digraph / multi-bucket stacks keep one family name so
+        # FE0B–FE0F cluster with each base's pigeonhole face.
+        _face("pancjk", hex_id, urange)
+
     with open(css_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
-    # CSS-safe quoted family list for stacks
-    quoted = ", ".join(f"'{name}'" for name in family_names)
+    # CSS-safe quoted family list for stacks (shared 'pancjk' first).
+    quoted = ", ".join(["'pancjk'"] + [f"'{name}'" for name in family_names])
     fontlist_path = os.path.join(out_dir, "fontlist.css")
     fontlist = f"""/* src/scss/index.scss — Pan-CJK pigeonhole font stack */
 body {{

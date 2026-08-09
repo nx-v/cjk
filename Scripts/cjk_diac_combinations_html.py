@@ -13,8 +13,9 @@ Encoding (matches ``cjk_diac_marks`` / ``build_cjk``)::
 
     Squish digraph (two kanji, often different pancjk buckets)::
 
-      A (D4)? FE0B (FE0C–F)?  B (D4)? (FE0C–F)?
-      First is zero-width; niches/orients oppose (L↔R, T↔B).
+      A (D4)? FE0B FE0C–F   B (D4)? FE0D–F
+      e.g. ``明`` FE0B FE0C + ``日`` FE0D
+      First is zero-width overlay; niches oppose (FE0C↔FE0D, FE0E↔FE0F).
 
 Usage
 -----
@@ -68,35 +69,34 @@ NAMED_RANGES: Dict[str, Tuple[Tuple[int, int], ...]] = {
     "ALL": tuple((a, b) for a, b, _n in CHAR_RANGES),
 }
 
-# Base + marks: full D4 (identity + FE01..FE07).
-BASE_ORIENT_VS: List[Optional[int]] = [None] + [
-    uvs_selector_for_mode(i)
-    for i, (_vs, _r, _fx, _fy, suffix) in enumerate(TRANSFORM_MODES)
-    if suffix is not None
+# Base + marks: full D4. FE00 = identity no-op liga (helps FE0B–FE0F follow).
+BASE_ORIENT_VS: List[Optional[int]] = [
+    uvs_selector_for_mode(i) for i, _mode in enumerate(TRANSFORM_MODES)
 ]
-BASE_ORIENT_LABEL = ["id"] + [
-    suffix for _vs, _r, _fx, _fy, suffix in TRANSFORM_MODES if suffix is not None
+BASE_ORIENT_LABEL = [
+    ("id" if suffix is None else suffix)
+    for _vs, _r, _fx, _fy, suffix in TRANSFORM_MODES
 ]
-MARK_ORIENT_VS: List[Optional[int]] = [None] + [
-    uvs_selector_for_mode(i)
-    for i, (_vs, _r, _fx, _fy, suffix) in enumerate(TRANSFORM_MODES)
-    if suffix is not None
-]
-MARK_ORIENT_LABEL = ["id"] + [
-    suffix for _vs, _r, _fx, _fy, suffix in TRANSFORM_MODES if suffix is not None
-]
+MARK_ORIENT_VS: List[Optional[int]] = list(BASE_ORIENT_VS)
+MARK_ORIENT_LABEL = list(BASE_ORIENT_LABEL)
 
 MARK_LABEL = {
     0x16FF0: "ca",
     0x16FF1: "nhay",
 }
 
-# Opposing half niches for digraphs (first zero-width half + second advance half).
+# Opposing half niches: first (FE0B + FE0C–F) zero-width, second (FE0D–F) advance.
+# Labels match squishPiece keys (R=FE0C/.dk, L=FE0D/.dkl, T=FE0E/.dkt, B=FE0F/.dkb).
 DIGRAPH_NICHE_PAIRS: Tuple[Tuple[str, str], ...] = (
-    ("R", "L"),  # FE0C left + FE0D right
-    ("L", "R"),  # FE0D right + FE0C left
-    ("T", "B"),  # FE0F top + FE0E bottom
-    ("B", "T"),  # FE0E bottom + FE0F top
+    ("R", "L"),  # FE0C (.dk left)  + FE0D (.dkl right)
+    ("L", "R"),  # FE0D (.dkl right) + FE0C (.dk left)
+    ("T", "B"),  # FE0E (.dkt bottom) + FE0F (.dkb top)
+    ("B", "T"),  # FE0F (.dkb top) + FE0E (.dkt bottom)
+)
+
+# Canonical demo digraph (cross-bucket 66 + 65): 明 FE0B FE0C + 日 FE0D.
+DIGRAPH_SEED_CPS: Tuple[Tuple[int, int], ...] = (
+    (0x660E, 0x65E5),  # 明日
 )
 
 # Opposing D4 labels (second orient faces the first).
@@ -119,10 +119,24 @@ def digraph_pairs(
 ) -> List[Tuple[int, int, bool]]:
     """Index pairs ``(i, j, cross_bucket)`` preferring different ``cp>>8`` fonts."""
     by_bucket: Dict[int, List[int]] = defaultdict(list)
+    index_by_cp = {int(c["cp"]): i for i, c in enumerate(cjk)}
     for i, c in enumerate(cjk):
         by_bucket[int(c["cp"]) >> 8].append(i)
     buckets = sorted(by_bucket)
     pairs: List[Tuple[int, int, bool]] = []
+    seen_ij: set = set()
+    for ca, cb in DIGRAPH_SEED_CPS:
+        ia, ib = index_by_cp.get(ca), index_by_cp.get(cb)
+        if ia is None or ib is None or ia == ib:
+            continue
+        key = (ia, ib)
+        if key in seen_ij:
+            continue
+        seen_ij.add(key)
+        cross = (ca >> 8) != (cb >> 8)
+        pairs.append((ia, ib, cross))
+        if len(pairs) >= max_pairs:
+            return pairs
     if len(buckets) >= 2:
         bi = 0
         while len(pairs) < max_pairs and bi < max_pairs * len(buckets):
@@ -134,7 +148,9 @@ def digraph_pairs(
             if la and lb and b0 != b1:
                 ia = la[len(pairs) % len(la)]
                 ib = lb[(len(pairs) * 3) % len(lb)]
-                if ia != ib:
+                key = (ia, ib)
+                if ia != ib and key not in seen_ij:
+                    seen_ij.add(key)
                     pairs.append((ia, ib, True))
             bi += 1
     if len(pairs) < max_pairs:
@@ -142,9 +158,11 @@ def digraph_pairs(
             if len(pairs) >= max_pairs:
                 break
             j = i + 1
-            cross = (int(cjk[i]["cp"]) >> 8) != (int(cjk[j]["cp"]) >> 8)
-            if any(p[0] == i and p[1] == j for p in pairs):
+            key = (i, j)
+            if key in seen_ij:
                 continue
+            seen_ij.add(key)
+            cross = (int(cjk[i]["cp"]) >> 8) != (int(cjk[j]["cp"]) >> 8)
             pairs.append((i, j, cross))
     return pairs
 
@@ -182,30 +200,71 @@ def parse_range_spec(spec: str) -> List[Tuple[int, int]]:
     )
 
 
+def _cjk_entry(cp: int) -> Optional[dict]:
+    try:
+        ch = chr(cp)
+        name = unicodedata.name(ch)
+    except (ValueError, OverflowError):
+        return None
+    short = name.split()[-1].replace("-", "") if name else f"{cp:04X}"
+    return {"cp": cp, "ch": ch, "name": name, "short": short}
+
+
 def assigned_cps(ranges: Sequence[Tuple[int, int]], *, limit: int) -> List[dict]:
     """Collect CJK entries; with multiple ranges, round-robin so digraphs can cross buckets."""
     per_range: List[List[dict]] = []
-    for a, b in ranges:
+    covered: List[Tuple[int, int]] = list(ranges)
+    for a, b in covered:
         chunk: List[dict] = []
         for cp in range(a, b + 1):
-            try:
-                ch = chr(cp)
-                name = unicodedata.name(ch)
-            except (ValueError, OverflowError):
-                continue
-            short = name.split()[-1].replace("-", "") if name else f"{cp:04X}"
-            chunk.append({"cp": cp, "ch": ch, "name": name, "short": short})
+            entry = _cjk_entry(cp)
+            if entry is not None:
+                chunk.append(entry)
         if chunk:
             per_range.append(chunk)
     if not per_range:
         return []
+
+    def _in_ranges(cp: int) -> bool:
+        return any(a <= cp <= b for a, b in covered)
+
+    # Always keep digraph seed CPs when they fall in the requested ranges.
+    seeds: List[dict] = []
+    seen_seed = set()
+    for ca, cb in DIGRAPH_SEED_CPS:
+        for cp in (ca, cb):
+            if cp in seen_seed or not _in_ranges(cp):
+                continue
+            entry = _cjk_entry(cp)
+            if entry is None:
+                continue
+            seen_seed.add(cp)
+            seeds.append(entry)
+
     if len(per_range) == 1:
-        out = per_range[0]
-        return out if limit <= 0 else out[:limit]
+        out = list(per_range[0])
+        if limit > 0:
+            out = out[:limit]
+        for s in seeds:
+            if s["cp"] not in {c["cp"] for c in out}:
+                if limit > 0 and len(out) >= limit:
+                    out[-1] = s
+                else:
+                    out.append(s)
+        # Prefer seeds at the front for digraph_pairs.
+        if seeds:
+            seed_cps = {s["cp"] for s in seeds}
+            out = [c for c in out if c["cp"] in seed_cps] + [
+                c for c in out if c["cp"] not in seed_cps
+            ]
+        return out
 
     # Round-robin across ranges for mixed-bucket digraph coverage.
     out: List[dict] = []
     seen = set()
+    for s in seeds:
+        seen.add(s["cp"])
+        out.append(s)
     idx = [0] * len(per_range)
     while True:
         progressed = False
@@ -232,11 +291,11 @@ def pancjk_font_stack(
     ranges: Optional[Sequence[Tuple[int, int]]] = None,
     force_all: bool = False,
 ) -> str:
-    """Quoted ``'pancjk XX'`` stack from fonts on disk, else from CHAR_RANGES.
+    """Quoted font stack for galleries.
 
-    When ``ranges`` covers a single bucket and ``force_all`` is false, use only
-    that face so reading marks stay on the same face. Digraph tests that mix
-    buckets set ``force_all`` so each half resolves from its own pigeonhole.
+    Single-bucket → ``'pancjk XX'``. Multi-bucket / digraphs → shared
+    ``'pancjk'`` (unicode-range pigeonholes in pancjk.css) so FE0B–FE0F stay
+    with each base face for GSUB liga.
     """
     if ranges and not force_all:
         buckets: set = set()
@@ -246,28 +305,9 @@ def pancjk_font_stack(
             hex_id = f"{next(iter(buckets)):X}"
             return f"'pancjk {hex_id}'"
 
-    ids: List[str] = []
-    if os.path.isdir(font_dir):
-        seen = set()
-        for name in sorted(os.listdir(font_dir)):
-            if not (name.endswith(".woff2") or name.endswith(".ttf")):
-                continue
-            hex_id = os.path.splitext(name)[0]
-            if hex_id.startswith("_") or hex_id in seen:
-                continue
-            try:
-                int(hex_id, 16)
-            except ValueError:
-                continue
-            seen.add(hex_id)
-            ids.append(hex_id)
-    if not ids:
-        buckets_set = set()
-        for a, b, _n in CHAR_RANGES:
-            for bid in range(a >> 8, (b >> 8) + 1):
-                buckets_set.add(bid)
-        ids = [f"{b:X}" for b in sorted(buckets_set)]
-    return ", ".join(f"'pancjk {i}'" for i in ids)
+    # Shared family covers all bucket faces via unicode-range.
+    del font_dir  # presence checked by caller / CSS href
+    return "'pancjk'"
 
 
 def write_html(
@@ -404,7 +444,7 @@ h2 {{
     Range: {range_note} · {n:,} characters embedded<br/>
     Base VS: identity / FE01..FE07 (full D4)<br/>
     U+16FF0/16FF1 ca/nhay: half-cell niche (free half via GPOS)<br/>
-    Squish digraph: A+FE0B(+FE0C–F) zero-width · B(+FE0C–F) · opposing niche/orient<br/>
+    Squish digraph: <code>A FE0B FE0C–F</code> + <code>B FE0D–F</code> (e.g. 明&#xFE0B;&#xFE0C;日&#xFE0D;)<br/>
     Digraph pairs: {len(pairs)} ({n_cross} cross-bucket) · gallery ≈ {total:,}
   </p>
   <div class="controls">
@@ -508,14 +548,22 @@ function squishPiece(side) {{
   return sel != null ? String.fromCodePoint(sel) : '';
 }}
 function digraphFirst(idx, oi, side) {{
-  // A (D4)? FE0B (FE0C–F)?  — zero-width half
+  // A (D4)? FE0B FE0C–F — zero-width half overlay
   return cjkPiece(idx, oi)
     + String.fromCodePoint(DATA.OV_SEL)
     + squishPiece(side);
 }}
 function digraphSecond(idx, oi, side) {{
-  // B (D4)? (FE0C–F)?  — keeps advance
+  // B (D4)? FE0D–F — opposing niche, keeps advance
   return cjkPiece(idx, oi) + squishPiece(side);
+}}
+function squishHex(side) {{
+  const sel = side === 'R' ? DATA.SQUISH_R
+    : side === 'L' ? DATA.SQUISH_L
+    : side === 'T' ? DATA.SQUISH_T
+    : side === 'B' ? DATA.SQUISH_B
+    : null;
+  return sel != null ? sel.toString(16).toUpperCase() : side;
 }}
 function tagFor(idx, baseOi, mi, markOi, side) {{
   const c = DATA.CJK[idx];
@@ -531,11 +579,15 @@ function tagFor(idx, baseOi, mi, markOi, side) {{
 }}
 function digraphTag(ia, oia, sa, ib, oib, sb, cross) {{
   const a = DATA.CJK[ia], b = DATA.CJK[ib];
-  const oa = DATA.BASE_ORIENT_LABEL[oia] || 'id';
-  const ob = DATA.BASE_ORIENT_LABEL[oib] || 'id';
-  return a.short + '.' + oa + '[FE0B+' + sa + ']'
-    + '+' + b.short + '.' + ob + '[' + sb + ']'
-    + (cross ? ' ⇄font' : '');
+  const va = DATA.BASE_ORIENT_VS[oia];
+  const vb = DATA.BASE_ORIENT_VS[oib];
+  let left = a.cp.toString(16).toUpperCase();
+  if (va != null) left += ' FE' + (va - 0xFE00).toString(16).toUpperCase().padStart(2, '0');
+  left += ' FE0B ' + squishHex(sa);
+  let right = b.cp.toString(16).toUpperCase();
+  if (vb != null) right += ' FE' + (vb - 0xFE00).toString(16).toUpperCase().padStart(2, '0');
+  right += ' ' + squishHex(sb);
+  return left + ' + ' + right + (cross ? ' ⇄font' : '');
 }}
 function cell(text, tag) {{
   const d = document.createElement('div');

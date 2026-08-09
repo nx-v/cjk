@@ -3,17 +3,22 @@
 
 Encoding (matches ``cjk_diac_marks`` / ``build_cjk``)::
 
-    A (D4)? FE0B (FE0C–FE0F)?   B (D4)? (FE0C–FE0F)?
+    A FE00..FE07 FE0B FE0C–F   B FE00..FE07 FE0D–F
 
-  * First kanji is zero-width overlay (``FE0B``)
-  * Optional niches oppose: L↔R (FE0C↔FE0D), T↔B (FE0E↔FE0F)
-  * Optional D4 orients oppose (id↔r180, r90↔r270, mx↔my, …)
-  * Prefer pairs from different pancjk buckets (``cp >> 8``)
+  Example::
+
+    &#x660E;&#xFE00;&#xFE0B;&#xFE0C;&#x65E5;&#xFE02;&#xFE0D;
+    (明 FE00 FE0B FE0C + 日 FE02 FE0D; each side picks its own D4)
+
+  * First kanji is zero-width overlay (``FE0B`` + niche)
+  * Niches oppose: FE0C↔FE0D (L↔R), FE0E↔FE0F (T↔B)
+  * D4 orients are independent per character (FE00..FE07); GSUB liga only
+  * Prefer pairs from different pancjk buckets (``cp >> 8``); seed 明日
 
 Usage
 -----
   python cjk_digraph_combinations_html.py
-  python cjk_digraph_combinations_html.py --bucket 4E --bucket 4F
+  python cjk_digraph_combinations_html.py --bucket 65 --bucket 66
   python cjk_digraph_combinations_html.py --pairs 48 --limit 128
   python cjk_digraph_combinations_html.py -o dist/subfonts/digraph-cjk.html
 """
@@ -65,7 +70,8 @@ def write_html(
     pairs = digraph_pairs(cjk, max_pairs=max(1, max_pairs))
     n_cross = sum(1 for _a, _b, cross in pairs if cross)
     n_orients = len(BASE_ORIENT_VS)
-    n_gallery = len(pairs) * len(DIGRAPH_NICHE_PAIRS) * n_orients
+    # Independent D4 on each side: A_orient × B_orient × niches × pairs
+    n_gallery = len(pairs) * len(DIGRAPH_NICHE_PAIRS) * n_orients * n_orients
 
     force_stack = n_cross > 0 or len({c["cp"] >> 8 for c in cjk}) > 1
     stack = pancjk_font_stack(font_dir, ranges=ranges, force_all=force_stack)
@@ -165,13 +171,17 @@ h2 {{
   <h1>pancjk — CJK squish digraphs</h1>
   <p class="meta">
     Range: {range_note}<br/>
-    Encoding: <code>A (D4)? FE0B (FE0C–F)?</code> + <code>B (D4)? (FE0C–F)?</code><br/>
-    First half zero-width · niches L↔R / T↔B · orients oppose<br/>
-    Pairs: {len(pairs)} ({n_cross} cross-bucket) · full orient gallery ≈ {n_gallery:,}
+    Encoding: <code>A FE00..FE07 FE0B FE0C–F</code> + <code>B FE00..FE07 FE0D–F</code>
+    (each side picks its own D4; niches oppose)<br/>
+    First half zero-width · niches FE0C↔FE0D / FE0E↔FE0F · D4 independent<br/>
+    Pairs: {len(pairs)} ({n_cross} cross-bucket) · full A×B orient gallery ≈ {n_gallery:,}
   </p>
   <div class="controls">
-    <label>First orient
+    <label>Orient A
       <select id="orientA"></select>
+    </label>
+    <label>Orient B
+      <select id="orientB"></select>
     </label>
     <label>Niche pair
       <select id="nicheSel"></select>
@@ -183,7 +193,8 @@ h2 {{
       <input type="number" id="pairCount" min="1" max="{max(1, len(pairs))}" value="{min(32, max(1, len(pairs)))}"/>
     </label>
     <button type="button" id="btnDigraph">Render digraphs</button>
-    <button type="button" id="btnOrientGrid">All opposing orients</button>
+    <button type="button" id="btnOpposeB">B = opposing A</button>
+    <button type="button" id="btnOrientGrid">All A×B orients</button>
     <button type="button" id="btnNicheGrid">All niche pairs</button>
     <button type="button" id="btnEverything" class="danger">Everything</button>
   </div>
@@ -197,6 +208,7 @@ const DATA = JSON.parse(document.getElementById('data').textContent);
 const out = document.getElementById('out');
 const status = document.getElementById('status');
 const orientA = document.getElementById('orientA');
+const orientB = document.getElementById('orientB');
 const nicheSel = document.getElementById('nicheSel');
 const pairStart = document.getElementById('pairStart');
 const pairCount = document.getElementById('pairCount');
@@ -208,17 +220,19 @@ const NICHE_LABEL = {{
   B: 'FE0F/.dkb',
 }};
 
-DATA.BASE_ORIENT_LABEL.forEach((lab, i) => {{
-  const o = document.createElement('option');
-  o.value = String(i);
-  const v = DATA.BASE_ORIENT_VS[i];
-  const opp = DATA.OPPOSING_ORIENT_OI[i];
-  const olab = DATA.BASE_ORIENT_LABEL[opp] || '?';
-  o.textContent = lab + ' ↔ ' + olab
-    + (v != null ? ' (FE' + (v - 0xFE00).toString(16).toUpperCase().padStart(2, '0') + ')' : '');
-  orientA.appendChild(o);
-}});
-orientA.value = '0';
+function fillOrientSelect(sel) {{
+  DATA.BASE_ORIENT_LABEL.forEach((lab, i) => {{
+    const o = document.createElement('option');
+    o.value = String(i);
+    const v = DATA.BASE_ORIENT_VS[i];
+    o.textContent = lab
+      + (v != null ? ' (FE' + (v - 0xFE00).toString(16).toUpperCase().padStart(2, '0') + ')' : '');
+    sel.appendChild(o);
+  }});
+  sel.value = '0';
+}}
+fillOrientSelect(orientA);
+fillOrientSelect(orientB);
 
 {{
   const all = document.createElement('option');
@@ -247,20 +261,34 @@ function squishPiece(side) {{
   return sel != null ? String.fromCodePoint(sel) : '';
 }}
 function digraphFirst(idx, oi, side) {{
+  // A FE00..FE07 FE0B FE0C–F — zero-width half overlay
   return cjkPiece(idx, oi)
     + String.fromCodePoint(DATA.OV_SEL)
     + squishPiece(side);
 }}
 function digraphSecond(idx, oi, side) {{
+  // B FE00..FE07 FE0D–F — independent D4, opposing niche, keeps advance
   return cjkPiece(idx, oi) + squishPiece(side);
+}}
+function squishHex(side) {{
+  const sel = side === 'R' ? DATA.SQUISH_R
+    : side === 'L' ? DATA.SQUISH_L
+    : side === 'T' ? DATA.SQUISH_T
+    : side === 'B' ? DATA.SQUISH_B
+    : null;
+  return sel != null ? sel.toString(16).toUpperCase() : side;
 }}
 function digraphTag(ia, oia, sa, ib, oib, sb, cross) {{
   const a = DATA.CJK[ia], b = DATA.CJK[ib];
-  const oa = DATA.BASE_ORIENT_LABEL[oia] || 'id';
-  const ob = DATA.BASE_ORIENT_LABEL[oib] || 'id';
-  return a.short + '.' + oa + '[FE0B+' + sa + ']'
-    + ' + ' + b.short + '.' + ob + '[' + sb + ']'
-    + (cross ? ' ⇄font' : '');
+  const va = DATA.BASE_ORIENT_VS[oia];
+  const vb = DATA.BASE_ORIENT_VS[oib];
+  let left = a.cp.toString(16).toUpperCase();
+  if (va != null) left += ' FE' + (va - 0xFE00).toString(16).toUpperCase().padStart(2, '0');
+  left += ' FE0B ' + squishHex(sa);
+  let right = b.cp.toString(16).toUpperCase();
+  if (vb != null) right += ' FE' + (vb - 0xFE00).toString(16).toUpperCase().padStart(2, '0');
+  right += ' ' + squishHex(sb);
+  return left + ' + ' + right + (cross ? ' ⇄font' : '');
 }}
 function selectedPairs() {{
   const start = Math.max(0, Math.min(DATA.DIGRAPH_PAIRS.length - 1, +pairStart.value || 0));
@@ -270,6 +298,16 @@ function selectedPairs() {{
 function selectedNiches() {{
   if (nicheSel.value === 'all') return DATA.DIGRAPH_NICHES;
   return [DATA.DIGRAPH_NICHES[+nicheSel.value]];
+}}
+function selectedOrients() {{
+  return {{
+    oia: Math.max(0, Math.min(DATA.BASE_ORIENT_VS.length - 1, +orientA.value || 0)),
+    oib: Math.max(0, Math.min(DATA.BASE_ORIENT_VS.length - 1, +orientB.value || 0)),
+  }};
+}}
+function orientLabel(oia, oib) {{
+  return (DATA.BASE_ORIENT_LABEL[oia] || 'id')
+    + ' × ' + (DATA.BASE_ORIENT_LABEL[oib] || 'id');
 }}
 function cell(text, tag, cross) {{
   const d = document.createElement('div');
@@ -292,14 +330,12 @@ function heading(s) {{
 function clearOut() {{ out.replaceChildren(); }}
 function setStatus(s) {{ status.textContent = s; }}
 
-function renderDigraphs(oia) {{
+function renderDigraphs() {{
   clearOut();
   const pairs = selectedPairs();
   const niches = selectedNiches();
-  const oib = DATA.OPPOSING_ORIENT_OI[oia] ?? oia;
-  const lab = (DATA.BASE_ORIENT_LABEL[oia] || 'id')
-    + ' ↔ ' + (DATA.BASE_ORIENT_LABEL[oib] || 'id');
-  out.appendChild(heading('Digraphs · ' + lab));
+  const {{ oia, oib }} = selectedOrients();
+  out.appendChild(heading('Digraphs · ' + orientLabel(oia, oib)));
   let n = 0;
   for (const p of pairs) {{
     for (const niche of niches) {{
@@ -320,22 +356,21 @@ function renderOrientGrid() {{
   clearOut();
   const pairs = selectedPairs();
   const niches = selectedNiches();
-  out.appendChild(heading('All opposing orients'));
+  out.appendChild(heading('All A×B orients (independent D4)'));
   let n = 0;
   for (let oia = 0; oia < DATA.BASE_ORIENT_VS.length; oia++) {{
-    const oib = DATA.OPPOSING_ORIENT_OI[oia] ?? oia;
-    out.appendChild(heading(
-      (DATA.BASE_ORIENT_LABEL[oia] || 'id')
-      + ' ↔ ' + (DATA.BASE_ORIENT_LABEL[oib] || 'id')));
-    for (const p of pairs) {{
-      for (const niche of niches) {{
-        const text = digraphFirst(p.a, oia, niche.a)
-          + digraphSecond(p.b, oib, niche.b);
-        out.appendChild(cell(
-          text,
-          digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
-          !!p.cross));
-        n++;
+    for (let oib = 0; oib < DATA.BASE_ORIENT_VS.length; oib++) {{
+      out.appendChild(heading(orientLabel(oia, oib)));
+      for (const p of pairs) {{
+        for (const niche of niches) {{
+          const text = digraphFirst(p.a, oia, niche.a)
+            + digraphSecond(p.b, oib, niche.b);
+          out.appendChild(cell(
+            text,
+            digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
+            !!p.cross));
+          n++;
+        }}
       }}
     }}
   }}
@@ -345,11 +380,8 @@ function renderOrientGrid() {{
 function renderNicheGrid() {{
   clearOut();
   const pairs = selectedPairs();
-  const oia = +orientA.value || 0;
-  const oib = DATA.OPPOSING_ORIENT_OI[oia] ?? oia;
-  out.appendChild(heading('All niche pairs · '
-    + (DATA.BASE_ORIENT_LABEL[oia] || 'id')
-    + ' ↔ ' + (DATA.BASE_ORIENT_LABEL[oib] || 'id')));
+  const {{ oia, oib }} = selectedOrients();
+  out.appendChild(heading('All niche pairs · ' + orientLabel(oia, oib)));
   let n = 0;
   for (const niche of DATA.DIGRAPH_NICHES) {{
     out.appendChild(heading(NICHE_LABEL[niche.a] + ' + ' + NICHE_LABEL[niche.b]));
@@ -369,34 +401,38 @@ function renderNicheGrid() {{
 function renderEverything() {{
   clearOut();
   const pairs = selectedPairs();
-  out.appendChild(heading('Everything (orients × niches × pairs)'));
+  out.appendChild(heading('Everything (A×B orients × niches × pairs)'));
   let n = 0;
   for (let oia = 0; oia < DATA.BASE_ORIENT_VS.length; oia++) {{
-    const oib = DATA.OPPOSING_ORIENT_OI[oia] ?? oia;
-    out.appendChild(heading(
-      (DATA.BASE_ORIENT_LABEL[oia] || 'id')
-      + ' ↔ ' + (DATA.BASE_ORIENT_LABEL[oib] || 'id')));
-    for (const niche of DATA.DIGRAPH_NICHES) {{
-      for (const p of pairs) {{
-        const text = digraphFirst(p.a, oia, niche.a)
-          + digraphSecond(p.b, oib, niche.b);
-        out.appendChild(cell(
-          text,
-          digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
-          !!p.cross));
-        n++;
+    for (let oib = 0; oib < DATA.BASE_ORIENT_VS.length; oib++) {{
+      out.appendChild(heading(orientLabel(oia, oib)));
+      for (const niche of DATA.DIGRAPH_NICHES) {{
+        for (const p of pairs) {{
+          const text = digraphFirst(p.a, oia, niche.a)
+            + digraphSecond(p.b, oib, niche.b);
+          out.appendChild(cell(
+            text,
+            digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
+            !!p.cross));
+          n++;
+        }}
       }}
     }}
   }}
   setStatus('Rendered ' + n.toLocaleString() + ' cells');
 }}
 
-document.getElementById('btnDigraph').onclick = () => renderDigraphs(+orientA.value || 0);
+document.getElementById('btnDigraph').onclick = () => renderDigraphs();
+document.getElementById('btnOpposeB').onclick = () => {{
+  const oia = +orientA.value || 0;
+  orientB.value = String(DATA.OPPOSING_ORIENT_OI[oia] ?? oia);
+  renderDigraphs();
+}};
 document.getElementById('btnOrientGrid').onclick = () => renderOrientGrid();
 document.getElementById('btnNicheGrid').onclick = () => renderNicheGrid();
 document.getElementById('btnEverything').onclick = () => renderEverything();
 
-renderDigraphs(0);
+renderDigraphs();
 </script>
 </body>
 </html>
@@ -455,7 +491,8 @@ def main() -> None:
     if args.bucket:
         specs.extend(args.bucket)
     if not specs:
-        specs = ["4E", "4F"]
+        # Default covers 日 (U+65E5) + 明 (U+660E) digraph demo.
+        specs = ["65", "66"]
     ranges: List[Tuple[int, int]] = []
     for spec in specs:
         ranges.extend(parse_range_spec(spec))
