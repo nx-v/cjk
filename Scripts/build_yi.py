@@ -9,12 +9,16 @@ Contents
       yi + VS02..VS08 / FE01..FE07   →   oriented variant
       (VS01 / FE00 = identity, no subst)
 
+  Bases: NuosuSIL Yi syllables/radicals, plus JuliaMono **Runic letters**
+  (U+16A0–16FF excluding U+16EB/16EC/16ED punctuation). Runic gets the same
+  orientations, slices, and dakuten as Yi.
+
 * Slice overlays via FE08–FE09 (half-plane clips + shared ``sliceAdv`` advance):
 
       A B FE08  →  A.top  + B.bot   sliceAdv   # horizontal
       A B FE09  →  A.left + B.right sliceAdv   # vertical
 
-* Dakuten marks (JuliaMono ``\\p{M}`` minus letter / overlay / oversized):
+* Dakuten marks (JuliaMono / Nexsevka / mkanaplus ``\\p{M}``):
   GPOS ``mark`` at fixed CJK corners on VS01..VS07 forms and ``sliceAdv``.
   Successive marks fill TR → BR → TL → BL. No left-squish ``.dk`` forms.
 """
@@ -30,6 +34,7 @@ from fontTools.misc.roundTools import otRound
 from fontTools.ttLib import TTFont, woff2
 
 from yi_dakuten import (
+    JULIAMONO_FILENAME,
     add_dakuten_mark_glyphs,
     collect_dakuten_base_anchors,
     dakuten_mark_stack_label,
@@ -37,6 +42,7 @@ from yi_dakuten import (
     install_dakuten_slot_gsub,
     load_dakuten_marks_from_stack,
     resolve_dakuten_mark_font_stack,
+    resolve_juliamono_path,
     yi_forms_for_dakuten,
 )
 from yi_halfwidth import (
@@ -51,6 +57,7 @@ from yi_halfwidth import (
     build_d4_uvs_entries,
     empty_glyph,
     load_inventory,
+    load_runic_inventory,
     make_standalone_glyph,
     orientation_form_names,
     record_glyph,
@@ -184,39 +191,31 @@ def install_yi_gsub(
     install_slice_gsub(font, full_forms, glyphs=glyphs, glyph_order=glyph_order)
 
 
-def build_panyi_font(
+def _scale_inventory_standalones(
     inv: YiInventory,
-    out_dir: str,
     target_upem: int,
-    *,
-    write_ttf: bool = True,
-    write_woff2: bool = True,
-) -> Tuple[str, int, List[int]]:
-    """Build the single ``panyi`` font (standalones + D4 + FE08–FE09 slices)."""
-    if not write_ttf and not write_woff2:
-        raise ValueError("at least one of write_ttf / write_woff2 must be True")
-
-    out_path = os.path.join(out_dir, f"{FAMILY_NAME}.ttf")
-
-    print("  Recording source outlines...", flush=True)
+) -> Dict[int, Tuple]:
+    """Record + scale one inventory; return ``{cp: (glyph, adv, lsb)}``."""
+    label = os.path.basename(inv.source_path)
+    print(f"  Recording {label} outlines ({inv.count} CPs)...", flush=True)
     tt = TTFont(inv.source_path, fontNumber=0)
     try:
         recs: Dict[int, object] = {}
-        for idx, cp in enumerate(inv.src_cps):
+        for cp in inv.src_cps:
             rec = record_glyph(tt, inv.glyph_names[cp])
             if rec is not None:
-                recs[idx] = rec
+                recs[cp] = rec
     finally:
         tt.close()
 
     print(
-        f"  Scaling {len(recs)} standalones "
+        f"  Scaling {len(recs)} standalones from {label} "
         f"(sx {inv.source_advance}→{target_upem}, "
         f"sy maxH {inv.source_max_height:.0f}→{target_upem})...",
         flush=True,
     )
     standalones: Dict[int, Tuple] = {}
-    for idx, rec in recs.items():
+    for cp, rec in recs.items():
         sa = make_standalone_glyph(
             rec,
             target_upem,
@@ -225,10 +224,37 @@ def build_panyi_font(
             source_max_height=inv.source_max_height,
         )
         if sa is not None:
-            standalones[idx] = sa
+            standalones[cp] = sa
+    return standalones
+
+
+def build_panyi_font(
+    inv: YiInventory,
+    out_dir: str,
+    target_upem: int,
+    *,
+    extra_inventories: Sequence[YiInventory] = (),
+    write_ttf: bool = True,
+    write_woff2: bool = True,
+) -> Tuple[str, int, List[int]]:
+    """Build the single ``panyi`` font (standalones + D4 + FE08–FE09 slices)."""
+    if not write_ttf and not write_woff2:
+        raise ValueError("at least one of write_ttf / write_woff2 must be True")
+
+    out_path = os.path.join(out_dir, f"{FAMILY_NAME}.ttf")
+    inventories: List[YiInventory] = [inv, *extra_inventories]
+
+    standalones: Dict[int, Tuple] = {}
+    ordered_cps: List[int] = []
+    for src in inventories:
+        for cp, sa in _scale_inventory_standalones(src, target_upem).items():
+            if cp in standalones:
+                continue
+            standalones[cp] = sa
+            ordered_cps.append(cp)
 
     avg_upright_width = average_ink_width(
-        [standalones[i][0] for i in sorted(standalones)]
+        [standalones[cp][0] for cp in ordered_cps]
     )
     print(
         f"  Sideways: fitted r90 outline; r270/r90mx/r90my composite from r90 "
@@ -244,10 +270,8 @@ def build_panyi_font(
     uvs_rows: List[Tuple[int, int, Optional[str]]] = []
 
     print("  Installing standalones + VS01..VS08 orientations...", flush=True)
-    for idx, cp in enumerate(inv.src_cps):
-        if idx not in standalones:
-            continue
-        sa_glyph, sa_adv, sa_lsb = standalones[idx]
+    for cp in ordered_cps:
+        sa_glyph, sa_adv, sa_lsb = standalones[cp]
         sa_name = glyph_name_for_cp(cp)
         glyph_order.append(sa_name)
         glyphs[sa_name] = sa_glyph
@@ -333,7 +357,8 @@ def build_panyi_font(
     descent = otRound(target_upem * -0.12)
 
     print(
-        f"  Assembling font ({len(glyphs) - 1} glyphs, {len(yi_names)} Yi CPs)...",
+        f"  Assembling font ({len(glyphs) - 1} glyphs, "
+        f"{len(yi_names)} base CPs)...",
         flush=True,
     )
     fb = FontBuilder(target_upem, isTTF=True)
@@ -478,6 +503,32 @@ def build_all(
     else:
         print(f"Yi inventory: {inv.count} glyphs from {NUOSU_FILENAME}")
 
+    extras: List[YiInventory] = []
+    try:
+        julia = resolve_juliamono_path(in_dir)
+        runic = load_runic_inventory(julia)
+        if limit is not None:
+            runic = YiInventory(
+                runic.source_path,
+                runic.src_cps[:limit],
+                {cp: runic.glyph_names[cp] for cp in runic.src_cps[:limit]},
+                runic.source_advance,
+                runic.source_center_y,
+                runic.source_max_height,
+            )
+            print(
+                f"Runic inventory: first {runic.count} letters "
+                f"from {JULIAMONO_FILENAME} (--limit)"
+            )
+        else:
+            print(
+                f"Runic inventory: {runic.count} letters from "
+                f"{JULIAMONO_FILENAME} (excl. U+16EB–16ED punct)"
+            )
+        extras.append(runic)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"  Skipping Runic letters: {exc}", flush=True)
+
     print(
         "  Orientations: VS01..VS08 / FE00..FE07 "
         "(D4 about contour center; sideways Width-fit)"
@@ -503,6 +554,7 @@ def build_all(
         inv,
         out_dir,
         target_upem,
+        extra_inventories=extras,
         write_ttf=write_ttf,
         write_woff2=write_woff2,
     )

@@ -2,11 +2,12 @@
 
 Encoding
 --------
-* One font (``panyi``) covering the whole Yi inventory.
-* Standalones: NuosuSIL is monospace (shared advance). Every glyph gets the
-  **same** ``sx`` from that advance and the **same** ``sy`` from the tallest
-  ink height, then headless CAPE Weightor Width-mode stretch (``cape_weightor``);
-  Y is fitted to the CJK typo box (center at 0.38em).
+* One font (``panyi``) covering the whole Yi inventory plus Runic letters
+  from JuliaMono (U+16A0–16FF minus U+16EB/16EC/16ED punctuation).
+* Standalones: each source face keeps its own shared ``sx`` / ``sy`` (Nuosu
+  monospace advance + max ink; JuliaMono Runic likewise). CAPE Weightor
+  Width-mode stretch (``cape_weightor``); Y fitted to the CJK typo box
+  (center at 0.38em).
 * Orientations: D4 square symmetries on **VS01..VS08** (``U+E000``..``U+E007``,
   UVS ``U+FE00``..``U+FE07``), including ``r90my``. Identity needs no subst;
   the other seven are TrueType composites / baked outlines about the
@@ -67,6 +68,10 @@ from cape_weightor import (
 
 YI_SYLLABLES = (0xA000, 0xA48C)
 YI_RADICALS = (0xA490, 0xA4CF)
+
+# Runic letters ride along in ``panyi`` (JuliaMono); punctuation stays out.
+RUNIC_BLOCK = (0x16A0, 0x16FF)
+RUNIC_PUNCTUATION = frozenset({0x16EB, 0x16EC, 0x16ED})
 
 VS_BASE = 0xE000
 # Full D4 set (8) — Yi orientations + build_subfonts / GlyphWiki.
@@ -1052,6 +1057,20 @@ def is_yi_cp(cp: int) -> bool:
     )
 
 
+def is_runic_letter_cp(cp: int) -> bool:
+    return (
+        RUNIC_BLOCK[0] <= cp <= RUNIC_BLOCK[1] and cp not in RUNIC_PUNCTUATION
+    )
+
+
+def iter_runic_letter_cps() -> List[int]:
+    return [
+        cp
+        for cp in range(RUNIC_BLOCK[0], RUNIC_BLOCK[1] + 1)
+        if cp not in RUNIC_PUNCTUATION
+    ]
+
+
 def font_cmap(tt: TTFont) -> Dict[int, str]:
     cmap: Dict[int, str] = {}
     for table in tt["cmap"].tables:
@@ -1083,27 +1102,30 @@ def inventory_max_ink_height(tt: TTFont, glyph_names: Sequence[str]) -> float:
     return max_h
 
 
-def load_inventory(source_path: str) -> YiInventory:
+def _load_inventory_for_cps(
+    source_path: str,
+    codepoints: Sequence[int],
+    *,
+    empty_message: str,
+) -> YiInventory:
+    """Build a ``YiInventory`` for the given CPs present with ink in ``source_path``."""
     tt = TTFont(source_path, fontNumber=0)
     try:
         cmap = font_cmap(tt)
+        glyf = tt["glyf"]
         ordered: List[int] = []
         names: Dict[int, str] = {}
-        for start, end in (YI_SYLLABLES, YI_RADICALS):
-            for cp in range(start, end + 1):
-                gname = cmap.get(cp)
-                if gname is None:
-                    continue
-                glyf = tt["glyf"]
-                if gname not in glyf:
-                    continue
-                g = glyf[gname]
-                if not g.isComposite() and getattr(g, "numberOfContours", 0) <= 0:
-                    continue
-                ordered.append(cp)
-                names[cp] = gname
+        for cp in codepoints:
+            gname = cmap.get(cp)
+            if gname is None or gname not in glyf:
+                continue
+            g = glyf[gname]
+            if not g.isComposite() and getattr(g, "numberOfContours", 0) <= 0:
+                continue
+            ordered.append(cp)
+            names[cp] = gname
         if not ordered:
-            raise ValueError(f"No Yi glyphs found in {source_path}")
+            raise ValueError(empty_message)
         adv, cy = source_layout_metrics(tt, names[ordered[0]])
         max_h = inventory_max_ink_height(tt, [names[cp] for cp in ordered])
         if max_h <= 0:
@@ -1118,6 +1140,26 @@ def load_inventory(source_path: str) -> YiInventory:
         )
     finally:
         tt.close()
+
+
+def load_inventory(source_path: str) -> YiInventory:
+    cps: List[int] = []
+    for start, end in (YI_SYLLABLES, YI_RADICALS):
+        cps.extend(range(start, end + 1))
+    return _load_inventory_for_cps(
+        source_path,
+        cps,
+        empty_message=f"No Yi glyphs found in {source_path}",
+    )
+
+
+def load_runic_inventory(source_path: str) -> YiInventory:
+    """Runic letters from JuliaMono (block U+16A0–16FF minus punctuation)."""
+    return _load_inventory_for_cps(
+        source_path,
+        iter_runic_letter_cps(),
+        empty_message=f"No Runic letter glyphs found in {source_path}",
+    )
 
 
 def record_glyph(tt: TTFont, glyph_name: str) -> Optional[RecordingPen]:
