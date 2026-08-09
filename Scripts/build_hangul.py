@@ -46,6 +46,8 @@ Dakuten (JuliaMono combining marks)
 ------------------------------------
 Same inventory and corner order as ``panyi``: successive marks fill CJK
 corners **TR → BR → TL → BL** via GSUB slot cycling + GPOS ``mark``/``abvm``.
+Each mark’s matching corner is pinned to the cell (left-/right-aligned
+inside the ideograph, not straddling past the edge).
 Installed in both ``panhangul`` and ``panhanguls`` (zero-advance V/T bases
 use local X shifted by ``-upem``).
 """
@@ -505,6 +507,7 @@ def compile_hangul_dakuten(
         mark_cps=mark_cps,
         mark_names=mark_names,
         glyph_order=glyph_order,
+        glyphs=glyphs,
         extra_script_tags=("hang",),
     )
 

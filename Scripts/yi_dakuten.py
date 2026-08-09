@@ -4,6 +4,9 @@ Inventory: ``(\\p{M} ∩ JuliaMono) ∖ {names containing \"letter\"}``, then dr
 enclosing / overlay marks and oversized outlines.
 
 Marks attach via GPOS ``mark`` / ``abvm`` at **fixed CJK cell corners**.
+Each mark’s matching corner is pinned to that cell corner (right-side
+slots are right-aligned; left-side slots are left-aligned), so ink stays
+inside the ideograph rather than straddling past the edge.
 Successive marks fill slots in order via GSUB cycling::
 
     1st → top-right
@@ -51,6 +54,9 @@ JULIAMONO_FILENAME = "JuliaMono-Regular.ttf"
 MARK_CATS = frozenset({"Mn", "Mc", "Me"})
 
 MAX_DIACRITIC_FRAC = 0.48
+
+# Extra size factor after UPM fit (shared by panyi + panhangul).
+DAKUTEN_MARK_SCALE = 0.5
 
 # VS01..VS07 (modes 0..6); VS08 / r90my is not a dakuten base.
 DAKUTEN_VS_MODE_COUNT = 7
@@ -173,7 +179,11 @@ def make_dakuten_mark_glyph(
     *,
     scale: float,
 ) -> Optional[TTGlyph]:
-    """Scale mark outline and pin ink center to ``(0, 0)`` (GPOS mark anchor)."""
+    """Scale mark outline and pin ink center to ``(0, 0)``.
+
+    Slot alignment is applied later in GPOS: each corner class uses the
+    matching ink corner as its mark anchor (see ``mark_corner_anchor``).
+    """
     bounds = recording_bounds(rec)
     if bounds is None:
         return None
@@ -191,6 +201,30 @@ def make_dakuten_mark_glyph(
     except Exception:
         pass
     return glyph
+
+
+def mark_corner_anchor(glyph: TTGlyph, slot: str) -> Tuple[int, int]:
+    """Ink corner used as the GPOS mark anchor for ``slot`` (tr/br/tl/bl).
+
+    Right slots pin ``xMax`` (right-aligned); left slots pin ``xMin``
+    (left-aligned). Top/bottom follow the slot so the mark sits inside
+    the CJK cell when the base anchor is at that cell corner.
+    """
+    try:
+        glyph.recalcBounds(None)
+        x0, y0 = int(glyph.xMin), int(glyph.yMin)
+        x1, y1 = int(glyph.xMax), int(glyph.yMax)
+    except Exception:
+        return (0, 0)
+    if slot == "tr":
+        return (x1, y1)
+    if slot == "br":
+        return (x1, y0)
+    if slot == "tl":
+        return (x0, y1)
+    if slot == "bl":
+        return (x0, y0)
+    return (0, 0)
 
 
 def _mark_slot_composite(base_name: str) -> TTGlyph:
@@ -218,7 +252,10 @@ def load_dakuten_marks(
                 cmap.update(table.cmap)
         glyph_set = tt.getGlyphSet()
         src_upem = float(tt["head"].unitsPerEm)
-        scale = float(target_upem) / src_upem if src_upem else 1.0
+        scale = (
+            (float(target_upem) / src_upem if src_upem else 1.0)
+            * DAKUTEN_MARK_SCALE
+        )
         max_ext = src_upem * MAX_DIACRITIC_FRAC
 
         cps: List[int] = []
@@ -538,11 +575,14 @@ def install_dakuten_gpos(
     mark_cps: Sequence[int],
     mark_names: Sequence[str],
     glyph_order: Sequence[str],
+    glyphs: Optional[Dict[str, TTGlyph]] = None,
     extra_script_tags: Sequence[str] = (),
     base_chunk: int = 2048,
 ) -> int:
     """Install ``mark``/``abvm`` MarkToBase at four CJK corners.
 
+    Mark anchors use each glyph’s matching ink corner so diacritics are
+    left- or right-aligned to the cell edge (inside, not past it).
     ``extra_script_tags`` (e.g. ``hang``) are merged into the GPOS script list
     alongside ``COMPOSITION_LANGUAGE_SYSTEMS``. Large base inventories are
     split into Extension MarkToBase subtables.
@@ -583,11 +623,14 @@ def install_dakuten_gpos(
     glyph_map = {n: i for i, n in enumerate(glyph_order)}
     marks: Dict[str, Tuple[int, object]] = {}
     for cp in mark_cps:
-        for class_id, (_slot, suf) in enumerate(DAKUTEN_SLOTS):
+        # Bounds come from the centered cmap glyph; slot composites share ink.
+        base_g = (glyphs or {}).get(dakuten_mark_name(cp))
+        for class_id, (slot, suf) in enumerate(DAKUTEN_SLOTS):
             name = dakuten_mark_slot_name(cp, suf)
             if name not in order_index:
                 continue
-            marks[name] = (class_id, buildAnchor(0, 0))
+            ax, ay = mark_corner_anchor(base_g, slot) if base_g is not None else (0, 0)
+            marks[name] = (class_id, buildAnchor(ax, ay))
     if not marks:
         return 0
 

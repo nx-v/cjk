@@ -375,6 +375,7 @@ def build_panyi_font(
             mark_cps=mark_cps,
             mark_names=mark_names,
             glyph_order=glyph_order,
+            glyphs=glyphs,
         )
 
     os.makedirs(out_dir, exist_ok=True)
