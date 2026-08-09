@@ -42,14 +42,12 @@ VS4     U+E003     U+FE03     mxy — both axes
 * **Syllables (``panhanguls``):** ``char + VS`` / cmap-14 UVS flips the
   whole precomposed (or compat) glyph about its bbox center.
 
-Dakuten (JuliaMono combining marks)
-------------------------------------
-Same inventory and corner order as ``panyi``: successive marks fill CJK
-corners **TR → BR → TL → BL** via GSUB slot cycling + GPOS ``mark``/``abvm``.
-Each mark’s matching corner is pinned to the cell (left-/right-aligned
-inside the ideograph, not straddling past the edge).
-Installed in both ``panhangul`` and ``panhanguls`` (zero-advance V/T bases
-use local X shifted by ``-upem``).
+Dakuten (combining marks)
+-------------------------
+Stack: JuliaMono → Nexsevka-Regular → mkanaplus. Marks are fixed-height and
+left-/right-aligned to CJK cell corners. Same TR → BR → TL → BL slot order as
+``panyi`` via GSUB + GPOS ``mark``/``abvm``. Installed in both families
+(zero-advance V/T bases shift local X by ``-upem``).
 """
 
 from __future__ import annotations
@@ -88,14 +86,14 @@ from yi_halfwidth import (
     variant_glyph_name,
 )
 from yi_dakuten import (
-    JULIAMONO_FILENAME,
     add_dakuten_mark_glyphs,
     cjk_corner_anchors,
     DAKUTEN_SLOTS,
+    dakuten_mark_stack_label,
     install_dakuten_gpos,
     install_dakuten_slot_gsub,
-    load_dakuten_marks,
-    resolve_juliamono_path,
+    load_dakuten_marks_from_stack,
+    resolve_dakuten_mark_font_stack,
 )
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -448,15 +446,16 @@ def prepare_hangul_dakuten(
     seed_bases: Sequence[str],
     target_upem: int,
 ) -> Optional[Tuple[List[int], List[str], Dict[str, Dict[int, Tuple[int, int]]]]]:
-    """Load JuliaMono marks into the glyph set (call before FontBuilder assemble)."""
+    """Load mark-stack diacritics into the glyph set (before FontBuilder assemble)."""
     try:
-        juliamono = resolve_juliamono_path(in_dir)
+        mark_fonts = resolve_dakuten_mark_font_stack(in_dir)
     except FileNotFoundError as exc:
         print(f"  Skipping dakuten marks: {exc}", flush=True)
         return None
 
-    print(f"  Loading dakuten marks from {JULIAMONO_FILENAME}...", flush=True)
-    mark_cps, mark_glyphs = load_dakuten_marks(juliamono, target_upem)
+    label = dakuten_mark_stack_label(mark_fonts)
+    print(f"  Loading dakuten marks from {label}...", flush=True)
+    mark_cps, mark_glyphs = load_dakuten_marks_from_stack(mark_fonts, target_upem)
     mark_names = add_dakuten_mark_glyphs(
         mark_cps,
         mark_glyphs,
@@ -474,7 +473,7 @@ def prepare_hangul_dakuten(
     )
     print(
         f"  Dakuten: {len(mark_cps)} marks × 4 corners, "
-        f"{len(base_anchors)} bases (TR→BR→TL→BL)",
+        f"{len(base_anchors)} bases (TR→BR→TL→BL; fixed H, L/R align)",
         flush=True,
     )
     if not mark_names or not base_anchors:
@@ -2137,8 +2136,8 @@ def build_all(
     )
     print(f"  Syllables ({FAMILY_SYLL}): whole-glyph VS / UVS")
     print(
-        f"  Dakuten: {JULIAMONO_FILENAME} \\p{{M}} @ CJK corners "
-        "(TR→BR→TL→BL; both families)"
+        "  Dakuten: JuliaMono + Nexsevka + mkanaplus \\p{M} @ CJK corners "
+        "(TR→BR→TL→BL; fixed H, L/R align; both families)"
     )
     print(f"  Local scale: {local_scale:g} about bbox center")
     print(f"  Y shift: {y_shift:g} (align Malgun to CJK/Yi typo mid)")

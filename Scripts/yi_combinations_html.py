@@ -81,22 +81,18 @@ def dakuten_mark_entries(limit: int = 64) -> List[dict]:
             )
         finally:
             tt.close()
-    if not cps and os.path.isfile(JULIAMONO):
-        from yi_dakuten import iter_dakuten_codepoints, load_dakuten_marks
+    if not cps:
+        from yi_dakuten import (
+            load_dakuten_marks_from_stack,
+            resolve_dakuten_mark_font_stack,
+        )
 
         try:
-            kept, _ = load_dakuten_marks(JULIAMONO, 1000)
+            stack = resolve_dakuten_mark_font_stack(IN_DIR)
+            kept, _ = load_dakuten_marks_from_stack(stack, 1000)
             cps = kept
         except Exception:
-            tt = TTFont(JULIAMONO, fontNumber=0)
-            try:
-                cmap = {}
-                for table in tt["cmap"].tables:
-                    if table.isUnicode():
-                        cmap.update(table.cmap)
-                cps = iter_dakuten_codepoints(cmap)
-            finally:
-                tt.close()
+            pass
 
     out: List[dict] = []
     for cp in cps[: max(0, limit) or None]:

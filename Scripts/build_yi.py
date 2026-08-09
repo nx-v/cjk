@@ -30,13 +30,13 @@ from fontTools.misc.roundTools import otRound
 from fontTools.ttLib import TTFont, woff2
 
 from yi_dakuten import (
-    JULIAMONO_FILENAME,
     add_dakuten_mark_glyphs,
     collect_dakuten_base_anchors,
+    dakuten_mark_stack_label,
     install_dakuten_gpos,
     install_dakuten_slot_gsub,
-    load_dakuten_marks,
-    resolve_juliamono_path,
+    load_dakuten_marks_from_stack,
+    resolve_dakuten_mark_font_stack,
     yi_forms_for_dakuten,
 )
 from yi_halfwidth import (
@@ -290,12 +290,17 @@ def build_panyi_font(
     mark_cps: List[int] = []
     base_anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
     try:
-        juliamono = resolve_juliamono_path(os.path.dirname(inv.source_path))
+        mark_fonts = resolve_dakuten_mark_font_stack(
+            os.path.dirname(inv.source_path)
+        )
         print(
-            f"  Loading dakuten marks from {JULIAMONO_FILENAME}...",
+            f"  Loading dakuten marks from "
+            f"{dakuten_mark_stack_label(mark_fonts)}...",
             flush=True,
         )
-        mark_cps, mark_glyphs = load_dakuten_marks(juliamono, target_upem)
+        mark_cps, mark_glyphs = load_dakuten_marks_from_stack(
+            mark_fonts, target_upem
+        )
         mark_names = add_dakuten_mark_glyphs(
             mark_cps,
             mark_glyphs,
@@ -317,7 +322,8 @@ def build_panyi_font(
         n_unique = len(mark_cps)
         print(
             f"  Dakuten: {n_unique} marks × 4 corners, "
-            f"{len(base_anchors)} bases (TR→BR→TL→BL)",
+            f"{len(base_anchors)} bases "
+            f"(TR→BR→TL→BL; fixed H, L/R align)",
             flush=True,
         )
     except FileNotFoundError as exc:
@@ -481,8 +487,8 @@ def build_all(
         "(H / V half-planes + shared sliceAdv)"
     )
     print(
-        f"  Dakuten: {JULIAMONO_FILENAME} \\p{{M}} @ CJK corners "
-        "(TR→BR→TL→BL; no squish forms; VS01..VS07 + sliceAdv)"
+        "  Dakuten: JuliaMono + Nexsevka + mkanaplus \\p{M} @ CJK corners "
+        "(TR→BR→TL→BL; fixed H, L/R align; VS01..VS07 + sliceAdv)"
     )
     print(f"  Output: single font '{FAMILY_NAME}'")
     fmt_note = (

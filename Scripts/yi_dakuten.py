@@ -1,13 +1,19 @@
-"""Yi corner \"dakuten\" diacritics from JuliaMono.
+"""Yi / Hangul corner \"dakuten\" diacritics from a multi-font mark stack.
 
-Inventory: ``(\\p{M} ∩ JuliaMono) ∖ {names containing \"letter\"}``, then drop
-enclosing / overlay marks and oversized outlines.
+Inventory: ``(\\p{M} ∩ stack) ∖ {names containing \"letter\"}``, then drop
+enclosing / overlay marks and oversized outlines. First font in the stack
+wins per codepoint.
 
-Marks attach via GPOS ``mark`` / ``abvm`` at **fixed CJK cell corners**.
-Each mark’s matching corner is pinned to that cell corner (right-side
-slots are right-aligned; left-side slots are left-aligned), so ink stays
-inside the ideograph rather than straddling past the edge.
-Successive marks fill slots in order via GSUB cycling::
+Stack (priority order)::
+
+    JuliaMono-Regular → Nexsevka-Regular → mkanaplus
+
+Marks are normalized to a **fixed ink height**, then attach via GPOS
+``mark`` / ``abvm`` at fixed CJK cell corners. Each mark’s matching ink
+corner is the mark anchor so TR/BR are **right-aligned** and TL/BL
+**left-aligned** (flush inside the ideograph, not centered past the edge).
+
+Successive marks fill slots via GSUB cycling::
 
     1st → top-right
     2nd → bottom-right
@@ -48,15 +54,21 @@ from yi_halfwidth import (
     recording_bounds,
 )
 
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(_SCRIPTS_DIR)
+
 JULIAMONO_FILENAME = "JuliaMono-Regular.ttf"
+NEXSEVKA_FILENAME = "Nexsevka-Regular.ttf"
+MKANAPLUS_FILENAME = "mkanaplus.ttf"
 
 # Unicode Mark = Mn | Mc | Me  (regex \p{M}).
 MARK_CATS = frozenset({"Mn", "Mc", "Me"})
 
+# Drop source outlines larger than this fraction of source UPM (either axis).
 MAX_DIACRITIC_FRAC = 0.48
 
-# Extra size factor after UPM fit (shared by panyi + panhangul).
-DAKUTEN_MARK_SCALE = 0.5
+# Uniform ink height after load (fraction of target UPM).
+DAKUTEN_MARK_HEIGHT_FRAC = 0.14
 
 # VS01..VS07 (modes 0..6); VS08 / r90my is not a dakuten base.
 DAKUTEN_VS_MODE_COUNT = 7
@@ -77,11 +89,53 @@ GDEF_CLASS_MARK = 3
 MARK_FEATURE_TAGS: Tuple[str, ...] = ("mark", "abvm")
 
 
+def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
+    """Return existing mark-source paths in priority order.
+
+    Looks under ``in_dir`` first, then well-known repo locations for
+    Nexsevka / MKanaPlus.
+    """
+    groups = (
+        (
+            os.path.join(in_dir, MKANAPLUS_FILENAME),
+            os.path.join(_SCRIPTS_DIR, "src", MKANAPLUS_FILENAME),
+        ),
+        (
+            os.path.join(in_dir, JULIAMONO_FILENAME),
+            os.path.join(_SCRIPTS_DIR, "src", JULIAMONO_FILENAME),
+        ),
+        (
+            os.path.join(in_dir, NEXSEVKA_FILENAME),
+            os.path.join(_SCRIPTS_DIR, "src", NEXSEVKA_FILENAME),
+        ),
+    )
+    out: List[str] = []
+    for candidates in groups:
+        for path in candidates:
+            if os.path.isfile(path):
+                out.append(os.path.normpath(path))
+                break
+    if not out:
+        raise FileNotFoundError(
+            "No dakuten mark source fonts found "
+            f"(JuliaMono / Nexsevka / mkanaplus; in_dir={in_dir!r})"
+        )
+    return out
+
+
+def dakuten_mark_stack_label(paths: Sequence[str]) -> str:
+    return " + ".join(os.path.basename(p) for p in paths)
+
+
 def resolve_juliamono_path(in_dir: str) -> str:
-    path = os.path.join(in_dir, JULIAMONO_FILENAME)
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"Missing JuliaMono source font: {path}")
-    return path
+    """Back-compat: first JuliaMono path from the mark stack (or raise)."""
+    for path in (
+        os.path.join(in_dir, JULIAMONO_FILENAME),
+        os.path.join(_SCRIPTS_DIR, "src", JULIAMONO_FILENAME),
+    ):
+        if os.path.isfile(path):
+            return os.path.normpath(path)
+    raise FileNotFoundError(f"Missing JuliaMono source font under {in_dir!r}")
 
 
 def _name_has_letter(name: str) -> bool:
@@ -177,20 +231,20 @@ def cjk_top_right_anchor(target_upem: int) -> Tuple[int, int]:
 def make_dakuten_mark_glyph(
     rec: RecordingPen,
     *,
-    scale: float,
+    target_height: float,
 ) -> Optional[TTGlyph]:
-    """Scale mark outline and pin ink center to ``(0, 0)``.
+    """Scale mark to ``target_height`` and pin ink center to ``(0, 0)``.
 
-    Slot alignment is applied later in GPOS: each corner class uses the
-    matching ink corner as its mark anchor (see ``mark_corner_anchor``).
+    GPOS uses per-slot corner anchors on this outline (not the center).
     """
     bounds = recording_bounds(rec)
     if bounds is None:
         return None
     x0, y0, x1, y1 = bounds
     w, h = x1 - x0, y1 - y0
-    if w <= 0 or h <= 0 or scale <= 0:
+    if w <= 0 or h <= 0 or target_height <= 0:
         return None
+    scale = float(target_height) / h
     cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
     t = Transform(scale, 0, 0, scale, -scale * cx, -scale * cy)
     glyph = apply_transform(rec, t)
@@ -203,28 +257,29 @@ def make_dakuten_mark_glyph(
     return glyph
 
 
-def mark_corner_anchor(glyph: TTGlyph, slot: str) -> Tuple[int, int]:
-    """Ink corner used as the GPOS mark anchor for ``slot`` (tr/br/tl/bl).
+def mark_corner_anchor(
+    glyph: TTGlyph,
+    slot: str,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> Tuple[int, int]:
+    """Ink corner of the mark that pins to the matching CJK cell corner.
 
-    Right slots pin ``xMax`` (right-aligned); left slots pin ``xMin``
-    (left-aligned). Top/bottom follow the slot so the mark sits inside
-    the CJK cell when the base anchor is at that cell corner.
+    Right slots (``tr``/``br``) right-align; left slots left-align. Top/bottom
+    likewise, so the diacritic sits on the cell edge rather than straddling it.
     """
     try:
-        glyph.recalcBounds(None)
-        x0, y0 = int(glyph.xMin), int(glyph.yMin)
-        x1, y1 = int(glyph.xMax), int(glyph.yMax)
+        if glyph.isComposite() and glyph_set is not None:
+            glyph.recalcBounds(glyph_set)
+        else:
+            glyph.recalcBounds(None)
+        x0, y0 = float(glyph.xMin), float(glyph.yMin)
+        x1, y1 = float(glyph.xMax), float(glyph.yMax)
     except Exception:
-        return (0, 0)
-    if slot == "tr":
-        return (x1, y1)
-    if slot == "br":
-        return (x1, y0)
-    if slot == "tl":
-        return (x0, y1)
-    if slot == "bl":
-        return (x0, y0)
-    return (0, 0)
+        return 0, 0
+    x = x1 if slot in ("tr", "br") else x0
+    y = y1 if slot in ("tr", "tl") else y0
+    return otRound(x), otRound(y)
 
 
 def _mark_slot_composite(base_name: str) -> TTGlyph:
@@ -241,10 +296,11 @@ def _mark_slot_composite(base_name: str) -> TTGlyph:
 
 
 def load_dakuten_marks(
-    juliamono_path: str,
+    font_path: str,
     target_upem: int,
 ) -> Tuple[List[int], Dict[int, TTGlyph]]:
-    tt = TTFont(juliamono_path, fontNumber=0)
+    """Load qualifying ``\\p{M}`` marks from one font, fixed ink height."""
+    tt = TTFont(font_path, fontNumber=0)
     try:
         cmap: Dict[int, str] = {}
         for table in tt["cmap"].tables:
@@ -252,11 +308,9 @@ def load_dakuten_marks(
                 cmap.update(table.cmap)
         glyph_set = tt.getGlyphSet()
         src_upem = float(tt["head"].unitsPerEm)
-        scale = (
-            (float(target_upem) / src_upem if src_upem else 1.0)
-            * DAKUTEN_MARK_SCALE
-        )
         max_ext = src_upem * MAX_DIACRITIC_FRAC
+        target_h = float(target_upem) * DAKUTEN_MARK_HEIGHT_FRAC
+        max_w = float(target_upem) * MAX_DIACRITIC_FRAC
 
         cps: List[int] = []
         glyphs: Dict[int, TTGlyph] = {}
@@ -278,14 +332,37 @@ def load_dakuten_marks(
                 glyph_set[gname].draw(rec)
             except Exception:
                 continue
-            mark = make_dakuten_mark_glyph(rec, scale=scale)
+            mark = make_dakuten_mark_glyph(rec, target_height=target_h)
             if mark is None:
                 continue
+            try:
+                mark.recalcBounds(None)
+                if float(mark.xMax) - float(mark.xMin) > max_w + 1e-6:
+                    continue
+            except Exception:
+                pass
             cps.append(cp)
             glyphs[cp] = mark
         return cps, glyphs
     finally:
         tt.close()
+
+
+def load_dakuten_marks_from_stack(
+    font_paths: Sequence[str],
+    target_upem: int,
+) -> Tuple[List[int], Dict[int, TTGlyph]]:
+    """Union marks across ``font_paths``; earlier fonts win per codepoint."""
+    claimed: Dict[int, TTGlyph] = {}
+    order: List[int] = []
+    for path in font_paths:
+        cps, glyphs = load_dakuten_marks(path, target_upem)
+        for cp in cps:
+            if cp in claimed:
+                continue
+            claimed[cp] = glyphs[cp]
+            order.append(cp)
+    return order, claimed
 
 
 def add_dakuten_mark_glyphs(
@@ -340,9 +417,7 @@ def collect_dakuten_base_anchors(
 ) -> Dict[str, Dict[int, Tuple[int, int]]]:
     """Map bases → ``{mark_class: (x, y)}`` for all four CJK corners."""
     corners = cjk_corner_anchors(target_upem)
-    class_xy = {
-        i: corners[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)
-    }
+    class_xy = {i: corners[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)}
     anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
     for name in base_names:
         if name in glyphs:
@@ -517,9 +592,7 @@ def install_dakuten_slot_gsub(
     if not feature_lookup_idxs:
         return 0
 
-    tag_to_fr = {
-        fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])
-    }
+    tag_to_fr = {fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])}
     for tag in COMPOSITION_FEATURE_TAGS:
         fr = tag_to_fr.get(tag)
         if fr is None:
@@ -575,17 +648,17 @@ def install_dakuten_gpos(
     mark_cps: Sequence[int],
     mark_names: Sequence[str],
     glyph_order: Sequence[str],
-    glyphs: Optional[Dict[str, TTGlyph]] = None,
+    glyphs: Dict[str, TTGlyph],
     extra_script_tags: Sequence[str] = (),
     base_chunk: int = 2048,
 ) -> int:
     """Install ``mark``/``abvm`` MarkToBase at four CJK corners.
 
-    Mark anchors use each glyph’s matching ink corner so diacritics are
-    left- or right-aligned to the cell edge (inside, not past it).
-    ``extra_script_tags`` (e.g. ``hang``) are merged into the GPOS script list
-    alongside ``COMPOSITION_LANGUAGE_SYSTEMS``. Large base inventories are
-    split into Extension MarkToBase subtables.
+    Mark anchors are the matching ink corners (left-/right-aligned). Base
+    anchors stay at the padded cell corners. ``extra_script_tags`` (e.g.
+    ``hang``) merge into the GPOS script list alongside
+    ``COMPOSITION_LANGUAGE_SYSTEMS``. Large base inventories are split into
+    Extension MarkToBase subtables.
     """
     if not base_anchors or not mark_names:
         return 0
@@ -623,13 +696,15 @@ def install_dakuten_gpos(
     glyph_map = {n: i for i, n in enumerate(glyph_order)}
     marks: Dict[str, Tuple[int, object]] = {}
     for cp in mark_cps:
-        # Bounds come from the centered cmap glyph; slot composites share ink.
-        base_g = (glyphs or {}).get(dakuten_mark_name(cp))
+        base_name = dakuten_mark_name(cp)
+        base_glyph = glyphs.get(base_name)
+        if base_glyph is None:
+            continue
         for class_id, (slot, suf) in enumerate(DAKUTEN_SLOTS):
             name = dakuten_mark_slot_name(cp, suf)
             if name not in order_index:
                 continue
-            ax, ay = mark_corner_anchor(base_g, slot) if base_g is not None else (0, 0)
+            ax, ay = mark_corner_anchor(base_glyph, slot, glyph_set=glyphs)
             marks[name] = (class_id, buildAnchor(ax, ay))
     if not marks:
         return 0
