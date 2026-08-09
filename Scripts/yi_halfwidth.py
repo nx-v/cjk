@@ -188,6 +188,20 @@ def build_chunked_single_subst_lookup(
     return build_ext_gsub_lookup(subs)
 
 
+def build_chunked_ligature_subst_lookup(
+    mapping: Dict[Tuple[str, ...], str], *, chunk: int = GSUB_SUBST_CHUNK
+):
+    """Chunked GSUB LookupType 4 (ligature), Extension-wrapped."""
+    from fontTools.otlLib.builder import buildLigatureSubstSubtable
+
+    items = list(mapping.items())
+    subs = [
+        buildLigatureSubstSubtable(dict(items[i : i + chunk]))
+        for i in range(0, len(items), chunk)
+    ]
+    return build_ext_gsub_lookup(subs)
+
+
 def build_chunked_multiple_subst_lookup(
     mapping: Dict[str, List[str]], *, chunk: int = GSUB_SUBST_CHUNK
 ):
@@ -1551,13 +1565,15 @@ def make_composite_variant(
     base_glyph: Optional[TTGlyph] = None,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     center: Optional[Tuple[float, float]] = None,
+    allow_2x2: bool = False,
 ) -> GlyphMetrics:
     """D4 variant of ``base_name`` about the contour bounding-box center.
 
     Axis-aligned maps (r180 / mx / my) stay one-component TT composites.
     Rotations that need a full 2×2 matrix (r90 / r270 / diagonals) are baked
-    to outlines — many viewers mishandle ``WE_HAVE_A_TWO_BY_TWO``, which is
-    why those cells looked empty.
+    to outlines by default — many viewers mishandle ``WE_HAVE_A_TWO_BY_TWO``.
+    Pass ``allow_2x2=True`` to keep those as true composites (CJK diacritic
+    marks / derived squish forms).
     """
     src = base_glyph
     if src is None and glyph_set is not None:
@@ -1573,7 +1589,7 @@ def make_composite_variant(
         center=pivot,
     )
     needs_2x2 = abs(t.xy) > 1e-9 or abs(t.yx) > 1e-9
-    if needs_2x2:
+    if needs_2x2 and not allow_2x2:
         if src is None:
             raise ValueError(
                 f"2x2 variant of {base_name!r} needs base_glyph or glyph_set"

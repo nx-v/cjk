@@ -12,9 +12,10 @@ GSUB ``ccmp``/``rlig``/``liga`` for ``unicode + VS01..VS08``
 (U+E000..U+E007 / UVS U+FE00..FE07) — the 8 unique square symmetries.
 No FE08 overlay in panCJK (GlyphWiki keeps its own FE08 overlays).
 
-Vietnamese reading marks from Plangothic P2: ``U+16FF0``/``U+16FF1`` (ca/nhay).
-Bare mark = right; ``FE08`` = left; ``FE09`` = top (r90 mark); ``FE0A`` = bottom
-(r90 mark). One niche only. Full D4 on marks.
+Vietnamese reading marks from Plangothic P2: ``U+16FF0``/``U+16FF1`` (ca/nhay)
+only. Squish = one half of the ideographic cell (``.dk``/``.dkl``/``.dkt``/
+``.dkb``); ca/nhay sits in the free half via niche GPOS. Same half-cell glyphs
+for ``FE0C``–``FE0F`` access; ``FE0B`` = zero-width overlay.
 
 Also writes pancjk.css (@font-face) and fontlist.css (CSS-safe stack).
 """
@@ -30,7 +31,6 @@ import time
 from collections import defaultdict
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
-from fontTools.feaLib.builder import addOpenTypeFeaturesFromString
 from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
@@ -43,12 +43,14 @@ from fontTools.ttLib import TTFont, woff2
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from cape_weightor import bolden_ttglyph
-from cjk_viet_marks import (
+from cjk_diac_marks import (
     PLANGOTHIC_P2_FILENAME,
-    VIET_MARK_CPS,
-    VIET_SIDE_SELECTOR_CPS,
-    compile_viet_marks_layout,
-    prepare_viet_marks,
+    MARK_CPS,
+    SIDE_SELECTOR_CPS,
+    compile_marks_layout,
+    install_cjk_composition_gsub,
+    prepare_marks,
+    prepare_squish_vs_access,
 )
 from yi_halfwidth import (
     NUOSU_FILENAME,
@@ -60,7 +62,6 @@ from yi_halfwidth import (
     add_d4_variant_glyphs,
     build_d4_uvs_entries,
     center_glyph_in_cell,
-    composition_fea,
     is_yi_cp,
     load_inventory,
     make_standalone_glyph,
@@ -89,13 +90,14 @@ CSS_FONT_URL_BASE = (
 #   1.0 = none). Outer width/height are preserved.
 
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("NGULIM.TTF", 1.0, 1.15),
-    ("malgun.ttf", 1.0, 1.0),
-    ("Han-Nom Gothic 1.32.otf", 0.92, 1.0),
-    ("msyh.ttc", 0.92, 0.95),
+    # Skipping over Windows fonts for now, as they are not always available.
+    # ("NGULIM.TTF", 1.0, 1.15),
+    # ("malgun.ttf", 1.0, 1.0),
+    # ("msyh.ttc", 0.92, 0.95),
     ("LXGWClearGothic-Regular.ttf", 1.0, 0.975),
     ("LXGWXiHeiMN.ttf", 1.0, 0.975),
     ("LXGWXiHeiCL.ttf", 1.0, 0.975),
+    ("Han-Nom Gothic 1.32.otf", 0.92, 1.0),
     ("LXGWNeoXiHeiPlus.ttf", 1.0, 0.975),
     ("ChironHeiHK-R.ttf", 0.96, 0.95),
     ("Gothic Nguyen Regular.ttf", 0.96, 0.95),
@@ -429,7 +431,7 @@ def build_bucket_font(
     """Build one pigeonhole font with in-font D4 variant ligatures.
 
     Returns (ttf_path, glyph_count, codepoints) where codepoints are the
-    Unicode cmap keys (bases + VS01..VS08 + FE08..FE0A side selectors).
+    Unicode cmap keys (bases + VS01..VS08 + FE0B..FE0F squish/overlay).
     """
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
@@ -440,7 +442,6 @@ def build_bucket_font(
     glyphs: Dict[str, TTGlyph] = {".notdef": empty_glyph()}
     metrics: Dict[str, Tuple[int, int]] = {".notdef": (target_upem // 2, 0)}
     cmap: Dict[int, str] = {}
-    liga_rules: List[str] = []
     uvs_rows: List[Tuple[int, int, Optional[str]]] = []
     base_names: List[str] = []
 
@@ -491,7 +492,7 @@ def build_bucket_font(
         cmap[out_cp] = gname
         base_names.append(gname)
 
-        installed = add_d4_variant_glyphs(
+        add_d4_variant_glyphs(
             gname,
             advance=advance,
             lsb=lsb,
@@ -500,8 +501,6 @@ def build_bucket_font(
             glyphs=glyphs,
             metrics=metrics,
         )
-        for vs_cp, _suffix, m_name in installed:
-            liga_rules.append(f"  sub {gname} {vs_glyph_name(vs_cp)} by {m_name};")
         uvs_rows.extend(build_d4_uvs_entries(out_cp, gname, glyphs=glyphs))
 
     if len(cmap) == 0:
@@ -516,10 +515,12 @@ def build_bucket_font(
             metrics[vname] = (0, 0)
         cmap[vs_cp] = vname
 
-    # Reading marks U+16FF0/16FF1; FE08 left / FE09 top / FE0A bottom.
+    # Reading marks: ca/nhay niche GPOS; FE0B–FE0F squish/overlay access.
     in_dir = os.path.dirname(next(iter(sources.keys()))) if sources else IN_DIR
-    viet_scale = FONT_LOCAL_SCALE.get(PLANGOTHIC_P2_FILENAME, 0.96)
-    viet_state = prepare_viet_marks(
+    mark_scale = FONT_LOCAL_SCALE.get(PLANGOTHIC_P2_FILENAME, 0.96)
+    # Throwaway list kept for prepare_* signature compat (ligas are programmatic).
+    _liga_unused: List[str] = []
+    mark_state = prepare_marks(
         in_dir=in_dir,
         cjk_bases=base_names,
         glyph_order=glyph_order,
@@ -527,10 +528,26 @@ def build_bucket_font(
         metrics=metrics,
         cmap=cmap,
         target_upem=target_upem,
-        liga_rules=liga_rules,
+        liga_rules=_liga_unused,
         uvs_rows=uvs_rows,
-        local_scale=viet_scale,
+        local_scale=mark_scale,
     )
+    if mark_state is None:
+        squishable = prepare_squish_vs_access(
+            cjk_bases=base_names,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            cmap=cmap,
+            target_upem=target_upem,
+            liga_rules=_liga_unused,
+            uvs_rows=uvs_rows,
+            in_dir=in_dir,
+        )
+        mark_cps: List[int] = []
+    else:
+        squishable = mark_state["squishable"]
+        mark_cps = list(mark_state.get("core_cps") or [])
 
     ascent = otRound(target_upem * 0.88)
     descent = otRound(target_upem * -0.12)
@@ -563,14 +580,18 @@ def build_bucket_font(
     )
     fb.setupPost()
 
-    if liga_rules:
-        fea = composition_fea(liga_rules)
-        if fea:
-            addOpenTypeFeaturesFromString(fb.font, fea)
-    if viet_state is not None:
-        compile_viet_marks_layout(
+    install_cjk_composition_gsub(
+        fb.font,
+        cjk_bases=base_names,
+        glyphs=glyphs,
+        glyph_order=glyph_order,
+        squishable=squishable,
+        mark_cps=mark_cps,
+    )
+    if mark_state is not None:
+        compile_marks_layout(
             fb.font,
-            viet_state,
+            mark_state,
             glyphs=glyphs,
             metrics=metrics,
             glyph_order=glyph_order,
@@ -671,28 +692,23 @@ def _build_bucket_task(
 
 
 def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
-    """CSS unicode-range for this bucket's CJK + UVS FE00..FE0A + Viet marks.
+    """CSS unicode-range for this bucket's CJK + UVS FE00..FE0F + reading marks.
 
     PUA U+E000..E007 is intentionally *not* listed: in a multi-face stack every
     bucket used to advertise those codepoints, so the first face stole all VS
     and broke ``base+VS`` ligatures. Prefer cmap format-14 UVS (U+FE00..) which
     stays on the base character's face; keep PUA liga for single-family use
-    (VS still in the font cmap). FE08–FE0A side selectors and U+16FF0/16FF1
-    must be listed so those marks load from this face.
+    (VS still in the font cmap). FE0B–FE0F selectors and U+16FF0/16FF1 in
+    ``MARK_CPS`` must be listed so those codepoints load from this face.
     """
-    side_sels = set(VIET_SIDE_SELECTOR_CPS)
+    side_sels = set(SIDE_SELECTOR_CPS)
     bucket_cps = {
         cp
         for cp in codepoints
-        if not (VS_BASE <= cp <= VS_LAST)
-        and cp not in side_sels
-        and cp not in VIET_MARK_CPS
+        if not (VS_BASE <= cp <= VS_LAST) and cp not in side_sels and cp not in MARK_CPS
     }
     cps = sorted(
-        bucket_cps
-        | set(range(UVS_BASE, UVS_LAST + 1))
-        | side_sels
-        | set(VIET_MARK_CPS)
+        bucket_cps | set(range(UVS_BASE, UVS_LAST + 1)) | side_sels | set(MARK_CPS)
     )
     if not bucket_cps:
         start = bucket_id << 8
@@ -701,7 +717,7 @@ def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
             set(range(start, end + 1))
             | set(range(UVS_BASE, UVS_LAST + 1))
             | side_sels
-            | set(VIET_MARK_CPS)
+            | set(MARK_CPS)
         )
 
     runs: List[str] = []
@@ -835,8 +851,8 @@ def build_all(
     )
     print(f"Output formats: {fmt_note}")
     print(
-        "Reading marks: U+16FF0/16FF1 from Plangothic P2 "
-        "(FE08 left / FE09 top / FE0A bottom; one niche; mark D4)"
+        "Reading marks: U+16FF0/16FF1 ca/nhay in free half-cell; "
+        "squish = half ideographic area (FE0B overlay / FE0C–FE0F access)"
     )
 
     sources_list = [
@@ -884,9 +900,7 @@ def build_all(
     built: List[Tuple[str, int, List[int]]] = []
     done = 0
     fmt_tag = (
-        "ttf+woff2"
-        if write_ttf and write_woff2
-        else ("ttf" if write_ttf else "woff2")
+        "ttf+woff2" if write_ttf and write_woff2 else ("ttf" if write_ttf else "woff2")
     )
 
     with concurrent.futures.ProcessPoolExecutor(
@@ -925,7 +939,9 @@ def build_all(
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Build Pan-CJK pigeonhole fonts (build_cjk)")
+    p = argparse.ArgumentParser(
+        description="Build Pan-CJK pigeonhole fonts (build_cjk)"
+    )
     p.add_argument("--in", dest="in_dir", default=IN_DIR, help="Input fonts directory")
     p.add_argument("--out", dest="out_dir", default=OUT_DIR, help="Output directory")
     p.add_argument(

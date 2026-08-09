@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
 """Build an HTML gallery of CJK × VS1–8 × reading marks.
 
-Encoding (matches ``cjk_viet_marks`` / ``build_cjk``)::
+Encoding (matches ``cjk_diac_marks`` / ``build_cjk``)::
 
-    U+16FF0/16FF1 (ca/nhay):
-      MARK       → right  (``.dk``)
-      FE08 MARK  → left   (``.dkl``)
-      FE09 MARK  → top    (``.dkt``, r90 mark)
-      FE0A MARK  → bottom (``.dkb``, r90 mark)
+    U+16FF0/16FF1 (ca/nhay): half-cell niche GPOS
+      MARK / FE08 / FE09 / FE0A → right / left / top / bottom free half
 
-One niche only — never two sides at once.
+    Squish = occupy one half of the ideographic area (same ``.dk*`` glyphs):
+      FE0B       → zero-width ``.ov``
+      FE0C–FE0F  → ``.dk`` / ``.dkl`` / ``.dkt`` / ``.dkb``
+      FE0B+FE0C–F → zero-width half-cell overlay
+
+    Squish digraph (two kanji, often different pancjk buckets)::
+
+      A (D4)? FE0B (FE0C–F)?  B (D4)? (FE0C–F)?
+      First is zero-width; niches/orients oppose (L↔R, T↔B).
 
 Usage
 -----
-  python cjk_viet_combinations_html.py
-  python cjk_viet_combinations_html.py --limit 256
-  python cjk_viet_combinations_html.py --range URO --limit 0
-  python cjk_viet_combinations_html.py --bucket 4E
-  python cjk_viet_combinations_html.py --range 4E00-4FFF -o dist/subfonts/viet-cjk.html
+  python cjk_diac_combinations_html.py
+  python cjk_diac_combinations_html.py --limit 256
+  python cjk_diac_combinations_html.py --range URO --limit 0
+  python cjk_diac_combinations_html.py --bucket 4E --bucket 4F
+  python cjk_diac_combinations_html.py --range 4E00-4FFF -o dist/subfonts/diac-cjk.html
 """
 
 from __future__ import annotations
@@ -28,18 +33,21 @@ import os
 import re
 import unicodedata
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from collections import defaultdict
 
-from build_cjk import CHAR_RANGES, OUT_DIR as SUBFONTS_OUT
-from cjk_viet_marks import (
-    VIET_BOT_SELECTOR_CP,
-    VIET_LEFT_SELECTOR_CP,
-    VIET_MARK_CPS,
-    VIET_TOP_SELECTOR_CP,
+from build_cjk import CHAR_RANGES, IN_DIR, OUT_DIR as SUBFONTS_OUT
+from cjk_diac_marks import (
+    CORE_MARK_CPS,
+    OV_SELECTOR_CP,
+    SQUISH_BOT_CP,
+    SQUISH_LEFT_CP,
+    SQUISH_RIGHT_CP,
+    SQUISH_TOP_CP,
 )
 from yi_halfwidth import TRANSFORM_MODES, uvs_selector_for_mode
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "subfonts", "viet-cjk.html")
+DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "subfonts", "diac-cjk.html")
 
 # Named subsets → inclusive ranges (aligned with build_cjk.CHAR_RANGES).
 NAMED_RANGES: Dict[str, Tuple[Tuple[int, int], ...]] = {
@@ -78,10 +86,77 @@ MARK_ORIENT_LABEL = ["id"] + [
     suffix for _vs, _r, _fx, _fy, suffix in TRANSFORM_MODES if suffix is not None
 ]
 
-VIET_MARK_LABEL = {
+MARK_LABEL = {
     0x16FF0: "ca",
     0x16FF1: "nhay",
 }
+
+# Opposing half niches for digraphs (first zero-width half + second advance half).
+DIGRAPH_NICHE_PAIRS: Tuple[Tuple[str, str], ...] = (
+    ("R", "L"),  # FE0C left + FE0D right
+    ("L", "R"),  # FE0D right + FE0C left
+    ("T", "B"),  # FE0F top + FE0E bottom
+    ("B", "T"),  # FE0E bottom + FE0F top
+)
+
+# Opposing D4 labels (second orient faces the first).
+OPPOSING_ORIENT: Dict[str, str] = {
+    "id": "r180",
+    "r90": "r270",
+    "r180": "id",
+    "r270": "r90",
+    "mx": "my",
+    "my": "mx",
+    "r90mx": "r90my",
+    "r90my": "r90mx",
+}
+
+
+def digraph_pairs(
+    cjk: Sequence[dict],
+    *,
+    max_pairs: int = 24,
+) -> List[Tuple[int, int, bool]]:
+    """Index pairs ``(i, j, cross_bucket)`` preferring different ``cp>>8`` fonts."""
+    by_bucket: Dict[int, List[int]] = defaultdict(list)
+    for i, c in enumerate(cjk):
+        by_bucket[int(c["cp"]) >> 8].append(i)
+    buckets = sorted(by_bucket)
+    pairs: List[Tuple[int, int, bool]] = []
+    if len(buckets) >= 2:
+        bi = 0
+        while len(pairs) < max_pairs and bi < max_pairs * len(buckets):
+            b0 = buckets[bi % len(buckets)]
+            b1 = buckets[(bi + len(buckets) // 2) % len(buckets)]
+            if b0 == b1:
+                b1 = buckets[(bi + 1) % len(buckets)]
+            la, lb = by_bucket[b0], by_bucket[b1]
+            if la and lb and b0 != b1:
+                ia = la[len(pairs) % len(la)]
+                ib = lb[(len(pairs) * 3) % len(lb)]
+                if ia != ib:
+                    pairs.append((ia, ib, True))
+            bi += 1
+    if len(pairs) < max_pairs:
+        for i in range(0, len(cjk) - 1):
+            if len(pairs) >= max_pairs:
+                break
+            j = i + 1
+            cross = (int(cjk[i]["cp"]) >> 8) != (int(cjk[j]["cp"]) >> 8)
+            if any(p[0] == i and p[1] == j for p in pairs):
+                continue
+            pairs.append((i, j, cross))
+    return pairs
+
+
+def opposing_orient_index(label: str) -> int:
+    want = OPPOSING_ORIENT.get(label, "r180")
+    try:
+        return BASE_ORIENT_LABEL.index(want)
+    except ValueError:
+        return 0 if label != "id" else (
+            BASE_ORIENT_LABEL.index("r180") if "r180" in BASE_ORIENT_LABEL else 0
+        )
 
 
 def parse_range_spec(spec: str) -> List[Tuple[int, int]]:
@@ -108,8 +183,10 @@ def parse_range_spec(spec: str) -> List[Tuple[int, int]]:
 
 
 def assigned_cps(ranges: Sequence[Tuple[int, int]], *, limit: int) -> List[dict]:
-    out: List[dict] = []
+    """Collect CJK entries; with multiple ranges, round-robin so digraphs can cross buckets."""
+    per_range: List[List[dict]] = []
     for a, b in ranges:
+        chunk: List[dict] = []
         for cp in range(a, b + 1):
             try:
                 ch = chr(cp)
@@ -117,9 +194,35 @@ def assigned_cps(ranges: Sequence[Tuple[int, int]], *, limit: int) -> List[dict]
             except (ValueError, OverflowError):
                 continue
             short = name.split()[-1].replace("-", "") if name else f"{cp:04X}"
-            out.append({"cp": cp, "ch": ch, "name": name, "short": short})
+            chunk.append({"cp": cp, "ch": ch, "name": name, "short": short})
+        if chunk:
+            per_range.append(chunk)
+    if not per_range:
+        return []
+    if len(per_range) == 1:
+        out = per_range[0]
+        return out if limit <= 0 else out[:limit]
+
+    # Round-robin across ranges for mixed-bucket digraph coverage.
+    out: List[dict] = []
+    seen = set()
+    idx = [0] * len(per_range)
+    while True:
+        progressed = False
+        for ri, chunk in enumerate(per_range):
+            while idx[ri] < len(chunk):
+                c = chunk[idx[ri]]
+                idx[ri] += 1
+                if c["cp"] in seen:
+                    continue
+                seen.add(c["cp"])
+                out.append(c)
+                progressed = True
+                break
             if limit > 0 and len(out) >= limit:
                 return out
+        if not progressed:
+            break
     return out
 
 
@@ -127,14 +230,15 @@ def pancjk_font_stack(
     font_dir: str,
     *,
     ranges: Optional[Sequence[Tuple[int, int]]] = None,
+    force_all: bool = False,
 ) -> str:
     """Quoted ``'pancjk XX'`` stack from fonts on disk, else from CHAR_RANGES.
 
-    When ``ranges`` covers a single bucket, use only that face so reading marks
-    (also in that face's unicode-range) are not stolen by an earlier bucket or
-    by Plangothic's spacing outlines.
+    When ``ranges`` covers a single bucket and ``force_all`` is false, use only
+    that face so reading marks stay on the same face. Digraph tests that mix
+    buckets set ``force_all`` so each half resolves from its own pigeonhole.
     """
-    if ranges:
+    if ranges and not force_all:
         buckets: set = set()
         for a, b in ranges:
             buckets.update(range(a >> 8, (b >> 8) + 1))
@@ -173,28 +277,40 @@ def write_html(
     limit: int,
     font_size: int,
     font_dir: str,
+    in_dir: str = IN_DIR,
 ) -> None:
     cjk = assigned_cps(ranges, limit=limit)
     n = len(cjk)
     n_base_o = len(BASE_ORIENT_VS)
     n_mark_o = len(MARK_ORIENT_VS)
-    n_marks = len(VIET_MARK_CPS)
+
+    mark_cps: List[int] = list(CORE_MARK_CPS)
+
+    n_marks = len(mark_cps)
+    pairs = digraph_pairs(cjk, max_pairs=min(24, max(1, n // 2)))
+    n_cross = sum(1 for _a, _b, cross in pairs if cross)
     # Galleries (on-demand counts)
     n_plain = n
     n_with_mark = n * n_marks
     n_base_vs_mark = n * n_base_o * n_marks
     n_mark_vs = n * n_marks * n_mark_o
-    total = n_plain + n_with_mark + n_base_vs_mark + n_mark_vs
+    n_digraph = len(pairs) * len(DIGRAPH_NICHE_PAIRS) * n_base_o
+    total = n_plain + n_with_mark + n_base_vs_mark + n_mark_vs + n_digraph
 
-    stack = pancjk_font_stack(font_dir, ranges=ranges)
+    force_stack = n_cross > 0 or len({c["cp"] >> 8 for c in cjk}) > 1
+    stack = pancjk_font_stack(font_dir, ranges=ranges, force_all=force_stack)
     marks = [
         {
             "cp": cp,
             "ch": chr(cp),
-            "label": VIET_MARK_LABEL.get(cp, f"{cp:04X}"),
+            "label": MARK_LABEL.get(
+                cp, unicodedata.name(chr(cp), f"{cp:04X}").split()[-1][:12]
+            ),
         }
-        for cp in VIET_MARK_CPS
+        for cp in mark_cps
     ]
+
+    opposing_oi = [opposing_orient_index(lab) for lab in BASE_ORIENT_LABEL]
 
     payload = {
         "CJK": cjk,
@@ -203,9 +319,16 @@ def write_html(
         "BASE_ORIENT_LABEL": BASE_ORIENT_LABEL,
         "MARK_ORIENT_VS": MARK_ORIENT_VS,
         "MARK_ORIENT_LABEL": MARK_ORIENT_LABEL,
-        "LEFT_SEL": VIET_LEFT_SELECTOR_CP,
-        "TOP_SEL": VIET_TOP_SELECTOR_CP,
-        "BOT_SEL": VIET_BOT_SELECTOR_CP,
+        "OV_SEL": OV_SELECTOR_CP,
+        "SQUISH_R": SQUISH_RIGHT_CP,
+        "SQUISH_L": SQUISH_LEFT_CP,
+        "SQUISH_T": SQUISH_TOP_CP,
+        "SQUISH_B": SQUISH_BOT_CP,
+        "DIGRAPH_PAIRS": [
+            {"a": a, "b": b, "cross": cross} for a, b, cross in pairs
+        ],
+        "DIGRAPH_NICHES": [{"a": a, "b": b} for a, b in DIGRAPH_NICHE_PAIRS],
+        "OPPOSING_ORIENT_OI": opposing_oi,
         "n": n,
         "total": total,
     }
@@ -276,13 +399,13 @@ h2 {{
 </head>
 <body>
 <header>
-  <h1>pancjk — CJK × VS1–8 × reading marks</h1>
+  <h1>pancjk — CJK × VS × marks × squish digraphs</h1>
   <p class="meta">
     Range: {range_note} · {n:,} characters embedded<br/>
-    Base VS: identity / FE01..FE07 (full D4) · mark D4: FE01..FE07<br/>
-    U+16FF0/16FF1: right <code>.dk</code> · FE08 left <code>.dkl</code> ·
-    FE09 top <code>.dkt</code> (r90) · FE0A bottom <code>.dkb</code> (r90) ·
-    one niche · gallery ≈ {total:,} (on demand)
+    Base VS: identity / FE01..FE07 (full D4)<br/>
+    U+16FF0/16FF1 ca/nhay: half-cell niche (free half via GPOS)<br/>
+    Squish digraph: A+FE0B(+FE0C–F) zero-width · B(+FE0C–F) · opposing niche/orient<br/>
+    Digraph pairs: {len(pairs)} ({n_cross} cross-bucket) · gallery ≈ {total:,}
   </p>
   <div class="controls">
     <label>CJK start index
@@ -302,10 +425,12 @@ h2 {{
     </label>
     <button type="button" id="btnSlice">Render slice</button>
     <button type="button" id="btnPlain">Plain CJK</button>
-    <button type="button" id="btnMarks">+ right</button>
-    <button type="button" id="btnLeft">+ left (FE08)</button>
-    <button type="button" id="btnTop">+ top (FE09)</button>
-    <button type="button" id="btnBot">+ bottom (FE0A)</button>
+    <button type="button" id="btnMarks">+ ca/nhay</button>
+    <button type="button" id="btnDk">FE0C .dk</button>
+    <button type="button" id="btnDkl">FE0D .dkl</button>
+    <button type="button" id="btnDkt">FE0E .dkt</button>
+    <button type="button" id="btnDkb">FE0F .dkb</button>
+    <button type="button" id="btnDigraph">Squish digraphs</button>
     <button type="button" id="btnBaseGrid">Base VS × mark</button>
     <button type="button" id="btnMarkGrid">Mark D4 grid</button>
     <button type="button" id="btnEverything" class="danger">Render everything</button>
@@ -374,12 +499,23 @@ function markPiece(mi, markOi) {{
   const m = DATA.MARKS[mi];
   return m.ch + vsChar(DATA.MARK_ORIENT_VS[markOi]);
 }}
-function sideMarkPiece(side, mi, markOi) {{
-  const sel = side === 'L' ? DATA.LEFT_SEL
-    : side === 'T' ? DATA.TOP_SEL
-    : side === 'B' ? DATA.BOT_SEL
+function squishPiece(side) {{
+  const sel = side === 'R' ? DATA.SQUISH_R
+    : side === 'L' ? DATA.SQUISH_L
+    : side === 'T' ? DATA.SQUISH_T
+    : side === 'B' ? DATA.SQUISH_B
     : null;
-  return (sel != null ? String.fromCodePoint(sel) : '') + markPiece(mi, markOi);
+  return sel != null ? String.fromCodePoint(sel) : '';
+}}
+function digraphFirst(idx, oi, side) {{
+  // A (D4)? FE0B (FE0C–F)?  — zero-width half
+  return cjkPiece(idx, oi)
+    + String.fromCodePoint(DATA.OV_SEL)
+    + squishPiece(side);
+}}
+function digraphSecond(idx, oi, side) {{
+  // B (D4)? (FE0C–F)?  — keeps advance
+  return cjkPiece(idx, oi) + squishPiece(side);
 }}
 function tagFor(idx, baseOi, mi, markOi, side) {{
   const c = DATA.CJK[idx];
@@ -392,6 +528,14 @@ function tagFor(idx, baseOi, mi, markOi, side) {{
     t += '+' + m.label + (mo === 'id' ? '' : '.' + mo);
   }}
   return t;
+}}
+function digraphTag(ia, oia, sa, ib, oib, sb, cross) {{
+  const a = DATA.CJK[ia], b = DATA.CJK[ib];
+  const oa = DATA.BASE_ORIENT_LABEL[oia] || 'id';
+  const ob = DATA.BASE_ORIENT_LABEL[oib] || 'id';
+  return a.short + '.' + oa + '[FE0B+' + sa + ']'
+    + '+' + b.short + '.' + ob + '[' + sb + ']'
+    + (cross ? ' ⇄font' : '');
 }}
 function cell(text, tag) {{
   const d = document.createElement('div');
@@ -414,11 +558,11 @@ function heading(s) {{
 function clearOut() {{ out.replaceChildren(); }}
 function setStatus(s) {{ status.textContent = s; }}
 
-const SIDE_LABEL = {{
-  R: 'right /.dk',
-  L: 'left FE08 /.dkl',
-  T: 'top FE09 /.dkt',
-  B: 'bottom FE0A /.dkb',
+const SQUISH_LABEL = {{
+  R: 'FE0C /.dk',
+  L: 'FE0D /.dkl',
+  T: 'FE0E /.dkt',
+  B: 'FE0F /.dkb',
 }};
 
 function renderPlain(indices) {{
@@ -432,29 +576,91 @@ function renderPlain(indices) {{
   setStatus('Rendered ' + n.toLocaleString() + ' plain cells');
 }}
 
-function renderSide(indices, baseOi, markIndices, markOi, side) {{
+function renderMarks(indices, baseOi, markIndices, markOi) {{
   clearOut();
-  out.appendChild(heading('CJK + mark (' + SIDE_LABEL[side] + ')'));
+  out.appendChild(heading('CJK + ca/nhay (corner GPOS)'));
   let n = 0;
   for (const i of indices) {{
     for (const mi of markIndices) {{
-      const text = cjkPiece(i, baseOi) + sideMarkPiece(side, mi, markOi);
-      out.appendChild(cell(text, tagFor(i, baseOi, mi, markOi, side)));
+      const text = cjkPiece(i, baseOi) + markPiece(mi, markOi);
+      out.appendChild(cell(text, tagFor(i, baseOi, mi, markOi, null)));
       n++;
     }}
   }}
-  setStatus('Rendered ' + n.toLocaleString() + ' ' + side + '-side mark cells');
+  setStatus('Rendered ' + n.toLocaleString() + ' mark cells');
+}}
+
+function renderSquish(indices, baseOi, side) {{
+  clearOut();
+  out.appendChild(heading('CJK squish (' + SQUISH_LABEL[side] + ')'));
+  let n = 0;
+  for (const i of indices) {{
+    const text = cjkPiece(i, baseOi) + squishPiece(side);
+    out.appendChild(cell(text, tagFor(i, baseOi, null, 0, side)));
+    n++;
+  }}
+  setStatus('Rendered ' + n.toLocaleString() + ' squish cells');
+}}
+
+function renderDigraphs(orientOi) {{
+  clearOut();
+  const pairs = DATA.DIGRAPH_PAIRS || [];
+  const niches = DATA.DIGRAPH_NICHES || [];
+  const opp = DATA.OPPOSING_ORIENT_OI || [];
+  out.appendChild(heading(
+    'Squish digraphs — first FE0B(+niche) zero-width · second niche · opposing orient'));
+  let n = 0;
+  for (const p of pairs) {{
+    const oia = orientOi;
+    const oib = opp[oia] != null ? opp[oia] : oia;
+    for (const niche of niches) {{
+      const text = digraphFirst(p.a, oia, niche.a)
+        + digraphSecond(p.b, oib, niche.b);
+      out.appendChild(cell(
+        text,
+        digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross)));
+      n++;
+    }}
+  }}
+  setStatus('Rendered ' + n.toLocaleString() + ' digraph cells ('
+    + pairs.filter(p => p.cross).length + ' cross-bucket pairs)');
+}}
+
+function renderDigraphGrid() {{
+  clearOut();
+  const pairs = DATA.DIGRAPH_PAIRS || [];
+  const niches = DATA.DIGRAPH_NICHES || [];
+  const opp = DATA.OPPOSING_ORIENT_OI || [];
+  out.appendChild(heading('Squish digraphs × all base orients (opposing)'));
+  let n = 0;
+  for (let oia = 0; oia < DATA.BASE_ORIENT_VS.length; oia++) {{
+    const oib = opp[oia] != null ? opp[oia] : oia;
+    const lab = (DATA.BASE_ORIENT_LABEL[oia] || 'id')
+      + ' ↔ ' + (DATA.BASE_ORIENT_LABEL[oib] || 'id');
+    out.appendChild(heading(lab));
+    for (const p of pairs) {{
+      for (const niche of niches) {{
+        const text = digraphFirst(p.a, oia, niche.a)
+          + digraphSecond(p.b, oib, niche.b);
+        out.appendChild(cell(
+          text,
+          digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross)));
+        n++;
+      }}
+    }}
+  }}
+  setStatus('Rendered ' + n.toLocaleString() + ' digraph×orient cells');
 }}
 
 function renderBaseGrid(indices, markIndices) {{
   clearOut();
-  out.appendChild(heading('Base VS1–8 × mark (mark identity, right)'));
+  out.appendChild(heading('Base VS1–8 × mark (corner GPOS)'));
   let n = 0;
   for (const i of indices) {{
     for (let bo = 0; bo < DATA.BASE_ORIENT_VS.length; bo++) {{
       for (const mi of markIndices) {{
         const text = cjkPiece(i, bo) + markPiece(mi, 0);
-        out.appendChild(cell(text, tagFor(i, bo, mi, 0, 'R')));
+        out.appendChild(cell(text, tagFor(i, bo, mi, 0, null)));
         n++;
       }}
     }}
@@ -464,13 +670,13 @@ function renderBaseGrid(indices, markIndices) {{
 
 function renderMarkGrid(indices, baseOi, markIndices) {{
   clearOut();
-  out.appendChild(heading('Mark D4 (base orient fixed, right)'));
+  out.appendChild(heading('Mark D4 grid'));
   let n = 0;
   for (const i of indices) {{
     for (const mi of markIndices) {{
       for (let mo = 0; mo < DATA.MARK_ORIENT_VS.length; mo++) {{
         const text = cjkPiece(i, baseOi) + markPiece(mi, mo);
-        out.appendChild(cell(text, tagFor(i, baseOi, mi, mo, 'R')));
+        out.appendChild(cell(text, tagFor(i, baseOi, mi, mo, null)));
         n++;
       }}
     }}
@@ -479,9 +685,7 @@ function renderMarkGrid(indices, baseOi, markIndices) {{
 }}
 
 function renderEverything() {{
-  const indices = DATA.CJK.map((_, i) => i);
-  if (!confirm('Render ~' + (DATA.total * 2).toLocaleString() +
-      ' cells for ' + DATA.n.toLocaleString() + ' CJK? This can lock the tab.')) return;
+  const indices = sliceIndices();
   clearOut();
   let n = 0;
   out.appendChild(heading('Plain'));
@@ -489,15 +693,35 @@ function renderEverything() {{
     out.appendChild(cell(DATA.CJK[i].ch, DATA.CJK[i].short));
     n++;
   }}
+  out.appendChild(heading('ca/nhay corner'));
+  for (const i of indices) {{
+    for (let mi = 0; mi < DATA.MARKS.length; mi++) {{
+      out.appendChild(cell(
+        cjkPiece(i, 0) + markPiece(mi, 0),
+        tagFor(i, 0, mi, 0, null)));
+      n++;
+    }}
+  }}
   for (const side of ['R', 'L', 'T', 'B']) {{
-    out.appendChild(heading(SIDE_LABEL[side]));
+    out.appendChild(heading(SQUISH_LABEL[side]));
     for (const i of indices) {{
-      for (let mi = 0; mi < DATA.MARKS.length; mi++) {{
-        out.appendChild(cell(
-          cjkPiece(i, 0) + sideMarkPiece(side, mi, 0),
-          tagFor(i, 0, mi, 0, side)));
-        n++;
-      }}
+      out.appendChild(cell(
+        cjkPiece(i, 0) + squishPiece(side),
+        tagFor(i, 0, null, 0, side)));
+      n++;
+    }}
+  }}
+  out.appendChild(heading('Squish digraphs (id ↔ r180)'));
+  const pairs = DATA.DIGRAPH_PAIRS || [];
+  const niches = DATA.DIGRAPH_NICHES || [];
+  const opp = DATA.OPPOSING_ORIENT_OI || [];
+  const oib = opp[0] != null ? opp[0] : 0;
+  for (const p of pairs) {{
+    for (const niche of niches) {{
+      out.appendChild(cell(
+        digraphFirst(p.a, 0, niche.a) + digraphSecond(p.b, oib, niche.b),
+        digraphTag(p.a, 0, niche.a, p.b, oib, niche.b, !!p.cross)));
+      n++;
     }}
   }}
   setStatus('Rendered ' + n.toLocaleString() + ' cells');
@@ -506,27 +730,32 @@ function renderEverything() {{
 document.getElementById('btnPlain').onclick = () =>
   renderPlain(sliceIndices());
 document.getElementById('btnMarks').onclick = () =>
-  renderSide(sliceIndices(), +baseOrient.value, markList(), +markOrient.value, 'R');
-document.getElementById('btnLeft').onclick = () =>
-  renderSide(sliceIndices(), +baseOrient.value, markList(), +markOrient.value, 'L');
-document.getElementById('btnTop').onclick = () =>
-  renderSide(sliceIndices(), +baseOrient.value, markList(), +markOrient.value, 'T');
-document.getElementById('btnBot').onclick = () =>
-  renderSide(sliceIndices(), +baseOrient.value, markList(), +markOrient.value, 'B');
+  renderMarks(sliceIndices(), +baseOrient.value, markList(), +markOrient.value);
+document.getElementById('btnDk').onclick = () =>
+  renderSquish(sliceIndices(), +baseOrient.value, 'R');
+document.getElementById('btnDkl').onclick = () =>
+  renderSquish(sliceIndices(), +baseOrient.value, 'L');
+document.getElementById('btnDkt').onclick = () =>
+  renderSquish(sliceIndices(), +baseOrient.value, 'T');
+document.getElementById('btnDkb').onclick = () =>
+  renderSquish(sliceIndices(), +baseOrient.value, 'B');
+document.getElementById('btnDigraph').onclick = () =>
+  renderDigraphs(+baseOrient.value);
 document.getElementById('btnSlice').onclick = () =>
-  renderSide(sliceIndices(), +baseOrient.value, markList(), +markOrient.value, 'R');
+  renderMarks(sliceIndices(), +baseOrient.value, markList(), +markOrient.value);
 document.getElementById('btnBaseGrid').onclick = () =>
   renderBaseGrid(sliceIndices(), markList());
 document.getElementById('btnMarkGrid').onclick = () =>
   renderMarkGrid(sliceIndices(), +baseOrient.value, markList());
 document.getElementById('btnEverything').onclick = renderEverything;
 
-renderSide(sliceIndices(), 0, DATA.MARKS.map((_, i) => i), 0, 'R');
+renderDigraphs(0);
 </script>
 </body>
 </html>
 """
         )
+
     print(f"CJK: N={n:,}  range={range_note}  gallery~{total:,}  -> {path}")
 
 
@@ -559,6 +788,11 @@ def parse_args() -> argparse.Namespace:
         help="Max characters to embed (0 = no limit). Default: 512",
     )
     p.add_argument("--font-size", type=int, default=48)
+    p.add_argument(
+        "--in-dir",
+        default=IN_DIR,
+        help="Source font dir for shared-mark inventory (default: Scripts/src)",
+    )
     return p.parse_args()
 
 
@@ -570,7 +804,8 @@ def main() -> None:
     if args.bucket:
         specs.extend(args.bucket)
     if not specs:
-        specs = ["URO"]
+        # Two buckets → digraphs can pull different pancjk faces.
+        specs = ["4E", "4F"]
     ranges: List[Tuple[int, int]] = []
     for spec in specs:
         ranges.extend(parse_range_spec(spec))
@@ -582,6 +817,7 @@ def main() -> None:
         limit=args.limit,
         font_size=args.font_size,
         font_dir=args.font_dir,
+        in_dir=args.in_dir,
     )
 
 
