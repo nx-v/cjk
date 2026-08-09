@@ -53,6 +53,7 @@ use local X shifted by ``-upem``).
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import copy
 import os
 import sys
@@ -2145,29 +2146,38 @@ def build_all(
         else ("ttf only" if write_ttf else "woff2 only")
     )
     print(f"  Formats: {fmt_note}")
+    print("  Building panhangul + panhanguls in parallel...", flush=True)
 
-    jamo_path, jamo_count, jamo_cps = build_jamo_font(
-        in_dir,
-        out_dir,
-        target_upem,
-        limit=limit,
-        local_scale=local_scale,
-        y_shift=y_shift,
-        y_scale=y_scale,
-        write_ttf=write_ttf,
-        write_woff2=write_woff2,
-    )
-    syll_path, syll_count, syll_cps = build_syllables_font(
-        in_dir,
-        out_dir,
-        target_upem,
-        limit=limit,
-        local_scale=local_scale,
-        y_shift=y_shift,
-        y_scale=y_scale,
-        write_ttf=write_ttf,
-        write_woff2=write_woff2,
-    )
+    # Two independent fonts — run concurrently (separate processes so
+    # FontBuilder/CPU work is not serialized by the GIL).
+    with concurrent.futures.ProcessPoolExecutor(max_workers=2) as ex:
+        fut_jamo = ex.submit(
+            build_jamo_font,
+            in_dir,
+            out_dir,
+            target_upem,
+            limit=limit,
+            local_scale=local_scale,
+            y_shift=y_shift,
+            y_scale=y_scale,
+            write_ttf=write_ttf,
+            write_woff2=write_woff2,
+        )
+        fut_syll = ex.submit(
+            build_syllables_font,
+            in_dir,
+            out_dir,
+            target_upem,
+            limit=limit,
+            local_scale=local_scale,
+            y_shift=y_shift,
+            y_scale=y_scale,
+            write_ttf=write_ttf,
+            write_woff2=write_woff2,
+        )
+        jamo_path, jamo_count, jamo_cps = fut_jamo.result()
+        syll_path, syll_count, syll_cps = fut_syll.result()
+
     if jamo_count or syll_count:
         write_css(out_dir, jamo_cps, syll_cps)
     print(
