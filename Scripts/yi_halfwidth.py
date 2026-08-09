@@ -8,14 +8,14 @@ Encoding
   ink height, then headless CAPE Weightor Width-mode stretch (``cape_weightor``);
   Y is fitted to the CJK typo box (center at 0.38em).
 * Orientations: D4 square symmetries on **VS01..VS08** (``U+E000``..``U+E007``,
-  UVS ``U+FE00``..``U+FE07``), including ``r90my``. Only **two** outlines are
-  stem-normalized: upright ``id`` (VS01) and baked ``r90`` (VS02). Every other
-  D4 form is a simple TT composite (rotate/reflect about contour center) of
-  one of those — ``r180`` / ``mx`` / ``my`` ← id; ``r270`` / ``r90mx`` /
-  ``r90my`` ← r90 — so stroke weights stay consistent across the set. After
-  stem normalize, each on-curve point is thickness-traced along its normal
-  and nudged to a V×H elliptical stroke reference (80×60 @ 1000 UPM), then
-  needle spikes / near-joins are cleaned up.
+  UVS ``U+FE00``..``U+FE07``), including ``r90my``. Pipeline for the two
+  outline sources: **transform / reorient first**, then stem-normalize
+  (``id`` = identity; ``r90`` = rotate from the un-normalized upright).
+  Stem normalize retries smaller/larger targets until strokes stay thick and
+  non-self-intersecting; only then falls back to the un-normalized transform.
+  Other D4 forms are TT composites of those two (``r180`` / ``mx`` / ``my`` ←
+  id; ``r270`` / ``r90mx`` / ``r90my`` ← r90). After each outline and each
+  composite, ink is re-pinned to the padded CJK floor.
 * Overlay (GlyphWiki / build_subfonts): **``U+FE08``** superimposes preceding
   glyphs into one cell — everything but the **last** glyph before ``FE08``
   becomes zero-advance (``.ov``); the last keeps the em advance.
@@ -287,11 +287,13 @@ REFERENCE_HORIZONTAL_STEM = 60.0  # match U+4E00-like horizontal weight
 CONTOUR_SNAP_EPSILON = 1.5
 # Cap each stem-offset axis step so large estimate errors don't shred joins.
 MAX_STEM_OFFSET_STEP = 10.0
-# Elliptical 60×80 reference-stroke nudge (after stem normalize).
-STROKE_REF_MAX_MOVE = 18.0
-STROKE_REF_STRENGTH = 0.9
-STROKE_REF_MIN_THICKNESS = 8.0
-STROKE_REF_MAX_THICKNESS = 220.0
+# After normalize, reject if a stem falls below this fraction of its reference
+# (or of the pre-normalize stem). Retry other target scales first.
+MIN_NORM_STEM_FRAC = 0.4
+# Blend weights toward the reference (1 = full match, 0 = no change).
+NORM_BLEND_STEPS: Tuple[float, ...] = (1.0, 0.85, 0.7, 0.55, 0.4, 0.25, 0.15)
+# Extra absolute scale factors on the reference stems (larger / smaller).
+NORM_REF_SCALES: Tuple[float, ...] = (1.15, 0.85, 1.3, 0.7, 1.45, 0.55)
 
 # CJK single-stroke references (optional measure; builds use fixed targets above).
 CJK_REF_HORIZONTAL_CP = 0x4E00  # 一 — horizontal stroke weight
@@ -470,251 +472,23 @@ def _collapse_spike_points_on_glyph(
     return glyph
 
 
-def _glyph_edge_segments(
-    glyph: TTGlyph,
-) -> List[Tuple[Tuple[float, float], Tuple[float, float]]]:
-    """Straight edge segments approximating the outline (quads densified)."""
-    if glyph.isComposite() or glyph.numberOfContours <= 0:
-        return []
-    try:
-        coords = list(glyph.coordinates)
-        end_pts = list(glyph.endPtsOfContours)
-        flags = list(glyph.flags)
-    except Exception:
-        return []
-
-    edges: List[Tuple[Tuple[float, float], Tuple[float, float]]] = []
-    start = 0
-    for end in end_pts:
-        pts: List[Tuple[float, float]] = []
-        i = start
-        while i <= end:
-            x, y = float(coords[i][0]), float(coords[i][1])
-            on = (flags[i] & 0x01) != 0
-            if on or i == start:
-                pts.append((x, y))
-                i += 1
-                continue
-            # Off-curve: densify toward next on-curve (or implied on).
-            if i + 1 <= end and (flags[i + 1] & 0x01) != 0:
-                x1, y1 = float(coords[i + 1][0]), float(coords[i + 1][1])
-                if pts:
-                    x0, y0 = pts[-1]
-                    for t in (0.25, 0.5, 0.75, 1.0):
-                        pts.append(
-                            (
-                                (1 - t) ** 2 * x0 + 2 * (1 - t) * t * x + t * t * x1,
-                                (1 - t) ** 2 * y0 + 2 * (1 - t) * t * y + t * t * y1,
-                            )
-                        )
-                else:
-                    pts.append((x1, y1))
-                i += 2
-            else:
-                pts.append((x, y))
-                i += 1
-        if len(pts) < 2:
-            start = end + 1
-            continue
-        for j in range(len(pts)):
-            edges.append((pts[j], pts[(j + 1) % len(pts)]))
-        start = end + 1
-    return edges
-
-
-def _ray_thickness(
-    origin: Tuple[float, float],
-    direction: Tuple[float, float],
-    edges: Sequence[Tuple[Tuple[float, float], Tuple[float, float]]],
-    *,
-    max_dist: float,
-) -> float:
-    """Distance from ``origin`` along unit ``direction`` through the first fill span."""
-    import math
-
-    ox, oy = origin
-    dx, dy = direction
-    hits: List[float] = []
-    for (ax, ay), (bx, by) in edges:
-        ex, ey = bx - ax, by - ay
-        den = dx * ey - dy * ex
-        if abs(den) < 1e-9:
-            continue
-        sx, sy = ax - ox, ay - oy
-        t = (sx * ey - sy * ex) / den
-        u = (sx * dy - sy * dx) / den
-        if t > 1e-4 and 0.0 <= u <= 1.0 and t <= max_dist:
-            hits.append(t)
-    if len(hits) < 1:
-        return 0.0
-    hits.sort()
-    # First hit is the opposite edge of this stroke (starting just inside).
-    return float(hits[0])
-
-
-def _oncurve_contour_loops(
-    glyph: TTGlyph,
-) -> List[List[Tuple[int, float, float]]]:
-    """Per-contour lists of ``(point_index, x, y)`` for on-curve points."""
-    if glyph.isComposite() or glyph.numberOfContours <= 0:
-        return []
-    try:
-        coords = list(glyph.coordinates)
-        end_pts = list(glyph.endPtsOfContours)
-        flags = list(glyph.flags)
-    except Exception:
-        return []
-    loops: List[List[Tuple[int, float, float]]] = []
-    start = 0
-    for end in end_pts:
-        loop = [
-            (i, float(coords[i][0]), float(coords[i][1]))
-            for i in range(start, end + 1)
-            if (flags[i] & 0x01) != 0
-        ]
-        if len(loop) >= 3:
-            loops.append(loop)
-        start = end + 1
-    return loops
-
-
-def _contour_signed_area(loop: Sequence[Tuple[int, float, float]]) -> float:
-    a = 0.0
-    n = len(loop)
-    for i in range(n):
-        _, x0, y0 = loop[i]
-        _, x1, y1 = loop[(i + 1) % n]
-        a += x0 * y1 - x1 * y0
-    return 0.5 * a
-
-
-def _nudge_points_to_elliptical_stroke(
-    glyph: TTGlyph,
-    *,
-    vertical_stem: float = REFERENCE_VERTICAL_STEM,
-    horizontal_stem: float = REFERENCE_HORIZONTAL_STEM,
-    max_move: float = STROKE_REF_MAX_MOVE,
-    strength: float = STROKE_REF_STRENGTH,
-    passes: int = 2,
-) -> TTGlyph:
-    """Trace local thickness and nudge points to a V×H elliptical stroke.
-
-    For each on-curve point with outward normal ``n``, measure the inward
-    fill thickness and compare to the elliptical pen support::
-
-        half_target = sqrt((V/2 · nx)² + (H/2 · ny)²)
-
-    so vertical strokes target ``V`` (80) and horizontal strokes ``H`` (60).
-    Points move only along ``±n`` (no sliding along the stroke).
-    """
-    import math
-
-    if (
-        glyph.isComposite()
-        or glyph.numberOfContours <= 0
-        or vertical_stem <= 1.0
-        or horizontal_stem <= 1.0
-        or max_move <= 0
-        or strength <= 0
-    ):
-        return glyph
-
-    rx, ry = vertical_stem * 0.5, horizontal_stem * 0.5
-
-    for _ in range(max(1, passes)):
-        try:
-            coords = list(glyph.coordinates)
-            flags = list(glyph.flags)
-        except Exception:
-            return glyph
-        edges = _glyph_edge_segments(glyph)
-        if not edges:
-            return glyph
-        try:
-            glyph.recalcBounds(None)
-            diag = math.hypot(glyph.xMax - glyph.xMin, glyph.yMax - glyph.yMin)
-        except Exception:
-            diag = 1000.0
-        max_t = min(STROKE_REF_MAX_THICKNESS, max(diag, 1.0))
-
-        normals: Dict[int, Tuple[float, float]] = {}
-        for loop in _oncurve_contour_loops(glyph):
-            area = _contour_signed_area(loop)
-            m = len(loop)
-            for k in range(m):
-                _, x0, y0 = loop[k - 1]
-                idx, _x, _y = loop[k]
-                _, x1, y1 = loop[(k + 1) % m]
-                tx, ty = x1 - x0, y1 - y0
-                tl = math.hypot(tx, ty)
-                if tl < 1e-6:
-                    continue
-                tx, ty = tx / tl, ty / tl
-                normals[idx] = (ty, -tx) if area < 0 else (-ty, tx)
-
-        changed = False
-        for i, (x, y) in enumerate(coords):
-            if (flags[i] & 0x01) == 0:
-                continue
-            nrm = normals.get(i)
-            if nrm is None:
-                continue
-            nx, ny = nrm
-            px, py = float(x), float(y)
-            ox, oy = px - nx * 0.75, py - ny * 0.75
-            thick = _ray_thickness((ox, oy), (-nx, -ny), edges, max_dist=max_t)
-            if (
-                thick < STROKE_REF_MIN_THICKNESS
-                or thick > STROKE_REF_MAX_THICKNESS
-            ):
-                continue
-            half_cur = thick * 0.5 + 0.75
-            half_tgt = math.sqrt((rx * nx) ** 2 + (ry * ny) ** 2)
-            # Too thick → inward (−N); too thin → outward (+N).
-            err = half_cur - half_tgt
-            if abs(err) < 0.35:
-                continue
-            step = max(-max_move, min(max_move, -err * strength))
-            nx_i = otRound(px + nx * step)
-            ny_i = otRound(py + ny * step)
-            if coords[i] != (nx_i, ny_i):
-                coords[i] = (nx_i, ny_i)
-                changed = True
-        if not changed:
-            break
-        glyph.coordinates = GlyphCoordinates(coords)
-        try:
-            glyph.recalcBounds(None)
-        except Exception:
-            pass
-    return glyph
-
-
 def cleanup_ttglyph_contours(
     glyph: TTGlyph,
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     upem: int = DEFAULT_UPEM,
     snap_epsilon: float = CONTOUR_SNAP_EPSILON,
-    vertical_stem: float = REFERENCE_VERTICAL_STEM,
-    horizontal_stem: float = REFERENCE_HORIZONTAL_STEM,
 ) -> TTGlyph:
-    """After stem normalize: nudge points to a V×H elliptical stroke reference.
+    """Nudge broken joins after stem offset (spike collapse + near-point snap).
 
-    Each on-curve point is thickness-traced along its normal and pulled so the
-    local half-width matches ``sqrt((V/2·nx)² + (H/2·ny)²)`` (80 vertical /
-    60 horizontal @ 1000 UPM). Then needle spikes are collapsed and
-    near-coincident joins snapped.
+    Avoids boolean union/simplify here: those shred self-intersecting ribbons
+    into odd-even holes on Yi outlines. Only needle miter spikes are pulled
+    back; near-coincident on-curve points are snapped so joins re-meet.
     """
-    del glyph_set, upem
+    del glyph_set, upem  # reserved for future pathops path
     if glyph.numberOfContours == 0:
         return glyph
-    out = _nudge_points_to_elliptical_stroke(
-        glyph,
-        vertical_stem=vertical_stem,
-        horizontal_stem=horizontal_stem,
-    )
-    out = _collapse_spike_points_on_glyph(out)
+    out = _collapse_spike_points_on_glyph(glyph)
     out = _nudge_near_points_on_glyph(out, epsilon=snap_epsilon)
     return out
 
@@ -920,13 +694,9 @@ def normalize_glyph_stems_after_transform(
         pass
 
     out, _out_adv, out_lsb = ttglyph_from_layer(layer)
-    # Trace a V×H elliptical reference stroke and nudge points onto it.
-    out = cleanup_ttglyph_contours(
-        out,
-        upem=DEFAULT_UPEM,
-        vertical_stem=vertical_stem,
-        horizontal_stem=horizontal_stem,
-    )
+    # Stem offset often leaves self-intersections / spikes at sharp joins —
+    # union+simplify and nudge near points so fills stay solid.
+    out = cleanup_ttglyph_contours(out, upem=DEFAULT_UPEM)
     try:
         out.recalcBounds(None)
         out_lsb = int(out.xMin)
@@ -961,6 +731,186 @@ def fit_sideways_yi_glyph(
     )
 
 
+def _measure_glyph_stems(
+    glyph: TTGlyph,
+    advance: int,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> Tuple[float, float]:
+    """``(vertical_stem, horizontal_stem)``; bakes composites first."""
+    g = glyph
+    adv = int(advance)
+    if g.isComposite():
+        if glyph_set is None:
+            return 0.0, 0.0
+        g, adv, _ = _bake_transformed_glyph(
+            g, Transform(), adv, glyph_set=glyph_set
+        )
+    layer = layer_from_ttglyph(g, float(adv))
+    return estimate_vertical_stem(layer), estimate_horizontal_stem(layer)
+
+
+def _glyph_self_intersects(
+    glyph: TTGlyph,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> bool:
+    """Heuristic: pathops simplify explodes/empties self-intersecting ribbons."""
+    try:
+        import pathops
+    except ImportError:
+        return False
+    try:
+        sk = pathops.Path()
+        _recording_from_glyph(glyph, glyph_set).replay(sk.getPen())
+        raw_contours = list(sk.contours)
+        if not raw_contours:
+            return False
+        try:
+            simp = pathops.simplify(sk, fix_winding=True, clockwise=True)
+        except Exception:
+            return True
+        simp_contours = list(simp.contours)
+        if not simp_contours:
+            return True
+        # Self-intersecting offset ribbons often shatter into many shreds.
+        if len(simp_contours) > len(raw_contours) + 3:
+            return True
+        rb = sk.bounds
+        sb = simp.bounds
+        raw_area = max(0.0, (rb[2] - rb[0]) * (rb[3] - rb[1]))
+        simp_area = max(0.0, (sb[2] - sb[0]) * (sb[3] - sb[1]))
+        if raw_area > 1.0 and simp_area < raw_area * 0.45:
+            return True
+    except Exception:
+        return False
+    return False
+
+
+def _norm_result_ok(
+    glyph: TTGlyph,
+    advance: int,
+    *,
+    pre_v: float,
+    pre_h: float,
+    target_v: float,
+    target_h: float,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    abs_min_stem: float = 18.0,
+) -> bool:
+    """Accept normalize only when stems stay thick and outlines stay simple."""
+    post_v, post_h = _measure_glyph_stems(glyph, advance, glyph_set=glyph_set)
+    for post, pre, tgt in (
+        (post_v, pre_v, target_v),
+        (post_h, pre_h, target_h),
+    ):
+        if post <= 0:
+            continue
+        if post < abs_min_stem:
+            return False
+        # Collapsed vs pre-normalize stem.
+        if pre > 0 and post < pre * MIN_NORM_STEM_FRAC:
+            return False
+        # Badly undershot this attempt's target.
+        if tgt > 0 and post < tgt * MIN_NORM_STEM_FRAC:
+            return False
+    if _glyph_self_intersects(glyph, glyph_set=glyph_set):
+        return False
+    return True
+
+
+def _stem_target_candidates(
+    pre_v: float,
+    pre_h: float,
+    ref_v: float,
+    ref_h: float,
+) -> List[Tuple[float, float]]:
+    """Ordered (V, H) stem targets: full ref, blends, then larger/smaller refs."""
+    seen: set[Tuple[int, int]] = set()
+    out: List[Tuple[float, float]] = []
+
+    def _add(tv: float, th: float) -> None:
+        if tv <= 0 and th <= 0:
+            return
+        key = (int(round(tv * 10)), int(round(th * 10)))
+        if key in seen:
+            return
+        seen.add(key)
+        out.append((tv, th))
+
+    # 1) Full reference, then gentler blends back toward the pre-norm stems.
+    for t in NORM_BLEND_STEPS:
+        tv = pre_v + t * (ref_v - pre_v) if pre_v > 0 else ref_v * t
+        th = pre_h + t * (ref_h - pre_h) if pre_h > 0 else ref_h * t
+        _add(tv, th)
+
+    # 2) Larger / smaller absolute references (same scale on both axes).
+    for s in NORM_REF_SCALES:
+        _add(ref_v * s, ref_h * s)
+
+    # 3) Per-axis larger/smaller around the reference (one axis at a time).
+    for s in (1.2, 0.8, 1.35, 0.65):
+        _add(ref_v * s, ref_h)
+        _add(ref_v, ref_h * s)
+
+    return out
+
+
+def normalize_glyph_stems_with_retry(
+    glyph: TTGlyph,
+    advance: int,
+    *,
+    vertical_stem: float,
+    horizontal_stem: float,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> GlyphMetrics:
+    """Transform-ready glyph → try stem targets until thick and non-intersecting.
+
+    Tries the full reference, then smaller blends toward the pre-normalize
+    stems, then larger/smaller absolute targets. Returns the first acceptable
+    result, or the un-normalized glyph if every attempt fails.
+    """
+    if glyph.isComposite():
+        if glyph_set is None:
+            raise ValueError(
+                "normalize_glyph_stems_with_retry needs glyph_set "
+                "to bake composite inputs"
+            )
+        glyph, advance, _ = _bake_transformed_glyph(
+            glyph, Transform(), int(advance), glyph_set=glyph_set
+        )
+
+    pre_v, pre_h = _measure_glyph_stems(glyph, advance, glyph_set=glyph_set)
+    try:
+        glyph.recalcBounds(None)
+        raw_lsb = int(glyph.xMin)
+    except Exception:
+        raw_lsb = 0
+
+    for tv, th in _stem_target_candidates(pre_v, pre_h, vertical_stem, horizontal_stem):
+        norm_g, norm_a, norm_l = normalize_glyph_stems_after_transform(
+            glyph,
+            advance,
+            vertical_stem=tv,
+            horizontal_stem=th,
+            target_ink_width=None,
+            glyph_set=glyph_set,
+        )
+        if _norm_result_ok(
+            norm_g,
+            norm_a,
+            pre_v=pre_v,
+            pre_h=pre_h,
+            target_v=tv,
+            target_h=th,
+            glyph_set=glyph_set,
+        ):
+            return norm_g, norm_a, norm_l
+
+    # Give up — keep the reoriented outline as-is.
+    return glyph, int(advance), raw_lsb
+
+
 def add_d4_variant_glyphs(
     base_name: str,
     *,
@@ -976,17 +926,17 @@ def add_d4_variant_glyphs(
     reference_vertical_stem: Optional[float] = None,
     reference_horizontal_stem: Optional[float] = None,
 ) -> List[Tuple[int, str, str]]:
-    """Create D4 forms from two stem-normalized outlines: id + ``r90``.
+    """Create D4 forms from two outlines: id + ``r90`` (transform, then normalize).
 
-    Stem matching runs **twice** only::
+    Pipeline for each outline source::
 
-        1. normalize upright ``id`` (VS01) to reference H/V stems
-        2. bake ``r90`` (VS02) from that id, then normalize again
+        1. transform / reorient (id = identity; r90 = rotate from **un-normalized** upright)
+        2. stem-normalize, retrying smaller/larger targets until strokes stay
+           thick and non-self-intersecting (else keep step-1)
+        3. pin ink to the padded CJK floor
 
-    Both outlines are then re-fitted to the padded CJK floor (same as
-    standalones) so stem offset / elliptical nudge cannot push ink below
-    the baseline. Every other orientation is a simple rotate/reflect
-    composite — no further stem offset — so weights stay consistent::
+    Other orientations are simple rotate/reflect composites (no further stem
+    offset)::
 
         id  →  r180 / mx / my
         r90 →  r270 / r90mx / r90my
@@ -1023,33 +973,21 @@ def add_d4_variant_glyphs(
         glyphs[name] = glyph
         metrics[name] = (adv, glyph_lsb)
 
-    def _normalize(glyph: TTGlyph, adv: int) -> GlyphMetrics:
-        return normalize_glyph_stems_after_transform(
-            glyph,
-            adv,
-            vertical_stem=ref_v,
-            horizontal_stem=ref_h,
-            target_ink_width=None,
-            glyph_set=glyphs,
+    def _pin(glyph: TTGlyph, adv: int) -> GlyphMetrics:
+        return pin_glyph_ink_to_cjk_floor(
+            glyph, adv, target_upem, glyph_set=glyphs
         )
-
-    def _fit_floor(glyph: TTGlyph, adv: int) -> GlyphMetrics:
-        """Pin ink to the padded CJK floor (same as standalones); squash if tall."""
-        fitted = _fit_glyph_to_cjk_height(glyph, target_upem, pad=STANDALONE_VERT_PAD)
-        try:
-            fitted.recalcBounds(None)
-            return fitted, int(adv), int(fitted.xMin)
-        except Exception:
-            return fitted, int(adv), 0
 
     def _composite_from(
         parent_name: str,
+        parent_glyph: TTGlyph,
+        parent_adv: int,
+        parent_lsb: int,
         *,
         rot90_quarters: int,
         flip_x: bool,
         flip_y: bool,
     ) -> GlyphMetrics:
-        parent_adv, parent_lsb = metrics[parent_name]
         return make_composite_variant(
             parent_name,
             target_upem,
@@ -1058,28 +996,55 @@ def add_d4_variant_glyphs(
             flip_y=flip_y,
             advance=parent_adv,
             lsb=parent_lsb,
-            base_glyph=glyphs[parent_name],
+            base_glyph=parent_glyph,
             glyph_set=glyphs,
         )
 
-    # 1) Stem-normalize upright id (VS01) once, then re-pin to the CJK floor.
-    if use_ref and base_name in glyphs:
-        g0, a0, l0 = _normalize(glyphs[base_name], int(metrics[base_name][0]))
-        g0, a0, l0 = _fit_floor(g0, a0)
-        glyphs[base_name] = g0
-        metrics[base_name] = (int(a0), int(l0))
-        advance, lsb = int(a0), int(l0)
+    def _transform_then_normalize(
+        transformed: TTGlyph,
+        adv: int,
+    ) -> GlyphMetrics:
+        """Reorient first, then normalize with target retries."""
+        if transformed.isComposite():
+            baked, adv, _ = _bake_transformed_glyph(
+                transformed, Transform(), int(adv), glyph_set=glyphs
+            )
+        else:
+            baked = transformed
+        if not use_ref:
+            return _pin(baked, adv)
 
-    # 2) Bake + stem-normalize r90 (VS02) once; re-pin so rotated radicals
-    #    do not hang below the baseline / padded floor. Sideways composites
-    #    inherit this fitted outline.
-    if need_r90 and r90_name not in glyphs:
-        r90_glyph, r90_adv, r90_lsb = _composite_from(
-            base_name, rot90_quarters=1, flip_x=False, flip_y=False
+        norm_g, norm_a, _norm_l = normalize_glyph_stems_with_retry(
+            baked,
+            adv,
+            vertical_stem=ref_v,
+            horizontal_stem=ref_h,
+            glyph_set=glyphs,
         )
-        if use_ref:
-            r90_glyph, r90_adv, r90_lsb = _normalize(r90_glyph, r90_adv)
-        r90_glyph, r90_adv, r90_lsb = _fit_floor(r90_glyph, r90_adv)
+        return _pin(norm_g, norm_a)
+
+    # Keep the un-normalized upright as the transform source for r90.
+    src_glyph = glyphs[base_name]
+    src_adv, src_lsb = int(metrics[base_name][0]), int(metrics[base_name][1])
+
+    # 1) id: identity transform, then normalize (or keep source if too thin).
+    g0, a0, l0 = _transform_then_normalize(src_glyph, src_adv)
+    glyphs[base_name] = g0
+    metrics[base_name] = (int(a0), int(l0))
+    advance, lsb = int(a0), int(l0)
+
+    # 2) r90: rotate from **un-normalized** upright, then normalize.
+    if need_r90 and r90_name not in glyphs:
+        r90_raw, r90_adv, _r90_lsb = _composite_from(
+            base_name,
+            src_glyph,
+            src_adv,
+            src_lsb,
+            rot90_quarters=1,
+            flip_x=False,
+            flip_y=False,
+        )
+        r90_glyph, r90_adv, r90_lsb = _transform_then_normalize(r90_raw, r90_adv)
         _install(r90_name, r90_glyph, r90_adv, r90_lsb)
 
     for vs_cp, rot, flip_x, flip_y, suffix in use_modes:
@@ -1092,20 +1057,28 @@ def add_d4_variant_glyphs(
                 continue
             if suffix in SIDEWAYS_FROM_R90 and r90_name in glyphs:
                 rel_rot, rel_fx, rel_fy = SIDEWAYS_FROM_R90[suffix]
+                parent = r90_name
                 m_glyph, m_adv, m_lsb = _composite_from(
-                    r90_name,
+                    parent,
+                    glyphs[parent],
+                    metrics[parent][0],
+                    metrics[parent][1],
                     rot90_quarters=rel_rot,
                     flip_x=rel_fx,
                     flip_y=rel_fy,
                 )
             else:
-                # r180 / mx / my (and any other leftover) ← normalized id.
                 m_glyph, m_adv, m_lsb = _composite_from(
                     base_name,
+                    glyphs[base_name],
+                    metrics[base_name][0],
+                    metrics[base_name][1],
                     rot90_quarters=rot,
                     flip_x=flip_x,
                     flip_y=flip_y,
                 )
+            # Flips about contour center drop floor-pinned ink below baseline.
+            m_glyph, m_adv, m_lsb = _pin(m_glyph, m_adv)
             _install(m_name, m_glyph, m_adv, m_lsb)
         installed.append((vs_cp, suffix, m_name))
     return installed
@@ -1867,6 +1840,20 @@ def _uniform_place(
     return glyph
 
 
+def cjk_padded_floor(
+    target_upem: int, *, pad: float = STANDALONE_VERT_PAD
+) -> Tuple[float, float, float]:
+    """Padded CJK cell ``(floor, ceiling, height)`` for Yi ink placement."""
+    typo_bottom, typo_top, _ = ideographic_bounds(target_upem)
+    inset = target_upem * max(pad, 0.0)
+    bottom = typo_bottom + inset
+    top = typo_top - inset
+    cell_h = top - bottom
+    if cell_h <= 1e-6:
+        return typo_bottom, typo_top, typo_top - typo_bottom
+    return bottom, top, cell_h
+
+
 def _fit_glyph_to_cjk_height(
     glyph: TTGlyph,
     target_upem: int,
@@ -1881,13 +1868,7 @@ def _fit_glyph_to_cjk_height(
     ``pad`` is a fraction of em inset from typo ascent/descent so Yi does not
     hang on the raw -0.12em descent (which sits below typical CJK ink).
     """
-    typo_bottom, typo_top, _ = ideographic_bounds(target_upem)
-    inset = target_upem * max(pad, 0.0)
-    bottom = typo_bottom + inset
-    top = typo_top - inset
-    cell_h = top - bottom
-    if cell_h <= 1e-6:
-        bottom, top, cell_h = typo_bottom, typo_top, typo_top - typo_bottom
+    bottom, _top, cell_h = cjk_padded_floor(target_upem, pad=pad)
     try:
         glyph.recalcBounds(None)
         y0, y1 = float(glyph.yMin), float(glyph.yMax)
@@ -1906,6 +1887,81 @@ def _fit_glyph_to_cjk_height(
     if abs(dy) < 1e-6:
         return glyph
     return apply_transform(rec, Transform(1, 0, 0, 1, 0, dy))
+
+
+def pin_glyph_ink_to_cjk_floor(
+    glyph: TTGlyph,
+    advance: int,
+    target_upem: int,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    pad: float = STANDALONE_VERT_PAD,
+) -> GlyphMetrics:
+    """Translate (or squash) so ink bottom sits on the padded CJK floor.
+
+    Upright standalones are floor-pinned; D4 rotate/reflect about the contour
+    center, so flipped or sideways forms often hang below the baseline.
+    Composites stay composites when only a Y translation is needed.
+    """
+    bottom, _top, cell_h = cjk_padded_floor(target_upem, pad=pad)
+    try:
+        if glyph.isComposite():
+            if glyph_set is None:
+                raise ValueError("pin_glyph_ink_to_cjk_floor needs glyph_set")
+            glyph.recalcBounds(glyph_set)
+        else:
+            glyph.recalcBounds(None)
+        y0, y1 = float(glyph.yMin), float(glyph.yMax)
+    except Exception:
+        return glyph, int(advance), 0
+
+    h = y1 - y0
+    if h <= 1e-6:
+        try:
+            lsb = int(glyph.xMin)
+        except Exception:
+            lsb = 0
+        return glyph, int(advance), lsb
+
+    if h > cell_h + 1e-6:
+        # Too tall for the padded cell — bake composites, then squash to floor.
+        if glyph.isComposite():
+            glyph, advance, _ = _bake_transformed_glyph(
+                glyph, Transform(), int(advance), glyph_set=glyph_set
+            )
+        glyph = _fit_glyph_to_cjk_height(glyph, target_upem, pad=pad)
+        try:
+            glyph.recalcBounds(None)
+            lsb = int(glyph.xMin)
+        except Exception:
+            lsb = 0
+        return glyph, int(advance), lsb
+
+    dy = bottom - y0
+    if abs(dy) < 0.5:
+        try:
+            lsb = int(glyph.xMin)
+        except Exception:
+            lsb = 0
+        return glyph, int(advance), lsb
+
+    if glyph.isComposite():
+        for comp in glyph.components:
+            comp.y = otRound(comp.y + dy)
+        try:
+            glyph.recalcBounds(glyph_set)
+            lsb = int(glyph.xMin)
+        except Exception:
+            lsb = 0
+        return glyph, int(advance), lsb
+
+    glyph = _fit_glyph_to_cjk_height(glyph, target_upem, pad=pad)
+    try:
+        glyph.recalcBounds(None)
+        lsb = int(glyph.xMin)
+    except Exception:
+        lsb = 0
+    return glyph, int(advance), lsb
 
 
 def make_standalone_glyph(

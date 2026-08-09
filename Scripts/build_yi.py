@@ -239,9 +239,9 @@ def build_panyi_font(
     )
 
     print(
-        "  Orientations: normalize id + r90 only "
-        f"(V={ref_v_stem:.0f} / H={ref_h_stem:.0f}); "
-        "other D4 forms / slices are composites",
+        "  Orientations: transform id+r90, then stem-normalize "
+        f"(V={ref_v_stem:.0f} / H={ref_h_stem:.0f}; "
+        "retry smaller/larger targets before skip); other D4 = composites",
         flush=True,
     )
 
@@ -492,8 +492,8 @@ def build_all(
 
     print(
         "  Orientations: VS01..VS08 / FE00..FE07 "
-        f"(stem-normalize id+r90 only → V={REFERENCE_VERTICAL_STEM:g} "
-        f"H={REFERENCE_HORIZONTAL_STEM:g}; other D4 = composites)"
+        f"(transform→normalize id+r90 → V={REFERENCE_VERTICAL_STEM:g} "
+        f"H={REFERENCE_HORIZONTAL_STEM:g}; retry scales; other D4 = composites)"
     )
     print(
         f"  Slice: U+{SLICE_H_CP:04X}..U+{SLICE_V_CP:04X} "
