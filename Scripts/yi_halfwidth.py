@@ -1003,6 +1003,7 @@ def add_d4_variant_glyphs(
     sideways_center_x: Optional[float] = None,
     reference_vertical_stem: Optional[float] = None,
     reference_horizontal_stem: Optional[float] = None,
+    anchor: str = "floor",
 ) -> List[Tuple[int, str, str]]:
     """Create D4 forms from two outlines: id + ``r90`` (transform, then normalize).
 
@@ -1011,7 +1012,8 @@ def add_d4_variant_glyphs(
         1. transform / reorient (id = identity; r90 = rotate from **un-normalized** upright)
         2. stem-normalize, retrying smaller/larger targets until strokes stay
            thick and non-self-intersecting (else keep step-1)
-        3. pin ink to the padded CJK floor
+        3. place ink: ``anchor="floor"`` pins to padded CJK floor (Yi);
+           ``anchor="cell"`` anisotropically fills the padded ideographic cell (CJK)
 
     Other orientations are simple rotate/reflect composites (no further stem
     offset)::
@@ -1024,6 +1026,8 @@ def add_d4_variant_glyphs(
     Returns ``[(vs_cp, suffix, variant_glyph_name), ...]`` for GSUB wiring.
     """
     del sideways_target_width, sideways_center_x
+    if anchor not in ("floor", "cell"):
+        raise ValueError(f"anchor must be 'floor' or 'cell', got {anchor!r}")
 
     installed: List[Tuple[int, str, str]] = []
     use_modes = modes if modes is not None else TRANSFORM_MODES
@@ -1041,6 +1045,7 @@ def add_d4_variant_glyphs(
         for _vs, _r, _fx, _fy, suffix in use_modes
         if suffix is not None
     )
+    cell_mid = ideographic_center(target_upem) if anchor == "cell" else None
 
     def _install(name: str, glyph: TTGlyph, adv: int, glyph_lsb: int) -> None:
         if name in glyphs:
@@ -1051,7 +1056,11 @@ def add_d4_variant_glyphs(
         glyphs[name] = glyph
         metrics[name] = (adv, glyph_lsb)
 
-    def _pin(glyph: TTGlyph, adv: int) -> GlyphMetrics:
+    def _place(glyph: TTGlyph, adv: int) -> GlyphMetrics:
+        if anchor == "cell":
+            return fit_glyph_to_ideographic_cell(
+                glyph, adv, target_upem, glyph_set=glyphs
+            )
         return pin_glyph_ink_to_cjk_floor(glyph, adv, target_upem, glyph_set=glyphs)
 
     def _composite_from(
@@ -1074,6 +1083,8 @@ def add_d4_variant_glyphs(
             lsb=parent_lsb,
             base_glyph=parent_glyph,
             glyph_set=glyphs,
+            center=cell_mid,
+            allow_2x2=(anchor == "cell"),
         )
 
     def _transform_then_normalize(
@@ -1088,7 +1099,7 @@ def add_d4_variant_glyphs(
         else:
             baked = transformed
         if not use_ref:
-            return _pin(baked, adv)
+            return _place(baked, adv)
 
         norm_g, norm_a, _norm_l = normalize_glyph_stems_with_retry(
             baked,
@@ -1097,30 +1108,42 @@ def add_d4_variant_glyphs(
             horizontal_stem=ref_h,
             glyph_set=glyphs,
         )
-        return _pin(norm_g, norm_a)
+        return _place(norm_g, norm_a)
 
     # Keep the un-normalized upright as the transform source for r90.
     src_glyph = glyphs[base_name]
     src_adv, src_lsb = int(metrics[base_name][0]), int(metrics[base_name][1])
 
-    # 1) id: identity transform, then normalize (or keep source if too thin).
+    # 1) id: identity transform, then place (floor-pin or cell-fill).
     g0, a0, l0 = _transform_then_normalize(src_glyph, src_adv)
     glyphs[base_name] = g0
     metrics[base_name] = (int(a0), int(l0))
     advance, lsb = int(a0), int(l0)
 
-    # 2) r90: rotate from **un-normalized** upright, then normalize.
+    # 2) r90: from un-normalized upright (Yi) or fitted upright (CJK cell).
     if need_r90 and r90_name not in glyphs:
-        r90_raw, r90_adv, _r90_lsb = _composite_from(
-            base_name,
-            src_glyph,
-            src_adv,
-            src_lsb,
-            rot90_quarters=1,
-            flip_x=False,
-            flip_y=False,
-        )
-        r90_glyph, r90_adv, r90_lsb = _transform_then_normalize(r90_raw, r90_adv)
+        if anchor == "cell":
+            r90_raw, r90_adv, _r90_lsb = _composite_from(
+                base_name,
+                glyphs[base_name],
+                advance,
+                lsb,
+                rot90_quarters=1,
+                flip_x=False,
+                flip_y=False,
+            )
+            r90_glyph, r90_adv, r90_lsb = _place(r90_raw, r90_adv)
+        else:
+            r90_raw, r90_adv, _r90_lsb = _composite_from(
+                base_name,
+                src_glyph,
+                src_adv,
+                src_lsb,
+                rot90_quarters=1,
+                flip_x=False,
+                flip_y=False,
+            )
+            r90_glyph, r90_adv, r90_lsb = _transform_then_normalize(r90_raw, r90_adv)
         _install(r90_name, r90_glyph, r90_adv, r90_lsb)
 
     for vs_cp, rot, flip_x, flip_y, suffix in use_modes:
@@ -1153,8 +1176,15 @@ def add_d4_variant_glyphs(
                     flip_x=flip_x,
                     flip_y=flip_y,
                 )
-            # Flips about contour center drop floor-pinned ink below baseline.
-            m_glyph, m_adv, m_lsb = _pin(m_glyph, m_adv)
+            # Floor-pin after flips; cell-fill composites stay locked to the square.
+            if anchor == "floor":
+                m_glyph, m_adv, m_lsb = _place(m_glyph, m_adv)
+            else:
+                try:
+                    m_glyph.recalcBounds(glyphs)
+                    m_lsb = int(m_glyph.xMin)
+                except Exception:
+                    pass
             _install(m_name, m_glyph, m_adv, m_lsb)
         installed.append((vs_cp, suffix, m_name))
     return installed
@@ -1930,6 +1960,63 @@ def cjk_padded_floor(
     if cell_h <= 1e-6:
         return typo_bottom, typo_top, typo_top - typo_bottom
     return bottom, top, cell_h
+
+
+def fit_glyph_to_ideographic_cell(
+    glyph: TTGlyph,
+    advance: int,
+    target_upem: int,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    pad: float = STANDALONE_VERT_PAD,
+) -> GlyphMetrics:
+    """Anisotropic stretch ink to fill the padded ideographic cell.
+
+    Every outline — regardless of canonical size — is scaled independently in X
+    and Y so its bbox matches the padded typo square (not floor-pinned, not
+    uniform/min fit). Composites are baked once.
+    """
+    bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
+    inset = float(target_upem) * max(pad, 0.0)
+    x0, x1 = inset, float(target_upem) - inset
+    y0, y1 = bottom, top
+    adv = int(advance if advance > 0 else target_upem)
+
+    src = glyph
+    try:
+        if glyph.isComposite():
+            src, adv, _ = _bake_transformed_glyph(
+                glyph, Transform(), adv, glyph_set=glyph_set
+            )
+        src.recalcBounds(None)
+        x_min, y_min = float(src.xMin), float(src.yMin)
+        x_max, y_max = float(src.xMax), float(src.yMax)
+    except Exception:
+        try:
+            lsb = int(getattr(src, "xMin", 0) or 0)
+        except Exception:
+            lsb = 0
+        return src, adv, lsb
+
+    bw = max(x_max - x_min, 1.0)
+    bh = max(y_max - y_min, 1.0)
+    tw = max(x1 - x0, 1.0)
+    th = max(y1 - y0, 1.0)
+    sx = tw / bw
+    sy = th / bh
+    src_cx = (x_min + x_max) / 2.0
+    src_cy = (y_min + y_max) / 2.0
+    dst_cx = (x0 + x1) / 2.0
+    dst_cy = (y0 + y1) / 2.0
+    t = Transform(sx, 0, 0, sy, dst_cx - sx * src_cx, dst_cy - sy * src_cy)
+    rec = _recording_from_glyph(src, None)
+    out = apply_transform(rec, t)
+    try:
+        out.recalcBounds(None)
+        lsb = int(out.xMin)
+    except Exception:
+        lsb = 0
+    return out, int(target_upem), lsb
 
 
 def _fit_glyph_to_cjk_height(

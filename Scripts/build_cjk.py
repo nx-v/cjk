@@ -61,7 +61,7 @@ from yi_halfwidth import (
     VS_LAST,
     add_d4_variant_glyphs,
     build_d4_uvs_entries,
-    center_glyph_in_cell,
+    fit_glyph_to_ideographic_cell,
     is_yi_cp,
     load_inventory,
     make_standalone_glyph,
@@ -320,10 +320,8 @@ class SourceFont:
             return None
 
         # Some Ext-B sources ship inked glyphs with hmtx advance 0 and ink
-        # centered on x=0 (large negative LSB). Pan-CJK cells are full-em;
-        # force the advance and recenter ink in the typo square.
-        force_cell = advance <= 0
-        if force_cell:
+        # centered on x=0 (large negative LSB). Pan-CJK cells are full-em.
+        if advance <= 0:
             advance = target_upem
 
         if abs(self.weightor - 1.0) > 1e-9:
@@ -333,21 +331,17 @@ class SourceFont:
                 )
                 if advance <= 0:
                     advance = target_upem
-                    force_cell = True
             except Exception as e:
                 print(
                     f"  [!] weightor failed {os.path.basename(self.path)}:{src_name}: {e}",
                     file=sys.stderr,
                 )
 
-        if force_cell:
-            glyph = center_glyph_in_cell(glyph, target_upem)
-
-        try:
-            glyph.recalcBounds(None)
-            lsb = int(glyph.xMin)
-        except Exception:
-            lsb = otRound(lsb_src * upem_scale)
+        # Stretch ink to the padded ideographic cell (not floor-pinned /
+        # canonical-size). Short glyphs like U+4E00 fill the same box as tall ones.
+        glyph, advance, lsb = fit_glyph_to_ideographic_cell(
+            glyph, advance if advance > 0 else target_upem, target_upem
+        )
         return glyph, advance, lsb
 
 
@@ -500,6 +494,7 @@ def build_bucket_font(
             glyph_order=glyph_order,
             glyphs=glyphs,
             metrics=metrics,
+            anchor="cell",
         )
         uvs_rows.extend(build_d4_uvs_entries(out_cp, gname, glyphs=glyphs))
 
