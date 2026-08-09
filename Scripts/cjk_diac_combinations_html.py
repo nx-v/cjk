@@ -39,13 +39,18 @@ from collections import defaultdict
 from build_cjk import CHAR_RANGES, IN_DIR, OUT_DIR as SUBFONTS_OUT
 from cjk_diac_marks import (
     CORE_MARK_CPS,
+    OV_PUA_CP,
     OV_SELECTOR_CP,
     SQUISH_BOT_CP,
+    SQUISH_BOT_PUA_CP,
     SQUISH_LEFT_CP,
+    SQUISH_LEFT_PUA_CP,
     SQUISH_RIGHT_CP,
+    SQUISH_RIGHT_PUA_CP,
     SQUISH_TOP_CP,
+    SQUISH_TOP_PUA_CP,
 )
-from yi_halfwidth import TRANSFORM_MODES, uvs_selector_for_mode
+from yi_halfwidth import TRANSFORM_MODES, VS_BASE, uvs_selector_for_mode
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "subfonts", "diac-cjk.html")
@@ -364,6 +369,12 @@ def write_html(
         "SQUISH_L": SQUISH_LEFT_CP,
         "SQUISH_T": SQUISH_TOP_CP,
         "SQUISH_B": SQUISH_BOT_CP,
+        "OV_PUA": OV_PUA_CP,
+        "SQUISH_R_PUA": SQUISH_RIGHT_PUA_CP,
+        "SQUISH_L_PUA": SQUISH_LEFT_PUA_CP,
+        "SQUISH_T_PUA": SQUISH_TOP_PUA_CP,
+        "SQUISH_B_PUA": SQUISH_BOT_PUA_CP,
+        "D4_PUA_BASE": VS_BASE,
         "DIGRAPH_PAIRS": [
             {"a": a, "b": b, "cross": cross} for a, b, cross in pairs
         ],
@@ -531,30 +542,36 @@ function markList() {{
   if (markSel.value === 'all') return DATA.MARKS.map((_, i) => i);
   return [+markSel.value];
 }}
+function d4Pua(oi) {{
+  const fe = DATA.BASE_ORIENT_VS[oi];
+  if (fe == null) return '';
+  return String.fromCodePoint(DATA.D4_PUA_BASE + (fe - 0xFE00));
+}}
 function cjkPiece(idx, baseOi) {{
   const c = DATA.CJK[idx];
-  return c.ch + vsChar(DATA.BASE_ORIENT_VS[baseOi]);
+  return c.ch + d4Pua(baseOi);
 }}
 function markPiece(mi, markOi) {{
   const m = DATA.MARKS[mi];
-  return m.ch + vsChar(DATA.MARK_ORIENT_VS[markOi]);
+  return m.ch + d4Pua(markOi);
 }}
 function squishPiece(side) {{
-  const sel = side === 'R' ? DATA.SQUISH_R
-    : side === 'L' ? DATA.SQUISH_L
-    : side === 'T' ? DATA.SQUISH_T
-    : side === 'B' ? DATA.SQUISH_B
+  // PUA E009–E00C (FE0C–F mirrors) so browsers keep selectors for GSUB.
+  const sel = side === 'R' ? DATA.SQUISH_R_PUA
+    : side === 'L' ? DATA.SQUISH_L_PUA
+    : side === 'T' ? DATA.SQUISH_T_PUA
+    : side === 'B' ? DATA.SQUISH_B_PUA
     : null;
   return sel != null ? String.fromCodePoint(sel) : '';
 }}
 function digraphFirst(idx, oi, side) {{
-  // A (D4)? FE0B FE0C–F — zero-width half overlay
+  // A (D4 PUA)? E008 E009–C — zero-width half overlay
   return cjkPiece(idx, oi)
-    + String.fromCodePoint(DATA.OV_SEL)
+    + String.fromCodePoint(DATA.OV_PUA)
     + squishPiece(side);
 }}
 function digraphSecond(idx, oi, side) {{
-  // B (D4)? FE0D–F — opposing niche, keeps advance
+  // B (D4 PUA)? E00A–C — opposing niche, keeps advance
   return cjkPiece(idx, oi) + squishPiece(side);
 }}
 function squishHex(side) {{

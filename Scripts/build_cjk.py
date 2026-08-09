@@ -47,6 +47,7 @@ from cjk_diac_marks import (
     PLANGOTHIC_P2_FILENAME,
     MARK_CPS,
     SIDE_SELECTOR_CPS,
+    SQUISH_PUA_CPS,
     compile_marks_layout,
     install_cjk_composition_gsub,
     prepare_marks,
@@ -690,29 +691,33 @@ def _build_bucket_task(
 
 
 def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
-    """CSS unicode-range for this bucket's CJK + reading marks.
+    """CSS unicode-range for this bucket's CJK + selectors + reading marks.
 
-    PUA U+E000..E007 and all VS U+FE00..FE0F are *not* listed: in a multi-face
-    stack the first face would steal them and break `base+VS` GSUB ligatures.
-    D4 (FE00..FE07, FE00=no-op) and squish/overlay (FE0B..FE0F) stay cmap+GSUB;
-    VS glyphs remain in each face's cmap so shaping pulls them with the base.
-    U+16FF0/16FF1 (`MARK_CPS`) stay listed so marks load from this face.
+    Per-bucket ``'pancjk XX'`` faces list FE00..FE0F and PUA E000..E00C so
+    digraph galleries can shape with non-ignorable PUA mirrors (Blink drops
+    Default_Ignorable VS that are not cmap-14 UVS). Shared ``pancjk`` stacks
+    still prefer pinning each half to its bucket face. U+16FF0/16FF1 stay
+    listed so marks load from this face.
     """
     side_sels = set(SIDE_SELECTOR_CPS)
-    uvs_sels = set(range(UVS_BASE, UVS_LAST + 1))
+    # FE00..FE0F (D4 + squish/overlay / mark niches).
+    fe0_sels = set(range(0xFE00, 0xFE10))
+    # PUA D4 (E000..E007) + squish/overlay mirrors (E008..E00C).
+    pua_sels = set(range(VS_BASE, VS_LAST + 1)) | set(SQUISH_PUA_CPS)
+    selector_cps = fe0_sels | pua_sels
     bucket_cps = {
         cp
         for cp in codepoints
         if not (VS_BASE <= cp <= VS_LAST)
         and cp not in side_sels
-        and cp not in uvs_sels
+        and cp not in selector_cps
         and cp not in MARK_CPS
     }
-    cps = sorted(bucket_cps | set(MARK_CPS))
+    cps = sorted(bucket_cps | set(MARK_CPS) | selector_cps)
     if not bucket_cps:
         start = bucket_id << 8
         end = start + 0xFF
-        cps = sorted(set(range(start, end + 1)) | set(MARK_CPS))
+        cps = sorted(set(range(start, end + 1)) | set(MARK_CPS) | selector_cps)
 
     runs: List[str] = []
     run_start = cps[0]
@@ -739,8 +744,9 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     lines: List[str] = [
         "/* Auto-generated Pan-CJK pigeonhole @font-face rules */",
         "/* Per-bucket family 'pancjk XX' plus shared family 'pancjk' (same",
-        "   unicode-range faces). FE08–FE0F omitted from unicode-range so the",
-        "   first face cannot steal squish/mark selectors from GSUB liga. */",
+        "   unicode-range faces). FE00–FE0F + PUA E000–E00C listed per face",
+        "   for single-face GSUB liga; digraph HTML pins each half to",
+        "   'pancjk XX' and prefers PUA selectors in browsers. */",
         "",
     ]
     family_names: List[str] = []

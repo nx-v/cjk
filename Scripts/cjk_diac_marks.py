@@ -119,6 +119,21 @@ SQUISH_TOP_CP = 0xFE0E
 SQUISH_TOP_NAME = "vsDkt"
 SQUISH_BOT_CP = 0xFE0F
 SQUISH_BOT_NAME = "vsDkb"
+# Non-ignorable PUA mirrors of FE0B..FE0F for browser digraph shaping.
+# Blink drops Default_Ignorable VS that are not cmap-14 UVS before GSUB;
+# PUA U+E008..E00C maps to the same selector glyphs so liga still runs.
+OV_PUA_CP = 0xE008
+SQUISH_RIGHT_PUA_CP = 0xE009
+SQUISH_LEFT_PUA_CP = 0xE00A
+SQUISH_TOP_PUA_CP = 0xE00B
+SQUISH_BOT_PUA_CP = 0xE00C
+SQUISH_PUA_CPS: Tuple[int, ...] = (
+    OV_PUA_CP,
+    SQUISH_RIGHT_PUA_CP,
+    SQUISH_LEFT_PUA_CP,
+    SQUISH_TOP_PUA_CP,
+    SQUISH_BOT_PUA_CP,
+)
 SIDE_SELECTOR_CPS: Tuple[int, ...] = (
     ALT_SELECTOR_CP,
     TOP_SELECTOR_CP,
@@ -135,6 +150,14 @@ SQUISH_VS_SLOTS: Tuple[Tuple[int, str, str], ...] = (
     (SQUISH_LEFT_CP, SQUISH_LEFT_NAME, "dkl"),
     (SQUISH_TOP_CP, SQUISH_TOP_NAME, "dkt"),
     (SQUISH_BOT_CP, SQUISH_BOT_NAME, "dkb"),
+)
+# PUA codepoint → same glyph as FE0B..FE0F (for digraph HTML / browser liga).
+SQUISH_PUA_SLOTS: Tuple[Tuple[int, str], ...] = (
+    (OV_PUA_CP, OV_SELECTOR_NAME),
+    (SQUISH_RIGHT_PUA_CP, SQUISH_RIGHT_NAME),
+    (SQUISH_LEFT_PUA_CP, SQUISH_LEFT_NAME),
+    (SQUISH_TOP_PUA_CP, SQUISH_TOP_NAME),
+    (SQUISH_BOT_PUA_CP, SQUISH_BOT_NAME),
 )
 
 # Full D4 (identity + VS02..VS08 / FE01..FE07), including r90my.
@@ -1998,15 +2021,18 @@ def build_squish_vs_uvs_entries(
     *,
     glyphs: Dict[str, TTGlyph],
 ) -> List[Tuple[int, int, Optional[str]]]:
-    """No cmap-14 UVS for FE0B–FE0F — access is GSUB liga only.
+    """cmap-14 UVS for plain squish only (``FE0C``…``FE0F``).
 
-    UVS would map ``base+FE0B`` → ``.ov`` and then drop a following ``FE0C``
-    (Default_Ignorable), so ``base FE0B FE0C`` never reached the 3-glyph liga
-    for squish-overlay. Plain squish / overlay / squish-overlay all use
-    ``ccmp``/``rlig``/``liga`` on cmap selector glyphs instead.
+    No UVS for ``FE0B``: that would map ``base+FE0B`` → ``.ov`` and drop a
+    following niche VS before GSUB. Squish-overlay digraphs use PUA
+    ``E008``…``E00C`` (non-ignorable) so browsers keep the full liga chain.
     """
-    del base_cp, base_glyph, glyphs
-    return []
+    rows: List[Tuple[int, int, Optional[str]]] = []
+    for sel_cp, _name, suf in SQUISH_VS_SLOTS:
+        sq = _squish_form_name(base_glyph, suf)
+        if sq in glyphs:
+            rows.append((base_cp, sel_cp, sq))
+    return rows
 
 
 def prepare_squish_vs_access(
@@ -2045,6 +2071,10 @@ def prepare_squish_vs_access(
             metrics=metrics,
             cmap=cmap,
         )
+    # PUA aliases so browsers keep VS-class sequences for GSUB (not DI-dropped).
+    for pua_cp, sel_name in SQUISH_PUA_SLOTS:
+        if sel_name in glyphs:
+            cmap[pua_cp] = sel_name
 
     squishable = squishable_forms(cjk_bases)
     add_squish_forms(

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build an HTML gallery for CJK squish digraph combinations.
 
-Encoding (matches ``cjk_diac_marks`` / ``build_cjk``)::
+Logical encoding (matches ``cjk_diac_marks`` / ``build_cjk``)::
 
     A FE00..FE07 FE0B FE0C–F   B FE00..FE07 FE0D–F
 
@@ -10,7 +10,12 @@ Encoding (matches ``cjk_diac_marks`` / ``build_cjk``)::
     &#x660E;&#xFE00;&#xFE0B;&#xFE0C;&#x65E5;&#xFE02;&#xFE0D;
     (明 FE00 FE0B FE0C + 日 FE02 FE0D; each side picks its own D4)
 
-  * First kanji is zero-width overlay (``FE0B`` + niche)
+  Browser gallery text uses PUA mirrors (Blink drops Default_Ignorable VS
+  that are not cmap-14 UVS before GSUB)::
+
+    A E000..E007 E008 E009–C   B E000..E007 E00A–C
+
+  * First kanji is zero-width overlay (``FE0B`` / PUA ``E008`` + niche)
   * Niches oppose: FE0C↔FE0D (L↔R), FE0E↔FE0F (T↔B)
   * D4 orients are independent per character (FE00..FE07); GSUB liga only
   * Prefer pairs from different pancjk buckets (``cp >> 8``); seed 明日
@@ -42,12 +47,18 @@ from cjk_diac_combinations_html import (
     parse_range_spec,
 )
 from cjk_diac_marks import (
+    OV_PUA_CP,
     OV_SELECTOR_CP,
     SQUISH_BOT_CP,
+    SQUISH_BOT_PUA_CP,
     SQUISH_LEFT_CP,
+    SQUISH_LEFT_PUA_CP,
     SQUISH_RIGHT_CP,
+    SQUISH_RIGHT_PUA_CP,
     SQUISH_TOP_CP,
+    SQUISH_TOP_PUA_CP,
 )
+from yi_halfwidth import VS_BASE
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "subfonts", "digraph-cjk.html")
@@ -81,11 +92,18 @@ def write_html(
         "CJK": cjk,
         "BASE_ORIENT_VS": BASE_ORIENT_VS,
         "BASE_ORIENT_LABEL": BASE_ORIENT_LABEL,
+        # Documented FE0* selectors (tags); PUA mirrors for browser textContent.
         "OV_SEL": OV_SELECTOR_CP,
         "SQUISH_R": SQUISH_RIGHT_CP,
         "SQUISH_L": SQUISH_LEFT_CP,
         "SQUISH_T": SQUISH_TOP_CP,
         "SQUISH_B": SQUISH_BOT_CP,
+        "OV_PUA": OV_PUA_CP,
+        "SQUISH_R_PUA": SQUISH_RIGHT_PUA_CP,
+        "SQUISH_L_PUA": SQUISH_LEFT_PUA_CP,
+        "SQUISH_T_PUA": SQUISH_TOP_PUA_CP,
+        "SQUISH_B_PUA": SQUISH_BOT_PUA_CP,
+        "D4_PUA_BASE": VS_BASE,
         "DIGRAPH_PAIRS": [
             {"a": a, "b": b, "cross": cross} for a, b, cross in pairs
         ],
@@ -153,6 +171,10 @@ main {{ padding: 12px 20px 80px; }}
   outline: 1px solid #2a2a2a;
   min-width: 1em; min-height: 1em;
   display: flex; align-items: center; justify-content: center;
+  font-feature-settings: "ccmp" 1, "rlig" 1, "liga" 1;
+}}
+.glyph span {{
+  font-feature-settings: "ccmp" 1, "rlig" 1, "liga" 1;
 }}
 .tag {{
   font-family: system-ui, sans-serif; font-size: 9px; color: #666;
@@ -172,7 +194,7 @@ h2 {{
   <p class="meta">
     Range: {range_note}<br/>
     Encoding: <code>A FE00..FE07 FE0B FE0C–F</code> + <code>B FE00..FE07 FE0D–F</code>
-    (each side picks its own D4; niches oppose)<br/>
+    (gallery text uses PUA <code>E000..E00C</code>; niches oppose)<br/>
     First half zero-width · niches FE0C↔FE0D / FE0E↔FE0F · D4 independent<br/>
     Pairs: {len(pairs)} ({n_cross} cross-bucket) · full A×B orient gallery ≈ {n_gallery:,}
   </p>
@@ -249,25 +271,31 @@ fillOrientSelect(orientB);
 }}
 
 function vsChar(vs) {{ return vs == null ? '' : String.fromCodePoint(vs); }}
+function d4Pua(oi) {{
+  // FE00..FE07 → E000..E007 (same empty vsNN glyphs; browsers keep PUA).
+  const fe = DATA.BASE_ORIENT_VS[oi];
+  if (fe == null) return '';
+  return String.fromCodePoint(DATA.D4_PUA_BASE + (fe - 0xFE00));
+}}
 function cjkPiece(idx, oi) {{
-  return DATA.CJK[idx].ch + vsChar(DATA.BASE_ORIENT_VS[oi]);
+  return DATA.CJK[idx].ch + d4Pua(oi);
 }}
 function squishPiece(side) {{
-  const sel = side === 'R' ? DATA.SQUISH_R
-    : side === 'L' ? DATA.SQUISH_L
-    : side === 'T' ? DATA.SQUISH_T
-    : side === 'B' ? DATA.SQUISH_B
+  const sel = side === 'R' ? DATA.SQUISH_R_PUA
+    : side === 'L' ? DATA.SQUISH_L_PUA
+    : side === 'T' ? DATA.SQUISH_T_PUA
+    : side === 'B' ? DATA.SQUISH_B_PUA
     : null;
   return sel != null ? String.fromCodePoint(sel) : '';
 }}
 function digraphFirst(idx, oi, side) {{
-  // A FE00..FE07 FE0B FE0C–F — zero-width half overlay
+  // A E000..E007 E008 E009–C — zero-width half overlay (PUA = FE0B FE0C–F)
   return cjkPiece(idx, oi)
-    + String.fromCodePoint(DATA.OV_SEL)
+    + String.fromCodePoint(DATA.OV_PUA)
     + squishPiece(side);
 }}
 function digraphSecond(idx, oi, side) {{
-  // B FE00..FE07 FE0D–F — independent D4, opposing niche, keeps advance
+  // B E000..E007 E00A–C — independent D4, opposing niche, keeps advance
   return cjkPiece(idx, oi) + squishPiece(side);
 }}
 function squishHex(side) {{
@@ -309,18 +337,38 @@ function orientLabel(oia, oib) {{
   return (DATA.BASE_ORIENT_LABEL[oia] || 'id')
     + ' × ' + (DATA.BASE_ORIENT_LABEL[oib] || 'id');
 }}
-function cell(text, tag, cross) {{
+function bucketFamily(cp) {{
+  // Pin each half to its pigeonhole face so selector GSUB ligas stay in-font.
+  return 'pancjk ' + (cp >> 8).toString(16).toUpperCase();
+}}
+function cell(textA, textB, cpA, cpB, tag, cross) {{
   const d = document.createElement('div');
   d.className = 'cell';
   const g = document.createElement('div');
   g.className = 'glyph';
-  g.textContent = text;
+  const s1 = document.createElement('span');
+  s1.style.fontFamily = bucketFamily(cpA);
+  s1.textContent = textA;
+  const s2 = document.createElement('span');
+  s2.style.fontFamily = bucketFamily(cpB);
+  s2.textContent = textB;
+  g.appendChild(s1);
+  g.appendChild(s2);
   const t = document.createElement('div');
   t.className = 'tag' + (cross ? ' cross' : '');
   t.textContent = tag;
   d.appendChild(g);
   d.appendChild(t);
   return d;
+}}
+function digraphCell(p, oia, oib, niche) {{
+  const a = DATA.CJK[p.a], b = DATA.CJK[p.b];
+  return cell(
+    digraphFirst(p.a, oia, niche.a),
+    digraphSecond(p.b, oib, niche.b),
+    a.cp, b.cp,
+    digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
+    !!p.cross);
 }}
 function heading(s) {{
   const h = document.createElement('h2');
@@ -339,12 +387,7 @@ function renderDigraphs() {{
   let n = 0;
   for (const p of pairs) {{
     for (const niche of niches) {{
-      const text = digraphFirst(p.a, oia, niche.a)
-        + digraphSecond(p.b, oib, niche.b);
-      out.appendChild(cell(
-        text,
-        digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
-        !!p.cross));
+      out.appendChild(digraphCell(p, oia, oib, niche));
       n++;
     }}
   }}
@@ -363,12 +406,7 @@ function renderOrientGrid() {{
       out.appendChild(heading(orientLabel(oia, oib)));
       for (const p of pairs) {{
         for (const niche of niches) {{
-          const text = digraphFirst(p.a, oia, niche.a)
-            + digraphSecond(p.b, oib, niche.b);
-          out.appendChild(cell(
-            text,
-            digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
-            !!p.cross));
+          out.appendChild(digraphCell(p, oia, oib, niche));
           n++;
         }}
       }}
@@ -386,12 +424,7 @@ function renderNicheGrid() {{
   for (const niche of DATA.DIGRAPH_NICHES) {{
     out.appendChild(heading(NICHE_LABEL[niche.a] + ' + ' + NICHE_LABEL[niche.b]));
     for (const p of pairs) {{
-      const text = digraphFirst(p.a, oia, niche.a)
-        + digraphSecond(p.b, oib, niche.b);
-      out.appendChild(cell(
-        text,
-        digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
-        !!p.cross));
+      out.appendChild(digraphCell(p, oia, oib, niche));
       n++;
     }}
   }}
@@ -408,12 +441,7 @@ function renderEverything() {{
       out.appendChild(heading(orientLabel(oia, oib)));
       for (const niche of DATA.DIGRAPH_NICHES) {{
         for (const p of pairs) {{
-          const text = digraphFirst(p.a, oia, niche.a)
-            + digraphSecond(p.b, oib, niche.b);
-          out.appendChild(cell(
-            text,
-            digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
-            !!p.cross));
+          out.appendChild(digraphCell(p, oia, oib, niche));
           n++;
         }}
       }}
