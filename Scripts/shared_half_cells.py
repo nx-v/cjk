@@ -7,7 +7,7 @@ Encoding
   **same** ``sx`` from that advance and the **same** ``sy`` from the tallest
   ink height, then headless CAPE Weightor Width-mode stretch (``cape_weightor``);
   Y is fitted to the CJK typo box (floor-pin), then uniformly downscaled to
-  ``STANDALONE_CELL_SCALE`` (~95%) about the ideographic center.
+  ``STANDALONE_CELL_SCALE`` (~98%) about the ideographic center.
 * Orientations: D4 square symmetries on **VS01..VS08** (``U+E000``..``U+E007``,
   UVS ``U+FE00``..``U+FE07``), including ``r90my``. Pipeline for the two
   outline sources: **transform / reorient first**, then stem-normalize
@@ -17,7 +17,7 @@ Encoding
   then falls back to the un-normalized transform.
   Other D4 forms are TT composites of those two (``r180`` / ``mx`` / ``my`` ←
   id; ``r270`` / ``r90mx`` / ``r90my`` ← r90). After each outline and each
-  composite, ink is re-pinned to the padded CJK floor, then downscaled ~95%
+  composite, ink is re-pinned to the padded CJK floor, then downscaled ~98%
   about the ideographic center.
 * Overlay (GlyphWiki / build_cjk): **``U+FE08``** superimposes preceding
   glyphs into one cell — everything but the **last** glyph before ``FE08``
@@ -95,8 +95,8 @@ STANDALONE_CONTOUR_WIDEN = 0.15
 # low next to CJK ink that usually rests nearer the baseline.
 STANDALONE_VERT_PAD = 0.05
 # After stretch / stem-normalize + CJK floor pin: uniform scale about the
-# ideographic center so Yi ink occupies ~95% of the cell (still centered).
-STANDALONE_CELL_SCALE = 0.95
+# ideographic center so Yi ink occupies ~98% of the cell (still centered).
+STANDALONE_CELL_SCALE = 0.98
 
 # Match build_yi / build_cjk OS/2 + hhea (CJK ideographic body).
 TYPO_ASCENDER_FRAC = 0.88
@@ -1018,8 +1018,8 @@ def add_d4_variant_glyphs(
         2. stem-normalize, retrying smaller/larger targets until strokes stay
            thick and non-self-intersecting (else keep step-1)
         3. place ink: ``anchor="floor"`` pins to padded CJK floor then
-           downscales ~95% about the ideographic center (Yi);
-           ``anchor="cell"`` keeps the proportional cell fit (CJK; rotate only)
+           downscales ~98% about the ideographic center (Yi);
+           ``anchor="cell"`` centers in the padded cell, shrink-only (CJK)
 
     Other orientations are simple rotate/reflect composites (no further stem
     offset)::
@@ -1997,13 +1997,18 @@ def fit_glyph_to_ideographic_cell(
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     pad: float = STANDALONE_VERT_PAD,
+    grow: bool = False,
 ) -> GlyphMetrics:
-    """Proportionally scale contour ink to fit inside the padded ideo cell.
+    """Proportionally fit contour ink inside the padded ideo cell.
 
     Uniform ``s = min(cell_w / ink_w, cell_h / ink_h)`` about the ink center,
-    then translate so the scaled bbox sits at the cell center. Short glyphs
-    grow; overflowing ones shrink — aspect ratio is preserved. Composites bake
-    once. (Not anisotropic fill, and not a fixed ``(0,0)…(upem,upem)`` map.)
+    then translate so the scaled bbox sits at the cell center. Overflowing
+    glyphs shrink; aspect ratio is preserved. Composites bake once.
+
+    By default ``grow=False`` so under-full ideographs (dots, ticks, sparse
+    radicals) keep their designed stem weight — upscaling them to fill the
+    cell made simple glyphs look bloated, and squish forms inherited that.
+    Pass ``grow=True`` only when intentionally filling the cell.
     """
     bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
     inset = float(target_upem) * max(pad, 0.0)
@@ -2034,6 +2039,8 @@ def fit_glyph_to_ideographic_cell(
     tw = max(x1 - x0, 1.0)
     th = max(y1 - y0, 1.0)
     s = min(tw / sw, th / sh)
+    if not grow:
+        s = min(s, 1.0)
     src_cx = (sx0 + sx1) / 2.0
     src_cy = (sy0 + sy1) / 2.0
     dst_cx = (x0 + x1) / 2.0
@@ -2230,7 +2237,7 @@ def make_standalone_glyph(
     default +15% outer width, vertical stems compensated). Then Y is fitted
     to a padded CJK typo box: squash if taller, otherwise pin the ink bottom
     to the padded floor (above raw descent). Finally uniform ``cell_scale``
-    (~95%) about the ideographic center keeps the syllable inset and centered.
+    (~98%) about the ideographic center keeps the syllable inset and centered.
     """
     del stroke_weight
     del source_center_y  # retained for call-site compat / inventory symmetry

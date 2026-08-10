@@ -4,6 +4,1641 @@
    each face's unicode-range for single-face GSUB liga. */
 
 @font-face {
+  font-family: 'pancjk 34';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/34.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/34.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/34.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/34.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/34.woff2") format("woff2"),
+       url("./34.woff2") format("woff2"),
+       url("./34.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3400-34FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 35';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/35.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/35.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/35.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/35.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/35.woff2") format("woff2"),
+       url("./35.woff2") format("woff2"),
+       url("./35.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3500-35FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 36';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/36.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/36.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/36.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/36.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/36.woff2") format("woff2"),
+       url("./36.woff2") format("woff2"),
+       url("./36.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3600-36FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 37';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/37.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/37.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/37.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/37.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/37.woff2") format("woff2"),
+       url("./37.woff2") format("woff2"),
+       url("./37.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3700-37FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 38';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/38.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/38.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/38.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/38.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/38.woff2") format("woff2"),
+       url("./38.woff2") format("woff2"),
+       url("./38.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3800-38FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 39';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/39.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/39.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/39.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/39.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/39.woff2") format("woff2"),
+       url("./39.woff2") format("woff2"),
+       url("./39.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3900-39FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 3A';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/3A.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3A.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3A.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3A.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3A.woff2") format("woff2"),
+       url("./3A.woff2") format("woff2"),
+       url("./3A.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3A00-3AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 3B';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/3B.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3B.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3B.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3B.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3B.woff2") format("woff2"),
+       url("./3B.woff2") format("woff2"),
+       url("./3B.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3B00-3BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 3C';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/3C.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3C.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3C.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3C.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3C.woff2") format("woff2"),
+       url("./3C.woff2") format("woff2"),
+       url("./3C.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3C00-3CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 3D';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/3D.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3D.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3D.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3D.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3D.woff2") format("woff2"),
+       url("./3D.woff2") format("woff2"),
+       url("./3D.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3D00-3DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 3E';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/3E.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3E.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3E.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3E.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3E.woff2") format("woff2"),
+       url("./3E.woff2") format("woff2"),
+       url("./3E.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3E00-3EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 3F';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/3F.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3F.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3F.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3F.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3F.woff2") format("woff2"),
+       url("./3F.woff2") format("woff2"),
+       url("./3F.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3F00-3FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 40';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/40.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/40.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/40.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/40.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/40.woff2") format("woff2"),
+       url("./40.woff2") format("woff2"),
+       url("./40.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4000-40FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 41';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/41.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/41.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/41.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/41.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/41.woff2") format("woff2"),
+       url("./41.woff2") format("woff2"),
+       url("./41.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4100-41FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 42';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/42.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/42.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/42.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/42.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/42.woff2") format("woff2"),
+       url("./42.woff2") format("woff2"),
+       url("./42.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4200-42FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 43';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/43.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/43.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/43.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/43.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/43.woff2") format("woff2"),
+       url("./43.woff2") format("woff2"),
+       url("./43.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4300-43FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 44';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/44.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/44.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/44.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/44.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/44.woff2") format("woff2"),
+       url("./44.woff2") format("woff2"),
+       url("./44.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4400-44FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 45';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/45.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/45.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/45.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/45.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/45.woff2") format("woff2"),
+       url("./45.woff2") format("woff2"),
+       url("./45.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4500-45FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 46';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/46.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/46.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/46.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/46.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/46.woff2") format("woff2"),
+       url("./46.woff2") format("woff2"),
+       url("./46.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4600-46FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 47';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/47.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/47.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/47.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/47.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/47.woff2") format("woff2"),
+       url("./47.woff2") format("woff2"),
+       url("./47.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4700-47FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 48';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/48.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/48.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/48.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/48.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/48.woff2") format("woff2"),
+       url("./48.woff2") format("woff2"),
+       url("./48.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4800-48FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 49';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/49.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/49.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/49.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/49.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/49.woff2") format("woff2"),
+       url("./49.woff2") format("woff2"),
+       url("./49.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4900-49FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 4A';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/4A.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4A.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4A.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4A.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4A.woff2") format("woff2"),
+       url("./4A.woff2") format("woff2"),
+       url("./4A.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4A00-4AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 4B';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/4B.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4B.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4B.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4B.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4B.woff2") format("woff2"),
+       url("./4B.woff2") format("woff2"),
+       url("./4B.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4B00-4BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 4C';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/4C.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4C.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4C.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4C.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4C.woff2") format("woff2"),
+       url("./4C.woff2") format("woff2"),
+       url("./4C.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4C00-4CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 4D';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/4D.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4D.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4D.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4D.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4D.woff2") format("woff2"),
+       url("./4D.woff2") format("woff2"),
+       url("./4D.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4D00-4DBF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 4E';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/4E.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4E.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4E.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4E.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4E.woff2") format("woff2"),
+       url("./4E.woff2") format("woff2"),
+       url("./4E.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4E00-4EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 4F';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/4F.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4F.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4F.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4F.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4F.woff2") format("woff2"),
+       url("./4F.woff2") format("woff2"),
+       url("./4F.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+4F00-4FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 50';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/50.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/50.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/50.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/50.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/50.woff2") format("woff2"),
+       url("./50.woff2") format("woff2"),
+       url("./50.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5000-50FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 51';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/51.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/51.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/51.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/51.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/51.woff2") format("woff2"),
+       url("./51.woff2") format("woff2"),
+       url("./51.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5100-51FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 52';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/52.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/52.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/52.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/52.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/52.woff2") format("woff2"),
+       url("./52.woff2") format("woff2"),
+       url("./52.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5200-52FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 53';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/53.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/53.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/53.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/53.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/53.woff2") format("woff2"),
+       url("./53.woff2") format("woff2"),
+       url("./53.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5300-53FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 54';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/54.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/54.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/54.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/54.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/54.woff2") format("woff2"),
+       url("./54.woff2") format("woff2"),
+       url("./54.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5400-54FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 55';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/55.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/55.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/55.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/55.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/55.woff2") format("woff2"),
+       url("./55.woff2") format("woff2"),
+       url("./55.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5500-55FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 56';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/56.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/56.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/56.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/56.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/56.woff2") format("woff2"),
+       url("./56.woff2") format("woff2"),
+       url("./56.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5600-56FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 57';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/57.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/57.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/57.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/57.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/57.woff2") format("woff2"),
+       url("./57.woff2") format("woff2"),
+       url("./57.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5700-57FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 58';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/58.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/58.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/58.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/58.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/58.woff2") format("woff2"),
+       url("./58.woff2") format("woff2"),
+       url("./58.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5800-58FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 59';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/59.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/59.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/59.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/59.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/59.woff2") format("woff2"),
+       url("./59.woff2") format("woff2"),
+       url("./59.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5900-59FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 5A';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/5A.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5A.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5A.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5A.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5A.woff2") format("woff2"),
+       url("./5A.woff2") format("woff2"),
+       url("./5A.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5A00-5AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 5B';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/5B.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5B.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5B.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5B.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5B.woff2") format("woff2"),
+       url("./5B.woff2") format("woff2"),
+       url("./5B.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5B00-5BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 5C';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/5C.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5C.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5C.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5C.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5C.woff2") format("woff2"),
+       url("./5C.woff2") format("woff2"),
+       url("./5C.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5C00-5CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 5D';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/5D.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5D.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5D.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5D.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5D.woff2") format("woff2"),
+       url("./5D.woff2") format("woff2"),
+       url("./5D.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5D00-5DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 5E';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/5E.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5E.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5E.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5E.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5E.woff2") format("woff2"),
+       url("./5E.woff2") format("woff2"),
+       url("./5E.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5E00-5EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 5F';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/5F.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5F.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5F.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5F.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5F.woff2") format("woff2"),
+       url("./5F.woff2") format("woff2"),
+       url("./5F.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+5F00-5FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 60';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/60.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/60.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/60.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/60.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/60.woff2") format("woff2"),
+       url("./60.woff2") format("woff2"),
+       url("./60.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6000-60FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 61';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/61.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/61.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/61.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/61.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/61.woff2") format("woff2"),
+       url("./61.woff2") format("woff2"),
+       url("./61.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6100-61FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 62';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/62.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/62.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/62.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/62.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/62.woff2") format("woff2"),
+       url("./62.woff2") format("woff2"),
+       url("./62.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6200-62FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 63';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/63.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/63.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/63.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/63.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/63.woff2") format("woff2"),
+       url("./63.woff2") format("woff2"),
+       url("./63.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6300-63FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 64';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/64.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/64.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/64.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/64.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/64.woff2") format("woff2"),
+       url("./64.woff2") format("woff2"),
+       url("./64.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6400-64FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 65';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/65.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/65.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/65.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/65.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/65.woff2") format("woff2"),
+       url("./65.woff2") format("woff2"),
+       url("./65.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6500-65FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 66';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/66.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/66.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/66.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/66.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/66.woff2") format("woff2"),
+       url("./66.woff2") format("woff2"),
+       url("./66.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6600-66FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 67';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/67.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/67.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/67.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/67.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/67.woff2") format("woff2"),
+       url("./67.woff2") format("woff2"),
+       url("./67.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6700-67FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 68';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/68.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/68.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/68.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/68.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/68.woff2") format("woff2"),
+       url("./68.woff2") format("woff2"),
+       url("./68.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6800-68FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 69';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/69.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/69.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/69.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/69.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/69.woff2") format("woff2"),
+       url("./69.woff2") format("woff2"),
+       url("./69.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6900-69FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 6A';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/6A.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6A.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6A.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6A.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6A.woff2") format("woff2"),
+       url("./6A.woff2") format("woff2"),
+       url("./6A.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6A00-6AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 6B';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/6B.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6B.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6B.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6B.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6B.woff2") format("woff2"),
+       url("./6B.woff2") format("woff2"),
+       url("./6B.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6B00-6BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 6C';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/6C.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6C.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6C.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6C.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6C.woff2") format("woff2"),
+       url("./6C.woff2") format("woff2"),
+       url("./6C.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6C00-6CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 6D';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/6D.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6D.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6D.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6D.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6D.woff2") format("woff2"),
+       url("./6D.woff2") format("woff2"),
+       url("./6D.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6D00-6DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 6E';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/6E.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6E.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6E.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6E.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6E.woff2") format("woff2"),
+       url("./6E.woff2") format("woff2"),
+       url("./6E.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6E00-6EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 6F';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/6F.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6F.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6F.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6F.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6F.woff2") format("woff2"),
+       url("./6F.woff2") format("woff2"),
+       url("./6F.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+6F00-6FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 70';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/70.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/70.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/70.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/70.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/70.woff2") format("woff2"),
+       url("./70.woff2") format("woff2"),
+       url("./70.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7000-70FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 71';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/71.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/71.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/71.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/71.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/71.woff2") format("woff2"),
+       url("./71.woff2") format("woff2"),
+       url("./71.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7100-71FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 72';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/72.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/72.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/72.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/72.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/72.woff2") format("woff2"),
+       url("./72.woff2") format("woff2"),
+       url("./72.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7200-72FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 73';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/73.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/73.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/73.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/73.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/73.woff2") format("woff2"),
+       url("./73.woff2") format("woff2"),
+       url("./73.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7300-73FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 74';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/74.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/74.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/74.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/74.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/74.woff2") format("woff2"),
+       url("./74.woff2") format("woff2"),
+       url("./74.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7400-74FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 75';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/75.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/75.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/75.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/75.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/75.woff2") format("woff2"),
+       url("./75.woff2") format("woff2"),
+       url("./75.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7500-75FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 76';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/76.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/76.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/76.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/76.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/76.woff2") format("woff2"),
+       url("./76.woff2") format("woff2"),
+       url("./76.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7600-76FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 77';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/77.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/77.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/77.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/77.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/77.woff2") format("woff2"),
+       url("./77.woff2") format("woff2"),
+       url("./77.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7700-77FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 78';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/78.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/78.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/78.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/78.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/78.woff2") format("woff2"),
+       url("./78.woff2") format("woff2"),
+       url("./78.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7800-78FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 79';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/79.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/79.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/79.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/79.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/79.woff2") format("woff2"),
+       url("./79.woff2") format("woff2"),
+       url("./79.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7900-79FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 7A';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/7A.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7A.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7A.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7A.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7A.woff2") format("woff2"),
+       url("./7A.woff2") format("woff2"),
+       url("./7A.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7A00-7AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 7B';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/7B.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7B.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7B.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7B.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7B.woff2") format("woff2"),
+       url("./7B.woff2") format("woff2"),
+       url("./7B.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7B00-7BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 7C';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/7C.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7C.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7C.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7C.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7C.woff2") format("woff2"),
+       url("./7C.woff2") format("woff2"),
+       url("./7C.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7C00-7CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 7D';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/7D.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7D.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7D.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7D.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7D.woff2") format("woff2"),
+       url("./7D.woff2") format("woff2"),
+       url("./7D.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7D00-7DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 7E';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/7E.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7E.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7E.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7E.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7E.woff2") format("woff2"),
+       url("./7E.woff2") format("woff2"),
+       url("./7E.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7E00-7EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 7F';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/7F.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7F.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7F.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7F.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7F.woff2") format("woff2"),
+       url("./7F.woff2") format("woff2"),
+       url("./7F.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+7F00-7FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 80';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/80.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/80.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/80.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/80.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/80.woff2") format("woff2"),
+       url("./80.woff2") format("woff2"),
+       url("./80.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8000-80FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 81';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/81.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/81.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/81.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/81.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/81.woff2") format("woff2"),
+       url("./81.woff2") format("woff2"),
+       url("./81.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8100-81FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 82';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/82.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/82.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/82.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/82.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/82.woff2") format("woff2"),
+       url("./82.woff2") format("woff2"),
+       url("./82.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8200-82FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 83';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/83.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/83.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/83.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/83.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/83.woff2") format("woff2"),
+       url("./83.woff2") format("woff2"),
+       url("./83.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8300-83FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 84';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/84.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/84.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/84.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/84.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/84.woff2") format("woff2"),
+       url("./84.woff2") format("woff2"),
+       url("./84.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8400-84FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 85';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/85.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/85.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/85.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/85.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/85.woff2") format("woff2"),
+       url("./85.woff2") format("woff2"),
+       url("./85.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8500-85FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 86';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/86.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/86.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/86.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/86.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/86.woff2") format("woff2"),
+       url("./86.woff2") format("woff2"),
+       url("./86.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8600-86FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 87';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/87.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/87.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/87.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/87.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/87.woff2") format("woff2"),
+       url("./87.woff2") format("woff2"),
+       url("./87.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8700-87FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 88';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/88.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/88.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/88.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/88.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/88.woff2") format("woff2"),
+       url("./88.woff2") format("woff2"),
+       url("./88.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8800-88FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 89';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/89.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/89.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/89.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/89.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/89.woff2") format("woff2"),
+       url("./89.woff2") format("woff2"),
+       url("./89.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8900-89FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 8A';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/8A.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8A.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8A.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8A.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8A.woff2") format("woff2"),
+       url("./8A.woff2") format("woff2"),
+       url("./8A.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8A00-8AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 8B';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/8B.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8B.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8B.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8B.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8B.woff2") format("woff2"),
+       url("./8B.woff2") format("woff2"),
+       url("./8B.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8B00-8BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 8C';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/8C.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8C.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8C.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8C.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8C.woff2") format("woff2"),
+       url("./8C.woff2") format("woff2"),
+       url("./8C.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8C00-8CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 8D';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/8D.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8D.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8D.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8D.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8D.woff2") format("woff2"),
+       url("./8D.woff2") format("woff2"),
+       url("./8D.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8D00-8DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 8E';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/8E.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8E.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8E.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8E.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8E.woff2") format("woff2"),
+       url("./8E.woff2") format("woff2"),
+       url("./8E.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8E00-8EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 8F';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/8F.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8F.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8F.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8F.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8F.woff2") format("woff2"),
+       url("./8F.woff2") format("woff2"),
+       url("./8F.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+8F00-8FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 90';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/90.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/90.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/90.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/90.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/90.woff2") format("woff2"),
+       url("./90.woff2") format("woff2"),
+       url("./90.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9000-90FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 91';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/91.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/91.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/91.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/91.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/91.woff2") format("woff2"),
+       url("./91.woff2") format("woff2"),
+       url("./91.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9100-91FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 92';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/92.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/92.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/92.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/92.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/92.woff2") format("woff2"),
+       url("./92.woff2") format("woff2"),
+       url("./92.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9200-92FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 93';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/93.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/93.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/93.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/93.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/93.woff2") format("woff2"),
+       url("./93.woff2") format("woff2"),
+       url("./93.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9300-93FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 94';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/94.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/94.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/94.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/94.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/94.woff2") format("woff2"),
+       url("./94.woff2") format("woff2"),
+       url("./94.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9400-94FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 95';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/95.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/95.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/95.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/95.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/95.woff2") format("woff2"),
+       url("./95.woff2") format("woff2"),
+       url("./95.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9500-95FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 96';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/96.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/96.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/96.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/96.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/96.woff2") format("woff2"),
+       url("./96.woff2") format("woff2"),
+       url("./96.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9600-96FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 97';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/97.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/97.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/97.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/97.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/97.woff2") format("woff2"),
+       url("./97.woff2") format("woff2"),
+       url("./97.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9700-97FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 98';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/98.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/98.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/98.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/98.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/98.woff2") format("woff2"),
+       url("./98.woff2") format("woff2"),
+       url("./98.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9800-98FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 99';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/99.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/99.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/99.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/99.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/99.woff2") format("woff2"),
+       url("./99.woff2") format("woff2"),
+       url("./99.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9900-99FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 9A';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/9A.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9A.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9A.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9A.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9A.woff2") format("woff2"),
+       url("./9A.woff2") format("woff2"),
+       url("./9A.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9A00-9AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 9B';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/9B.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9B.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9B.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9B.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9B.woff2") format("woff2"),
+       url("./9B.woff2") format("woff2"),
+       url("./9B.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9B00-9BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 9C';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/9C.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9C.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9C.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9C.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9C.woff2") format("woff2"),
+       url("./9C.woff2") format("woff2"),
+       url("./9C.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9C00-9CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 9D';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/9D.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9D.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9D.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9D.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9D.woff2") format("woff2"),
+       url("./9D.woff2") format("woff2"),
+       url("./9D.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9D00-9DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 9E';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/9E.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9E.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9E.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9E.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9E.woff2") format("woff2"),
+       url("./9E.woff2") format("woff2"),
+       url("./9E.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9E00-9EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk 9F';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/9F.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9F.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9F.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9F.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9F.woff2") format("woff2"),
+       url("./9F.woff2") format("woff2"),
+       url("./9F.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+9F00-9FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
+  font-family: 'pancjk FA';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/FA.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/FA.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/FA.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/FA.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/FA.woff2") format("woff2"),
+       url("./FA.woff2") format("woff2"),
+       url("./FA.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+E000-E00C, U+FA00-FA6D, U+FA70-FAD9, U+FE00-FE0F, U+16FF0-16FF1;
+}
+
+@font-face {
   font-family: 'pancjk 170';
   src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/170.woff2") format("woff2"),
        url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/170.woff2") format("woff2"),
@@ -375,7 +2010,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+18800-188FF;
+  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+18800-18801, U+18803-188FF;
 }
 
 @font-face {
@@ -435,7 +2070,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+18C00-18CFF;
+  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+18C00-18CD5, U+18CFF;
 }
 
 @font-face {
@@ -450,7 +2085,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+18D00-18DFF;
+  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+18D00-18D20, U+18D80-18DF2;
 }
 
 @font-face {
@@ -2955,7 +4590,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+2A600-2A6FF;
+  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+2A600-2A6DF;
 }
 
 @font-face {
@@ -3225,7 +4860,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+2B800-2B8FF;
+  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+2B800-2B81E, U+2B820-2B8FF;
 }
 
 @font-face {
@@ -3555,7 +5190,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+2CE00-2CEFF;
+  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+2CE00-2CEAD, U+2CEB0-2CEFF;
 }
 
 @font-face {
@@ -3990,7 +5625,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+2EB00-2EBFF;
+  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+2EB00-2EBE0, U+2EBF0-2EBFF;
 }
 
 @font-face {
@@ -4035,7 +5670,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+2EE00-2EEFF;
+  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+2EE00-2EE5D;
 }
 
 @font-face {
@@ -4080,7 +5715,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+2FA00-2FAFF;
+  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+2FA00-2FA1D;
 }
 
 @font-face {
@@ -4380,7 +6015,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+31300-313FF;
+  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+31300-3134A, U+31350-313FF;
 }
 
 @font-face {
@@ -4875,1640 +6510,5 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+33400-334FF;
-}
-
-@font-face {
-  font-family: 'pancjk 34';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/34.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/34.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/34.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/34.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/34.woff2") format("woff2"),
-       url("./34.woff2") format("woff2"),
-       url("./34.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3400-34FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 35';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/35.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/35.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/35.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/35.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/35.woff2") format("woff2"),
-       url("./35.woff2") format("woff2"),
-       url("./35.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3500-35FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 36';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/36.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/36.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/36.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/36.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/36.woff2") format("woff2"),
-       url("./36.woff2") format("woff2"),
-       url("./36.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3600-36FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 37';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/37.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/37.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/37.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/37.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/37.woff2") format("woff2"),
-       url("./37.woff2") format("woff2"),
-       url("./37.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3700-37FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 38';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/38.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/38.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/38.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/38.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/38.woff2") format("woff2"),
-       url("./38.woff2") format("woff2"),
-       url("./38.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3800-38FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 39';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/39.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/39.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/39.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/39.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/39.woff2") format("woff2"),
-       url("./39.woff2") format("woff2"),
-       url("./39.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3900-39FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 3A';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/3A.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3A.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3A.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3A.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3A.woff2") format("woff2"),
-       url("./3A.woff2") format("woff2"),
-       url("./3A.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3A00-3AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 3B';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/3B.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3B.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3B.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3B.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3B.woff2") format("woff2"),
-       url("./3B.woff2") format("woff2"),
-       url("./3B.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3B00-3BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 3C';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/3C.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3C.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3C.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3C.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3C.woff2") format("woff2"),
-       url("./3C.woff2") format("woff2"),
-       url("./3C.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3C00-3CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 3D';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/3D.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3D.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3D.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3D.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3D.woff2") format("woff2"),
-       url("./3D.woff2") format("woff2"),
-       url("./3D.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3D00-3DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 3E';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/3E.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3E.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3E.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3E.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3E.woff2") format("woff2"),
-       url("./3E.woff2") format("woff2"),
-       url("./3E.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3E00-3EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 3F';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/3F.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3F.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3F.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3F.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/3F.woff2") format("woff2"),
-       url("./3F.woff2") format("woff2"),
-       url("./3F.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+3F00-3FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 40';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/40.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/40.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/40.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/40.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/40.woff2") format("woff2"),
-       url("./40.woff2") format("woff2"),
-       url("./40.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4000-40FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 41';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/41.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/41.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/41.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/41.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/41.woff2") format("woff2"),
-       url("./41.woff2") format("woff2"),
-       url("./41.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4100-41FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 42';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/42.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/42.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/42.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/42.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/42.woff2") format("woff2"),
-       url("./42.woff2") format("woff2"),
-       url("./42.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4200-42FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 43';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/43.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/43.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/43.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/43.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/43.woff2") format("woff2"),
-       url("./43.woff2") format("woff2"),
-       url("./43.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4300-43FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 44';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/44.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/44.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/44.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/44.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/44.woff2") format("woff2"),
-       url("./44.woff2") format("woff2"),
-       url("./44.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4400-44FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 45';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/45.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/45.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/45.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/45.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/45.woff2") format("woff2"),
-       url("./45.woff2") format("woff2"),
-       url("./45.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4500-45FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 46';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/46.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/46.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/46.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/46.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/46.woff2") format("woff2"),
-       url("./46.woff2") format("woff2"),
-       url("./46.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4600-46FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 47';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/47.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/47.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/47.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/47.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/47.woff2") format("woff2"),
-       url("./47.woff2") format("woff2"),
-       url("./47.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4700-47FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 48';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/48.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/48.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/48.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/48.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/48.woff2") format("woff2"),
-       url("./48.woff2") format("woff2"),
-       url("./48.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4800-48FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 49';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/49.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/49.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/49.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/49.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/49.woff2") format("woff2"),
-       url("./49.woff2") format("woff2"),
-       url("./49.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4900-49FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 4A';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/4A.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4A.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4A.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4A.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4A.woff2") format("woff2"),
-       url("./4A.woff2") format("woff2"),
-       url("./4A.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4A00-4AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 4B';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/4B.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4B.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4B.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4B.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4B.woff2") format("woff2"),
-       url("./4B.woff2") format("woff2"),
-       url("./4B.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4B00-4BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 4C';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/4C.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4C.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4C.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4C.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4C.woff2") format("woff2"),
-       url("./4C.woff2") format("woff2"),
-       url("./4C.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4C00-4CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 4D';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/4D.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4D.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4D.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4D.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4D.woff2") format("woff2"),
-       url("./4D.woff2") format("woff2"),
-       url("./4D.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4D00-4DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 4E';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/4E.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4E.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4E.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4E.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4E.woff2") format("woff2"),
-       url("./4E.woff2") format("woff2"),
-       url("./4E.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4E00-4EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 4F';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/4F.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4F.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4F.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4F.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/4F.woff2") format("woff2"),
-       url("./4F.woff2") format("woff2"),
-       url("./4F.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+4F00-4FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 50';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/50.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/50.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/50.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/50.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/50.woff2") format("woff2"),
-       url("./50.woff2") format("woff2"),
-       url("./50.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5000-50FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 51';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/51.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/51.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/51.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/51.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/51.woff2") format("woff2"),
-       url("./51.woff2") format("woff2"),
-       url("./51.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5100-51FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 52';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/52.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/52.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/52.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/52.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/52.woff2") format("woff2"),
-       url("./52.woff2") format("woff2"),
-       url("./52.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5200-52FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 53';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/53.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/53.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/53.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/53.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/53.woff2") format("woff2"),
-       url("./53.woff2") format("woff2"),
-       url("./53.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5300-53FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 54';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/54.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/54.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/54.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/54.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/54.woff2") format("woff2"),
-       url("./54.woff2") format("woff2"),
-       url("./54.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5400-54FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 55';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/55.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/55.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/55.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/55.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/55.woff2") format("woff2"),
-       url("./55.woff2") format("woff2"),
-       url("./55.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5500-55FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 56';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/56.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/56.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/56.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/56.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/56.woff2") format("woff2"),
-       url("./56.woff2") format("woff2"),
-       url("./56.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5600-56FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 57';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/57.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/57.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/57.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/57.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/57.woff2") format("woff2"),
-       url("./57.woff2") format("woff2"),
-       url("./57.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5700-57FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 58';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/58.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/58.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/58.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/58.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/58.woff2") format("woff2"),
-       url("./58.woff2") format("woff2"),
-       url("./58.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5800-58FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 59';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/59.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/59.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/59.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/59.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/59.woff2") format("woff2"),
-       url("./59.woff2") format("woff2"),
-       url("./59.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5900-59FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 5A';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/5A.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5A.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5A.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5A.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5A.woff2") format("woff2"),
-       url("./5A.woff2") format("woff2"),
-       url("./5A.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5A00-5AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 5B';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/5B.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5B.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5B.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5B.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5B.woff2") format("woff2"),
-       url("./5B.woff2") format("woff2"),
-       url("./5B.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5B00-5BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 5C';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/5C.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5C.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5C.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5C.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5C.woff2") format("woff2"),
-       url("./5C.woff2") format("woff2"),
-       url("./5C.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5C00-5CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 5D';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/5D.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5D.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5D.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5D.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5D.woff2") format("woff2"),
-       url("./5D.woff2") format("woff2"),
-       url("./5D.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5D00-5DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 5E';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/5E.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5E.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5E.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5E.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5E.woff2") format("woff2"),
-       url("./5E.woff2") format("woff2"),
-       url("./5E.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5E00-5EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 5F';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/5F.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5F.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5F.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5F.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/5F.woff2") format("woff2"),
-       url("./5F.woff2") format("woff2"),
-       url("./5F.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+5F00-5FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 60';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/60.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/60.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/60.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/60.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/60.woff2") format("woff2"),
-       url("./60.woff2") format("woff2"),
-       url("./60.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6000-60FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 61';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/61.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/61.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/61.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/61.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/61.woff2") format("woff2"),
-       url("./61.woff2") format("woff2"),
-       url("./61.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6100-61FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 62';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/62.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/62.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/62.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/62.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/62.woff2") format("woff2"),
-       url("./62.woff2") format("woff2"),
-       url("./62.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6200-62FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 63';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/63.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/63.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/63.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/63.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/63.woff2") format("woff2"),
-       url("./63.woff2") format("woff2"),
-       url("./63.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6300-63FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 64';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/64.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/64.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/64.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/64.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/64.woff2") format("woff2"),
-       url("./64.woff2") format("woff2"),
-       url("./64.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6400-64FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 65';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/65.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/65.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/65.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/65.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/65.woff2") format("woff2"),
-       url("./65.woff2") format("woff2"),
-       url("./65.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6500-65FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 66';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/66.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/66.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/66.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/66.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/66.woff2") format("woff2"),
-       url("./66.woff2") format("woff2"),
-       url("./66.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6600-66FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 67';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/67.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/67.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/67.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/67.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/67.woff2") format("woff2"),
-       url("./67.woff2") format("woff2"),
-       url("./67.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6700-67FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 68';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/68.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/68.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/68.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/68.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/68.woff2") format("woff2"),
-       url("./68.woff2") format("woff2"),
-       url("./68.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6800-68FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 69';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/69.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/69.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/69.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/69.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/69.woff2") format("woff2"),
-       url("./69.woff2") format("woff2"),
-       url("./69.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6900-69FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 6A';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/6A.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6A.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6A.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6A.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6A.woff2") format("woff2"),
-       url("./6A.woff2") format("woff2"),
-       url("./6A.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6A00-6AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 6B';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/6B.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6B.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6B.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6B.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6B.woff2") format("woff2"),
-       url("./6B.woff2") format("woff2"),
-       url("./6B.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6B00-6BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 6C';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/6C.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6C.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6C.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6C.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6C.woff2") format("woff2"),
-       url("./6C.woff2") format("woff2"),
-       url("./6C.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6C00-6CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 6D';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/6D.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6D.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6D.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6D.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6D.woff2") format("woff2"),
-       url("./6D.woff2") format("woff2"),
-       url("./6D.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6D00-6DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 6E';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/6E.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6E.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6E.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6E.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6E.woff2") format("woff2"),
-       url("./6E.woff2") format("woff2"),
-       url("./6E.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6E00-6EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 6F';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/6F.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6F.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6F.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6F.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/6F.woff2") format("woff2"),
-       url("./6F.woff2") format("woff2"),
-       url("./6F.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+6F00-6FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 70';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/70.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/70.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/70.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/70.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/70.woff2") format("woff2"),
-       url("./70.woff2") format("woff2"),
-       url("./70.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7000-70FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 71';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/71.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/71.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/71.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/71.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/71.woff2") format("woff2"),
-       url("./71.woff2") format("woff2"),
-       url("./71.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7100-71FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 72';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/72.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/72.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/72.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/72.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/72.woff2") format("woff2"),
-       url("./72.woff2") format("woff2"),
-       url("./72.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7200-72FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 73';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/73.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/73.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/73.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/73.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/73.woff2") format("woff2"),
-       url("./73.woff2") format("woff2"),
-       url("./73.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7300-73FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 74';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/74.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/74.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/74.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/74.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/74.woff2") format("woff2"),
-       url("./74.woff2") format("woff2"),
-       url("./74.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7400-74FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 75';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/75.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/75.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/75.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/75.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/75.woff2") format("woff2"),
-       url("./75.woff2") format("woff2"),
-       url("./75.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7500-75FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 76';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/76.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/76.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/76.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/76.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/76.woff2") format("woff2"),
-       url("./76.woff2") format("woff2"),
-       url("./76.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7600-76FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 77';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/77.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/77.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/77.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/77.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/77.woff2") format("woff2"),
-       url("./77.woff2") format("woff2"),
-       url("./77.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7700-77FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 78';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/78.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/78.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/78.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/78.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/78.woff2") format("woff2"),
-       url("./78.woff2") format("woff2"),
-       url("./78.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7800-78FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 79';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/79.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/79.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/79.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/79.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/79.woff2") format("woff2"),
-       url("./79.woff2") format("woff2"),
-       url("./79.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7900-79FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 7A';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/7A.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7A.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7A.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7A.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7A.woff2") format("woff2"),
-       url("./7A.woff2") format("woff2"),
-       url("./7A.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7A00-7AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 7B';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/7B.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7B.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7B.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7B.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7B.woff2") format("woff2"),
-       url("./7B.woff2") format("woff2"),
-       url("./7B.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7B00-7BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 7C';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/7C.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7C.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7C.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7C.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7C.woff2") format("woff2"),
-       url("./7C.woff2") format("woff2"),
-       url("./7C.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7C00-7CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 7D';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/7D.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7D.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7D.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7D.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7D.woff2") format("woff2"),
-       url("./7D.woff2") format("woff2"),
-       url("./7D.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7D00-7DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 7E';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/7E.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7E.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7E.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7E.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7E.woff2") format("woff2"),
-       url("./7E.woff2") format("woff2"),
-       url("./7E.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7E00-7EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 7F';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/7F.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7F.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7F.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7F.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/7F.woff2") format("woff2"),
-       url("./7F.woff2") format("woff2"),
-       url("./7F.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+7F00-7FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 80';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/80.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/80.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/80.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/80.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/80.woff2") format("woff2"),
-       url("./80.woff2") format("woff2"),
-       url("./80.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8000-80FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 81';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/81.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/81.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/81.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/81.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/81.woff2") format("woff2"),
-       url("./81.woff2") format("woff2"),
-       url("./81.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8100-81FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 82';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/82.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/82.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/82.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/82.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/82.woff2") format("woff2"),
-       url("./82.woff2") format("woff2"),
-       url("./82.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8200-82FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 83';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/83.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/83.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/83.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/83.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/83.woff2") format("woff2"),
-       url("./83.woff2") format("woff2"),
-       url("./83.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8300-83FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 84';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/84.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/84.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/84.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/84.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/84.woff2") format("woff2"),
-       url("./84.woff2") format("woff2"),
-       url("./84.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8400-84FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 85';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/85.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/85.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/85.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/85.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/85.woff2") format("woff2"),
-       url("./85.woff2") format("woff2"),
-       url("./85.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8500-85FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 86';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/86.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/86.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/86.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/86.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/86.woff2") format("woff2"),
-       url("./86.woff2") format("woff2"),
-       url("./86.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8600-86FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 87';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/87.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/87.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/87.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/87.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/87.woff2") format("woff2"),
-       url("./87.woff2") format("woff2"),
-       url("./87.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8700-87FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 88';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/88.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/88.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/88.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/88.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/88.woff2") format("woff2"),
-       url("./88.woff2") format("woff2"),
-       url("./88.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8800-88FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 89';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/89.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/89.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/89.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/89.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/89.woff2") format("woff2"),
-       url("./89.woff2") format("woff2"),
-       url("./89.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8900-89FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 8A';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/8A.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8A.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8A.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8A.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8A.woff2") format("woff2"),
-       url("./8A.woff2") format("woff2"),
-       url("./8A.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8A00-8AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 8B';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/8B.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8B.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8B.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8B.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8B.woff2") format("woff2"),
-       url("./8B.woff2") format("woff2"),
-       url("./8B.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8B00-8BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 8C';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/8C.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8C.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8C.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8C.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8C.woff2") format("woff2"),
-       url("./8C.woff2") format("woff2"),
-       url("./8C.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8C00-8CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 8D';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/8D.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8D.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8D.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8D.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8D.woff2") format("woff2"),
-       url("./8D.woff2") format("woff2"),
-       url("./8D.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8D00-8DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 8E';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/8E.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8E.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8E.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8E.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8E.woff2") format("woff2"),
-       url("./8E.woff2") format("woff2"),
-       url("./8E.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8E00-8EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 8F';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/8F.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8F.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8F.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8F.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/8F.woff2") format("woff2"),
-       url("./8F.woff2") format("woff2"),
-       url("./8F.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+8F00-8FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 90';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/90.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/90.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/90.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/90.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/90.woff2") format("woff2"),
-       url("./90.woff2") format("woff2"),
-       url("./90.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9000-90FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 91';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/91.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/91.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/91.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/91.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/91.woff2") format("woff2"),
-       url("./91.woff2") format("woff2"),
-       url("./91.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9100-91FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 92';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/92.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/92.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/92.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/92.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/92.woff2") format("woff2"),
-       url("./92.woff2") format("woff2"),
-       url("./92.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9200-92FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 93';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/93.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/93.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/93.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/93.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/93.woff2") format("woff2"),
-       url("./93.woff2") format("woff2"),
-       url("./93.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9300-93FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 94';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/94.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/94.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/94.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/94.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/94.woff2") format("woff2"),
-       url("./94.woff2") format("woff2"),
-       url("./94.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9400-94FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 95';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/95.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/95.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/95.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/95.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/95.woff2") format("woff2"),
-       url("./95.woff2") format("woff2"),
-       url("./95.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9500-95FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 96';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/96.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/96.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/96.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/96.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/96.woff2") format("woff2"),
-       url("./96.woff2") format("woff2"),
-       url("./96.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9600-96FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 97';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/97.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/97.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/97.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/97.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/97.woff2") format("woff2"),
-       url("./97.woff2") format("woff2"),
-       url("./97.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9700-97FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 98';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/98.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/98.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/98.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/98.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/98.woff2") format("woff2"),
-       url("./98.woff2") format("woff2"),
-       url("./98.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9800-98FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 99';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/99.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/99.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/99.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/99.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/99.woff2") format("woff2"),
-       url("./99.woff2") format("woff2"),
-       url("./99.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9900-99FF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 9A';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/9A.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9A.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9A.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9A.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9A.woff2") format("woff2"),
-       url("./9A.woff2") format("woff2"),
-       url("./9A.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9A00-9AFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 9B';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/9B.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9B.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9B.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9B.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9B.woff2") format("woff2"),
-       url("./9B.woff2") format("woff2"),
-       url("./9B.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9B00-9BFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 9C';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/9C.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9C.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9C.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9C.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9C.woff2") format("woff2"),
-       url("./9C.woff2") format("woff2"),
-       url("./9C.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9C00-9CFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 9D';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/9D.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9D.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9D.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9D.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9D.woff2") format("woff2"),
-       url("./9D.woff2") format("woff2"),
-       url("./9D.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9D00-9DFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 9E';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/9E.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9E.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9E.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9E.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9E.woff2") format("woff2"),
-       url("./9E.woff2") format("woff2"),
-       url("./9E.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9E00-9EFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk 9F';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/9F.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9F.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9F.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9F.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/9F.woff2") format("woff2"),
-       url("./9F.woff2") format("woff2"),
-       url("./9F.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+9F00-9FFF, U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1;
-}
-
-@font-face {
-  font-family: 'pancjk FA';
-  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts/FA.woff2") format("woff2"),
-       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/subfonts/FA.woff2") format("woff2"),
-       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/FA.woff2") format("woff2"),
-       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/FA.woff2") format("woff2"),
-       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts/FA.woff2") format("woff2"),
-       url("./FA.woff2") format("woff2"),
-       url("./FA.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+E000-E00C, U+FA00-FAFF, U+FE00-FE0F, U+16FF0-16FF1;
+  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+33400-33479;
 }

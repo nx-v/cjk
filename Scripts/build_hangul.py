@@ -108,9 +108,8 @@ OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "hangul")
 MALGUN_FILENAME = "malgun.ttf"
 FAMILY_JAMO = "panhangul"
 FAMILY_SYLL = "panhanguls"
-# BBox-center trim after UPM fit. 1.0 keeps full Malgun ink so cells match the
-# 1000×1000 CJK em square used by build_cjk / build_yi / GlyphWiki.
-LOCAL_SCALE = 1.0
+# BBox-center trim after UPM fit (Hangul inset; Yi uses STANDALONE_CELL_SCALE).
+LOCAL_SCALE = 0.95
 # Uniform Y translate after UPM fit (target-upem units). Malgun Hangul sits
 # high vs CJK/kana/Yi (typo mid ~380); negative shifts down to match.
 MALGUN_Y_SHIFT = -55
