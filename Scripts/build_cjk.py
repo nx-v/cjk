@@ -98,19 +98,18 @@ PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     # ("NGULIM.TTF", 1.0, 1.15),
     # ("malgun.ttf", 1.0, 1.0),
     # ("msyh.ttc", 0.92, 0.95),
-    ("LXGWClearGothic-Regular.ttf", 1.0, 0.975),
-    ("LXGWXiHeiMN.ttf", 1.0, 0.975),
-    ("LXGWXiHeiCL.ttf", 1.0, 0.975),
-    ("Han-Nom Gothic 1.32.otf", 0.92, 1.0),
-    ("LXGWNeoXiHeiPlus.ttf", 1.0, 0.975),
-    ("ChironHeiHK-R.ttf", 0.96, 0.95),
-    ("Gothic Nguyen Regular.ttf", 0.96, 0.95),
-    ("YshiYuanGothicCleaned.ttf", 0.96, 0.95),
-    ("ChocolateClassicalSans-Regular.ttf", 0.96, 0.95),
-    ("SukimaGothic.ttf", 0.96, 1.0),
-    ("NotoSerifTangut-Regular.ttf", 1.0, 1.05),
-    ("PlangothicP1-Regular.ttf", 0.96, 0.95),
-    ("PlangothicP2-Regular.ttf", 0.96, 0.95),
+    ("LXGWClearGothic-Regular.ttf", 1.0, 1.0),
+    ("LXGWXiHeiMN.ttf", 1.0, 1.0),
+    ("LXGWXiHeiCL.ttf", 1.0, 1.0),
+    ("Han-Nom Gothic 1.32.otf", 0.95, 1.05),
+    ("LXGWNeoXiHeiPlus.ttf", 1.0, 1.0),
+    ("ChironHeiHK-R.ttf", 0.95, 1.05),
+    ("Gothic Nguyen Regular.ttf", 0.95, 1.05),
+    ("YshiYuanGothicCleaned.ttf", 0.95, 1.05),
+    ("ChocolateClassicalSans-Regular.ttf", 0.95, 1.05),
+    ("SukimaGothic.ttf", 0.95, 1.05),
+    ("PlangothicP1-Regular.ttf", 0.95, 1.05),
+    ("PlangothicP2-Regular.ttf", 0.95, 1.05),
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
@@ -866,8 +865,8 @@ def build_all(
     )
     print(f"Output formats: {fmt_note}")
     print(
-        "Reading marks: U+16FF0/16FF1 ca/nhay in free half-cell; "
-        "squish = half ideographic area (FE0B overlay / FE0C–FE0F access)"
+        "Reading marks: U+16FF0/16FF1 ca/nhay as precomposed squish+mark "
+        "composites (FE0C–FE0F niche; bare mark → .dk); FE0B .ov for digraphs"
     )
 
     sources_list = [

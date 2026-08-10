@@ -1474,7 +1474,7 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+18800-188FF;
+  unicode-range: U+E000-E00C, U+FE00-FE0F, U+16FF0-16FF1, U+18800-18801, U+18803-188FF;
 }
 
 @font-face {

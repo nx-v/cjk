@@ -4,21 +4,21 @@ Core marks from Plangothic P2: U+16FF0 (ca) / U+16FF1 (nhay) only.
 
 Squish = occupy **one half** of the CJK ideographic area (left / right /
 top / bottom). Same half-cell glyphs serve FE0C–FE0F access and ca/nhay
-placement: when a mark follows, GSUB selects the complementary half-form
-and GPOS puts ca/nhay in the free half. Base ideographs are proportionally
-scaled (contour bbox) into the padded ideographic cell. CAPE Width/Height
-stroke weight adjustment runs on upright H (``.dkl``) / V (``.dkt``)
-half-cells and on ca/nhay only; ``.dk`` / ``.dkb``, D4 niches, overlays, and
-mark D4 stay simple affine (translate / rotate / reflect).
+placement. ca/nhay **trigger** the matching squish: GSUB ligates
+``base (+ niche VS)? + mark`` into a precomposed TT composite
+(``base.dk_u16FF0``, …) with the mark baked into the free half. Zero-width
+``.ov`` forms of those composites liga the same way for digraphs.
 
-    CJK (D4)? FE0C MARK   → base ``.dk``  (left)   + mark in right half
-    CJK (D4)? FE0D MARK   → base ``.dkl`` (right)  + mark in left half
-    CJK (D4)? FE0E MARK   → base ``.dkb`` (top)    + mark in bottom half
-    CJK (D4)? FE0F MARK   → base ``.dkt`` (bottom) + mark in top half
+    CJK (D4)? FE0C MARK   → ``base.dk_MARK``   (left squish + mark right)
+    CJK (D4)? FE0D MARK   → ``base.dkl_MARK``  (right squish + mark left)
+    CJK (D4)? FE0E MARK   → ``base.dkb_MARK``  (top squish + mark bottom)
+    CJK (D4)? FE0F MARK   → ``base.dkt_MARK``  (bottom squish + mark top)
+    CJK (D4)? MARK        → ``base.dk_MARK``   (bare mark auto-squishes)
 
-Niche VS (``FE0C``–``FE0F``) is required before ca/nhay. Optional legacy
-``FE08``/``FE09``/``FE0A`` still select mark-side forms (L/T/B) without a
-niche VS. Browser galleries prefer PUA ``E009``–``E00C`` mirrors of FE0C–F.
+Niche VS (``FE0C``–``FE0F``) selects which half; bare ca/nhay defaults to
+``.dk``. Optional legacy ``FE08``/``FE09``/``FE0A`` still select mark-side
+forms (L/T/B). Browser galleries prefer PUA ``E009``–``E00C`` mirrors of
+FE0C–F.
 
 Squish / overlay access (same ``.dk*`` glyphs; GSUB liga, not cmap-14 UVS)::
 
@@ -26,8 +26,8 @@ Squish / overlay access (same ``.dk*`` glyphs; GSUB liga, not cmap-14 UVS)::
     CJK  ( D4 VS )?  FE0C..FE0F        → half-cell ``.dk`` / ``.dkl`` / ``.dkt`` / ``.dkb``
     CJK  ( D4 VS )?  FE0B FE0C..FE0F   → zero-width half-cell overlay
     (either order FE0B↔FE0C–F; UVS would eat FE0B and drop the niche VS)
+    marked composites also get ``.ov`` for digraph first halves
 """
-
 from __future__ import annotations
 
 import os
@@ -1501,6 +1501,203 @@ def collect_niche_base_anchors(
     return anchors
 
 
+def marked_form_name(squish_form: str, mark_root: str) -> str:
+    """Precomposed squish+mark name, e.g. ``u4E00.dk_u16FF0``."""
+    return f"{squish_form}_{mark_root}"
+
+
+def _niche_mark_component(upright: str, niche_suf: str) -> str:
+    """Mark glyph baked into the free half for ``niche_suf``."""
+    if niche_suf == "dk":
+        return upright
+    if niche_suf == "dkl":
+        return left_mark_name(upright)
+    if niche_suf == "dkt":
+        return top_mark_name(upright)
+    if niche_suf == "dkb":
+        return bottom_mark_name(upright)
+    return upright
+
+
+def _niche_anchor_fn(niche_suf: str):
+    if niche_suf == "dk":
+        return cjk_right_anchor
+    if niche_suf == "dkl":
+        return cjk_left_anchor
+    if niche_suf == "dkt":
+        return cjk_top_anchor
+    if niche_suf == "dkb":
+        return cjk_bottom_anchor
+    return cjk_right_anchor
+
+
+def _niche_squish_of(base: str, niche_suf: str) -> str:
+    if niche_suf == "dk":
+        return squish_name(base)
+    if niche_suf == "dkl":
+        return squish_left_name(base)
+    if niche_suf == "dkt":
+        return squish_top_name(base)
+    if niche_suf == "dkb":
+        return squish_bot_name(base)
+    return squish_name(base)
+
+
+def make_marked_composite(
+    squish_form: str,
+    mark_name: str,
+    *,
+    mark_dx: int,
+    mark_dy: int,
+) -> TTGlyph:
+    """TT composite: full-advance squish + mark offset into the free half."""
+    g = TTGlyph()
+    g.numberOfContours = -1
+    base = GlyphComponent()
+    base.glyphName = squish_form
+    base.x = 0
+    base.y = 0
+    base.flags = USE_MY_METRICS | ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
+    mark = GlyphComponent()
+    mark.glyphName = mark_name
+    mark.x = mark_dx
+    mark.y = mark_dy
+    mark.flags = ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
+    g.components = [base, mark]
+    return g
+
+
+# Niche suffix paired with FE0C–FE0F (same order as SQUISH_VS_SLOTS).
+_MARKED_NICHE_SUFFIXES: Tuple[str, ...] = ("dk", "dkl", "dkb", "dkt")
+
+
+def add_marked_composites(
+    squishable_bases: Sequence[str],
+    mark_cps: Sequence[int],
+    *,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    target_upem: int,
+) -> List[str]:
+    """Bake precomposed squish+ca/nhay composites (and return their names).
+
+    One composite per ``(base form × niche × mark)``. Mark D4 is not expanded
+    here — mark-side slots (``.L``/``.T``/``.B``) cover niche classes.
+    """
+    added: List[str] = []
+    for base in squishable_bases:
+        if base not in glyphs:
+            continue
+        for niche_suf in _MARKED_NICHE_SUFFIXES:
+            sq = _niche_squish_of(base, niche_suf)
+            if sq not in glyphs:
+                continue
+            adv, lsb = metrics.get(sq, (target_upem, 0))
+            ax, ay = _niche_anchor_fn(niche_suf)(
+                glyphs[sq], adv, target_upem, glyph_set=glyphs
+            )
+            for cp in mark_cps:
+                upright = glyph_name_for_cp(cp)
+                if upright not in glyphs:
+                    continue
+                mark_comp = _niche_mark_component(upright, niche_suf)
+                if mark_comp not in glyphs:
+                    continue
+                mx, my = mark_attach_anchor(
+                    glyphs[mark_comp], glyph_set=glyphs
+                )
+                out_name = marked_form_name(sq, upright)
+                if out_name in glyphs:
+                    added.append(out_name)
+                    continue
+                g = make_marked_composite(
+                    sq,
+                    mark_comp,
+                    mark_dx=ax - mx,
+                    mark_dy=ay - my,
+                )
+                try:
+                    g.recalcBounds(glyphs)
+                    out_lsb = int(g.xMin)
+                except Exception:
+                    out_lsb = lsb
+                glyph_order.append(out_name)
+                glyphs[out_name] = g
+                metrics[out_name] = (adv, out_lsb)
+                added.append(out_name)
+    return added
+
+
+def marked_liga_map(
+    squishable_bases: Sequence[str],
+    mark_cps: Sequence[int],
+    *,
+    glyphs: Dict[str, TTGlyph],
+) -> Dict[Tuple[str, ...], str]:
+    """Ligatures into precomposed marked forms (incl. ZW ``.ov`` + auto-squish).
+
+    Lookup-friendly lengths::
+
+        base + mark              → base.dk_mark          (bare auto-squish)
+        base + niche + mark      → base.<niche>_mark
+        squish + mark            → squish_mark
+        squish.ov + mark         → squish_mark.ov
+        base.ov + mark           → base.dk_mark.ov
+        marked + FE0B            → marked.ov
+    """
+    liga: Dict[Tuple[str, ...], str] = {}
+    niche_by_sel = {sel: suf for _cp, sel, suf in SQUISH_VS_SLOTS}
+    vs01 = vs_glyph_name(TRANSFORM_MODES[0][0])
+
+    for base in squishable_bases:
+        if base not in glyphs:
+            continue
+        for cp in mark_cps:
+            upright = glyph_name_for_cp(cp)
+            if upright not in glyphs:
+                continue
+
+            # Bare mark → default right niche (.dk).
+            dk = squish_name(base)
+            default = marked_form_name(dk, upright)
+            if default in glyphs:
+                liga[(base, upright)] = default
+                base_ov = overlay_glyph_name(base)
+                default_ov = overlay_glyph_name(default)
+                if base_ov in glyphs and default_ov in glyphs:
+                    liga[(base_ov, upright)] = default_ov
+
+            for sel_name, niche_suf in niche_by_sel.items():
+                sq = _niche_squish_of(base, niche_suf)
+                out = marked_form_name(sq, upright)
+                if out not in glyphs:
+                    continue
+                mark_comp = _niche_mark_component(upright, niche_suf)
+                # After niche liga: squish + mark (upright or class slot).
+                liga[(sq, upright)] = out
+                if mark_comp != upright and mark_comp in glyphs:
+                    liga[(sq, mark_comp)] = out
+                # One-pass: base + niche + mark.
+                liga[(base, sel_name, upright)] = out
+                liga[(base, vs01, sel_name, upright)] = out
+                # ZW kanji half + mark → ZW precomposed.
+                sq_ov = overlay_glyph_name(sq)
+                out_ov = overlay_glyph_name(out)
+                if sq_ov in glyphs and out_ov in glyphs:
+                    liga[(sq_ov, upright)] = out_ov
+                    if mark_comp != upright and mark_comp in glyphs:
+                        liga[(sq_ov, mark_comp)] = out_ov
+                    liga[(base, OV_SELECTOR_NAME, sel_name, upright)] = out_ov
+                    liga[(base, sel_name, OV_SELECTOR_NAME, upright)] = out_ov
+                    liga[(base, vs01, OV_SELECTOR_NAME, sel_name, upright)] = out_ov
+                    liga[(base, vs01, sel_name, OV_SELECTOR_NAME, upright)] = out_ov
+                # Precomposed + FE0B → ZW.
+                if out_ov in glyphs:
+                    liga[(out, OV_SELECTOR_NAME)] = out_ov
+    return liga
+
+
 def _langsys_with_features(feature_indices: Sequence[int]) -> ot.DefaultLangSys:
     ls = ot.DefaultLangSys()
     ls.ReqFeatureIndex = 0xFFFF
@@ -2048,8 +2245,9 @@ def _fe00_noop_form_names(
     squishable: Sequence[str],
     *,
     glyphs: Dict[str, TTGlyph],
+    mark_cps: Sequence[int] = (),
 ) -> List[str]:
-    """Identity + D4 + ``.dk*`` + ``.ov`` names that accept FE00 no-op."""
+    """Identity + D4 + ``.dk*`` + ``.ov`` + marked composites that accept FE00."""
     out: List[str] = []
     seen: set = set()
     for form in squishable:
@@ -2068,6 +2266,14 @@ def _fe00_noop_form_names(
             if name in glyphs and name not in seen:
                 seen.add(name)
                 out.append(name)
+        for cp in mark_cps:
+            upright = glyph_name_for_cp(cp)
+            for _cp, _sel, suf in SQUISH_VS_SLOTS:
+                marked = marked_form_name(_squish_form_name(form, suf), upright)
+                for name in (marked, overlay_glyph_name(marked)):
+                    if name in glyphs and name not in seen:
+                        seen.add(name)
+                        out.append(name)
     return out
 
 
@@ -2080,14 +2286,16 @@ def install_cjk_composition_gsub(
     squishable: Optional[Sequence[str]] = None,
     mark_cps: Sequence[int] = (),
 ) -> int:
-    """Programmatic ``ccmp``/``rlig``/``liga``: D4 + FE0B–FE0F + mark niches.
+    """Programmatic ``ccmp``/``rlig``/``liga``: D4 + FE0B–FE0F + marked composites.
 
-    Lookup order matters so ``B FE02 FE0D`` / ``A FE00 FE0B FE0C`` work::
+    Lookup order matters so ``B FE02 FE0D`` / ``A FE00 FE0B FE0C`` / marked
+    digraphs work::
 
-        1. D4 (incl. FE00 no-op on bases + squish/ov forms)
-        2. 4-glyph identity squish+overlay — ``A+FE00+FE0B+FE0C → A.dk.ov``
-        3. 3-glyph squish+overlay — ``A+FE0B+FE0C → A.dk.ov``
-        4. 2-glyph squish/overlay + mark niches — ``B.r180+FE0D → B.r180.dkl``
+        1. D4 (incl. FE00 no-op on bases + squish/ov/marked forms)
+        2. 5-glyph marked digraphs — ``A+FE00+FE0B+FE0C+MARK → A.dk_MARK.ov``
+        3. 4-glyph identity squish+overlay / marked
+        4. 3-glyph squish+overlay / ``base+niche+MARK``
+        5. 2-glyph squish/overlay + mark niches + ``squish+MARK`` / auto-squish
     """
     from fontTools.ttLib import newTable
     from fontTools.ttLib.tables import otTables as ot
@@ -2097,31 +2305,25 @@ def install_cjk_composition_gsub(
     del glyph_order  # reserved for future GID-ordered class builders
     forms = list(squishable) if squishable is not None else squishable_forms(cjk_bases)
 
-    fe00_forms = _fe00_noop_form_names(forms, glyphs=glyphs)
+    fe00_forms = _fe00_noop_form_names(forms, glyphs=glyphs, mark_cps=mark_cps)
     d4_map = d4_liga_map(cjk_bases, glyphs=glyphs, fe00_forms=fe00_forms)
-    # 4-glyph (FE00 + ov + niche) before 3-glyph before 2-glyph.
-    xlong_map: Dict[Tuple[str, ...], str] = {}
-    long_map: Dict[Tuple[str, ...], str] = {}
-    short_map: Dict[Tuple[str, ...], str] = {}
+    # Longer ligatures before shorter.
+    by_len: Dict[int, Dict[Tuple[str, ...], str]] = {}
     for comps, out in squish_vs_liga_map(forms, glyphs=glyphs).items():
-        if len(comps) >= 4:
-            xlong_map[comps] = out
-        elif len(comps) >= 3:
-            long_map[comps] = out
-        else:
-            short_map[comps] = out
+        by_len.setdefault(len(comps), {})[comps] = out
     if mark_cps:
-        short_map.update(mark_liga_map(mark_cps, glyphs))
+        for comps, out in marked_liga_map(
+            forms, mark_cps, glyphs=glyphs
+        ).items():
+            by_len.setdefault(len(comps), {})[comps] = out
+        # Mark D4 / FE08–A side slots stay in the 2-glyph lookup.
+        by_len.setdefault(2, {}).update(mark_liga_map(mark_cps, glyphs))
 
     lookups: List = []
     if d4_map:
         lookups.append(build_chunked_ligature_subst_lookup(d4_map))
-    if xlong_map:
-        lookups.append(build_chunked_ligature_subst_lookup(xlong_map))
-    if long_map:
-        lookups.append(build_chunked_ligature_subst_lookup(long_map))
-    if short_map:
-        lookups.append(build_chunked_ligature_subst_lookup(short_map))
+    for length in sorted(by_len.keys(), reverse=True):
+        lookups.append(build_chunked_ligature_subst_lookup(by_len[length]))
     if not lookups:
         return 0
 
@@ -2353,6 +2555,22 @@ def prepare_marks(
         in_dir=in_dir,
     )
 
+    marked = add_marked_composites(
+        squishable,
+        core_cps,
+        glyph_order=glyph_order,
+        glyphs=glyphs,
+        metrics=metrics,
+        target_upem=target_upem,
+    )
+    if marked:
+        add_overlay_forms(
+            marked,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+        )
+
     return {
         "core_cps": list(core_cps),
         "mark_cps": list(core_cps),
@@ -2361,6 +2579,7 @@ def prepare_marks(
         "top_marks": list(top_marks),
         "bottom_marks": list(bottom_marks),
         "squishable": list(squishable),
+        "marked": list(marked),
         "width_factor": SQUISH_FACTOR,
         "height_factor": SQUISH_FACTOR,
         "n_core": len(core_cps),
@@ -2380,7 +2599,14 @@ def compile_marks_layout(
     glyph_order: Sequence[str],
     target_upem: int,
 ) -> int:
-    """Half-cell squish GSUB + niche GPOS for ca/nhay in the free half."""
+    """Legacy FE08–A side-squish chains only; ca/nhay use precomposed ligas.
+
+    Marked composites + their ligatures are installed in
+    ``prepare_marks`` / ``install_cjk_composition_gsub``. Niche MarkToBase
+    GPOS is no longer used.
+    """
+    del metrics, target_upem
+    # Keep L/T/B chain squish for legacy ``FE08/FE09/FE0A MARK`` without niche VS.
     n = install_squish_gsub(
         font,
         squishable_bases=state["squishable"],
@@ -2390,28 +2616,5 @@ def compile_marks_layout(
         bottom_marks=state.get("bottom_marks", []),
         glyphs=glyphs,
         glyph_order=glyph_order,
-    )
-    install_mark_side_from_niche_gsub(
-        font,
-        squishable_bases=state["squishable"],
-        right_marks=state.get("right_marks", []),
-        glyphs=glyphs,
-        glyph_order=glyph_order,
-    )
-    anchors = collect_niche_base_anchors(
-        state["squishable"],
-        glyphs=glyphs,
-        metrics=metrics,
-        target_upem=target_upem,
-    )
-    install_niche_mark_gpos(
-        font,
-        base_anchors=anchors,
-        right_marks=state.get("right_marks", []),
-        left_marks=state.get("left_marks", []),
-        top_marks=state.get("top_marks", []),
-        bottom_marks=state.get("bottom_marks", []),
-        glyph_order=glyph_order,
-        glyphs=glyphs,
     )
     return n

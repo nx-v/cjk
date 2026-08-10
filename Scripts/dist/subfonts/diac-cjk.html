@@ -195,7 +195,7 @@ function squishPiece(side) {
   return sel != null ? String.fromCodePoint(sel) : '';
 }
 function markedCjk(idx, baseOi, mi, markOi, side) {
-  // Compulsory niche VS: CJK (D4)? FE0C–F MARK (D4)?
+  // Niche VS selects half; bare MARK also auto-squishes to .dk via liga.
   return cjkPiece(idx, baseOi) + squishPiece(side) + markPiece(mi, markOi);
 }
 function digraphFirst(idx, oi, side) {
