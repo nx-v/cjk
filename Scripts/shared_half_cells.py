@@ -6,7 +6,8 @@ Encoding
 * Standalones: NuosuSIL is monospace (shared advance). Every glyph gets the
   **same** ``sx`` from that advance and the **same** ``sy`` from the tallest
   ink height, then headless CAPE Weightor Width-mode stretch (``cape_weightor``);
-  Y is fitted to the CJK typo box (center at 0.38em).
+  Y is fitted to the CJK typo box (floor-pin), then uniformly downscaled to
+  ``STANDALONE_CELL_SCALE`` (~95%) about the ideographic center.
 * Orientations: D4 square symmetries on **VS01..VS08** (``U+E000``..``U+E007``,
   UVS ``U+FE00``..``U+FE07``), including ``r90my``. Pipeline for the two
   outline sources: **transform / reorient first**, then stem-normalize
@@ -16,7 +17,8 @@ Encoding
   then falls back to the un-normalized transform.
   Other D4 forms are TT composites of those two (``r180`` / ``mx`` / ``my`` ←
   id; ``r270`` / ``r90mx`` / ``r90my`` ← r90). After each outline and each
-  composite, ink is re-pinned to the padded CJK floor.
+  composite, ink is re-pinned to the padded CJK floor, then downscaled ~95%
+  about the ideographic center.
 * Overlay (GlyphWiki / build_cjk): **``U+FE08``** superimposes preceding
   glyphs into one cell — everything but the **last** glyph before ``FE08``
   becomes zero-advance (``.ov``); the last keeps the em advance.
@@ -92,6 +94,9 @@ STANDALONE_CONTOUR_WIDEN = 0.15
 # Keeps short glyphs from sitting on the raw descent (-0.12em), which reads
 # low next to CJK ink that usually rests nearer the baseline.
 STANDALONE_VERT_PAD = 0.05
+# After stretch / stem-normalize + CJK floor pin: uniform scale about the
+# ideographic center so Yi ink occupies ~95% of the cell (still centered).
+STANDALONE_CELL_SCALE = 0.95
 
 # Match build_yi / build_cjk OS/2 + hhea (CJK ideographic body).
 TYPO_ASCENDER_FRAC = 0.88
@@ -1012,7 +1017,8 @@ def add_d4_variant_glyphs(
         1. transform / reorient (id = identity; r90 = rotate from **un-normalized** upright)
         2. stem-normalize, retrying smaller/larger targets until strokes stay
            thick and non-self-intersecting (else keep step-1)
-        3. place ink: ``anchor="floor"`` pins to padded CJK floor (Yi);
+        3. place ink: ``anchor="floor"`` pins to padded CJK floor then
+           downscales ~95% about the ideographic center (Yi);
            ``anchor="cell"`` keeps the proportional cell fit (CJK; rotate only)
 
     Other orientations are simple rotate/reflect composites (no further stem
@@ -1061,7 +1067,16 @@ def add_d4_variant_glyphs(
             return fit_glyph_to_ideographic_cell(
                 glyph, adv, target_upem, glyph_set=glyphs
             )
-        return pin_glyph_ink_to_cjk_floor(glyph, adv, target_upem, glyph_set=glyphs)
+        pinned, pinned_adv, _ = pin_glyph_ink_to_cjk_floor(
+            glyph, adv, target_upem, glyph_set=glyphs
+        )
+        return scale_glyph_in_ideographic_cell(
+            pinned,
+            pinned_adv,
+            target_upem,
+            scale=STANDALONE_CELL_SCALE,
+            glyph_set=glyphs,
+        )
 
     def _composite_from(
         parent_name: str,
@@ -2069,6 +2084,56 @@ def _fit_glyph_to_cjk_height(
     return apply_transform(rec, Transform(1, 0, 0, 1, 0, dy))
 
 
+def scale_glyph_in_ideographic_cell(
+    glyph: TTGlyph,
+    advance: int,
+    target_upem: int,
+    *,
+    scale: float = STANDALONE_CELL_SCALE,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    center: Optional[Tuple[float, float]] = None,
+) -> GlyphMetrics:
+    """Uniformly scale about the ideographic center (post floor-pin inset).
+
+    Used after stretch / stem-normalize and CJK floor pin so Yi ink sits at
+    ~``scale`` of the cell while remaining centered in that space.
+    """
+    adv = int(advance if advance > 0 else target_upem)
+    if scale <= 0:
+        raise ValueError(f"scale must be > 0, got {scale!r}")
+    if abs(scale - 1.0) < 1e-9:
+        try:
+            if glyph.isComposite():
+                if glyph_set is None:
+                    raise ValueError("scale_glyph_in_ideographic_cell needs glyph_set")
+                glyph.recalcBounds(glyph_set)
+            else:
+                glyph.recalcBounds(None)
+            return glyph, adv, int(glyph.xMin)
+        except Exception:
+            return glyph, adv, int(getattr(glyph, "xMin", 0) or 0)
+
+    src = glyph
+    try:
+        if glyph.isComposite():
+            src, adv, _ = _bake_transformed_glyph(
+                glyph, Transform(), adv, glyph_set=glyph_set
+            )
+    except Exception:
+        src = glyph
+
+    cx, cy = center if center is not None else ideographic_center(target_upem)
+    t = Transform(scale, 0, 0, scale, cx * (1.0 - scale), cy * (1.0 - scale))
+    rec = _recording_from_glyph(src, None)
+    out = apply_transform(rec, t)
+    try:
+        out.recalcBounds(None)
+        lsb = int(out.xMin)
+    except Exception:
+        lsb = 0
+    return out, adv, lsb
+
+
 def pin_glyph_ink_to_cjk_floor(
     glyph: TTGlyph,
     advance: int,
@@ -2083,6 +2148,7 @@ def pin_glyph_ink_to_cjk_floor(
     center, so flipped or sideways forms often hang below the baseline.
     Composites stay composites when only a Y translation is needed.
     """
+
     bottom, _top, cell_h = cjk_padded_floor(target_upem, pad=pad)
     try:
         if glyph.isComposite():
@@ -2154,6 +2220,7 @@ def make_standalone_glyph(
     pad: float = STANDALONE_PAD,
     widen: float = STANDALONE_CONTOUR_WIDEN,
     vert_pad: float = STANDALONE_VERT_PAD,
+    cell_scale: float = STANDALONE_CELL_SCALE,
     stroke_weight: Optional[float] = None,  # unused; kept for call-site compat
 ) -> Optional[GlyphMetrics]:
     """Shared ``sx`` from advance, shared ``sy`` from inventory max ink height.
@@ -2162,7 +2229,8 @@ def make_standalone_glyph(
     Contours are then stretched with CAPE Weightor Width mode (``widen``,
     default +15% outer width, vertical stems compensated). Then Y is fitted
     to a padded CJK typo box: squash if taller, otherwise pin the ink bottom
-    to the padded floor (above raw descent).
+    to the padded floor (above raw descent). Finally uniform ``cell_scale``
+    (~95%) about the ideographic center keeps the syllable inset and centered.
     """
     del stroke_weight
     del source_center_y  # retained for call-site compat / inventory symmetry
@@ -2195,12 +2263,10 @@ def make_standalone_glyph(
             center_x=dst_cx,
         )
     glyph = _fit_glyph_to_cjk_height(glyph, target_upem, pad=vert_pad)
-    try:
-        glyph.recalcBounds(None)
-        lsb = int(glyph.xMin)
-    except Exception:
-        lsb = 0
-    return glyph, target_upem, lsb
+    return scale_glyph_in_ideographic_cell(
+        glyph, target_upem, target_upem, scale=cell_scale
+    )
+
 
 
 def make_halfwidth_glyph(
