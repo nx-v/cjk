@@ -67,6 +67,7 @@ from yi_slice import (
     inject_slice_marks,
     install_slice_gsub,
 )
+from sync_obsidian_panfonts import sync_dist_to_plugin
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
@@ -355,7 +356,11 @@ def build_panyi_font(
     fb.setupGlyf(glyphs)
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=ascent, descent=descent)
-    fb.setupCharacterMap(cmap, uvs=uvs_rows)
+    # Empty uvs=[] still emits cmap format-14; Chromium OTS rejects that.
+    if uvs_rows:
+        fb.setupCharacterMap(cmap, uvs=uvs_rows)
+    else:
+        fb.setupCharacterMap(cmap)
     fb.setupNameTable(
         {
             "familyName": FAMILY_NAME,
@@ -526,6 +531,7 @@ def build_all(
     if count:
         write_css(out_dir, cps)
     print(f"\nDone: {path} ({count} glyphs)", flush=True)
+    sync_dist_to_plugin("yi", out_dir)
 
 
 def parse_args() -> argparse.Namespace:

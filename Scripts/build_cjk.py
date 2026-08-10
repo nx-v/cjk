@@ -69,6 +69,7 @@ from shared_half_cells import (
     uvs_selector_for_mode,
     vs_glyph_name,
 )
+from sync_obsidian_panfonts import sync_dist_to_plugin
 
 # ---------- Directories ----------
 
@@ -560,7 +561,11 @@ def build_bucket_font(
     fb.setupGlyf(glyphs)
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=ascent, descent=descent)
-    fb.setupCharacterMap(cmap, uvs=uvs_rows)
+    # Empty uvs=[] still emits cmap format-14; Chromium OTS rejects that.
+    if uvs_rows:
+        fb.setupCharacterMap(cmap, uvs=uvs_rows)
+    else:
+        fb.setupCharacterMap(cmap)
     fb.setupNameTable(
         {
             "familyName": family,
@@ -824,6 +829,7 @@ def regenerate_css_from_dist(out_dir: str) -> None:
         sys.exit(1)
     print(f"Regenerating CSS for {len(built)} buckets from {out_dir}")
     write_css(out_dir, built)
+    sync_dist_to_plugin("subfonts", out_dir)
 
 
 def build_all(
@@ -945,6 +951,7 @@ def build_all(
         f"{skipped} empty skipped, UPM={target_upem}, jobs={workers}",
         flush=True,
     )
+    sync_dist_to_plugin("subfonts", out_dir)
 
 
 def parse_args() -> argparse.Namespace:

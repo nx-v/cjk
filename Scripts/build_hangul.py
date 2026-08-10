@@ -98,6 +98,7 @@ from shared_diacritics import (
     load_dakuten_marks_from_stack,
     resolve_dakuten_mark_font_stack,
 )
+from sync_obsidian_panfonts import sync_dist_to_plugin
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
@@ -438,9 +439,7 @@ def collect_hangul_dakuten_base_anchors(
             continue
         adv = int(metrics.get(name, (target_upem, 0))[0])
         dx = -int(target_upem) if adv == 0 else 0
-        anchors[name] = {
-            cid: (xy[0] + dx, xy[1]) for cid, xy in class_xy.items()
-        }
+        anchors[name] = {cid: (xy[0] + dx, xy[1]) for cid, xy in class_xy.items()}
     return anchors
 
 
@@ -1841,7 +1840,11 @@ def build_jamo_font(
     fb.setupGlyf(glyphs)
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=ascent, descent=descent)
-    fb.setupCharacterMap(cmap, uvs=uvs_rows)
+    # Empty uvs=[] still emits cmap format-14; Chromium OTS rejects that.
+    if uvs_rows:
+        fb.setupCharacterMap(cmap, uvs=uvs_rows)
+    else:
+        fb.setupCharacterMap(cmap)
     fb.setupNameTable(
         {
             "familyName": FAMILY_JAMO,
@@ -1981,11 +1984,7 @@ def build_syllables_font(
         for vs_cp, _suffix, vname in installed:
             liga_pairs.append((base, vs_glyph_name(vs_cp), vname))
 
-    syll_seeds = [
-        cmap[cp]
-        for cp in hangul_cps
-        if cmap[cp] in glyphs
-    ]
+    syll_seeds = [cmap[cp] for cp in hangul_cps if cmap[cp] in glyphs]
     dakuten = prepare_hangul_dakuten(
         in_dir=in_dir,
         glyph_order=glyph_order,
@@ -2009,7 +2008,11 @@ def build_syllables_font(
     fb.setupGlyf(glyphs)
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=ascent, descent=descent)
-    fb.setupCharacterMap(cmap, uvs=uvs_rows)
+    # Empty uvs=[] still emits cmap format-14; Chromium OTS rejects that.
+    if uvs_rows:
+        fb.setupCharacterMap(cmap, uvs=uvs_rows)
+    else:
+        fb.setupCharacterMap(cmap)
     fb.setupNameTable(
         {
             "familyName": FAMILY_SYLL,
@@ -2197,6 +2200,7 @@ def build_all(
         f"{syll_path} ({syll_count} glyphs)",
         flush=True,
     )
+    sync_dist_to_plugin("hangul", out_dir)
 
 
 def parse_args() -> argparse.Namespace:

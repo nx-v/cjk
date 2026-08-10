@@ -6,14 +6,19 @@ Obsidian needs a *single* ``pancjk`` family with many ``@font-face`` +
 per-bucket ``'pancjk XX'`` names in ``pancjk.css``; this script is for the
 theme only.
 
-Font files are loaded from **jsDelivr** (statically.io throttles large
-parallel ``@font-face`` loads to minutes per file in Obsidian).
+Default: font files via **jsDelivr**.
+
+``--bake``: Obsidian cannot resolve relative ``url(./…)`` (becomes
+``app://obsidian.md/…``), blocks ``file://``, and truncates huge ``data:``
+themes — so bake writes a tiny **plugin** that injects faces with
+``getResourcePath()``.
 
 Usage::
 
     python Scripts/update_obsidian_theme_fonts.py
     python Scripts/update_obsidian_theme_fonts.py --local
-    python Scripts/update_obsidian_theme_fonts.py --theme path/to/theme.css
+    python Scripts/update_obsidian_theme_fonts.py --bake
+    python Scripts/update_obsidian_theme_fonts.py --bake --vault path/to/vault
 
 Markers (inserted on first run if missing)::
 
@@ -26,7 +31,9 @@ Markers (inserted on first run if missing)::
 from __future__ import annotations
 
 import argparse
+import json
 import re
+import shutil
 import sys
 import urllib.error
 import urllib.request
@@ -34,10 +41,13 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
+DIST_DIR = SCRIPT_DIR / "dist"
+BAKE_FOLDERS = ("hangul", "yi", "subfonts")
+PLUGIN_ID = "panfonts"
+PLUGIN_DIR = SCRIPT_DIR / "obsidian-panfonts"
 
 CDN_GH = "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist"
 CDN_BASE = CDN_GH
-# Prefer jsDelivr for CSS; fall back to statically then local.
 CSS_URLS = {
     "hangul": f"{CDN_GH}/hangul/panhangul.css",
     "yi": f"{CDN_GH}/yi/panyi.css",
@@ -58,12 +68,11 @@ CSS_URLS_FALLBACK = {
     ),
 }
 LOCAL_CSS = {
-    "hangul": SCRIPT_DIR / "dist" / "hangul" / "panhangul.css",
-    "yi": SCRIPT_DIR / "dist" / "yi" / "panyi.css",
-    "cjk": SCRIPT_DIR / "dist" / "subfonts" / "pancjk.css",
+    "hangul": DIST_DIR / "hangul" / "panhangul.css",
+    "yi": DIST_DIR / "yi" / "panyi.css",
+    "cjk": DIST_DIR / "subfonts" / "pancjk.css",
 }
 
-# Rewrite legacy CDN / raw GitHub dist URLs → jsDelivr @main
 _JSDELIVR_FONT = re.compile(
     r"https://(?:cdn|fastly)\.jsdelivr\.net/gh/nexovolta/fonts@[^/]+/" r"Scripts/dist/",
     re.I,
@@ -102,7 +111,6 @@ def fetch_text(url: str, timeout: float = 60.0) -> str:
 
 
 def to_cdn_url(url: str) -> str:
-    """Map raw GitHub / statically / jsDelivr URLs onto jsDelivr @main."""
     url = _JSDELIVR_FONT.sub(f"{CDN_GH}/", url)
     url = _RAW_GH_FONT.sub(f"{CDN_GH}/", url)
     url = _STATICALLY_FONT.sub(f"{CDN_GH}/", url)
@@ -132,19 +140,161 @@ def load_css(kind: str, *, local: bool) -> str:
     raise FileNotFoundError(f"no CSS source for {kind}")
 
 
-def _cdn_only_src(block: str, *, folder: str) -> str:
-    """Keep one absolute jsDelivr src (drop ./ and legacy CDNs)."""
+def sync_woff2(dest_root: Path) -> int:
+    """Copy hangul/yi/subfonts .woff2 into dest_root/{folder}/."""
+    n = 0
+    for folder in BAKE_FOLDERS:
+        src_dir = DIST_DIR / folder
+        dst_dir = dest_root / folder
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        for src in sorted(src_dir.glob("*.woff2")):
+            shutil.copy2(src, dst_dir / src.name)
+            n += 1
+    try:
+        shown = dest_root.relative_to(REPO_ROOT)
+    except ValueError:
+        shown = dest_root
+    print(f"  synced {n} .woff2 -> {shown}")
+    return n
+
+
+def collect_faces(css: str, *, folder: str, shared_pancjk: bool) -> list[dict]:
+    """Parse @font-face list for the panfonts plugin."""
+    out: list[dict] = []
+    for m in re.finditer(r"@font-face\s*\{([^{}]*)\}", css, flags=re.S):
+        block = m.group(1)
+        fam_m = re.search(r"font-family:\s*['\"]([^'\"]+)['\"]", block)
+        ur_m = re.search(r"unicode-range:\s*([^;]+);", block, flags=re.I)
+        name_m = re.search(
+            r"url\((['\"])(?:https:[^'\"]+/|\./)?([^'\"/]+\.woff2)\1\)",
+            block,
+        )
+        if not (fam_m and ur_m and name_m):
+            continue
+        family = fam_m.group(1)
+        if shared_pancjk and re.match(r"pancjk\s+[0-9A-Fa-f]+$", family):
+            family = "pancjk"
+        out.append(
+            {
+                "family": family,
+                "file": f"panfonts/{folder}/{name_m.group(2)}",
+                "unicodeRange": ur_m.group(1).strip(),
+            }
+        )
+    return out
+
+
+def write_plugin(faces: list[dict]) -> None:
+    PLUGIN_DIR.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "id": PLUGIN_ID,
+        "name": "Pan Fonts",
+        "version": "1.1.0",
+        "minAppVersion": "1.5.0",
+        "description": "Loads baked pancjk / panyi / panhangul via FontFace + readBinary.",
+        "author": "nexovolta",
+        "isDesktopOnly": False,
+    }
+    (PLUGIN_DIR / "manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
+    faces_json = json.dumps(faces, ensure_ascii=True)
+    # Prefer vault-root panfonts/ (getResourcePath-friendly). Fall back to
+    # files beside the plugin. Load with FontFace(ArrayBuffer) — app://
+    # resource URLs under .obsidian/plugins often 404 for @font-face.
+    main_js = f"""const {{ Plugin, normalizePath }} = require("obsidian");
+
+/* Auto-generated by update_obsidian_theme_fonts.py --bake — do not edit. */
+const FACES = {faces_json};
+const BATCH = 24;
+
+module.exports = class PanFontsPlugin extends Plugin {{
+  async onload() {{
+    const adapter = this.app.vault.adapter;
+    const pluginRoot = normalizePath(
+      this.manifest.dir ||
+        `${{this.app.vault.configDir}}/plugins/${{this.manifest.id}}`
+    );
+
+    const resolve = async (file) => {{
+      const vaultRel = normalizePath(file);
+      if (await adapter.exists(vaultRel)) return vaultRel;
+      const beside = normalizePath(`${{pluginRoot}}/${{file}}`);
+      if (await adapter.exists(beside)) return beside;
+      return null;
+    }};
+
+    let ok = 0;
+    let missing = 0;
+    let failed = 0;
+
+    const loadOne = async (f) => {{
+      const rel = await resolve(f.file);
+      if (!rel) {{
+        missing++;
+        if (missing <= 5) console.warn(`[panfonts] missing ${{f.file}}`);
+        return;
+      }}
+      try {{
+        const buf = await adapter.readBinary(rel);
+        const face = new FontFace(f.family, buf, {{
+          style: "normal",
+          weight: "normal",
+          display: "swap",
+          unicodeRange: f.unicodeRange,
+        }});
+        await face.load();
+        document.fonts.add(face);
+        ok++;
+      }} catch (err) {{
+        failed++;
+        if (failed <= 5) console.warn(`[panfonts] fail ${{rel}}`, err);
+      }}
+    }};
+
+    console.info(`[panfonts] loading ${{FACES.length}} faces…`);
+    for (let i = 0; i < FACES.length; i += BATCH) {{
+      await Promise.all(FACES.slice(i, i + BATCH).map(loadOne));
+    }}
+    console.info(
+      `[panfonts] ready: ${{ok}} loaded, ${{missing}} missing, ${{failed}} failed`
+    );
+  }}
+}};
+"""
+    (PLUGIN_DIR / "main.js").write_text(main_js, encoding="utf-8")
+    print(f"  wrote plugin ({len(faces)} faces) -> {PLUGIN_DIR.relative_to(REPO_ROOT)}")
+
+
+def install_to_vault(vault: Path) -> None:
+    """Sync vault/panfonts + copy plugin js into .obsidian/plugins/obsidian-panfonts."""
+    vault = vault.resolve()
+    if not (vault / ".obsidian").is_dir():
+        raise FileNotFoundError(f"not an Obsidian vault (no .obsidian): {vault}")
+    sync_woff2(vault / "panfonts")
+    plug = vault / ".obsidian" / "plugins" / "obsidian-panfonts"
+    plug.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(PLUGIN_DIR / "main.js", plug / "main.js")
+    shutil.copy2(PLUGIN_DIR / "manifest.json", plug / "manifest.json")
+    # Optional: keep a copy under the plugin too (offline if vault panfonts deleted)
+    sync_woff2(plug / "panfonts")
+    print(f"  installed plugin -> {plug}")
+
+
+def _face_src(block: str, *, folder: str) -> str:
+    """One absolute jsDelivr src (drop ./ and legacy CDNs)."""
 
     def repl(m: re.Match[str]) -> str:
         chunk = m.group(0)
         urls = re.findall(r"url\((['\"])(https:[^'\"]+)\1\)", chunk)
         if urls:
-            pick = to_cdn_url(urls[0][1])
+            name = urls[0][1].rsplit("/", 1)[-1]
         else:
             rel = re.findall(r"url\((['\"])\./([^'\"]+\.woff2)\1\)", chunk)
             if not rel:
                 return chunk
-            pick = f"{CDN_GH}/{folder}/{rel[0][1]}"
+            name = rel[0][1]
+        pick = f"{CDN_GH}/{folder}/{name}"
         return f'src: url("{pick}") format("woff2");'
 
     return re.sub(
@@ -156,7 +306,6 @@ def _cdn_only_src(block: str, *, folder: str) -> str:
 
 
 def transform_face_css(css: str, *, shared_pancjk: bool, folder: str) -> str:
-    """CDN-only jsDelivr src; optional merge of pancjk XX → pancjk."""
     out = to_cdn_url(css)
     if shared_pancjk:
         out = re.sub(
@@ -174,15 +323,26 @@ def transform_face_css(css: str, *, shared_pancjk: bool, folder: str) -> str:
 
     def face_fix(m: re.Match[str]) -> str:
         block = m.group(0)
-        block = _cdn_only_src(block, folder=folder)
-        block = _double_quotes(block)
-        return block
+        block = _face_src(block, folder=folder)
+        return _double_quotes(block)
 
     out = re.sub(r"@font-face\s*\{[^{}]*\}", face_fix, out, flags=re.S)
     return out.strip() + "\n"
 
 
-def build_faces_block(hangul: str, yi: str, cjk: str) -> str:
+def build_faces_block(
+    hangul: str, yi: str, cjk: str, *, bake: bool
+) -> str:
+    if bake:
+        return "\n".join(
+            [
+                MARK_FACES_BEGIN,
+                "/* Hangul + Yi + Pan-CJK: loaded by the panfonts Obsidian plugin",
+                "   (Scripts/obsidian-panfonts). Relative/data URLs do not work. */",
+                MARK_FACES_END,
+                "",
+            ]
+        )
     parts = [
         MARK_FACES_BEGIN,
         "/* Hangul + Yi + Pan-CJK via jsDelivr (shared pancjk family). */",
@@ -204,9 +364,6 @@ def _double_quotes(css: str) -> str:
 
 
 def build_stack_block() -> str:
-    # Latin first for UI; pancjk before Plangothic. Direct --font-text with
-    # !important beats Appearance / Style Settings caches that still list
-    # obsolete 'pancjk XX' family names (those no longer have @font-face).
     stack = f"{STACK_LATIN}, {STACK_CJK}, {STACK_TAIL}"
     return "\n".join(
         [
@@ -240,8 +397,6 @@ def _replace_marked(text: str, begin: str, end: str, new_block: str) -> str:
 
 
 def _replace_legacy_faces(text: str, new_block: str) -> str:
-    """First-run: replace hangul→end of pancjk faces before fontlist body."""
-    # From hangul auto comment through last pancjk @font-face, before fontlist.
     pattern = re.compile(
         r"/\* Auto-generated Hangul fonts from Malgun Gothic \*/.*?"
         r"(?=\n/\* src/scss/index\.scss[^\n]*Pan-CJK pigeonhole font stack \*/"
@@ -269,7 +424,6 @@ def _replace_legacy_stack(text: str, new_block: str) -> str:
     )
     if pattern.search(text):
         return pattern.sub(new_block, text, count=1)
-    # Collapse any remaining "pancjk XX" lists inside --font-*-theme
     collapsed = re.sub(
         r'(["\']pancjk\s+[0-9A-Fa-f]+["\']\s*,\s*)+["\']pancjk\s+[0-9A-Fa-f]+["\']',
         "pancjk",
@@ -294,14 +448,8 @@ def patch_theme(theme_path: Path, faces: str, stack: str) -> None:
 
     theme_path.write_text(text, encoding="utf-8")
     n_faces = len(re.findall(r'font-family:\s*"pancjk"', text))
-    n_bucket_faces = len(re.findall(r'font-family:\s*"pancjk\s+[0-9A-Fa-f]+"', text))
-    n_bucket_stack = len(re.findall(r'["\']pancjk\s+[0-9A-Fa-f]+["\']', text))
-    print(
-        f"Wrote {theme_path} "
-        f"(shared pancjk @font-face={n_faces}, "
-        f"bucket @font-face leftover={n_bucket_faces}, "
-        f"bucket name refs={n_bucket_stack})"
-    )
+    size_mb = theme_path.stat().st_size / (1024 * 1024)
+    print(f"Wrote {theme_path} (pancjk name refs in faces~{n_faces}, {size_mb:.1f} MiB)")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -318,11 +466,30 @@ def main(argv: list[str] | None = None) -> int:
         help="Read Scripts/dist CSS instead of jsDelivr",
     )
     ap.add_argument(
+        "--bake",
+        action="store_true",
+        help=(
+            "Build Scripts/obsidian-panfonts plugin with local .woff2 "
+            "(implies --local). Theme keeps the font stack only."
+        ),
+    )
+    ap.add_argument(
+        "--vault",
+        type=Path,
+        help=(
+            "With --bake: install into this Obsidian vault "
+            "(sync <vault>/panfonts + plugin under .obsidian/plugins/)"
+        ),
+    )
+    ap.add_argument(
         "--also-private",
         action="store_true",
         help="Also patch Scripts/private/theme.css",
     )
     args = ap.parse_args(argv)
+
+    if args.bake:
+        args.local = True
 
     themes: list[Path] = list(args.theme or [REPO_ROOT / "theme.css"])
     if args.also_private:
@@ -333,10 +500,29 @@ def main(argv: list[str] | None = None) -> int:
     yi = load_css("yi", local=args.local)
     cjk = load_css("cjk", local=args.local)
 
-    faces = build_faces_block(hangul, yi, cjk)
+    if args.bake:
+        print("Baking Obsidian panfonts plugin…")
+        sync_woff2(PLUGIN_DIR / "panfonts")
+        faces_meta = (
+            collect_faces(hangul, folder="hangul", shared_pancjk=False)
+            + collect_faces(yi, folder="yi", shared_pancjk=False)
+            + collect_faces(cjk, folder="subfonts", shared_pancjk=True)
+        )
+        write_plugin(faces_meta)
+        if args.vault:
+            install_to_vault(args.vault)
+        for stale in (REPO_ROOT / "panfonts", SCRIPT_DIR / "private" / "panfonts"):
+            if stale.is_dir():
+                shutil.rmtree(stale)
+                print(f"  removed stale {stale.relative_to(REPO_ROOT)}")
+
+    faces = build_faces_block(hangul, yi, cjk, bake=args.bake)
     stack = build_stack_block()
-    n = len(re.findall(r"@font-face", faces))
-    print(f"Built Obsidian face block ({n} @font-face)")
+    if not args.bake:
+        n = len(re.findall(r"@font-face", faces))
+        print(f"Built Obsidian face block ({n} @font-face)")
+    else:
+        print("Theme face block: plugin stub (no @font-face URLs)")
 
     for path in themes:
         if not path.is_file():
@@ -347,6 +533,13 @@ def main(argv: list[str] | None = None) -> int:
         "Note: if CJK still missing in Obsidian, reset Appearance / Style Settings "
         "text font (cached stacks may still list old 'pancjk XX' names)."
     )
+    if args.bake and not args.vault:
+        print(
+            f"Install: python Scripts/update_obsidian_theme_fonts.py --bake "
+            f"--vault <vault-root>"
+        )
+    elif args.bake:
+        print("Reload Obsidian; console should show [panfonts] ready: 437 loaded.")
     return 0
 
 
