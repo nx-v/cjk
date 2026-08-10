@@ -721,11 +721,11 @@ def make_layout_shift(
     if shift_y:
         _bottom, _top, ideo_h = ideographic_bounds(target_upem)
         gh = max(y1 - y0, 1.0)
-        # Gap between L.em* top and V.my bottom (which packs from icy up).
-        clearance = ideo_h * _BAND_GAP_FRAC
+        # Gap between L.em* top and the Y-flipped medial above / around it.
+        clearance = ideo_h * 0.09
         # Tall choseong (ㅍ, ㅃ, …): extra drop so flipped medials clear.
         tall_extra = 0.0
-        if gh > ideo_h * 0.30:
+        if gh > ideo_h * 0.28:
             tall_extra = ideo_h * 0.06
         target_top = icy - clearance - tall_extra
         dy = target_top - y1
