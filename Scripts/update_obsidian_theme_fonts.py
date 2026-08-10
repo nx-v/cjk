@@ -59,8 +59,7 @@ CSS_URLS_FALLBACK = {
         "Scripts/dist/hangul/panhangul.css"
     ),
     "yi": (
-        "https://cdn.statically.io/gh/nexovolta/fonts@main/"
-        "Scripts/dist/yi/panyi.css"
+        "https://cdn.statically.io/gh/nexovolta/fonts@main/" "Scripts/dist/yi/panyi.css"
     ),
     "cjk": (
         "https://cdn.statically.io/gh/nexovolta/fonts@main/"
@@ -82,8 +81,7 @@ _RAW_GH_FONT = re.compile(
     re.I,
 )
 _STATICALLY_FONT = re.compile(
-    r"https://cdn\.statically\.io/gh/nexovolta/fonts(?:@main|/main)/"
-    r"Scripts/dist/",
+    r"https://cdn\.statically\.io/gh/nexovolta/fonts(?:@main|/main)/" r"Scripts/dist/",
     re.I,
 )
 
@@ -330,9 +328,7 @@ def transform_face_css(css: str, *, shared_pancjk: bool, folder: str) -> str:
     return out.strip() + "\n"
 
 
-def build_faces_block(
-    hangul: str, yi: str, cjk: str, *, bake: bool
-) -> str:
+def build_faces_block(hangul: str, yi: str, cjk: str, *, bake: bool) -> str:
     if bake:
         return "\n".join(
             [
@@ -449,7 +445,9 @@ def patch_theme(theme_path: Path, faces: str, stack: str) -> None:
     theme_path.write_text(text, encoding="utf-8")
     n_faces = len(re.findall(r'font-family:\s*"pancjk"', text))
     size_mb = theme_path.stat().st_size / (1024 * 1024)
-    print(f"Wrote {theme_path} (pancjk name refs in faces~{n_faces}, {size_mb:.1f} MiB)")
+    print(
+        f"Wrote {theme_path} (pancjk name refs in faces~{n_faces}, {size_mb:.1f} MiB)"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
