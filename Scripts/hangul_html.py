@@ -7,7 +7,8 @@ Jamo inventories (Unicode, excluding fillers / unassigned):
   Jongseong U+11A8..11FF, U+D7CB..D7FB
 
 Every L × {∅,FE01,FE02,FE03} × V × {∅,FE01,FE02,FE03} × (∅ | T × VS)
-is available, optionally followed by 0–4 dakuten marks (TR→BR→TL→BL).
+is available, optionally followed by FE04 (batchim top-swap) and 0–4
+dakuten marks (TR→BR→TL→BL).
 
 See: https://en.wikipedia.org/wiki/List_of_Hangul_jamo
 
@@ -106,8 +107,14 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
         "MARKS": marks,
         "VS": [None, 0xFE01, 0xFE02, 0xFE03],
         "VS_MARK": VS_MARK,
+        "SWAP": 0xFE04,
         "total": total,
     }
+
+    # Bust CDN/browser cache so the gallery always loads the just-built local face.
+    font_bust = 0
+    if os.path.isfile(HANGUL_FONT):
+        font_bust = int(os.path.getmtime(HANGUL_FONT))
 
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
@@ -119,12 +126,22 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
 <title>panhangul — all Unicode Hangul jamo × VS × dakuten</title>
 <link rel="stylesheet" href="./panhangul.css"/>
 <style>
+/* Gallery uses a dedicated family so CDN faces in panhangul.css cannot win. */
+@font-face {{
+  font-family: 'panhangul-local';
+  src: url("./panhangul.woff2?v={font_bust}") format("woff2"),
+       url("./panhangul.ttf?v={font_bust}") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}}
 :root {{ --fs: {font_size}px; }}
 * {{ box-sizing: border-box; }}
 body {{
   margin: 0; background: #111; color: #eee;
-  font-family: panhangul, panhanguls, sans-serif;
+  font-family: panhangul-local, panhangul, sans-serif;
   font-size: var(--fs);
+  font-feature-settings: "ljmo" 1, "vjmo" 1, "tjmo" 1, "rclt" 1, "rlig" 1, "liga" 1, "ccmp" 1;
 }}
 header {{
   position: sticky; top: 0; z-index: 5;
@@ -167,6 +184,7 @@ section h2 {{
 .cell b {{
   font-weight: normal; border: 1px solid #1e1e1e; padding: 2px 4px;
   border-radius: 2px;
+  font-feature-settings: "ljmo" 1, "vjmo" 1, "tjmo" 1, "rclt" 1, "rlig" 1, "liga" 1, "ccmp" 1;
 }}
 .empty {{ font: 13px system-ui, sans-serif; color: #555; padding: 24px 0; }}
 </style>
@@ -179,8 +197,9 @@ section h2 {{
     dakuten marks {len(marks)} (sample)
     (<a href="https://en.wikipedia.org/wiki/List_of_Hangul_jamo" style="color:#6af">List of Hangul jamo</a>).
     Syllable combos: <strong>{total:,}</strong>
-    = L×VS×V×VS×(∅ | T×VS). Toggle diacritics to append 1–4 marks
-    (corners TR→BR→TL→BL). ¹ FE01 · ² FE02 · ³ FE03.
+    = L×VS×V×VS×(∅ | T×VS). Toggle FE04 after batchim to put the final on
+    top (LV↓) — re-click Render after toggling. Toggle diacritics to append
+    1–4 marks (corners TR→BR→TL→BL). ¹ FE01 · ² FE02 · ³ FE03 · FE04 = top-swap.
   </p>
   <div class="controls">
     <label>Choseong
@@ -190,6 +209,7 @@ section h2 {{
       <select id="pickV"></select>
     </label>
     <label><input type="checkbox" id="wantT" checked/> batchim</label>
+    <label><input type="checkbox" id="wantSwap"/> FE04 top-swap</label>
     <label><input type="checkbox" id="wantVS" checked/> VS</label>
     <label><input type="checkbox" id="wantMarks"/> diacritics</label>
     <label>Mark
@@ -232,7 +252,7 @@ function markSuffix() {{
   return Array(n).fill(m.cp);
 }}
 
-function buildSeq(L, li, V, vi, T, ti) {{
+function buildSeq(L, li, V, vi, T, ti, wantSwap) {{
   let cps = [L.cp];
   if (DATA.VS[li] != null) cps.push(DATA.VS[li]);
   cps.push(V.cp);
@@ -240,14 +260,18 @@ function buildSeq(L, li, V, vi, T, ti) {{
   if (T) {{
     cps.push(T.cp);
     if (DATA.VS[ti] != null) cps.push(DATA.VS[ti]);
+    if (wantSwap) cps.push(DATA.SWAP);
   }}
   cps.push(...markSuffix());
   return cps;
 }}
 
-function labelFor(L, li, V, vi, T, ti) {{
+function labelFor(L, li, V, vi, T, ti, wantSwap) {{
   let s = L.ch + mark(li) + "+" + V.ch + mark(vi);
-  if (T) s += "+" + T.ch + mark(ti);
+  if (T) {{
+    s += "+" + T.ch + mark(ti);
+    if (wantSwap) s += "+FE04";
+  }}
   let ms = markSuffix();
   if (ms.length) {{
     let m = DATA.MARKS[+document.getElementById("pickMark").value];
@@ -256,7 +280,7 @@ function labelFor(L, li, V, vi, T, ti) {{
   return s;
 }}
 
-function renderPair(L, V, {{wantT, wantVS, labels}}) {{
+function renderPair(L, V, {{wantT, wantVS, wantSwap, labels}}) {{
   let sec = document.createElement("section");
   let h = document.createElement("h2");
   h.textContent = L.ch + " + " + V.ch + "  (U+" + L.cp.toString(16).toUpperCase()
@@ -276,11 +300,11 @@ function renderPair(L, V, {{wantT, wantVS, labels}}) {{
         cell.className = "cell";
         if (labels) {{
           let i = document.createElement("i");
-          i.textContent = labelFor(L, li, V, vi, null, 0);
+          i.textContent = labelFor(L, li, V, vi, null, 0, false);
           cell.appendChild(i);
         }}
         let b = document.createElement("b");
-        b.textContent = cpChars(buildSeq(L, li, V, vi, null, 0));
+        b.textContent = cpChars(buildSeq(L, li, V, vi, null, 0, false));
         cell.appendChild(b);
         frag.appendChild(cell);
         n++;
@@ -292,11 +316,11 @@ function renderPair(L, V, {{wantT, wantVS, labels}}) {{
           cell.className = "cell";
           if (labels) {{
             let i = document.createElement("i");
-            i.textContent = labelFor(L, li, V, vi, T, ti);
+            i.textContent = labelFor(L, li, V, vi, T, ti, wantSwap);
             cell.appendChild(i);
           }}
           let b = document.createElement("b");
-          b.textContent = cpChars(buildSeq(L, li, V, vi, T, ti));
+          b.textContent = cpChars(buildSeq(L, li, V, vi, T, ti, wantSwap));
           cell.appendChild(b);
           frag.appendChild(cell);
           n++;
@@ -346,6 +370,7 @@ function opts() {{
   return {{
     wantT: document.getElementById("wantT").checked,
     wantVS: document.getElementById("wantVS").checked,
+    wantSwap: document.getElementById("wantSwap").checked,
     labels: document.getElementById("labels").checked,
   }};
 }}
