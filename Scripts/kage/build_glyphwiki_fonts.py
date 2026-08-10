@@ -71,8 +71,9 @@ from shared_half_cells import (  # noqa: E402
     make_composite_variant,
 )
 
+# jsDelivr (CORS-friendly). raw.githubusercontent.com blocks cross-origin @font-face.
 CSS_FONT_URL_BASE = (
-    "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/glyphwiki"
+    "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/glyphwiki"
 )
 
 # One SPUA-marker font: 6400 PUA selectors + 6400*8 rendered D4 variants

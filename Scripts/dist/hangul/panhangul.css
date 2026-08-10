@@ -6,7 +6,7 @@
   font-family: 'panhangul';
   src: url('./panhangul.woff2') format('woff2'),
        url('./panhangul.ttf') format('truetype'),
-       url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/hangul/panhangul.woff2') format('woff2');
+       url('https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/hangul/panhangul.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -17,7 +17,7 @@
   font-family: 'panhanguls';
   src: url('./panhanguls.woff2') format('woff2'),
        url('./panhanguls.ttf') format('truetype'),
-       url('https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/hangul/panhanguls.woff2') format('woff2');
+       url('https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/hangul/panhanguls.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;

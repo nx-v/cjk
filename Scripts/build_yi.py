@@ -75,8 +75,9 @@ OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "yi")
 FAMILY_NAME = "panyi"
 PS_NAME = "panyi"
 
+# jsDelivr (CORS-friendly). raw.githubusercontent.com blocks cross-origin @font-face.
 CSS_FONT_URL_BASE = (
-    "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/yi"
+    "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/yi"
 )
 
 

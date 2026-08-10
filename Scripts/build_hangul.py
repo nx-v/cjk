@@ -116,10 +116,10 @@ MALGUN_Y_SHIFT = -55
 # Malgun Hangul syllables are ~935 tall vs CJK median ~901 → ~0.96.
 MALGUN_Y_SCALE = 0.9
 
+# jsDelivr (CORS-friendly). raw.githubusercontent.com blocks cross-origin @font-face.
 CSS_FONT_URL_BASE = (
-    "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/hangul"
+    "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/hangul"
 )
-
 # VS1..VS4 — axis mirrors (PUA U+E000..E003; Unicode VS U+FE00..FE03).
 HANGUL_MIRROR_MODES: List[Tuple[int, bool, bool, Optional[str]]] = [
     (0xE000, False, False, None),

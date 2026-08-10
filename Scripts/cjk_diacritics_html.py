@@ -303,23 +303,42 @@ def pancjk_font_stack(
     ranges: Optional[Sequence[Tuple[int, int]]] = None,
     force_all: bool = False,
 ) -> str:
-    """Quoted font stack for galleries.
-
-    Single-bucket → ``'pancjk XX'``. Multi-bucket / digraphs → shared
-    ``'pancjk'`` (unicode-range pigeonholes in pancjk.css) so FE0B–FE0F stay
-    with each base face for GSUB liga.
-    """
-    if ranges and not force_all:
-        buckets: set = set()
+    """Quoted font stack for galleries (per-bucket ``'pancjk XX'`` only)."""
+    buckets: List[int] = []
+    if ranges:
+        seen: set = set()
         for a, b in ranges:
-            buckets.update(range(a >> 8, (b >> 8) + 1))
-        if len(buckets) == 1:
-            hex_id = f"{next(iter(buckets)):X}"
-            return f"'pancjk {hex_id}'"
+            for bid in range(a >> 8, (b >> 8) + 1):
+                if bid not in seen:
+                    seen.add(bid)
+                    buckets.append(bid)
+        if not force_all and len(buckets) == 1:
+            return f"'pancjk {buckets[0]:X}'"
+        if buckets and not force_all:
+            return ", ".join(f"'pancjk {bid:X}'" for bid in buckets)
 
-    # Shared family covers all bucket faces via unicode-range.
-    del font_dir  # presence checked by caller / CSS href
-    return "'pancjk'"
+    # All faces present in font_dir (or ranges when force_all).
+    del force_all
+    if not buckets and os.path.isdir(font_dir):
+        for name in sorted(os.listdir(font_dir)):
+            if not (name.endswith(".woff2") or name.endswith(".ttf")):
+                continue
+            hex_id = os.path.splitext(name)[0]
+            try:
+                buckets.append(int(hex_id, 16))
+            except ValueError:
+                continue
+        # unique preserve order
+        seen2: set = set()
+        uniq: List[int] = []
+        for bid in buckets:
+            if bid not in seen2:
+                seen2.add(bid)
+                uniq.append(bid)
+        buckets = uniq
+    if not buckets:
+        return "'pancjk 4E'"
+    return ", ".join(f"'pancjk {bid:X}'" for bid in buckets)
 
 
 def write_html(

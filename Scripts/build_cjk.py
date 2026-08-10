@@ -79,8 +79,9 @@ OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "subfonts")
 DEFAULT_UPEM = 1000
 
 CSS_FAMILY = "pancjk"
+# jsDelivr (CORS-friendly). raw.githubusercontent.com blocks cross-origin @font-face.
 CSS_FONT_URL_BASE = (
-    "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/subfonts"
+    "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts"
 )
 
 # ---------- Source priority (highest first) ----------
@@ -695,9 +696,10 @@ def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
 
     Per-bucket ``'pancjk XX'`` faces list FE00..FE0F and PUA E000..E00C so
     digraph galleries can shape with non-ignorable PUA mirrors (Blink drops
-    Default_Ignorable VS that are not cmap-14 UVS). Shared ``pancjk`` stacks
-    still prefer pinning each half to its bucket face. U+16FF0/16FF1 stay
-    listed so marks load from this face.
+    Default_Ignorable VS that are not cmap-14 UVS). Pin each half to its
+    bucket face; do not share a single ``pancjk`` family (overlapping
+    unicode-range faces conflict). U+16FF0/16FF1 stay listed so marks load
+    from this face.
     """
     side_sels = set(SIDE_SELECTOR_CPS)
     # FE00..FE0F (D4 + squish/overlay / mark niches).
@@ -743,10 +745,9 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     css_path = os.path.join(out_dir, "pancjk.css")
     lines: List[str] = [
         "/* Auto-generated Pan-CJK pigeonhole @font-face rules */",
-        "/* Per-bucket family 'pancjk XX' plus shared family 'pancjk' (same",
-        "   unicode-range faces). FE00–FE0F + PUA E000–E00C listed per face",
-        "   for single-face GSUB liga; digraph HTML pins each half to",
-        "   'pancjk XX' and prefers PUA selectors in browsers. */",
+        "/* One family per bucket ('pancjk XX'). Digraph / multi-bucket",
+        "   stacks list those families; FE00–FE0F + PUA E000–E00C are in",
+        "   each face's unicode-range for single-face GSUB liga. */",
         "",
     ]
     family_names: List[str] = []
@@ -772,16 +773,13 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
         family_names.append(family)
         urange = unicode_range_for_bucket(bucket_id, codepoints)
         _face(family, hex_id, urange)
-        # Shared family: digraph / multi-bucket stacks keep one family name so
-        # FE0B–FE0F cluster with each base's pigeonhole face.
-        _face("pancjk", hex_id, urange)
 
     with open(css_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
-    # CSS-safe quoted family list for stacks (shared 'pancjk' first).
-    quoted = ", ".join(["'pancjk'"] + [f"'{name}'" for name in family_names])
+    # CSS-safe quoted per-bucket family list for stacks.
+    quoted = ", ".join(f"'{name}'" for name in family_names)
     fontlist_path = os.path.join(out_dir, "fontlist.css")
     fontlist = f"""/* src/scss/index.scss — Pan-CJK pigeonhole font stack */
 body {{
