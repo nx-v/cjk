@@ -174,11 +174,7 @@ def vs_glyph_name(vs_cp: int) -> str:
 
 
 def is_vs_codepoint(cp: int) -> bool:
-    return (
-        (VS_BASE <= cp <= VS_LAST)
-        or (UVS_BASE <= cp <= UVS_LAST)
-        or cp == SWAP_CP
-    )
+    return (VS_BASE <= cp <= VS_LAST) or (UVS_BASE <= cp <= UVS_LAST) or cp == SWAP_CP
 
 
 def font_cmap(tt: TTFont) -> Dict[int, str]:
@@ -384,6 +380,7 @@ V_SUFFIX_AXES: Dict[str, Set[str]] = {
     "my": {"y"},
     "mxy": {"x", "y"},
 }
+
 
 def em_variant_name(base_name: str, suffix: str) -> str:
     """Choseong layout shift from medial VS (``.emmx`` / ``.emmy`` / ``.emmxy``)."""
@@ -1794,14 +1791,8 @@ def install_fe04_gpos(
     dy_lv_up = dy_lv_i + fe04_unflipped_l_extra_dy(target_upem)
 
     v_x = [V for V in v_all if _axis_of(V) == "x"]
-    v_up = [
-        V
-        for V in v_all
-        if _axis_of(V) != "x" and not fe04_medial_is_y_flipped(V)
-    ]
-    v_flip = [
-        V for V in v_all if _axis_of(V) != "x" and fe04_medial_is_y_flipped(V)
-    ]
+    v_up = [V for V in v_all if _axis_of(V) != "x" and not fe04_medial_is_y_flipped(V)]
+    v_flip = [V for V in v_all if _axis_of(V) != "x" and fe04_medial_is_y_flipped(V)]
 
     # Per-context L SinglePos: X shared drop; upright Y/XY extra L drop; flip base.
     l_values_x = {L: buildValue({"YPlacement": dy_lv_x}) for L in l_all}
@@ -1920,11 +1911,12 @@ def install_yflip_batchim_gpos(
     vowel_axes: Dict[str, VowelAxis],
     target_upem: int,
 ) -> Tuple[float, int]:
-    """Raise dropped choseong (and Y-group medials) above jongseong.
+    """Raise dropped choseong above jongseong when the medial is Y-flipped.
 
-    * Pure Y-group: raise ``L.emmy`` + ``V.my`` together.
-    * XY-group: raise ``L.em*`` only — ``V.my`` is already packed into the
-      upper band and must not receive another lift (ceiling).
+    Fires on ``L.emmy/emmxy + V.my/mxy + T`` for every batchim orientation
+    (same L lift whether ``T`` is upright or Y-flipped). Skip ``T.sw`` —
+    FE04 owns that path. Pure Y-group also raises ``V.my`` a smaller amount;
+    XY ``V.my`` is left alone.
     """
     from shared_diacritics import _ensure_gpos
 
@@ -1976,18 +1968,28 @@ def install_yflip_batchim_gpos(
     t_all: List[str] = []
     for T in t_forms:
         t_all.extend(hangul_orientation_forms(T, glyphs))
-    # Do not include ``T.sw`` (FE04 liga target): FE04 applies its own shared
-    # unit drop, and stacking the batchim-raise on top dumps L/V into the floor.
-    t_all = sorted(set(t for t in t_all if t in glyphs), key=lambda n: glyph_map.get(n, 0))
+    # Any batchim orientation — L lift must not depend on T flip. Skip
+    # ``T.sw`` (FE04 owns that path).
+    t_ctx = sorted(
+        set(
+            t
+            for t in t_all
+            if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")
+        ),
+        key=lambda n: glyph_map.get(n, 0),
+    )
 
-    if not l_emmy or not v_ctx or not t_all:
+    if not l_emmy or not v_ctx or not t_ctx:
         return 0.0, 0
 
     _bottom, _top, ideo_h = ideographic_bounds(target_upem)
-    dy_i = otRound(ideo_h * 0.20)
+    # L needs a stronger lift than V: emmy bake sits near the floor after the
+    # open-syllable clearance nudge, while Y ``V.my`` is already upper-banded.
+    dy_l = otRound(ideo_h * 0.36)
+    dy_v = otRound(ideo_h * 0.20)
 
-    l_values = {L: buildValue({"YPlacement": dy_i}) for L in l_emmy}
-    v_values = {V: buildValue({"YPlacement": dy_i}) for V in v_y}
+    l_values = {L: buildValue({"YPlacement": dy_l}) for L in l_emmy}
+    v_values = {V: buildValue({"YPlacement": dy_v}) for V in v_y}
 
     script_tags = ("DFLT", "hang", "latn")
     gpos = _ensure_gpos(font, script_tags)
@@ -2017,7 +2019,7 @@ def install_yflip_batchim_gpos(
     chain.InputCoverage = [
         buildCoverage(l_emmy, glyph_map),
         buildCoverage(v_ctx, glyph_map),
-        buildCoverage(t_all, glyph_map),
+        buildCoverage(t_ctx, glyph_map),
     ]
     chain.InputGlyphCount = 3
     chain.LookAheadCoverage = []
@@ -2045,7 +2047,7 @@ def install_yflip_batchim_gpos(
     _attach_gpos_features(
         gpos, [chain_index], ("rclt", "rlig", "liga"), scripts=script_tags
     )
-    return float(dy_i), 1
+    return float(dy_l), 1
 
 
 def _scale_glyphs_from_subset(
@@ -2409,7 +2411,7 @@ def build_jamo_font(
         target_upem=target_upem,
     )
     print(
-        f"  Y-flip+batchim GPOS: {n_yf} chain; dy={dy_yf:.0f}",
+        f"  Y-flip+batchim GPOS: {n_yf} chain; dy_l={dy_yf:.0f}",
         flush=True,
     )
 
