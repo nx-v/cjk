@@ -109,13 +109,13 @@ MALGUN_FILENAME = "malgun.ttf"
 FAMILY_JAMO = "panhangul"
 FAMILY_SYLL = "panhanguls"
 # BBox-center trim after UPM fit (Hangul inset; Yi uses STANDALONE_CELL_SCALE).
-LOCAL_SCALE = 0.95
+LOCAL_SCALE = 1.0
 # Uniform Y translate after UPM fit (target-upem units). Malgun Hangul sits
 # high vs CJK/kana/Yi (typo mid ~380); negative shifts down to match.
 MALGUN_Y_SHIFT = -55
 # Extra Y scale about the ideographic center after UPM fit (1.0 = none).
 # Malgun Hangul syllables are ~935 tall vs CJK median ~901 → ~0.96.
-MALGUN_Y_SCALE = 0.9
+MALGUN_Y_SCALE = 0.95
 # VS1..VS4 — axis mirrors (PUA U+E000..E003; Unicode VS U+FE00..FE03).
 HANGUL_MIRROR_MODES: List[Tuple[int, bool, bool, Optional[str]]] = [
     (0xE000, False, False, None),
