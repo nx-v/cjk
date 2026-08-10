@@ -4,9 +4,9 @@
 
 @font-face {
   font-family: 'panhangul';
-  src: url('./panhangul.woff2') format('woff2'),
-       url('./panhangul.ttf') format('truetype'),
-       url('https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/hangul/panhangul.woff2') format('woff2');
+  src: url('https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/hangul/panhangul.woff2') format('woff2'),
+       url('./panhangul.woff2') format('woff2'),
+       url('./panhangul.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -15,9 +15,9 @@
 
 @font-face {
   font-family: 'panhanguls';
-  src: url('./panhanguls.woff2') format('woff2'),
-       url('./panhanguls.ttf') format('truetype'),
-       url('https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/hangul/panhanguls.woff2') format('woff2');
+  src: url('https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/hangul/panhanguls.woff2') format('woff2'),
+       url('./panhanguls.woff2') format('woff2'),
+       url('./panhanguls.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;

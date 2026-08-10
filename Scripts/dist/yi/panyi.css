@@ -2,9 +2,9 @@
 
 @font-face {
   font-family: 'panyi';
-  src: url('./panyi.woff2') format('woff2'),
-       url('./panyi.ttf') format('truetype'),
-       url('https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/yi/panyi.woff2') format('woff2');
+  src: url('https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/yi/panyi.woff2') format('woff2'),
+       url('./panyi.woff2') format('woff2'),
+       url('./panyi.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;

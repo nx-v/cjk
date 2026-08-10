@@ -71,7 +71,8 @@ from shared_half_cells import (  # noqa: E402
     make_composite_variant,
 )
 
-# jsDelivr (CORS-friendly). raw.githubusercontent.com blocks cross-origin @font-face.
+# jsDelivr (CORS + font/woff2). Prefer over statically.io — that CDN throttles
+# large parallel @font-face loads in Obsidian.
 CSS_FONT_URL_BASE = (
     "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/glyphwiki"
 )
@@ -650,9 +651,10 @@ def write_css(
         remote = f"{CSS_FONT_URL_BASE}/{style}/{hex_id}"
         lines.append("@font-face {")
         lines.append(f"  font-family: '{family}';")
-        lines.append(f"  src: url('{rel}.woff2') format('woff2'),")
-        lines.append(f"       url('{rel}.ttf') format('truetype'),")
-        lines.append(f"       url('{remote}.woff2') format('woff2');")
+        # CDN first: Obsidian themes resolve ./ relative to theme.css.
+        lines.append(f"  src: url('{remote}.woff2') format('woff2'),")
+        lines.append(f"       url('{rel}.woff2') format('woff2'),")
+        lines.append(f"       url('{rel}.ttf') format('truetype');")
         lines.append("  font-weight: normal;")
         lines.append("  font-style: normal;")
         lines.append("  font-display: swap;")

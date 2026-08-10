@@ -79,7 +79,8 @@ OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "subfonts")
 DEFAULT_UPEM = 1000
 
 CSS_FAMILY = "pancjk"
-# jsDelivr (CORS-friendly). raw.githubusercontent.com blocks cross-origin @font-face.
+# jsDelivr (CORS + font/woff2). Prefer over statically.io — that CDN throttles
+# large parallel @font-face loads to minutes per file in Obsidian.
 CSS_FONT_URL_BASE = (
     "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts"
 )
@@ -753,13 +754,15 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     family_names: List[str] = []
 
     def _face(family: str, hex_id: str, urange: str) -> None:
+        # CDN first: Obsidian themes resolve ./ relative to theme.css (no
+        # subfonts beside it), and a failed local fetch can block fallback.
         lines.append("@font-face {")
         lines.append(f"  font-family: '{family}';")
-        lines.append(f"  src: url('./{hex_id}.woff2') format('woff2'),")
-        lines.append(f"       url('./{hex_id}.ttf') format('truetype'),")
         lines.append(
-            f"       url('{CSS_FONT_URL_BASE}/{hex_id}.woff2') format('woff2');"
+            f"  src: url('{CSS_FONT_URL_BASE}/{hex_id}.woff2') format('woff2'),"
         )
+        lines.append(f"       url('./{hex_id}.woff2') format('woff2'),")
+        lines.append(f"       url('./{hex_id}.ttf') format('truetype');")
         lines.append("  font-weight: normal;")
         lines.append("  font-style: normal;")
         lines.append("  font-display: swap;")

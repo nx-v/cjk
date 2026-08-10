@@ -75,7 +75,8 @@ OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "yi")
 FAMILY_NAME = "panyi"
 PS_NAME = "panyi"
 
-# jsDelivr (CORS-friendly). raw.githubusercontent.com blocks cross-origin @font-face.
+# jsDelivr (CORS + font/woff2). Prefer over statically.io — that CDN throttles
+# large parallel @font-face loads in Obsidian.
 CSS_FONT_URL_BASE = (
     "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/yi"
 )
@@ -443,9 +444,10 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
         "",
         "@font-face {",
         f"  font-family: '{FAMILY_NAME}';",
-        f"  src: url('./{FAMILY_NAME}.woff2') format('woff2'),",
-        f"       url('./{FAMILY_NAME}.ttf') format('truetype'),",
-        f"       url('{CSS_FONT_URL_BASE}/{FAMILY_NAME}.woff2') format('woff2');",
+        # CDN first: Obsidian themes resolve ./ relative to theme.css.
+        f"  src: url('{CSS_FONT_URL_BASE}/{FAMILY_NAME}.woff2') format('woff2'),",
+        f"       url('./{FAMILY_NAME}.woff2') format('woff2'),",
+        f"       url('./{FAMILY_NAME}.ttf') format('truetype');",
         "  font-weight: normal;",
         "  font-style: normal;",
         "  font-display: swap;",

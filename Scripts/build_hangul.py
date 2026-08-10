@@ -116,7 +116,8 @@ MALGUN_Y_SHIFT = -55
 # Malgun Hangul syllables are ~935 tall vs CJK median ~901 → ~0.96.
 MALGUN_Y_SCALE = 0.9
 
-# jsDelivr (CORS-friendly). raw.githubusercontent.com blocks cross-origin @font-face.
+# jsDelivr (CORS + font/woff2). Prefer over statically.io — that CDN throttles
+# large parallel @font-face loads in Obsidian.
 CSS_FONT_URL_BASE = (
     "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/hangul"
 )
@@ -2089,12 +2090,13 @@ def write_css(
         url = f"./{family}.woff2"
         ttf = f"./{family}.ttf"
         remote = f"{CSS_FONT_URL_BASE}/{family}.woff2"
+        # CDN first: Obsidian themes resolve ./ relative to theme.css.
         lines += [
             "@font-face {",
             f"  font-family: '{family}';",
-            f"  src: url('{url}') format('woff2'),",
-            f"       url('{ttf}') format('truetype'),",
-            f"       url('{remote}') format('woff2');",
+            f"  src: url('{remote}') format('woff2'),",
+            f"       url('{url}') format('woff2'),",
+            f"       url('{ttf}') format('truetype');",
             "  font-weight: normal;",
             "  font-style: normal;",
             "  font-display: swap;",
