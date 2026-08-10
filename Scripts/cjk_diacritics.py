@@ -168,13 +168,14 @@ SQUISH_PUA_SLOTS: Tuple[Tuple[int, str], ...] = (
 # Full D4 (identity + VS02..VS08 / FE01..FE07), including r90my.
 BASE_VS_MODE_COUNT = 8
 # Fallback when mark size is unknown; normally computed from mark ink.
-# Half of the ideographic cell (squish = occupy one half).
-SQUISH_FACTOR = 0.5
-SQUISH_FACTOR_MIN = 0.5
-SQUISH_FACTOR_MAX = 0.5
+# Slightly over half so digraph halves meet with less middle gutter
+# (exact 0.5 + half-pad left a wide TB seam).
+SQUISH_FACTOR = 0.55
+SQUISH_FACTOR_MIN = 0.55
+SQUISH_FACTOR_MAX = 0.55
 EDGE_PAD_FRAC = 0.03
 GAP_FRAC = 0.02
-HALF_PAD_FRAC = 0.04  # inset inside the occupied half
+HALF_PAD_FRAC = 0.02  # inset inside the occupied half (was 0.04)
 
 GDEF_CLASS_BASE = 1
 GDEF_CLASS_MARK = 3
