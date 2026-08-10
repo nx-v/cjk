@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """Refresh Obsidian theme.css pan-font blocks from GitHub CDN or local dist.
 
-Obsidian needs a *single* ``pancjk`` family with many ``@font-face`` +
-``unicode-range`` slices (Google Fonts style). Digraph galleries keep
-per-bucket ``'pancjk XX'`` names in ``pancjk.css``; this script is for the
-theme only.
+Each panCJK bucket keeps its own family name (``pancjk 4E``, …) matching the
+name table inside the WOFF2. Digraphs and Obsidian both need those distinct
+names — renaming every face to a shared ``pancjk`` does not work reliably
+with ``FontFace`` / the theme stack.
 
 Default: font files via **jsDelivr**.
 
 ``--bake``: Obsidian cannot resolve relative ``url(./…)`` (becomes
 ``app://obsidian.md/…``), blocks ``file://``, and truncates huge ``data:``
 themes — so bake writes a tiny **plugin** that injects faces with
-``getResourcePath()``.
+``FontFace`` + ``readBinary``.
 
 Usage::
 
@@ -27,7 +27,6 @@ Markers (inserted on first run if missing)::
     /* === BEGIN auto pan font stack (update_obsidian_theme_fonts.py) === */
     /* === END auto pan font stack === */
 """
-
 from __future__ import annotations
 
 import argparse
@@ -84,6 +83,7 @@ _STATICALLY_FONT = re.compile(
     r"https://cdn\.statically\.io/gh/nexovolta/fonts(?:@main|/main)/" r"Scripts/dist/",
     re.I,
 )
+_PANCJK_FAMILY = re.compile(r"font-family:\s*['\"](pancjk\s+[0-9A-Fa-f]+)['\"]")
 
 MARK_FACES_BEGIN = "/* === BEGIN auto pan fonts (update_obsidian_theme_fonts.py) === */"
 MARK_FACES_END = "/* === END auto pan fonts === */"
@@ -96,7 +96,7 @@ STACK_LATIN = (
     "Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "
     "FlopDesignFont, MKanaPlus"
 )
-STACK_CJK = "pancjk, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2"
+STACK_CJK_TAIL = "panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2"
 STACK_TAIL = "monospace"
 
 
@@ -156,8 +156,27 @@ def sync_woff2(dest_root: Path) -> int:
     return n
 
 
-def collect_faces(css: str, *, folder: str, shared_pancjk: bool) -> list[dict]:
-    """Parse @font-face list for the panfonts plugin."""
+def pancjk_families_from_css(css: str) -> list[str]:
+    """Ordered unique per-bucket family names from pancjk.css."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for m in _PANCJK_FAMILY.finditer(css):
+        name = m.group(1)
+        if name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
+
+
+def css_family_token(name: str) -> str:
+    """Quote family names that contain spaces."""
+    if re.search(r"[\s,]", name):
+        return f'"{name}"'
+    return name
+
+
+def collect_faces(css: str, *, folder: str) -> list[dict]:
+    """Parse @font-face list for the panfonts plugin (keep CSS family names)."""
     out: list[dict] = []
     for m in re.finditer(r"@font-face\s*\{([^{}]*)\}", css, flags=re.S):
         block = m.group(1)
@@ -169,12 +188,9 @@ def collect_faces(css: str, *, folder: str, shared_pancjk: bool) -> list[dict]:
         )
         if not (fam_m and ur_m and name_m):
             continue
-        family = fam_m.group(1)
-        if shared_pancjk and re.match(r"pancjk\s+[0-9A-Fa-f]+$", family):
-            family = "pancjk"
         out.append(
             {
-                "family": family,
+                "family": fam_m.group(1),
                 "file": f"panfonts/{folder}/{name_m.group(2)}",
                 "unicodeRange": ur_m.group(1).strip(),
             }
@@ -187,9 +203,9 @@ def write_plugin(faces: list[dict]) -> None:
     manifest = {
         "id": PLUGIN_ID,
         "name": "Pan Fonts",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "minAppVersion": "1.5.0",
-        "description": "Loads baked pancjk / panyi / panhangul via FontFace + readBinary.",
+        "description": "Loads baked pancjk XX / panyi / panhangul via FontFace + readBinary.",
         "author": "nexovolta",
         "isDesktopOnly": False,
     }
@@ -303,21 +319,9 @@ def _face_src(block: str, *, folder: str) -> str:
     )
 
 
-def transform_face_css(css: str, *, shared_pancjk: bool, folder: str) -> str:
+def transform_face_css(css: str, *, folder: str) -> str:
+    """Keep per-bucket family names; rewrite src URLs to jsDelivr."""
     out = to_cdn_url(css)
-    if shared_pancjk:
-        out = re.sub(
-            r"font-family:\s*['\"]pancjk\s+[0-9A-Fa-f]+['\"]",
-            'font-family: "pancjk"',
-            out,
-        )
-        out = re.sub(
-            r"/\* One family per bucket.*?\*/",
-            '/* Obsidian: one family name "pancjk", unicode-range per bucket. */',
-            out,
-            count=1,
-            flags=re.S,
-        )
 
     def face_fix(m: re.Match[str]) -> str:
         block = m.group(0)
@@ -341,13 +345,13 @@ def build_faces_block(hangul: str, yi: str, cjk: str, *, bake: bool) -> str:
         )
     parts = [
         MARK_FACES_BEGIN,
-        "/* Hangul + Yi + Pan-CJK via jsDelivr (shared pancjk family). */",
+        "/* Hangul + Yi + Pan-CJK via jsDelivr (per-bucket pancjk XX families). */",
         "",
-        transform_face_css(hangul, shared_pancjk=False, folder="hangul").rstrip(),
+        transform_face_css(hangul, folder="hangul").rstrip(),
         "",
-        transform_face_css(yi, shared_pancjk=False, folder="yi").rstrip(),
+        transform_face_css(yi, folder="yi").rstrip(),
         "",
-        transform_face_css(cjk, shared_pancjk=True, folder="subfonts").rstrip(),
+        transform_face_css(cjk, folder="subfonts").rstrip(),
         "",
         MARK_FACES_END,
         "",
@@ -359,13 +363,17 @@ def _double_quotes(css: str) -> str:
     return css.replace("'", '"')
 
 
-def build_stack_block() -> str:
-    stack = f"{STACK_LATIN}, {STACK_CJK}, {STACK_TAIL}"
+def build_stack_block(*, pancjk_families: list[str]) -> str:
+    if not pancjk_families:
+        raise ValueError("no pancjk XX families found in CSS")
+    cjk = ", ".join(
+        [css_family_token(n) for n in pancjk_families] + [STACK_CJK_TAIL]
+    )
+    stack = f"{STACK_LATIN}, {cjk}, {STACK_TAIL}"
     return "\n".join(
         [
             MARK_STACK_BEGIN,
-            "/* Force --font-text: Style Settings / Appearance often keep a cached",
-            "   stack of dead 'pancjk XX' names after the shared-family rename. */",
+            "/* Force --font-text: one entry per panCJK bucket (matches name tables). */",
             "body {",
             f"  --font-text-theme: {stack};",
             f"  --font-interface-theme: {stack};",
@@ -420,11 +428,13 @@ def _replace_legacy_stack(text: str, new_block: str) -> str:
     )
     if pattern.search(text):
         return pattern.sub(new_block, text, count=1)
+    # Drop a lone shared "pancjk" left by older theme patches.
     collapsed = re.sub(
-        r'(["\']pancjk\s+[0-9A-Fa-f]+["\']\s*,\s*)+["\']pancjk\s+[0-9A-Fa-f]+["\']',
-        "pancjk",
+        r'(?<=,\s)pancjk(?=\s*,)|(?<=,\s)"pancjk"(?=\s*,)',
+        "",
         text,
     )
+    collapsed = re.sub(r",\s*,", ", ", collapsed)
     if collapsed != text:
         return collapsed
     raise RuntimeError("could not find pan font stack body block in theme")
@@ -443,10 +453,10 @@ def patch_theme(theme_path: Path, faces: str, stack: str) -> None:
         text = _replace_legacy_stack(text, stack)
 
     theme_path.write_text(text, encoding="utf-8")
-    n_faces = len(re.findall(r'font-family:\s*"pancjk"', text))
+    n_unique = len(set(re.findall(r'["\']pancjk\s+[0-9A-Fa-f]+["\']', text)))
     size_mb = theme_path.stat().st_size / (1024 * 1024)
     print(
-        f"Wrote {theme_path} (pancjk name refs in faces~{n_faces}, {size_mb:.1f} MiB)"
+        f"Wrote {theme_path} (pancjk XX families~{n_unique}, {size_mb:.1f} MiB)"
     )
 
 
@@ -502,9 +512,9 @@ def main(argv: list[str] | None = None) -> int:
         print("Baking Obsidian panfonts plugin…")
         sync_woff2(PLUGIN_DIR / "panfonts")
         faces_meta = (
-            collect_faces(hangul, folder="hangul", shared_pancjk=False)
-            + collect_faces(yi, folder="yi", shared_pancjk=False)
-            + collect_faces(cjk, folder="subfonts", shared_pancjk=True)
+            collect_faces(hangul, folder="hangul")
+            + collect_faces(yi, folder="yi")
+            + collect_faces(cjk, folder="subfonts")
         )
         write_plugin(faces_meta)
         if args.vault:
@@ -514,8 +524,10 @@ def main(argv: list[str] | None = None) -> int:
                 shutil.rmtree(stale)
                 print(f"  removed stale {stale.relative_to(REPO_ROOT)}")
 
+    pancjk_families = pancjk_families_from_css(cjk)
+    print(f"  pancjk families: {len(pancjk_families)}")
     faces = build_faces_block(hangul, yi, cjk, bake=args.bake)
-    stack = build_stack_block()
+    stack = build_stack_block(pancjk_families=pancjk_families)
     if not args.bake:
         n = len(re.findall(r"@font-face", faces))
         print(f"Built Obsidian face block ({n} @font-face)")
@@ -529,7 +541,7 @@ def main(argv: list[str] | None = None) -> int:
         patch_theme(path, faces, stack)
     print(
         "Note: if CJK still missing in Obsidian, reset Appearance / Style Settings "
-        "text font (cached stacks may still list old 'pancjk XX' names)."
+        "text font (cached stacks may still list a lone shared 'pancjk')."
     )
     if args.bake and not args.vault:
         print(
@@ -537,7 +549,10 @@ def main(argv: list[str] | None = None) -> int:
             f"--vault <vault-root>"
         )
     elif args.bake:
-        print("Reload Obsidian; console should show [panfonts] ready: 437 loaded.")
+        print(
+            "Reload Obsidian; console should show "
+            f"[panfonts] ready: {3 + len(pancjk_families)} loaded."
+        )
     return 0
 
 

@@ -1,0 +1,9 @@
+{
+  "id": "panfonts",
+  "name": "Pan Fonts",
+  "version": "1.2.0",
+  "minAppVersion": "1.5.0",
+  "description": "Loads baked pancjk XX / panyi / panhangul via FontFace + readBinary.",
+  "author": "nexovolta",
+  "isDesktopOnly": false
+}
