@@ -39,7 +39,7 @@ from shared_diacritics import (
     resolve_dakuten_mark_font_stack,
     yi_forms_for_dakuten,
 )
-from yi_halfwidth import (
+from shared_half_cells import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
     DEFAULT_UPEM,
@@ -111,7 +111,7 @@ def install_yi_gsub(
     from fontTools.ttLib import newTable
     from fontTools.ttLib.tables import otTables as ot
 
-    from yi_halfwidth import build_ext_gsub_lookup
+    from shared_half_cells import build_ext_gsub_lookup
 
     standalone_map: Dict[Tuple[str, ...], str] = {}
     for yi in yi_bases:

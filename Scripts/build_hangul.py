@@ -81,7 +81,7 @@ from fontTools.ttLib import TTFont, newTable, woff2
 from fontTools.ttLib.tables import otTables as ot
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
-from yi_halfwidth import (
+from shared_half_cells import (
     DEFAULT_UPEM,
     empty_glyph,
     ideographic_bounds,

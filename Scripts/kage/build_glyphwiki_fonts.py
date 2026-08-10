@@ -56,7 +56,7 @@ from .mapping import (
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
-from yi_halfwidth import (  # noqa: E402
+from shared_half_cells import (  # noqa: E402
     STACK_MARK_CP,
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,

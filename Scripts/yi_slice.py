@@ -19,7 +19,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
-from yi_halfwidth import (
+from shared_half_cells import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
     SIDEWAYS_FROM_R90,
@@ -375,7 +375,7 @@ def install_slice_gsub(
     from fontTools.ttLib import newTable
     from fontTools.ttLib.tables import otTables as ot
 
-    from yi_halfwidth import (
+    from shared_half_cells import (
         build_chain_context_format2,
         build_chunked_multiple_subst_lookup,
         build_chunked_single_subst_lookup,

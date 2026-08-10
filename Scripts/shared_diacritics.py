@@ -45,7 +45,7 @@ from fontTools.ttLib.tables._g_l_y_f import (
     GlyphComponent,
 )
 
-from yi_halfwidth import (
+from shared_half_cells import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
     TYPO_ASCENDER_FRAC,
@@ -562,7 +562,7 @@ def install_dakuten_slot_gsub(
 
     Uses Format 2 ChainContext + Extension lookups (compact; no type-6 split).
     """
-    from yi_halfwidth import (
+    from shared_half_cells import (
         build_chain_context_format2,
         build_chunked_single_subst_lookup,
         build_ext_gsub_lookup,

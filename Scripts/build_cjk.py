@@ -43,7 +43,7 @@ from fontTools.ttLib import TTFont, woff2
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from cape_weightor import bolden_ttglyph
-from cjk_diac_marks import (
+from cjk_diacritics import (
     PLANGOTHIC_P2_FILENAME,
     MARK_CPS,
     SIDE_SELECTOR_CPS,
@@ -53,7 +53,7 @@ from cjk_diac_marks import (
     prepare_marks,
     prepare_squish_vs_access,
 )
-from yi_halfwidth import (
+from shared_half_cells import (
     NUOSU_FILENAME,
     TRANSFORM_MODES,
     UVS_BASE,
