@@ -107,9 +107,7 @@ DIGRAPH_NICHE_PAIRS: Tuple[Tuple[str, str], ...] = (
 )
 
 # Canonical demo digraph (cross-bucket 66 + 65): 明 FE0B FE0C + 日 FE0D.
-DIGRAPH_SEED_CPS: Tuple[Tuple[int, int], ...] = (
-    (0x660E, 0x65E5),  # 明日
-)
+DIGRAPH_SEED_CPS: Tuple[Tuple[int, int], ...] = ((0x660E, 0x65E5),)  # 明日
 
 # Opposing D4 labels (second orient faces the first).
 OPPOSING_ORIENT: Dict[str, str] = {
@@ -184,8 +182,10 @@ def opposing_orient_index(label: str) -> int:
     try:
         return BASE_ORIENT_LABEL.index(want)
     except ValueError:
-        return 0 if label != "id" else (
-            BASE_ORIENT_LABEL.index("r180") if "r180" in BASE_ORIENT_LABEL else 0
+        return (
+            0
+            if label != "id"
+            else (BASE_ORIENT_LABEL.index("r180") if "r180" in BASE_ORIENT_LABEL else 0)
         )
 
 
@@ -401,9 +401,7 @@ def write_html(
         "SQUISH_T_PUA": SQUISH_TOP_PUA_CP,
         "SQUISH_B_PUA": SQUISH_BOT_PUA_CP,
         "D4_PUA_BASE": VS_BASE,
-        "DIGRAPH_PAIRS": [
-            {"a": a, "b": b, "cross": cross} for a, b, cross in pairs
-        ],
+        "DIGRAPH_PAIRS": [{"a": a, "b": b, "cross": cross} for a, b, cross in pairs],
         "DIGRAPH_NICHES": [{"a": a, "b": b} for a, b in DIGRAPH_NICHE_PAIRS],
         "OPPOSING_ORIENT_OI": opposing_oi,
         "n": n,

@@ -2,6 +2,7 @@
 
 Order: GitHub raw first, then statically / jsDelivr mirrors, then local.
 """
+
 from __future__ import annotations
 
 from typing import List, Optional, Sequence, Tuple

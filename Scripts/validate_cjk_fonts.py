@@ -1,4 +1,5 @@
 """Validate panCJK woff2 for load-blocking issues (cmap/OTS/OpenType)."""
+
 from __future__ import annotations
 
 import re
@@ -75,7 +76,9 @@ def check(path: Path) -> tuple[str, list[str], str]:
 
 
 def main() -> int:
-    files = sorted(p for p in ROOT.glob("*.woff2") if re.fullmatch(r"[0-9A-Fa-f]+", p.stem))
+    files = sorted(
+        p for p in ROOT.glob("*.woff2") if re.fullmatch(r"[0-9A-Fa-f]+", p.stem)
+    )
     print(f"scanning {len(files)} woff2 under {ROOT}")
     bad: list[tuple[str, list[str], str]] = []
     ok = 0

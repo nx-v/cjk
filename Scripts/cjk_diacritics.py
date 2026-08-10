@@ -194,22 +194,22 @@ def resolve_plangothic_p2(in_dir: str) -> str:
 
 
 def squish_name(base_name: str) -> str:
-    """Left-squished form (right niche) — ``my`` composite of ``.dkl``."""
+    """Left-squished form (right niche) — CAPE Width of upright id."""
     return f"{base_name}.dk"
 
 
 def squish_left_name(base_name: str) -> str:
-    """Right-squished form (left niche); canonical LR bake."""
+    """Right-squished form (left niche); CAPE Width of upright id."""
     return f"{base_name}.dkl"
 
 
 def squish_top_name(base_name: str) -> str:
-    """Bottom-squished form (top niche); canonical TB bake."""
+    """Bottom-squished form (top niche); CAPE Height of upright id."""
     return f"{base_name}.dkt"
 
 
 def squish_bot_name(base_name: str) -> str:
-    """Top-squished form (bottom niche) — ``mx`` composite of ``.dkt``."""
+    """Top-squished form (bottom niche); CAPE Height of upright id."""
     return f"{base_name}.dkb"
 
 
@@ -1299,90 +1299,44 @@ def add_squish_forms(
 ) -> List[str]:
     """Bake upright H/V half-cell squish; oriented niches are D4 composites.
 
-    Per identity base::
-
-        bake ``.dkl`` (H) / ``.dkt`` (V): CAPE Width/Height + translate to slot
-        ``.dk`` / ``.dkb`` = my / mx composites about cell center
-
-    Oriented bases (``.r90``, …) pick the upright niche that maps to the
-    needed cell niche under that D4 (LR↔TB under 90°), then composite with
-    the same rotate/reflect as the base.
+    Per identity base, CAPE-bake **all four** niches from the upright outline
+    (do not mirror ``.dkl``/``.dkt`` into ``.dk``/``.dkb`` — that flips
+    asymmetric ideographs). Oriented bases (``.r90``, …) pick the upright
+    niche that maps to the needed cell niche under that D4, then composite
+    with the same rotate/reflect as the base.
     """
     from shared_half_cells import contour_center, make_composite_variant
 
     identities = [n for n in base_names if _d4_suffix_of(n) is None and n in glyphs]
     oriented = [n for n in base_names if _d4_suffix_of(n) is not None and n in glyphs]
-    cell_mid = ideographic_center(target_upem)
 
     added: List[str] = []
+    # (name_fn, pin, axis, factor)
+    upright_slots = (
+        (squish_name, "left", "x", width_factor),       # .dk  — left ink, right niche
+        (squish_left_name, "right", "x", width_factor),  # .dkl — right ink, left niche
+        (squish_top_name, "bottom", "y", height_factor), # .dkt — bottom ink, top niche
+        (squish_bot_name, "top", "y", height_factor),    # .dkb — top ink, bottom niche
+    )
     for name in identities:
         adv, _lsb = metrics.get(name, (target_upem, 0))
         src = glyphs[name]
-
-        left_name = squish_left_name(name)
-        right_name = squish_name(name)
-        top_name = squish_top_name(name)
-        bot_name = squish_bot_name(name)
-
-        if left_name not in glyphs:
+        for name_fn, pin, axis, factor in upright_slots:
+            out_name = name_fn(name)
+            if out_name in glyphs:
+                continue
             sq, sq_adv, sq_lsb = make_squished_glyph(
                 src,
                 adv,
                 glyph_set=glyphs,
-                factor=width_factor,
-                pin="right",
-                axis="x",
+                factor=factor,
+                pin=pin,
+                axis=axis,
                 target_upem=target_upem,
             )
-            glyph_order.append(left_name)
-            glyphs[left_name] = sq
-            metrics[left_name] = (sq_adv, sq_lsb)
-
-        if right_name not in glyphs and left_name in glyphs:
-            # Mirror about cell center so right-half ink lands in the left half.
-            mirrored, m_adv, m_lsb = make_composite_variant(
-                left_name,
-                target_upem,
-                flip_y=True,
-                advance=metrics[left_name][0],
-                lsb=metrics[left_name][1],
-                base_glyph=glyphs[left_name],
-                glyph_set=glyphs,
-                center=cell_mid,
-            )
-            glyph_order.append(right_name)
-            glyphs[right_name] = mirrored
-            metrics[right_name] = (m_adv, m_lsb)
-
-        if top_name not in glyphs:
-            sq, sq_adv, sq_lsb = make_squished_glyph(
-                src,
-                adv,
-                glyph_set=glyphs,
-                factor=height_factor,
-                pin="bottom",
-                axis="y",
-                target_upem=target_upem,
-            )
-            glyph_order.append(top_name)
-            glyphs[top_name] = sq
-            metrics[top_name] = (sq_adv, sq_lsb)
-
-        if bot_name not in glyphs and top_name in glyphs:
-            mirrored, m_adv, m_lsb = make_composite_variant(
-                top_name,
-                target_upem,
-                flip_x=True,
-                advance=metrics[top_name][0],
-                lsb=metrics[top_name][1],
-                base_glyph=glyphs[top_name],
-                glyph_set=glyphs,
-                center=cell_mid,
-            )
-            glyph_order.append(bot_name)
-            glyphs[bot_name] = mirrored
-            metrics[bot_name] = (m_adv, m_lsb)
-
+            glyph_order.append(out_name)
+            glyphs[out_name] = sq
+            metrics[out_name] = (sq_adv, sq_lsb)
         added.append(name)
 
     for name in oriented:

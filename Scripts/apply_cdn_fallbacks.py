@@ -1,4 +1,5 @@
 """Regenerate hangul/yi/cjk CSS CDN chains + rewrite theme.css."""
+
 from __future__ import annotations
 
 import re
@@ -41,7 +42,9 @@ def rewrite_dist_css(path: Path, folder: str) -> None:
 
     new = re.sub(r"@font-face\s*\{[^{}]*\}", repl_face, text, flags=re.S)
     path.write_text(new, encoding="utf-8")
-    print(f"rewrote {path.relative_to(SCRIPT)} raw={new.count('raw.githubusercontent')}")
+    print(
+        f"rewrote {path.relative_to(SCRIPT)} raw={new.count('raw.githubusercontent')}"
+    )
 
 
 def main() -> int:

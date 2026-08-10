@@ -4,6 +4,7 @@ Covers nexovolta/fonts and any other ``raw.githubusercontent.com`` /
 ``cdn.jsdelivr.net/gh/…`` / ``cdn.statically.io/gh/…`` font ``src:`` lines.
 Leaves googleapis / donation / forum links alone.
 """
+
 from __future__ import annotations
 
 import re
@@ -84,9 +85,7 @@ def rewrite_src(match: re.Match[str]) -> str:
     owner_repo, ref, path = parsed
     locals_ = _locals_from_chunk(chunk)
     if owner_repo == "nexovolta/fonts":
-        return format_src_line(
-            path, fmt=_fmt_for(path), local=tuple(locals_) or None
-        )
+        return format_src_line(path, fmt=_fmt_for(path), local=tuple(locals_) or None)
     return format_github_src(
         owner_repo,
         ref,

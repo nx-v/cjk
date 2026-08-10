@@ -960,9 +960,7 @@ def normalize_glyph_stems_with_retry(
     best_gm: Optional[GlyphMetrics] = None
     best_dist = float("inf")
     for _ in range(max(1, NORM_RANDOM_PROBES)):
-        tv, th = _random_stem_target(
-            rng, pre_v, pre_h, vertical_stem, horizontal_stem
-        )
+        tv, th = _random_stem_target(rng, pre_v, pre_h, vertical_stem, horizontal_stem)
         got = _try(tv, th)
         if got is None:
             continue
@@ -2273,7 +2271,6 @@ def make_standalone_glyph(
     return scale_glyph_in_ideographic_cell(
         glyph, target_upem, target_upem, scale=cell_scale
     )
-
 
 
 def make_halfwidth_glyph(

@@ -1,4 +1,5 @@
 """Strip empty cmap format-14 subtables (OTS rejects them in Chromium)."""
+
 from __future__ import annotations
 
 import os
@@ -42,7 +43,9 @@ def sanitize(path_str: str) -> tuple[str, str]:
 def main() -> None:
     files: list[str] = []
     sub = ROOT / "subfonts"
-    files.extend(sorted(str(p) for p in sub.glob("*.woff2") if not p.name.startswith("_")))
+    files.extend(
+        sorted(str(p) for p in sub.glob("*.woff2") if not p.name.startswith("_"))
+    )
     yi = ROOT / "yi" / "panyi.woff2"
     if yi.exists():
         files.append(str(yi))

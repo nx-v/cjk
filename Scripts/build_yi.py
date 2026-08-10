@@ -300,17 +300,13 @@ def build_panyi_font(
     mark_cps: List[int] = []
     base_anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
     try:
-        mark_fonts = resolve_dakuten_mark_font_stack(
-            os.path.dirname(inv.source_path)
-        )
+        mark_fonts = resolve_dakuten_mark_font_stack(os.path.dirname(inv.source_path))
         print(
             f"  Loading dakuten marks from "
             f"{dakuten_mark_stack_label(mark_fonts)}...",
             flush=True,
         )
-        mark_cps, mark_glyphs = load_dakuten_marks_from_stack(
-            mark_fonts, target_upem
-        )
+        mark_cps, mark_glyphs = load_dakuten_marks_from_stack(mark_fonts, target_upem)
         mark_names = add_dakuten_mark_glyphs(
             mark_cps,
             mark_glyphs,
