@@ -70,12 +70,7 @@ from shared_half_cells import (  # noqa: E402
     install_overlay_gsub,
     make_composite_variant,
 )
-
-# jsDelivr (CORS + font/woff2). Prefer over statically.io — that CDN throttles
-# large parallel @font-face loads in Obsidian.
-CSS_FONT_URL_BASE = (
-    "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/glyphwiki"
-)
+from cdn_fonts import dist_rel, format_src_line  # noqa: E402
 
 # One SPUA-marker font: 6400 PUA selectors + 6400*8 rendered D4 variants
 PUA_SELECTORS = BMP_PUA_COUNT  # 6400
@@ -648,13 +643,19 @@ def write_css(
         marker = int(hex_id, 16)
         urange = unicode_range_for_marker(marker)
         rel = f"./{style}/{hex_id}"
-        remote = f"{CSS_FONT_URL_BASE}/{style}/{hex_id}"
         lines.append("@font-face {")
         lines.append(f"  font-family: '{family}';")
-        # CDN first: Obsidian themes resolve ./ relative to theme.css.
-        lines.append(f"  src: url('{remote}.woff2') format('woff2'),")
-        lines.append(f"       url('{rel}.woff2') format('woff2'),")
-        lines.append(f"       url('{rel}.ttf') format('truetype');")
+        lines.append(
+            format_src_line(
+                dist_rel("glyphwiki", style, f"{hex_id}.woff2"),
+                fmt="woff2",
+                local=(
+                    (f"{rel}.woff2", "woff2"),
+                    (f"{rel}.ttf", "truetype"),
+                ),
+                indent="  ",
+            )
+        )
         lines.append("  font-weight: normal;")
         lines.append("  font-style: normal;")
         lines.append("  font-display: swap;")

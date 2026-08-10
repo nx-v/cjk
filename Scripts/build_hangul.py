@@ -99,6 +99,7 @@ from shared_diacritics import (
     resolve_dakuten_mark_font_stack,
 )
 from sync_obsidian_panfonts import sync_dist_to_plugin
+from cdn_fonts import dist_rel, format_src_line
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
@@ -116,12 +117,6 @@ MALGUN_Y_SHIFT = -55
 # Extra Y scale about the ideographic center after UPM fit (1.0 = none).
 # Malgun Hangul syllables are ~935 tall vs CJK median ~901 → ~0.96.
 MALGUN_Y_SCALE = 0.9
-
-# jsDelivr (CORS + font/woff2). Prefer over statically.io — that CDN throttles
-# large parallel @font-face loads in Obsidian.
-CSS_FONT_URL_BASE = (
-    "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/hangul"
-)
 # VS1..VS4 — axis mirrors (PUA U+E000..E003; Unicode VS U+FE00..FE03).
 HANGUL_MIRROR_MODES: List[Tuple[int, bool, bool, Optional[str]]] = [
     (0xE000, False, False, None),
@@ -2090,16 +2085,18 @@ def write_css(
     ]
     for family, cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
         urange = unicode_range_css(cps)
-        url = f"./{family}.woff2"
-        ttf = f"./{family}.ttf"
-        remote = f"{CSS_FONT_URL_BASE}/{family}.woff2"
-        # CDN first: Obsidian themes resolve ./ relative to theme.css.
         lines += [
             "@font-face {",
             f"  font-family: '{family}';",
-            f"  src: url('{remote}') format('woff2'),",
-            f"       url('{url}') format('woff2'),",
-            f"       url('{ttf}') format('truetype');",
+            format_src_line(
+                dist_rel("hangul", f"{family}.woff2"),
+                fmt="woff2",
+                local=(
+                    (f"./{family}.woff2", "woff2"),
+                    (f"./{family}.ttf", "truetype"),
+                ),
+                indent="  ",
+            ),
             "  font-weight: normal;",
             "  font-style: normal;",
             "  font-display: swap;",

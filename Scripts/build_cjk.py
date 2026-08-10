@@ -70,6 +70,7 @@ from shared_half_cells import (
     vs_glyph_name,
 )
 from sync_obsidian_panfonts import sync_dist_to_plugin
+from cdn_fonts import dist_rel, format_src_line
 
 # ---------- Directories ----------
 
@@ -80,11 +81,6 @@ OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "subfonts")
 DEFAULT_UPEM = 1000
 
 CSS_FAMILY = "pancjk"
-# jsDelivr (CORS + font/woff2). Prefer over statically.io — that CDN throttles
-# large parallel @font-face loads to minutes per file in Obsidian.
-CSS_FONT_URL_BASE = (
-    "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/subfonts"
-)
 
 # ---------- Source priority (highest first) ----------
 # Each entry: (filename, local_scale, weightor)
@@ -758,15 +754,21 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     family_names: List[str] = []
 
     def _face(family: str, hex_id: str, urange: str) -> None:
-        # CDN first: Obsidian themes resolve ./ relative to theme.css (no
-        # subfonts beside it), and a failed local fetch can block fallback.
+        # Remote CDNs first (raw → statically → jsDelivr mirrors); local last.
+        # Obsidian themes resolve ./ relative to theme.css (no subfonts beside it).
         lines.append("@font-face {")
         lines.append(f"  font-family: '{family}';")
         lines.append(
-            f"  src: url('{CSS_FONT_URL_BASE}/{hex_id}.woff2') format('woff2'),"
+            format_src_line(
+                dist_rel("subfonts", f"{hex_id}.woff2"),
+                fmt="woff2",
+                local=(
+                    (f"./{hex_id}.woff2", "woff2"),
+                    (f"./{hex_id}.ttf", "truetype"),
+                ),
+                indent="  ",
+            )
         )
-        lines.append(f"       url('./{hex_id}.woff2') format('woff2'),")
-        lines.append(f"       url('./{hex_id}.ttf') format('truetype');")
         lines.append("  font-weight: normal;")
         lines.append("  font-style: normal;")
         lines.append("  font-display: swap;")

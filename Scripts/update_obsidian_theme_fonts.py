@@ -38,6 +38,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from cdn_fonts import dist_rel, format_src_line, remote_urls
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 DIST_DIR = SCRIPT_DIR / "dist"
@@ -45,42 +47,27 @@ BAKE_FOLDERS = ("hangul", "yi", "subfonts")
 PLUGIN_ID = "panfonts"
 PLUGIN_DIR = SCRIPT_DIR / "obsidian-panfonts"
 
-CDN_GH = "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist"
-CDN_BASE = CDN_GH
-CSS_URLS = {
-    "hangul": f"{CDN_GH}/hangul/panhangul.css",
-    "yi": f"{CDN_GH}/yi/panyi.css",
-    "cjk": f"{CDN_GH}/subfonts/pancjk.css",
+# CSS fetch order: GitHub raw → statically → jsDelivr (avoid overloading one host).
+_CSS_REL = {
+    "hangul": "Scripts/dist/hangul/panhangul.css",
+    "yi": "Scripts/dist/yi/panyi.css",
+    "cjk": "Scripts/dist/subfonts/pancjk.css",
 }
-CSS_URLS_FALLBACK = {
-    "hangul": (
-        "https://cdn.statically.io/gh/nexovolta/fonts@main/"
-        "Scripts/dist/hangul/panhangul.css"
-    ),
-    "yi": (
-        "https://cdn.statically.io/gh/nexovolta/fonts@main/" "Scripts/dist/yi/panyi.css"
-    ),
-    "cjk": (
-        "https://cdn.statically.io/gh/nexovolta/fonts@main/"
-        "Scripts/dist/subfonts/pancjk.css"
-    ),
-}
+CSS_URLS = {k: remote_urls(rel)[0] for k, rel in _CSS_REL.items()}
+CSS_URLS_FALLBACK = {k: remote_urls(rel)[1:] for k, rel in _CSS_REL.items()}
 LOCAL_CSS = {
     "hangul": DIST_DIR / "hangul" / "panhangul.css",
     "yi": DIST_DIR / "yi" / "panyi.css",
     "cjk": DIST_DIR / "subfonts" / "pancjk.css",
 }
 
-_JSDELIVR_FONT = re.compile(
-    r"https://(?:cdn|fastly)\.jsdelivr\.net/gh/nexovolta/fonts@[^/]+/" r"Scripts/dist/",
-    re.I,
-)
-_RAW_GH_FONT = re.compile(
-    r"https://raw\.githubusercontent\.com/nexovolta/fonts/[^/]+/" r"Scripts/dist/",
-    re.I,
-)
-_STATICALLY_FONT = re.compile(
-    r"https://cdn\.statically\.io/gh/nexovolta/fonts(?:@main|/main)/" r"Scripts/dist/",
+_ANY_NEXOVOLTA_DIST = re.compile(
+    r"https://(?:"
+    r"raw\.githubusercontent\.com/nexovolta/fonts/[^/]+|"
+    r"cdn\.statically\.io/gh/nexovolta/fonts(?:@main|/main)|"
+    r"(?:cdn|fastly|gcore)\.jsdelivr\.net/gh/nexovolta/fonts@[^/]+"
+    r")/"
+    r"Scripts/dist/",
     re.I,
 )
 _PANCJK_FAMILY = re.compile(r"font-family:\s*['\"](pancjk\s+[0-9A-Fa-f]+)['\"]")
@@ -109,10 +96,11 @@ def fetch_text(url: str, timeout: float = 60.0) -> str:
 
 
 def to_cdn_url(url: str) -> str:
-    url = _JSDELIVR_FONT.sub(f"{CDN_GH}/", url)
-    url = _RAW_GH_FONT.sub(f"{CDN_GH}/", url)
-    url = _STATICALLY_FONT.sub(f"{CDN_GH}/", url)
-    return url
+    """Normalize any known mirror URL to GitHub raw (primary)."""
+    return _ANY_NEXOVOLTA_DIST.sub(
+        "https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/",
+        url,
+    )
 
 
 def load_css(kind: str, *, local: bool) -> str:
@@ -122,10 +110,11 @@ def load_css(kind: str, *, local: bool) -> str:
             raise FileNotFoundError(path)
         print(f"  local {path.relative_to(REPO_ROOT)}")
         return path.read_text(encoding="utf-8")
-    for label, url in (
-        ("jsdelivr", CSS_URLS[kind]),
-        ("statically", CSS_URLS_FALLBACK[kind]),
-    ):
+    sources: list[tuple[str, str]] = [("raw", CSS_URLS[kind])]
+    for i, url in enumerate(CSS_URLS_FALLBACK[kind]):
+        label = ("statically", "jsdelivr", "fastly", "gcore")[min(i, 3)]
+        sources.append((label, url))
+    for label, url in sources:
         print(f"  fetch [{label}] {url}")
         try:
             return fetch_text(url)
@@ -296,7 +285,7 @@ def install_to_vault(vault: Path) -> None:
 
 
 def _face_src(block: str, *, folder: str) -> str:
-    """One absolute jsDelivr src (drop ./ and legacy CDNs)."""
+    """Rewrite src to raw → statically → jsDelivr mirrors (+ keep local ./)."""
 
     def repl(m: re.Match[str]) -> str:
         chunk = m.group(0)
@@ -308,8 +297,17 @@ def _face_src(block: str, *, folder: str) -> str:
             if not rel:
                 return chunk
             name = rel[0][1]
-        pick = f"{CDN_GH}/{folder}/{name}"
-        return f'src: url("{pick}") format("woff2");'
+        locals_: list[tuple[str, str]] = [
+            (f"./{name}", "woff2"),
+        ]
+        ttf = name[:-6] + ".ttf" if name.endswith(".woff2") else None
+        if ttf and f"./{ttf}" in chunk.replace("'", '"'):
+            locals_.append((f"./{ttf}", "truetype"))
+        return format_src_line(
+            dist_rel(folder, name),
+            fmt="woff2",
+            local=tuple(locals_),
+        )
 
     return re.sub(
         r"src:\s*(?:url\([^)]+\)(?:\s*format\([^)]+\))?\s*,?\s*)+;?",
@@ -320,7 +318,7 @@ def _face_src(block: str, *, folder: str) -> str:
 
 
 def transform_face_css(css: str, *, folder: str) -> str:
-    """Keep per-bucket family names; rewrite src URLs to jsDelivr."""
+    """Keep per-bucket family names; rewrite src URLs to CDN chain."""
     out = to_cdn_url(css)
 
     def face_fix(m: re.Match[str]) -> str:
@@ -345,7 +343,7 @@ def build_faces_block(hangul: str, yi: str, cjk: str, *, bake: bool) -> str:
         )
     parts = [
         MARK_FACES_BEGIN,
-        "/* Hangul + Yi + Pan-CJK via jsDelivr (per-bucket pancjk XX families). */",
+        "/* Hangul + Yi + Pan-CJK via CDN chain (raw → statically → jsDelivr). */",
         "",
         transform_face_css(hangul, folder="hangul").rstrip(),
         "",
@@ -366,9 +364,7 @@ def _double_quotes(css: str) -> str:
 def build_stack_block(*, pancjk_families: list[str]) -> str:
     if not pancjk_families:
         raise ValueError("no pancjk XX families found in CSS")
-    cjk = ", ".join(
-        [css_family_token(n) for n in pancjk_families] + [STACK_CJK_TAIL]
-    )
+    cjk = ", ".join([css_family_token(n) for n in pancjk_families] + [STACK_CJK_TAIL])
     stack = f"{STACK_LATIN}, {cjk}, {STACK_TAIL}"
     return "\n".join(
         [
@@ -455,9 +451,7 @@ def patch_theme(theme_path: Path, faces: str, stack: str) -> None:
     theme_path.write_text(text, encoding="utf-8")
     n_unique = len(set(re.findall(r'["\']pancjk\s+[0-9A-Fa-f]+["\']', text)))
     size_mb = theme_path.stat().st_size / (1024 * 1024)
-    print(
-        f"Wrote {theme_path} (pancjk XX families~{n_unique}, {size_mb:.1f} MiB)"
-    )
+    print(f"Wrote {theme_path} (pancjk XX families~{n_unique}, {size_mb:.1f} MiB)")
 
 
 def main(argv: list[str] | None = None) -> int:

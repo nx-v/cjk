@@ -68,6 +68,7 @@ from yi_slice import (
     install_slice_gsub,
 )
 from sync_obsidian_panfonts import sync_dist_to_plugin
+from cdn_fonts import dist_rel, format_src_line
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
@@ -75,12 +76,6 @@ OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "yi")
 
 FAMILY_NAME = "panyi"
 PS_NAME = "panyi"
-
-# jsDelivr (CORS + font/woff2). Prefer over statically.io — that CDN throttles
-# large parallel @font-face loads in Obsidian.
-CSS_FONT_URL_BASE = (
-    "https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/yi"
-)
 
 
 def glyph_name_for_cp(cp: int) -> str:
@@ -449,10 +444,15 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
         "",
         "@font-face {",
         f"  font-family: '{FAMILY_NAME}';",
-        # CDN first: Obsidian themes resolve ./ relative to theme.css.
-        f"  src: url('{CSS_FONT_URL_BASE}/{FAMILY_NAME}.woff2') format('woff2'),",
-        f"       url('./{FAMILY_NAME}.woff2') format('woff2'),",
-        f"       url('./{FAMILY_NAME}.ttf') format('truetype');",
+        format_src_line(
+            dist_rel("yi", f"{FAMILY_NAME}.woff2"),
+            fmt="woff2",
+            local=(
+                (f"./{FAMILY_NAME}.woff2", "woff2"),
+                (f"./{FAMILY_NAME}.ttf", "truetype"),
+            ),
+            indent="  ",
+        ),
         "  font-weight: normal;",
         "  font-style: normal;",
         "  font-display: swap;",
