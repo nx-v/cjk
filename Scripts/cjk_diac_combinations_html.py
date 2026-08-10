@@ -3,12 +3,19 @@
 
 Encoding (matches ``cjk_diac_marks`` / ``build_cjk``)::
 
-    U+16FF0/16FF1 (ca/nhay): half-cell niche GPOS
-      MARK / FE08 / FE09 / FE0A → right / left / top / bottom free half
+    U+16FF0/16FF1 (ca/nhay) — niche VS required::
+
+      CJK (D4)? FE0C MARK → base ``.dk``  + mark right
+      CJK (D4)? FE0D MARK → base ``.dkl`` + mark left
+      CJK (D4)? FE0E MARK → base ``.dkb`` (top)    + mark bottom
+      CJK (D4)? FE0F MARK → base ``.dkt`` (bottom) + mark top
+
+    Gallery text uses PUA ``E009``–``E00C`` (FE0C–F mirrors) so browsers
+    keep the selectors for GSUB.
 
     Squish = occupy one half of the ideographic area (same ``.dk*`` glyphs):
       FE0B       → zero-width ``.ov``
-      FE0C–FE0F  → ``.dk`` / ``.dkl`` / ``.dkt`` / ``.dkb``
+      FE0C–FE0F  → ``.dk`` / ``.dkl`` / ``.dkb`` / ``.dkt`` (L/R/T/B)
       FE0B+FE0C–F → zero-width half-cell overlay
 
     Squish digraph (two kanji, often different pancjk buckets)::
@@ -91,12 +98,12 @@ MARK_LABEL = {
 }
 
 # Opposing half niches: first (FE0B + FE0C–F) zero-width, second (FE0D–F) advance.
-# Labels match squishPiece keys (R=FE0C/.dk, L=FE0D/.dkl, T=FE0E/.dkt, B=FE0F/.dkb).
+# Labels match squishPiece keys (R=FE0C/.dk, L=FE0D/.dkl, T=FE0E/.dkb, B=FE0F/.dkt).
 DIGRAPH_NICHE_PAIRS: Tuple[Tuple[str, str], ...] = (
-    ("R", "L"),  # FE0C (.dk left)  + FE0D (.dkl right)
-    ("L", "R"),  # FE0D (.dkl right) + FE0C (.dk left)
-    ("T", "B"),  # FE0E (.dkt bottom) + FE0F (.dkb top)
-    ("B", "T"),  # FE0F (.dkb top) + FE0E (.dkt bottom)
+    ("R", "L"),  # FE0C (.dk left)   + FE0D (.dkl right)
+    ("L", "R"),  # FE0D (.dkl right)  + FE0C (.dk left)
+    ("T", "B"),  # FE0E (.dkb top)    + FE0F (.dkt bottom)
+    ("B", "T"),  # FE0F (.dkt bottom) + FE0E (.dkb top)
 )
 
 # Canonical demo digraph (cross-bucket 66 + 65): 明 FE0B FE0C + 日 FE0D.
@@ -436,7 +443,10 @@ main {{ padding: 12px 20px 80px; }}
   min-width: 1.15em; padding: 4px 2px;
   border-bottom: 1px solid #222;
 }}
-.glyph {{ line-height: 1; }}
+.glyph {{
+  line-height: 1;
+  font-feature-settings: "ccmp" 1, "rlig" 1, "liga" 1, "mark" 1, "mkmk" 1;
+}}
 .tag {{
   font-family: system-ui, sans-serif; font-size: 9px; color: #666;
   max-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -454,7 +464,7 @@ h2 {{
   <p class="meta">
     Range: {range_note} · {n:,} characters embedded<br/>
     Base VS: identity / FE01..FE07 (full D4)<br/>
-    U+16FF0/16FF1 ca/nhay: half-cell niche (free half via GPOS)<br/>
+    ca/nhay: <code>CJK FE0C–F MARK</code> (PUA E009–C; mark in free half)<br/>
     Squish digraph: <code>A FE0B FE0C–F</code> + <code>B FE0D–F</code> (e.g. 明&#xFE0B;&#xFE0C;日&#xFE0D;)<br/>
     Digraph pairs: {len(pairs)} ({n_cross} cross-bucket) · gallery ≈ {total:,}
   </p>
@@ -468,6 +478,9 @@ h2 {{
     <label>Base orient
       <select id="baseOrient"></select>
     </label>
+    <label>Mark niche
+      <select id="nicheSel"></select>
+    </label>
     <label>Mark
       <select id="markSel"></select>
     </label>
@@ -479,8 +492,8 @@ h2 {{
     <button type="button" id="btnMarks">+ ca/nhay</button>
     <button type="button" id="btnDk">FE0C .dk</button>
     <button type="button" id="btnDkl">FE0D .dkl</button>
-    <button type="button" id="btnDkt">FE0E .dkt</button>
-    <button type="button" id="btnDkb">FE0F .dkb</button>
+    <button type="button" id="btnDkt">FE0E .dkb (top)</button>
+    <button type="button" id="btnDkb">FE0F .dkt (bottom)</button>
     <button type="button" id="btnDigraph">Squish digraphs</button>
     <button type="button" id="btnBaseGrid">Base VS × mark</button>
     <button type="button" id="btnMarkGrid">Mark D4 grid</button>
@@ -497,6 +510,7 @@ const out = document.getElementById('out');
 const status = document.getElementById('status');
 const idxStart = document.getElementById('idxStart');
 const idxCount = document.getElementById('idxCount');
+const nicheSel = document.getElementById('nicheSel');
 const baseOrient = document.getElementById('baseOrient');
 const markSel = document.getElementById('markSel');
 const markOrient = document.getElementById('markOrient');
@@ -523,12 +537,22 @@ function fillMarks(sel) {{
     sel.appendChild(o);
   }});
 }}
+function fillNiches(sel) {{
+  for (const [side, lab] of [['R','FE0C .dk (left)'],['L','FE0D .dkl (right)'],['T','FE0E .dkb (top)'],['B','FE0F .dkt (bottom)']]) {{
+    const o = document.createElement('option');
+    o.value = side;
+    o.textContent = lab;
+    sel.appendChild(o);
+  }}
+}}
 fillOrient(baseOrient, DATA.BASE_ORIENT_LABEL, DATA.BASE_ORIENT_VS);
 fillOrient(markOrient, DATA.MARK_ORIENT_LABEL, DATA.MARK_ORIENT_VS);
 fillMarks(markSel);
+fillNiches(nicheSel);
 baseOrient.value = '0';
 markOrient.value = '0';
 markSel.value = 'all';
+nicheSel.value = 'R';
 
 function vsChar(vs) {{ return vs == null ? '' : String.fromCodePoint(vs); }}
 function sliceIndices() {{
@@ -542,6 +566,10 @@ function markList() {{
   if (markSel.value === 'all') return DATA.MARKS.map((_, i) => i);
   return [+markSel.value];
 }}
+function selectedNiche() {{
+  const s = nicheSel.value;
+  return (s === 'R' || s === 'L' || s === 'T' || s === 'B') ? s : 'R';
+}}
 function d4Pua(oi) {{
   const fe = DATA.BASE_ORIENT_VS[oi];
   if (fe == null) return '';
@@ -553,7 +581,9 @@ function cjkPiece(idx, baseOi) {{
 }}
 function markPiece(mi, markOi) {{
   const m = DATA.MARKS[mi];
-  return m.ch + d4Pua(markOi);
+  // No mark FE00 no-op liga — omit identity D4 so vs01 is not left hanging.
+  const d4 = (DATA.MARK_ORIENT_LABEL[markOi] || 'id') === 'id' ? '' : d4Pua(markOi);
+  return m.ch + d4;
 }}
 function squishPiece(side) {{
   // PUA E009–E00C (FE0C–F mirrors) so browsers keep selectors for GSUB.
@@ -563,6 +593,10 @@ function squishPiece(side) {{
     : side === 'B' ? DATA.SQUISH_B_PUA
     : null;
   return sel != null ? String.fromCodePoint(sel) : '';
+}}
+function markedCjk(idx, baseOi, mi, markOi, side) {{
+  // Compulsory niche VS: CJK (D4)? FE0C–F MARK (D4)?
+  return cjkPiece(idx, baseOi) + squishPiece(side) + markPiece(mi, markOi);
 }}
 function digraphFirst(idx, oi, side) {{
   // A (D4 PUA)? E008 E009–C — zero-width half overlay
@@ -630,8 +664,8 @@ function setStatus(s) {{ status.textContent = s; }}
 const SQUISH_LABEL = {{
   R: 'FE0C /.dk',
   L: 'FE0D /.dkl',
-  T: 'FE0E /.dkt',
-  B: 'FE0F /.dkb',
+  T: 'FE0E /.dkb (top)',
+  B: 'FE0F /.dkt (bottom)',
 }};
 
 function renderPlain(indices) {{
@@ -645,14 +679,15 @@ function renderPlain(indices) {{
   setStatus('Rendered ' + n.toLocaleString() + ' plain cells');
 }}
 
-function renderMarks(indices, baseOi, markIndices, markOi) {{
+function renderMarks(indices, baseOi, markIndices, markOi, side) {{
+  const niche = side || selectedNiche();
   clearOut();
-  out.appendChild(heading('CJK + ca/nhay (corner GPOS)'));
+  out.appendChild(heading('CJK + ' + SQUISH_LABEL[niche] + ' + ca/nhay'));
   let n = 0;
   for (const i of indices) {{
     for (const mi of markIndices) {{
-      const text = cjkPiece(i, baseOi) + markPiece(mi, markOi);
-      out.appendChild(cell(text, tagFor(i, baseOi, mi, markOi, null)));
+      const text = markedCjk(i, baseOi, mi, markOi, niche);
+      out.appendChild(cell(text, tagFor(i, baseOi, mi, markOi, niche)));
       n++;
     }}
   }}
@@ -722,14 +757,15 @@ function renderDigraphGrid() {{
 }}
 
 function renderBaseGrid(indices, markIndices) {{
+  const niche = selectedNiche();
   clearOut();
-  out.appendChild(heading('Base VS1–8 × mark (corner GPOS)'));
+  out.appendChild(heading('Base VS1–8 × ' + SQUISH_LABEL[niche] + ' × mark'));
   let n = 0;
   for (const i of indices) {{
     for (let bo = 0; bo < DATA.BASE_ORIENT_VS.length; bo++) {{
       for (const mi of markIndices) {{
-        const text = cjkPiece(i, bo) + markPiece(mi, 0);
-        out.appendChild(cell(text, tagFor(i, bo, mi, 0, null)));
+        const text = markedCjk(i, bo, mi, 0, niche);
+        out.appendChild(cell(text, tagFor(i, bo, mi, 0, niche)));
         n++;
       }}
     }}
@@ -738,14 +774,15 @@ function renderBaseGrid(indices, markIndices) {{
 }}
 
 function renderMarkGrid(indices, baseOi, markIndices) {{
+  const niche = selectedNiche();
   clearOut();
-  out.appendChild(heading('Mark D4 grid'));
+  out.appendChild(heading('Mark D4 grid · ' + SQUISH_LABEL[niche]));
   let n = 0;
   for (const i of indices) {{
     for (const mi of markIndices) {{
       for (let mo = 0; mo < DATA.MARK_ORIENT_VS.length; mo++) {{
-        const text = cjkPiece(i, baseOi) + markPiece(mi, mo);
-        out.appendChild(cell(text, tagFor(i, baseOi, mi, mo, null)));
+        const text = markedCjk(i, baseOi, mi, mo, niche);
+        out.appendChild(cell(text, tagFor(i, baseOi, mi, mo, niche)));
         n++;
       }}
     }}
@@ -762,13 +799,15 @@ function renderEverything() {{
     out.appendChild(cell(DATA.CJK[i].ch, DATA.CJK[i].short));
     n++;
   }}
-  out.appendChild(heading('ca/nhay corner'));
-  for (const i of indices) {{
-    for (let mi = 0; mi < DATA.MARKS.length; mi++) {{
-      out.appendChild(cell(
-        cjkPiece(i, 0) + markPiece(mi, 0),
-        tagFor(i, 0, mi, 0, null)));
-      n++;
+  for (const side of ['R', 'L', 'T', 'B']) {{
+    out.appendChild(heading('ca/nhay · ' + SQUISH_LABEL[side]));
+    for (const i of indices) {{
+      for (let mi = 0; mi < DATA.MARKS.length; mi++) {{
+        out.appendChild(cell(
+          markedCjk(i, 0, mi, 0, side),
+          tagFor(i, 0, mi, 0, side)));
+        n++;
+      }}
     }}
   }}
   for (const side of ['R', 'L', 'T', 'B']) {{
@@ -800,14 +839,22 @@ document.getElementById('btnPlain').onclick = () =>
   renderPlain(sliceIndices());
 document.getElementById('btnMarks').onclick = () =>
   renderMarks(sliceIndices(), +baseOrient.value, markList(), +markOrient.value);
-document.getElementById('btnDk').onclick = () =>
+document.getElementById('btnDk').onclick = () => {{
+  nicheSel.value = 'R';
   renderSquish(sliceIndices(), +baseOrient.value, 'R');
-document.getElementById('btnDkl').onclick = () =>
+}};
+document.getElementById('btnDkl').onclick = () => {{
+  nicheSel.value = 'L';
   renderSquish(sliceIndices(), +baseOrient.value, 'L');
-document.getElementById('btnDkt').onclick = () =>
+}};
+document.getElementById('btnDkt').onclick = () => {{
+  nicheSel.value = 'T';
   renderSquish(sliceIndices(), +baseOrient.value, 'T');
-document.getElementById('btnDkb').onclick = () =>
+}};
+document.getElementById('btnDkb').onclick = () => {{
+  nicheSel.value = 'B';
   renderSquish(sliceIndices(), +baseOrient.value, 'B');
+}};
 document.getElementById('btnDigraph').onclick = () =>
   renderDigraphs(+baseOrient.value);
 document.getElementById('btnSlice').onclick = () =>
@@ -818,7 +865,7 @@ document.getElementById('btnMarkGrid').onclick = () =>
   renderMarkGrid(sliceIndices(), +baseOrient.value, markList());
 document.getElementById('btnEverything').onclick = renderEverything;
 
-renderDigraphs(0);
+renderMarks(sliceIndices(), 0, markList(), 0, 'R');
 </script>
 </body>
 </html>

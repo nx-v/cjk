@@ -11,10 +11,14 @@ stroke weight adjustment runs on upright H (``.dkl``) / V (``.dkt``)
 half-cells and on ca/nhay only; ``.dk`` / ``.dkb``, D4 niches, overlays, and
 mark D4 stay simple affine (translate / rotate / reflect).
 
-    CJK MARK          → base ``.dk`` (left half)  + mark in right half
-    CJK FE08 MARK     → base ``.dkl`` (right half) + mark in left half
-    CJK FE09 MARK     → base ``.dkt`` (bottom half) + mark in top half
-    CJK FE0A MARK     → base ``.dkb`` (top half) + mark in bottom half
+    CJK (D4)? FE0C MARK   → base ``.dk``  (left)   + mark in right half
+    CJK (D4)? FE0D MARK   → base ``.dkl`` (right)  + mark in left half
+    CJK (D4)? FE0E MARK   → base ``.dkb`` (top)    + mark in bottom half
+    CJK (D4)? FE0F MARK   → base ``.dkt`` (bottom) + mark in top half
+
+Niche VS (``FE0C``–``FE0F``) is required before ca/nhay. Optional legacy
+``FE08``/``FE09``/``FE0A`` still select mark-side forms (L/T/B) without a
+niche VS. Browser galleries prefer PUA ``E009``–``E00C`` mirrors of FE0C–F.
 
 Squish / overlay access (same ``.dk*`` glyphs; GSUB liga, not cmap-14 UVS)::
 
@@ -115,10 +119,11 @@ SQUISH_RIGHT_CP = 0xFE0C
 SQUISH_RIGHT_NAME = "vsDk"
 SQUISH_LEFT_CP = 0xFE0D
 SQUISH_LEFT_NAME = "vsDkl"
+# FE0E/FE0F name the half the *base* occupies (top / bottom), not the free mark niche.
 SQUISH_TOP_CP = 0xFE0E
-SQUISH_TOP_NAME = "vsDkt"
+SQUISH_TOP_NAME = "vsDkb"
 SQUISH_BOT_CP = 0xFE0F
-SQUISH_BOT_NAME = "vsDkb"
+SQUISH_BOT_NAME = "vsDkt"
 # Non-ignorable PUA mirrors of FE0B..FE0F for browser digraph shaping.
 # Blink drops Default_Ignorable VS that are not cmap-14 UVS before GSUB;
 # PUA U+E008..E00C maps to the same selector glyphs so liga still runs.
@@ -144,12 +149,12 @@ SIDE_SELECTOR_CPS: Tuple[int, ...] = (
     SQUISH_TOP_CP,
     SQUISH_BOT_CP,
 )
-# FE0C..FE0F → niche suffix (``.dk`` / ``.dkl`` / ``.dkt`` / ``.dkb``).
+# FE0C..FE0F → base half suffix (``.dk`` / ``.dkl`` / ``.dkb`` / ``.dkt``).
 SQUISH_VS_SLOTS: Tuple[Tuple[int, str, str], ...] = (
     (SQUISH_RIGHT_CP, SQUISH_RIGHT_NAME, "dk"),
     (SQUISH_LEFT_CP, SQUISH_LEFT_NAME, "dkl"),
-    (SQUISH_TOP_CP, SQUISH_TOP_NAME, "dkt"),
-    (SQUISH_BOT_CP, SQUISH_BOT_NAME, "dkb"),
+    (SQUISH_TOP_CP, SQUISH_TOP_NAME, "dkb"),
+    (SQUISH_BOT_CP, SQUISH_BOT_NAME, "dkt"),
 )
 # PUA codepoint → same glyph as FE0B..FE0F (for digraph HTML / browser liga).
 SQUISH_PUA_SLOTS: Tuple[Tuple[int, str], ...] = (
@@ -872,7 +877,12 @@ def mark_attach_anchor(
     side: str = "right",
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[int, int]:
-    """Mark attach point on the edge toward the base niche."""
+    """Mark attach point at ink center (pairs with free-half-center base anchors).
+
+    Edge attach previously pushed marks outside the ideographic cell when the
+    base anchor was the free-half center.
+    """
+    del side  # class comes from mark form; attach is always ink center
     try:
         if glyph.isComposite() and glyph_set is not None:
             glyph.recalcBounds(glyph_set)
@@ -880,14 +890,6 @@ def mark_attach_anchor(
             glyph.recalcBounds(None)
         cx = (float(glyph.xMin) + float(glyph.xMax)) / 2.0
         cy = (float(glyph.yMin) + float(glyph.yMax)) / 2.0
-        if side == "right":
-            return otRound(float(glyph.xMin)), otRound(cy)
-        if side == "left":
-            return otRound(float(glyph.xMax)), otRound(cy)
-        if side == "top":
-            return otRound(cx), otRound(float(glyph.yMin))
-        if side == "bottom":
-            return otRound(cx), otRound(float(glyph.yMax))
         return otRound(cx), otRound(cy)
     except Exception:
         return 0, 0
@@ -1650,7 +1652,9 @@ def install_squish_gsub(
         gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
         feature_lookup_idxs.append(chain_index)
 
-    _append_chain(marks_r, squish_name)
+    # Bare MARK no longer auto-squishes — FE0C–FE0F (or legacy FE08–A) required.
+    # Keep L/T/B chains for legacy ``FE08/FE09/FE0A MARK`` mark-side aliases.
+    del marks_r
     _append_chain(marks_l, squish_left_name)
     _append_chain(marks_t, squish_top_name)
     _append_chain(marks_b, squish_bot_name)
@@ -1667,6 +1671,104 @@ def install_squish_gsub(
         fr.Feature.LookupListIndex = idxs
         fr.Feature.LookupCount = len(idxs)
     return len(bases)
+
+
+def install_mark_side_from_niche_gsub(
+    font,
+    *,
+    squishable_bases: Sequence[str],
+    right_marks: Sequence[str],
+    glyphs: Dict[str, TTGlyph],
+    glyph_order: Sequence[str],
+) -> int:
+    """After ``base+FE0D–F → .dkl/.dkt/.dkb``, map upright mark → L/T/B class.
+
+    ``FE0C`` keeps the default right-class upright mark. Required so
+    ``CJK FE0D MARK`` (etc.) gets a matching MarkToBase class.
+    """
+    if "GSUB" not in font:
+        return 0
+
+    order_index = {n: i for i, n in enumerate(glyph_order)}
+
+    def _gid_sort(names: Sequence[str]) -> List[str]:
+        return sorted(set(names), key=lambda n: order_index.get(n, 10**9))
+
+    niche_forms = {
+        "left": _gid_sort(
+            [squish_left_name(n) for n in squishable_bases if squish_left_name(n) in glyphs]
+        ),
+        "top": _gid_sort(
+            [squish_top_name(n) for n in squishable_bases if squish_top_name(n) in glyphs]
+        ),
+        "bottom": _gid_sort(
+            [squish_bot_name(n) for n in squishable_bases if squish_bot_name(n) in glyphs]
+        ),
+    }
+    mark_maps = {
+        "left": {
+            m: left_mark_name(m)
+            for m in right_marks
+            if m in glyphs and left_mark_name(m) in glyphs
+        },
+        "top": {
+            m: top_mark_name(m)
+            for m in right_marks
+            if m in glyphs and top_mark_name(m) in glyphs
+        },
+        "bottom": {
+            m: bottom_mark_name(m)
+            for m in right_marks
+            if m in glyphs and bottom_mark_name(m) in glyphs
+        },
+    }
+    if not any(niche_forms[k] and mark_maps[k] for k in niche_forms):
+        return 0
+
+    gsub = font["GSUB"].table
+    if gsub.LookupList is None:
+        gsub.LookupList = ot.LookupList()
+        gsub.LookupList.Lookup = []
+        gsub.LookupList.LookupCount = 0
+
+    feature_lookup_idxs: List[int] = []
+
+    for key in ("left", "top", "bottom"):
+        backs = niche_forms[key]
+        mapping = mark_maps[key]
+        if not backs or not mapping:
+            continue
+        coverage = _gid_sort(mapping.keys())
+        single_lu = build_chunked_single_subst_lookup(mapping)
+        st = build_chain_context_format2(
+            coverage_glyphs=coverage,
+            input_classes={n: 1 for n in coverage},
+            input_class=1,
+            backtrack_classes={n: 1 for n in backs},
+            backtrack_seq=(1,),
+        )
+        chain_lu = build_ext_gsub_lookup([st])
+        chain_index = gsub.LookupList.LookupCount
+        single_index = chain_index + 1
+        st.ChainSubClassSet[1].ChainSubClassRule[0].SubstLookupRecord[
+            0
+        ].LookupListIndex = single_index
+        gsub.LookupList.Lookup.extend([chain_lu, single_lu])
+        gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
+        feature_lookup_idxs.append(chain_index)
+
+    tag_to_fr = {fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])}
+    for tag in COMPOSITION_FEATURE_TAGS:
+        fr = tag_to_fr.get(tag)
+        if fr is None:
+            continue
+        idxs = list(fr.Feature.LookupListIndex or [])
+        for li in feature_lookup_idxs:
+            if li not in idxs:
+                idxs.append(li)
+        fr.Feature.LookupListIndex = idxs
+        fr.Feature.LookupCount = len(idxs)
+    return len(feature_lookup_idxs)
 
 
 def install_niche_mark_gpos(
@@ -1830,7 +1932,13 @@ def squish_vs_liga_map(
     *,
     glyphs: Dict[str, TTGlyph],
 ) -> Dict[Tuple[str, ...], str]:
-    """Ligature map: FE0B → ``.ov``; FE0C–FE0F → squish; FE0B+FE0C–F → squish ``.ov``."""
+    """Ligature map: FE0B → ``.ov``; FE0C–FE0F → squish; FE0B+FE0C–F → squish ``.ov``.
+
+    Also spells explicit identity with ``FE00``/``vs01`` so
+    ``base FE00 FE0B FE0C`` matches the same outputs as ``base FE0B FE0C``
+    without relying on a prior 2-glyph FE00 no-op alone.
+    """
+    vs01 = vs_glyph_name(TRANSFORM_MODES[0][0])
     liga: Dict[Tuple[str, ...], str] = {}
     for form in squishable_bases:
         if form not in glyphs:
@@ -1838,17 +1946,21 @@ def squish_vs_liga_map(
         ov = overlay_glyph_name(form)
         if ov in glyphs:
             liga[(form, OV_SELECTOR_NAME)] = ov
+            liga[(form, vs01, OV_SELECTOR_NAME)] = ov
         for _cp, sel_name, suf in SQUISH_VS_SLOTS:
             sq = _squish_form_name(form, suf)
             if sq not in glyphs:
                 continue
             liga[(form, sel_name)] = sq
+            liga[(form, vs01, sel_name)] = sq
             sq_ov = overlay_glyph_name(sq)
             if sq_ov not in glyphs:
                 continue
             # Longer sequences first in a separate lookup; map holds all.
             liga[(form, OV_SELECTOR_NAME, sel_name)] = sq_ov
             liga[(form, sel_name, OV_SELECTOR_NAME)] = sq_ov
+            liga[(form, vs01, OV_SELECTOR_NAME, sel_name)] = sq_ov
+            liga[(form, vs01, sel_name, OV_SELECTOR_NAME)] = sq_ov
             liga[(sq, OV_SELECTOR_NAME)] = sq_ov
     return liga
 
@@ -1899,13 +2011,17 @@ def d4_liga_map(
     bases: Sequence[str],
     *,
     glyphs: Dict[str, TTGlyph],
+    fe00_forms: Optional[Sequence[str]] = None,
 ) -> Dict[Tuple[str, ...], str]:
     """``base + VS01..VS08`` (PUA / FE00..FE07) → orientation form.
 
-    ``FE00`` / VS01 is a no-op (``base + vs01 → base``) so identity can be
-    spelled explicitly and later FE0B–FE0F still reach GSUB as ligatures.
+    ``FE00`` / VS01 is a no-op (``glyph + vs01 → glyph``) on every identity
+    base, every D4 form, and every squish/overlay form in ``fe00_forms`` so
+    explicit id works in all squished positions.
     """
     liga: Dict[Tuple[str, ...], str] = {}
+    vs01 = vs_glyph_name(TRANSFORM_MODES[0][0])
+    base_set = set(bases)
     for base in bases:
         if base not in glyphs:
             continue
@@ -1919,7 +2035,39 @@ def d4_liga_map(
             if vname not in glyphs:
                 continue
             liga[(base, sel)] = vname
+    # FE00 no-op on squish / overlay forms (id in every niche / overlay).
+    for form in fe00_forms or ():
+        if form not in glyphs or form in base_set:
+            continue
+        liga[(form, vs01)] = form
     return liga
+
+
+def _fe00_noop_form_names(
+    squishable: Sequence[str],
+    *,
+    glyphs: Dict[str, TTGlyph],
+) -> List[str]:
+    """Identity + D4 + ``.dk*`` + ``.ov`` names that accept FE00 no-op."""
+    out: List[str] = []
+    seen: set = set()
+    for form in squishable:
+        for name in (
+            form,
+            overlay_glyph_name(form),
+            *(
+                n
+                for _cp, _sel, suf in SQUISH_VS_SLOTS
+                for n in (
+                    _squish_form_name(form, suf),
+                    overlay_glyph_name(_squish_form_name(form, suf)),
+                )
+            ),
+        ):
+            if name in glyphs and name not in seen:
+                seen.add(name)
+                out.append(name)
+    return out
 
 
 def install_cjk_composition_gsub(
@@ -1933,11 +2081,12 @@ def install_cjk_composition_gsub(
 ) -> int:
     """Programmatic ``ccmp``/``rlig``/``liga``: D4 + FE0B–FE0F + mark niches.
 
-    Lookup order matters so ``B FE02 FE0D`` works::
+    Lookup order matters so ``B FE02 FE0D`` / ``A FE00 FE0B FE0C`` work::
 
-        1. D4 (incl. FE00 no-op)  — ``B+FE02 → B.r180``
-        2. 3-glyph squish+overlay — ``A+FE0B+FE0C → A.dk.ov``
-        3. 2-glyph squish/overlay + mark niches — ``B.r180+FE0D → B.r180.dkl``
+        1. D4 (incl. FE00 no-op on bases + squish/ov forms)
+        2. 4-glyph identity squish+overlay — ``A+FE00+FE0B+FE0C → A.dk.ov``
+        3. 3-glyph squish+overlay — ``A+FE0B+FE0C → A.dk.ov``
+        4. 2-glyph squish/overlay + mark niches — ``B.r180+FE0D → B.r180.dkl``
     """
     from fontTools.ttLib import newTable
     from fontTools.ttLib.tables import otTables as ot
@@ -1947,17 +2096,27 @@ def install_cjk_composition_gsub(
     del glyph_order  # reserved for future GID-ordered class builders
     forms = list(squishable) if squishable is not None else squishable_forms(cjk_bases)
 
-    d4_map = d4_liga_map(cjk_bases, glyphs=glyphs)
+    fe00_forms = _fe00_noop_form_names(forms, glyphs=glyphs)
+    d4_map = d4_liga_map(cjk_bases, glyphs=glyphs, fe00_forms=fe00_forms)
+    # 4-glyph (FE00 + ov + niche) before 3-glyph before 2-glyph.
+    xlong_map: Dict[Tuple[str, ...], str] = {}
     long_map: Dict[Tuple[str, ...], str] = {}
     short_map: Dict[Tuple[str, ...], str] = {}
     for comps, out in squish_vs_liga_map(forms, glyphs=glyphs).items():
-        (long_map if len(comps) >= 3 else short_map)[comps] = out
+        if len(comps) >= 4:
+            xlong_map[comps] = out
+        elif len(comps) >= 3:
+            long_map[comps] = out
+        else:
+            short_map[comps] = out
     if mark_cps:
         short_map.update(mark_liga_map(mark_cps, glyphs))
 
     lookups: List = []
     if d4_map:
         lookups.append(build_chunked_ligature_subst_lookup(d4_map))
+    if xlong_map:
+        lookups.append(build_chunked_ligature_subst_lookup(xlong_map))
     if long_map:
         lookups.append(build_chunked_ligature_subst_lookup(long_map))
     if short_map:
@@ -2021,18 +2180,15 @@ def build_squish_vs_uvs_entries(
     *,
     glyphs: Dict[str, TTGlyph],
 ) -> List[Tuple[int, int, Optional[str]]]:
-    """cmap-14 UVS for plain squish only (``FE0C``…``FE0F``).
+    """No cmap-14 UVS for FE0B–FE0F — access is GSUB liga (or PUA) only.
 
-    No UVS for ``FE0B``: that would map ``base+FE0B`` → ``.ov`` and drop a
-    following niche VS before GSUB. Squish-overlay digraphs use PUA
-    ``E008``…``E00C`` (non-ignorable) so browsers keep the full liga chain.
+    UVS for ``FE0C``…``FE0F`` made browsers map ``base+FE0C`` → ``.dk`` after
+    dropping ``FE0B``, so digraphs became two full-advance halves instead of
+    ``.dk.ov`` + opposing niche. Plain squish / overlay / digraphs all use
+    ``ccmp``/``rlig``/``liga``; galleries prefer PUA ``E008``…``E00C``.
     """
-    rows: List[Tuple[int, int, Optional[str]]] = []
-    for sel_cp, _name, suf in SQUISH_VS_SLOTS:
-        sq = _squish_form_name(base_glyph, suf)
-        if sq in glyphs:
-            rows.append((base_cp, sel_cp, sq))
-    return rows
+    del base_cp, base_glyph, glyphs
+    return []
 
 
 def prepare_squish_vs_access(
@@ -2231,6 +2387,13 @@ def compile_marks_layout(
         left_marks=state.get("left_marks", []),
         top_marks=state.get("top_marks", []),
         bottom_marks=state.get("bottom_marks", []),
+        glyphs=glyphs,
+        glyph_order=glyph_order,
+    )
+    install_mark_side_from_niche_gsub(
+        font,
+        squishable_bases=state["squishable"],
+        right_marks=state.get("right_marks", []),
         glyphs=glyphs,
         glyph_order=glyph_order,
     )
