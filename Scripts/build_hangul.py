@@ -829,14 +829,29 @@ def fe04_unflipped_l_y_placement(
     glyphs: Dict[str, TTGlyph],
     target_upem: int,
 ) -> int:
-    """FE04 + upright Y/XY: park L top just under raised ``T.sw`` (~485)."""
+    """FE04 + upright Y/XY: park L top just under raised ``T.sw``."""
     bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
         return 0
     bottom, _top, ideo_h = ideographic_bounds(target_upem)
-    # Small gap under typical T.sw bottom (bake≈−95 + dy_t≈580 → ~485).
-    target_top = bottom + ideo_h * 0.58  # ~460
+    # T.sw bottoms ~519 (bake + dy_t); sit snug underneath.
+    target_top = bottom + ideo_h * 0.62  # ~500
     return otRound(target_top - bounds[3])
+
+
+def fe04_y_floor_y_placement(
+    name: str,
+    *,
+    glyphs: Dict[str, TTGlyph],
+    target_upem: int,
+) -> int:
+    """Park glyph bottom on the padded ideographic floor (Y-group FE04)."""
+    bounds = _glyph_bounds(glyphs, name)
+    if bounds is None:
+        return 0
+    bottom, _top, ideo_h = ideographic_bounds(target_upem)
+    target_bottom = bottom + ideo_h * 0.04  # ~−80
+    return otRound(target_bottom - bounds[1])
 
 
 def fe04_emmy_l_y_placement(
@@ -846,21 +861,13 @@ def fe04_emmy_l_y_placement(
     target_upem: int,
     vowel_axis: VowelAxis = "y",
 ) -> int:
-    """FE04 + Y-flipped V: park ``L.em*`` just above the medial's lower tip.
+    """FE04 + Y-flipped V: park ``L.em*`` on the floor under the medial tip.
 
-    Pure Y medials keep an upper-band tip (~240 after FE04). XY flipped stems
-    reach the floor — use ``vowel_axis`` from the chain context (not the
-    ``.emmy``/``.emmxy`` suffix), since XY+FE02 still yields ``L.emmy``.
+    Y-group flipped bars sit mid-cell; L goes to the very bottom (just below
+    the bar). XY flipped stems already reach the floor — same L floor pin.
     """
-    bounds = _glyph_bounds(glyphs, name)
-    if bounds is None:
-        return 0
-    bottom, _top, ideo_h = ideographic_bounds(target_upem)
-    if vowel_axis == "xy":
-        target_bottom = bottom + ideo_h * 0.04  # ~−80
-    else:
-        target_bottom = bottom + ideo_h * 0.36  # ~240
-    return otRound(target_bottom - bounds[1])
+    del vowel_axis  # both Y and XY FE04-flip park L on the floor
+    return fe04_y_floor_y_placement(name, glyphs=glyphs, target_upem=target_upem)
 
 
 def fe04_medial_extra_dy(
@@ -871,9 +878,8 @@ def fe04_medial_extra_dy(
     """Axis + flip-aware Y nudge for medials under FE04 (added to ``dy_lv``).
 
     * X: 0 here — X uses ``fe04_x_lv_extra_dy`` on both L and V.
-    * Y upright: small extra down under the choseong.
-    * Y flipped (``.my``/``.mxy``): slight lift — the upper-band bake plus
-      ``dy_lv`` already parks them too low against ``L.emmy``.
+    * Y upright: unused — upright Y V uses ``fe04_y_floor_y_placement``.
+    * Y flipped: slight lift so the bar stays above floor-parked ``L.emmy``.
     * XY upright: small extra down.
     * XY flipped: stronger extra down — upper-band bake otherwise stays high.
     """
@@ -884,7 +890,7 @@ def fe04_medial_extra_dy(
     if axis == "y":
         if flipped:
             return otRound(ideo_h * 0.08)
-        return otRound(-(ideo_h * 0.06))
+        return 0
     # xy
     if flipped:
         return otRound(-(ideo_h * 0.14))
@@ -2067,8 +2073,15 @@ def install_fe04_gpos(
     dy_lv_x = dy_lv_i + fe04_x_lv_extra_dy(target_upem)
 
     v_x = [V for V in v_all if _axis_of(V) == "x"]
-    v_up = [
-        V for V in v_all if _axis_of(V) != "x" and not fe04_medial_is_y_flipped(V)
+    v_up_y = [
+        V
+        for V in v_all
+        if _axis_of(V) == "y" and not fe04_medial_is_y_flipped(V)
+    ]
+    v_up_xy = [
+        V
+        for V in v_all
+        if _axis_of(V) == "xy" and not fe04_medial_is_y_flipped(V)
     ]
     v_flip_y = [
         V for V in v_all if _axis_of(V) == "y" and fe04_medial_is_y_flipped(V)
@@ -2090,7 +2103,7 @@ def install_fe04_gpos(
         return out
 
     def _l_values_up() -> Dict[str, object]:
-        # Y/XY upright: L stays just under raised batchim.
+        # Upright Y/XY: L stays just under raised batchim.
         out: Dict[str, object] = {}
         for L in l_all:
             dy = fe04_unflipped_l_y_placement(
@@ -2100,7 +2113,7 @@ def install_fe04_gpos(
         return out
 
     def _l_values_flip(axis: VowelAxis) -> Dict[str, object]:
-        # Flipped V: L.em* just above medial tip (axis-specific).
+        # Flipped V: L.em* on the floor (end of medial / under the bar).
         out: Dict[str, object] = {}
         for L in l_all:
             if fe04_l_is_emmy(L):
@@ -2122,6 +2135,11 @@ def install_fe04_gpos(
         axis = _axis_of(V)
         if axis == "x":
             dy_v = dy_lv_x
+        elif axis == "y" and not fe04_medial_is_y_flipped(V):
+            # Y upright + FE04: medial to the floor under high L.
+            dy_v = fe04_y_floor_y_placement(
+                V, glyphs=glyphs, target_upem=target_upem
+            )
         else:
             dy_v = dy_lv_i + fe04_medial_extra_dy(axis, V, target_upem)
         v_y_values[V] = buildValue({"YPlacement": dy_v})
@@ -2160,7 +2178,9 @@ def install_fe04_gpos(
         return idx
 
     idx_l_x = _add_single_pos(l_values_x) if v_x else None
-    idx_l_up = _add_single_pos(l_values_up) if v_up else None
+    idx_l_up = (
+        _add_single_pos(l_values_up) if (v_up_y or v_up_xy) else None
+    )
     idx_l_flip_y = _add_single_pos(l_values_flip_y) if v_flip_y else None
     idx_l_flip_xy = _add_single_pos(l_values_flip_xy) if v_flip_xy else None
     idx_v = _add_single_pos(v_y_values)
@@ -2209,8 +2229,10 @@ def install_fe04_gpos(
     chain_indices: List[int] = []
     if v_x and idx_l_x is not None:
         chain_indices.append(_add_chain(v_x, idx_l_x, with_vx=False))
-    if v_up and idx_l_up is not None:
-        chain_indices.append(_add_chain(v_up, idx_l_up, with_vx=True))
+    if v_up_y and idx_l_up is not None:
+        chain_indices.append(_add_chain(v_up_y, idx_l_up, with_vx=True))
+    if v_up_xy and idx_l_up is not None:
+        chain_indices.append(_add_chain(v_up_xy, idx_l_up, with_vx=True))
     if v_flip_y and idx_l_flip_y is not None:
         chain_indices.append(_add_chain(v_flip_y, idx_l_flip_y, with_vx=True))
     if v_flip_xy and idx_l_flip_xy is not None:
