@@ -34,9 +34,9 @@ VS4     U+E003     U+FE03     mxy — both axes
     down-right), by amounts from that choseong's bounds. No rescale.
     Choseong orientation is only from a VS on the choseong itself.
   * **Jongseong (final) + VS** — bbox-flips the final independently.
-  * **Final present** — Malgun ``ljmo`` / ``vjmo`` / ``tjmo`` already select
-    contextual positional outlines (giyeok/kieuk variants, etc.) and place
-    them in the cell. No extra panhangul squish/scale overlay.
+  * **Final present** — Malgun ``ljmo`` / ``vjmo`` / ``tjmo`` select
+    contextual positional outlines (full-height medials; mid-band ``.sq``
+    disabled).
   * **Final + FE04** — after Hangul composition, GPOS ChainContext moves the
     L+V unit down and the final up (``yPlacement``; XY medials may also get
     ``xPlacement``). Same shared ``yPlacement`` on L and V so X-group vowels
@@ -134,6 +134,9 @@ VS_LAST = HANGUL_MIRROR_MODES[-1][0]
 UVS_BASE = 0xFE00
 UVS_LAST = UVS_BASE + len(HANGUL_MIRROR_MODES) - 1
 MIRROR_SUFFIXES: Tuple[str, ...] = ("mx", "my", "mxy")
+# Closed-syllable Y/XY mid-band ``.sq`` (disabled — see
+# ``add_medial_batchim_squish_variants``).
+SQ_SUFFIX = "sq"
 # After a jongseong: GPOS invert LV↑/T↓ via yPlacement.
 # ``T + vs05`` ligates to ``T.sw`` first so FE04 GPOS does not share an
 # ``L V T`` prefix with the Y-flip batchim raise.
@@ -387,8 +390,13 @@ def em_variant_name(base_name: str, suffix: str) -> str:
     return f"{base_name}.em{suffix}"
 
 
+def sq_variant_name(base_name: str) -> str:
+    """Y/XY medial Y-compressed form when a jongseong follows (``.sq``)."""
+    return f"{base_name}.{SQ_SUFFIX}"
+
+
 def hangul_orientation_forms(base: str, glyphs: Dict[str, TTGlyph]) -> List[str]:
-    """Identity + mirrors + ``.em*``."""
+    """Identity + mirrors + ``.em*`` + ``.sq``."""
     out: List[str] = []
     stack = [base]
     seen: Set[str] = set()
@@ -401,6 +409,8 @@ def hangul_orientation_forms(base: str, glyphs: Dict[str, TTGlyph]) -> List[str]
         for sfx in MIRROR_SUFFIXES:
             stack.append(variant_glyph_name(name, sfx))
             stack.append(em_variant_name(name, sfx))
+        if not name.endswith(f".{SQ_SUFFIX}"):
+            stack.append(sq_variant_name(name))
     return out
 
 
@@ -791,12 +801,51 @@ def fe04_x_lv_extra_dy(target_upem: int) -> int:
 def fe04_unflipped_l_extra_dy(target_upem: int) -> int:
     """Extra L drop under FE04 when Y/XY medial is upright (clear top batchim)."""
     _bottom, _top, ideo_h = ideographic_bounds(target_upem)
-    return otRound(-(ideo_h * 0.08))
+    # Deeper than the old 0.08 — tall upright L (~792) otherwise sits on T.sw.
+    return otRound(-(ideo_h * 0.22))
 
 
 def fe04_medial_is_y_flipped(name: str) -> bool:
     """True when medial carries a Y-mirror suffix (``.my`` / ``.mxy``)."""
-    return name.endswith(".my") or name.endswith(".mxy")
+    n = name
+    if n.endswith(f".{SQ_SUFFIX}"):
+        n = n[: -len(SQ_SUFFIX) - 1]
+    return n.endswith(".my") or n.endswith(".mxy")
+
+
+def fe04_l_is_emmy(name: str) -> bool:
+    return name.endswith(".emmy") or name.endswith(".emmxy")
+
+
+def yflip_batchim_l_target_top(target_upem: int) -> float:
+    """Where ``L.em*`` tops after the upright-batchim Y-flip raise (image-2 pin)."""
+    bottom, _top, ideo_h = ideographic_bounds(target_upem)
+    # emmy bake tops near icy-clearance (~230) + dy_l (0.36·ideo_h).
+    return bottom + ideo_h * 0.71
+
+
+def fe04_emmy_l_target_top(target_upem: int) -> float:
+    """FE04 pin for ``L.em*`` only — under ``T.sw``, related to the image-2 raise pin."""
+    bottom, _top, ideo_h = ideographic_bounds(target_upem)
+    t_clear = bottom + ideo_h * 0.48  # ~360
+    return min(yflip_batchim_l_target_top(target_upem), t_clear)
+
+
+def fe04_emmy_l_y_placement(
+    name: str,
+    *,
+    glyphs: Dict[str, TTGlyph],
+    target_upem: int,
+) -> int:
+    """Y nudge so ``L.em*`` tops ``fe04_emmy_l_target_top`` under FE04.
+
+    ``L.emmy`` is already baked into the lower half for Y-flipped medials;
+    applying the shared ``dy_lv`` dump would push it through the floor.
+    """
+    bounds = _glyph_bounds(glyphs, name)
+    if bounds is None:
+        return 0
+    return otRound(fe04_emmy_l_target_top(target_upem) - bounds[3])
 
 
 def fe04_medial_extra_dy(
@@ -901,6 +950,211 @@ def add_em_variant(
         glyphs[vname] = vg
         metrics[vname] = (vadv, vlsb)
     return vname
+
+
+def batchim_medial_y_band(target_upem: int) -> Tuple[float, float]:
+    """Y band for closed-syllable Y/XY medials (above tjmo, below ljmo)."""
+    bottom, _top, ideo_h = ideographic_bounds(target_upem)
+    lo = bottom + ideo_h * 0.38
+    hi = bottom + ideo_h * 0.52
+    return lo, hi
+
+
+def make_medial_batchim_squish(
+    base_name: str,
+    glyphs: Dict[str, TTGlyph],
+    *,
+    advance: int,
+    lsb: int,
+    target_upem: int,
+) -> Tuple[TTGlyph, int, int]:
+    """Y-scale (or translate) a medial into the closed-syllable mid band.
+
+    Horizontal metrics unchanged. Used as ``.sq`` when a jongseong follows.
+    """
+    bounds = _glyph_bounds(glyphs, base_name)
+    if bounds is None:
+        return empty_glyph(), advance, lsb
+    x0, y0, x1, y1 = bounds
+    band_lo, band_hi = batchim_medial_y_band(target_upem)
+    band_h = max(band_hi - band_lo, 1.0)
+    gh = max(y1 - y0, 1.0)
+    mid_b = (band_lo + band_hi) * 0.5
+    cur_mid = (y0 + y1) * 0.5
+    if gh <= band_h + 0.5:
+        t = Transform(1, 0, 0, 1, 0, mid_b - cur_mid)
+    else:
+        scale = band_h / gh
+        t = (
+            Transform(1, 0, 0, 1, 0, mid_b)
+            .transform(Transform(1, 0, 0, scale, 0, 0))
+            .transform(Transform(1, 0, 0, 1, 0, -cur_mid))
+        )
+    out = _replay_glyph(base_name, glyphs, t)
+    if out is None:
+        return empty_glyph(), advance, lsb
+    try:
+        new_lsb = int(out.xMin)
+    except Exception:
+        new_lsb = lsb
+    return out, advance, new_lsb
+
+
+def add_medial_batchim_squish_variants(
+    *,
+    v_forms: Sequence[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    glyph_order: List[str],
+    vowel_axes: Dict[str, VowelAxis],
+    target_upem: int,
+) -> int:
+    """Bake ``.sq`` for Y/XY medials when a jongseong follows.
+
+    Disabled: mid-band Y-compress made closed-syllable medials (e.g. ㅝ)
+    look crushed; Malgun ``vjmo`` already packs them with the batchim.
+    """
+    return 0
+
+    def _strip_mirror(name: str) -> str:  # pragma: no cover
+        for sfx in MIRROR_SUFFIXES:
+            if name.endswith(f".{sfx}"):
+                return name[: -len(sfx) - 1]
+        return name
+
+    n = 0
+    for base in v_forms:
+        axis = vowel_axes.get(base) or vowel_axes.get(_strip_mirror(base), "xy")
+        if axis not in ("y", "xy"):
+            continue
+        seeds = [base]
+        mx = variant_glyph_name(base, "mx")
+        if mx in glyphs:
+            seeds.append(mx)
+        for seed in seeds:
+            sq = sq_variant_name(seed)
+            if sq in glyphs:
+                continue
+            adv, lsb = metrics[seed]
+            vg, vadv, vlsb = make_medial_batchim_squish(
+                seed,
+                glyphs,
+                advance=adv,
+                lsb=lsb,
+                target_upem=target_upem,
+            )
+            glyph_order.append(sq)
+            glyphs[sq] = vg
+            metrics[sq] = (vadv, vlsb)
+            n += 1
+    return n
+
+
+def install_medial_batchim_squish_gsub(
+    font,
+    *,
+    v_forms: Sequence[str],
+    t_forms: Sequence[str],
+    glyphs: Dict[str, TTGlyph],
+    vowel_axes: Dict[str, VowelAxis],
+) -> int:
+    """``V → V.sq`` when a jongseong follows (Y/XY upright / mx)."""
+    glyph_map = {n: i for i, n in enumerate(font.getGlyphOrder())}
+
+    def _strip_mirror(name: str) -> str:
+        for sfx in MIRROR_SUFFIXES:
+            if name.endswith(f".{sfx}"):
+                return name[: -len(sfx) - 1]
+        return name
+
+    mapping: Dict[str, str] = {}
+    for base in v_forms:
+        axis = vowel_axes.get(base) or vowel_axes.get(_strip_mirror(base), "xy")
+        if axis not in ("y", "xy"):
+            continue
+        seeds = [base]
+        mx = variant_glyph_name(base, "mx")
+        if mx in glyphs:
+            seeds.append(mx)
+        for seed in seeds:
+            sq = sq_variant_name(seed)
+            if sq in glyphs:
+                mapping[seed] = sq
+    if not mapping:
+        return 0
+
+    t_ctx: List[str] = []
+    for T in t_forms:
+        t_ctx.extend(hangul_orientation_forms(T, glyphs))
+    t_ctx = sorted(
+        set(
+            t
+            for t in t_ctx
+            if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")
+        ),
+        key=lambda n: glyph_map.get(n, 0),
+    )
+    if not t_ctx:
+        return 0
+
+    gsub = _ensure_gsub(font)
+    st = _build_reverse_chain(mapping, [t_ctx], glyph_map)
+    lu = buildLookup([st])
+    lu.LookupType = 8
+    lu.LookupFlag = 0
+    idx = len(gsub.LookupList.Lookup)
+    gsub.LookupList.Lookup.append(lu)
+    gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
+    _attach_features(gsub, [idx], ("ccmp", "rlig", "liga", "rclt"))
+    return len(mapping)
+
+
+def install_medial_fe04_unsquish_gsub(
+    font,
+    *,
+    v_forms: Sequence[str],
+    glyphs: Dict[str, TTGlyph],
+    vowel_axes: Dict[str, VowelAxis],
+) -> int:
+    """``V.sq → V`` when FE04 ``T.sw`` follows (no mid-band squish under top-swap)."""
+    glyph_map = {n: i for i, n in enumerate(font.getGlyphOrder())}
+
+    def _strip_mirror(name: str) -> str:
+        for sfx in MIRROR_SUFFIXES:
+            if name.endswith(f".{sfx}"):
+                return name[: -len(sfx) - 1]
+        return name
+
+    unsquish: Dict[str, str] = {}
+    for base in v_forms:
+        axis = vowel_axes.get(base) or vowel_axes.get(_strip_mirror(base), "xy")
+        if axis not in ("y", "xy"):
+            continue
+        seeds = [base]
+        mx = variant_glyph_name(base, "mx")
+        if mx in glyphs:
+            seeds.append(mx)
+        for seed in seeds:
+            sq = sq_variant_name(seed)
+            if sq in glyphs:
+                unsquish[sq] = seed
+    t_sw = sorted(
+        (n for n in glyphs if n.endswith(f".{FE04_T_SUFFIX}")),
+        key=lambda n: glyph_map.get(n, 0),
+    )
+    if not unsquish or not t_sw:
+        return 0
+
+    gsub = _ensure_gsub(font)
+    st = _build_reverse_chain(unsquish, [t_sw], glyph_map)
+    lu = buildLookup([st])
+    lu.LookupType = 8
+    lu.LookupFlag = 0
+    idx = len(gsub.LookupList.Lookup)
+    gsub.LookupList.Lookup.append(lu)
+    gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
+    _attach_features(gsub, [idx], ("ccmp", "rlig", "liga", "rclt"))
+    return len(unsquish)
 
 
 def make_bbox_mirror(
@@ -1727,7 +1981,10 @@ def install_fe04_gpos(
         return name
 
     def _axis_of(name: str) -> VowelAxis:
-        a = vowel_axes.get(name) or vowel_axes.get(_strip_mirror(name), "xy")
+        stem = name
+        if stem.endswith(f".{SQ_SUFFIX}"):
+            stem = stem[: -len(SQ_SUFFIX) - 1]
+        a = vowel_axes.get(stem) or vowel_axes.get(_strip_mirror(stem), "xy")
         return a if a in ("x", "y", "xy") else "xy"
 
     l_all = _with_bbox(l_forms)
@@ -1738,6 +1995,11 @@ def install_fe04_gpos(
                 l_all.append(en)
     l_all = sorted(set(l_all), key=lambda n: glyph_map.get(n, 0))
     v_all = _with_bbox(v_forms)
+    for V in list(v_all):
+        sq = sq_variant_name(V)
+        if sq in glyphs:
+            v_all.append(sq)
+    v_all = sorted(set(v_all), key=lambda n: glyph_map.get(n, 0))
     t_base = _with_bbox(t_forms)
     if not l_all or not v_all or not t_base:
         return 0.0, 0.0, 0
@@ -1791,13 +2053,30 @@ def install_fe04_gpos(
     dy_lv_up = dy_lv_i + fe04_unflipped_l_extra_dy(target_upem)
 
     v_x = [V for V in v_all if _axis_of(V) == "x"]
-    v_up = [V for V in v_all if _axis_of(V) != "x" and not fe04_medial_is_y_flipped(V)]
-    v_flip = [V for V in v_all if _axis_of(V) != "x" and fe04_medial_is_y_flipped(V)]
+    v_up = [
+        V for V in v_all if _axis_of(V) != "x" and not fe04_medial_is_y_flipped(V)
+    ]
+    v_flip = [
+        V for V in v_all if _axis_of(V) != "x" and fe04_medial_is_y_flipped(V)
+    ]
 
-    # Per-context L SinglePos: X shared drop; upright Y/XY extra L drop; flip base.
-    l_values_x = {L: buildValue({"YPlacement": dy_lv_x}) for L in l_all}
-    l_values_up = {L: buildValue({"YPlacement": dy_lv_up}) for L in l_all}
-    l_values_flip = {L: buildValue({"YPlacement": dy_lv_i}) for L in l_all}
+    def _l_values(default_dy: int) -> Dict[str, object]:
+        out: Dict[str, object] = {}
+        for L in l_all:
+            if fe04_l_is_emmy(L):
+                dy = fe04_emmy_l_y_placement(
+                    L, glyphs=glyphs, target_upem=target_upem
+                )
+            else:
+                dy = default_dy
+            out[L] = buildValue({"YPlacement": dy})
+        return out
+
+    # Per-context L SinglePos: X shared drop; upright Y/XY extra L drop;
+    # flip uses base dy_lv — except ``L.em*`` which pins to a fixed band.
+    l_values_x = _l_values(dy_lv_x)
+    l_values_up = _l_values(dy_lv_up)
+    l_values_flip = _l_values(dy_lv_i)
     v_y_values: Dict[str, object] = {}
     v_x_values: Dict[str, object] = {}
     for V in v_all:
@@ -1913,10 +2192,10 @@ def install_yflip_batchim_gpos(
 ) -> Tuple[float, int]:
     """Raise dropped choseong above jongseong when the medial is Y-flipped.
 
-    Fires on ``L.emmy/emmxy + V.my/mxy + T`` for every batchim orientation
-    (same L lift whether ``T`` is upright or Y-flipped). Skip ``T.sw`` —
-    FE04 owns that path. Pure Y-group also raises ``V.my`` a smaller amount;
-    XY ``V.my`` is left alone.
+    Fires on ``L.emmy/emmxy + V.my/mxy(+.sq) + T`` for every batchim
+    orientation (same L lift whether ``T`` is upright or Y-flipped). Skip
+    ``T.sw`` — FE04 owns that path. Pure Y-group also raises ``V.my`` a
+    smaller amount; XY ``V.my`` is left alone.
     """
     from shared_diacritics import _ensure_gpos
 
@@ -1932,6 +2211,16 @@ def install_yflip_batchim_gpos(
     def _axis_of(name: str) -> VowelAxis:
         a = vowel_axes.get(name) or vowel_axes.get(_strip_mirror(name), "xy")
         return a if a in ("x", "y", "xy") else "xy"
+
+    def _y_flip_stem(name: str) -> str:
+        n = name
+        if n.endswith(f".{SQ_SUFFIX}"):
+            n = n[: -len(SQ_SUFFIX) - 1]
+        return n
+
+    def _is_y_flip_medial(name: str) -> bool:
+        stem = _y_flip_stem(name)
+        return stem.endswith(".my") or stem.endswith(".mxy")
 
     l_emmy: List[str] = []
     for L in l_forms:
@@ -1952,15 +2241,20 @@ def install_yflip_batchim_gpos(
             if vn not in glyphs:
                 continue
             v_ctx.append(vn)
+            sq = sq_variant_name(vn)
+            if sq in glyphs:
+                v_ctx.append(sq)
             if axis == "y":
                 v_y.append(vn)
+                if sq in glyphs:
+                    v_y.append(sq)
         for seed in hangul_orientation_forms(V, glyphs):
-            if not (seed.endswith(".my") or seed.endswith(".mxy")):
+            if not _is_y_flip_medial(seed):
                 continue
-            if _axis_of(seed) not in ("y", "xy"):
+            if _axis_of(_y_flip_stem(seed)) not in ("y", "xy"):
                 continue
             v_ctx.append(seed)
-            if _axis_of(seed) == "y":
+            if _axis_of(_y_flip_stem(seed)) == "y":
                 v_y.append(seed)
     v_y = sorted(set(v_y), key=lambda n: glyph_map.get(n, 0))
     v_ctx = sorted(set(v_ctx), key=lambda n: glyph_map.get(n, 0))
@@ -1985,6 +2279,7 @@ def install_yflip_batchim_gpos(
     _bottom, _top, ideo_h = ideographic_bounds(target_upem)
     # L needs a stronger lift than V: emmy bake sits near the floor after the
     # open-syllable clearance nudge, while Y ``V.my`` is already upper-banded.
+    # Lands near ``yflip_batchim_l_target_top`` (~590).
     dy_l = otRound(ideo_h * 0.36)
     dy_v = otRound(ideo_h * 0.20)
 
@@ -2262,6 +2557,15 @@ def build_jamo_font(
             about_ideo=True,
             prefer_upper_on_y_flip=(axis == "y"),
         )
+    vowel_axes = classify_vowel_axes(cmap, v_forms, glyphs, tt)
+    n_sq = add_medial_batchim_squish_variants(
+        v_forms=v_forms,
+        glyphs=glyphs,
+        metrics=metrics,
+        glyph_order=glyph_order,
+        vowel_axes=vowel_axes,
+        target_upem=target_upem,
+    )
     # Choseong layout shifts driven by medial VS (L.em* only).
     l_em_modes = [("mx", True, False), ("my", False, True), ("mxy", True, True)]
     for base in l_forms:
@@ -2286,13 +2590,12 @@ def build_jamo_font(
                     metrics=metrics,
                     overlay=False,
                 )
-    vowel_axes = classify_vowel_axes(cmap, v_forms, glyphs, tt)
     n_x = sum(1 for a in vowel_axes.values() if a == "x")
     n_y = sum(1 for a in vowel_axes.values() if a == "y")
     n_xy = sum(1 for a in vowel_axes.values() if a == "xy")
     print(
         f"  Vowel axis groups: x={n_x} y={n_y} xy={n_xy} "
-        f"(FE04 via GPOS yPlacement)",
+        f"(FE04 via GPOS yPlacement; batchim .sq={n_sq})",
         flush=True,
     )
 
@@ -2371,8 +2674,16 @@ def build_jamo_font(
         glyphs=glyphs,
         vowel_axes=vowel_axes,
     )
+    n_sq_rules = install_medial_batchim_squish_gsub(
+        fb.font,
+        v_forms=v_forms,
+        t_forms=t_forms,
+        glyphs=glyphs,
+        vowel_axes=vowel_axes,
+    )
     print(
-        f"  Component VS: {n_liga} ligas; {n_swap} layout lookups",
+        f"  Component VS: {n_liga} ligas; {n_swap} layout lookups; "
+        f"batchim medial .sq={n_sq_rules}",
         flush=True,
     )
     if dakuten is not None:
@@ -2396,9 +2707,16 @@ def build_jamo_font(
         vowel_axes=vowel_axes,
         target_upem=target_upem,
     )
+    n_unsquish = install_medial_fe04_unsquish_gsub(
+        fb.font,
+        v_forms=v_forms,
+        glyphs=glyphs,
+        vowel_axes=vowel_axes,
+    )
     print(
         f"  FE04 GPOS: {n_fe04} chain; dy_lv={dy_lv:.0f} "
-        f"dy_lv_x={dy_lv + fe04_x_lv_extra_dy(target_upem):.0f} dy_t={dy_t:.0f}",
+        f"dy_lv_x={dy_lv + fe04_x_lv_extra_dy(target_upem):.0f} dy_t={dy_t:.0f}; "
+        f"unsquish={n_unsquish}",
         flush=True,
     )
     dy_yf, n_yf = install_yflip_batchim_gpos(
@@ -2656,7 +2974,7 @@ def build_all(
     )
     print(
         f"  Jamo ({FAMILY_JAMO}): L VS=orientation; V VS=ideo-flip + per-jamo L shift; "
-        f"T present=Malgun ljmo/vjmo/tjmo positionals; FE04 after T=GPOS yPlacement; "
+        f"T present=Malgun ljmo/vjmo/tjmo; FE04 after T=GPOS yPlacement; "
         f"padded ideo box"
     )
     print(f"  Syllables ({FAMILY_SYLL}): whole-glyph VS / UVS")
