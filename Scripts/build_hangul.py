@@ -799,10 +799,9 @@ def fe04_x_lv_extra_dy(target_upem: int) -> int:
 
 
 def fe04_unflipped_l_extra_dy(target_upem: int) -> int:
-    """Extra L drop under FE04 when Y/XY medial is upright (clear top batchim)."""
+    """Unused legacy helper — upright Y/XY L uses ``fe04_unflipped_l_y_placement``."""
     _bottom, _top, ideo_h = ideographic_bounds(target_upem)
-    # Deeper than the old 0.08 — tall upright L (~792) otherwise sits on T.sw.
-    return otRound(-(ideo_h * 0.22))
+    return otRound(-(ideo_h * 0.08))
 
 
 def fe04_medial_is_y_flipped(name: str) -> bool:
@@ -824,11 +823,20 @@ def yflip_batchim_l_target_top(target_upem: int) -> float:
     return bottom + ideo_h * 0.71
 
 
-def fe04_emmy_l_target_top(target_upem: int) -> float:
-    """FE04 pin for ``L.em*`` only — under ``T.sw``, related to the image-2 raise pin."""
+def fe04_unflipped_l_y_placement(
+    name: str,
+    *,
+    glyphs: Dict[str, TTGlyph],
+    target_upem: int,
+) -> int:
+    """FE04 + upright Y/XY: park L top just under raised ``T.sw`` (~485)."""
+    bounds = _glyph_bounds(glyphs, name)
+    if bounds is None:
+        return 0
     bottom, _top, ideo_h = ideographic_bounds(target_upem)
-    t_clear = bottom + ideo_h * 0.48  # ~360
-    return min(yflip_batchim_l_target_top(target_upem), t_clear)
+    # Small gap under typical T.sw bottom (bake≈−95 + dy_t≈580 → ~485).
+    target_top = bottom + ideo_h * 0.58  # ~460
+    return otRound(target_top - bounds[3])
 
 
 def fe04_emmy_l_y_placement(
@@ -836,16 +844,23 @@ def fe04_emmy_l_y_placement(
     *,
     glyphs: Dict[str, TTGlyph],
     target_upem: int,
+    vowel_axis: VowelAxis = "y",
 ) -> int:
-    """Y nudge so ``L.em*`` tops ``fe04_emmy_l_target_top`` under FE04.
+    """FE04 + Y-flipped V: park ``L.em*`` just above the medial's lower tip.
 
-    ``L.emmy`` is already baked into the lower half for Y-flipped medials;
-    applying the shared ``dy_lv`` dump would push it through the floor.
+    Pure Y medials keep an upper-band tip (~240 after FE04). XY flipped stems
+    reach the floor — use ``vowel_axis`` from the chain context (not the
+    ``.emmy``/``.emmxy`` suffix), since XY+FE02 still yields ``L.emmy``.
     """
     bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
         return 0
-    return otRound(fe04_emmy_l_target_top(target_upem) - bounds[3])
+    bottom, _top, ideo_h = ideographic_bounds(target_upem)
+    if vowel_axis == "xy":
+        target_bottom = bottom + ideo_h * 0.04  # ~−80
+    else:
+        target_bottom = bottom + ideo_h * 0.36  # ~240
+    return otRound(target_bottom - bounds[1])
 
 
 def fe04_medial_extra_dy(
@@ -1087,7 +1102,11 @@ def install_medial_batchim_squish_gsub(
     for T in t_forms:
         t_ctx.extend(hangul_orientation_forms(T, glyphs))
     t_ctx = sorted(
-        set(t for t in t_ctx if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")),
+        set(
+            t
+            for t in t_ctx
+            if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")
+        ),
         key=lambda n: glyph_map.get(n, 0),
     )
     if not t_ctx:
@@ -2046,27 +2065,57 @@ def install_fe04_gpos(
     dy_lv_i = otRound(dy_lv)
     dy_t_i = otRound(dy_t)
     dy_lv_x = dy_lv_i + fe04_x_lv_extra_dy(target_upem)
-    dy_lv_up = dy_lv_i + fe04_unflipped_l_extra_dy(target_upem)
 
     v_x = [V for V in v_all if _axis_of(V) == "x"]
-    v_up = [V for V in v_all if _axis_of(V) != "x" and not fe04_medial_is_y_flipped(V)]
-    v_flip = [V for V in v_all if _axis_of(V) != "x" and fe04_medial_is_y_flipped(V)]
+    v_up = [
+        V for V in v_all if _axis_of(V) != "x" and not fe04_medial_is_y_flipped(V)
+    ]
+    v_flip_y = [
+        V for V in v_all if _axis_of(V) == "y" and fe04_medial_is_y_flipped(V)
+    ]
+    v_flip_xy = [
+        V for V in v_all if _axis_of(V) == "xy" and fe04_medial_is_y_flipped(V)
+    ]
 
-    def _l_values(default_dy: int) -> Dict[str, object]:
+    def _l_values_x() -> Dict[str, object]:
         out: Dict[str, object] = {}
         for L in l_all:
             if fe04_l_is_emmy(L):
-                dy = fe04_emmy_l_y_placement(L, glyphs=glyphs, target_upem=target_upem)
+                dy = fe04_emmy_l_y_placement(
+                    L, glyphs=glyphs, target_upem=target_upem, vowel_axis="xy"
+                )
             else:
-                dy = default_dy
+                dy = dy_lv_x
             out[L] = buildValue({"YPlacement": dy})
         return out
 
-    # Per-context L SinglePos: X shared drop; upright Y/XY extra L drop;
-    # flip uses base dy_lv — except ``L.em*`` which pins to a fixed band.
-    l_values_x = _l_values(dy_lv_x)
-    l_values_up = _l_values(dy_lv_up)
-    l_values_flip = _l_values(dy_lv_i)
+    def _l_values_up() -> Dict[str, object]:
+        # Y/XY upright: L stays just under raised batchim.
+        out: Dict[str, object] = {}
+        for L in l_all:
+            dy = fe04_unflipped_l_y_placement(
+                L, glyphs=glyphs, target_upem=target_upem
+            )
+            out[L] = buildValue({"YPlacement": dy})
+        return out
+
+    def _l_values_flip(axis: VowelAxis) -> Dict[str, object]:
+        # Flipped V: L.em* just above medial tip (axis-specific).
+        out: Dict[str, object] = {}
+        for L in l_all:
+            if fe04_l_is_emmy(L):
+                dy = fe04_emmy_l_y_placement(
+                    L, glyphs=glyphs, target_upem=target_upem, vowel_axis=axis
+                )
+            else:
+                dy = dy_lv_i
+            out[L] = buildValue({"YPlacement": dy})
+        return out
+
+    l_values_x = _l_values_x()
+    l_values_up = _l_values_up()
+    l_values_flip_y = _l_values_flip("y")
+    l_values_flip_xy = _l_values_flip("xy")
     v_y_values: Dict[str, object] = {}
     v_x_values: Dict[str, object] = {}
     for V in v_all:
@@ -2112,7 +2161,8 @@ def install_fe04_gpos(
 
     idx_l_x = _add_single_pos(l_values_x) if v_x else None
     idx_l_up = _add_single_pos(l_values_up) if v_up else None
-    idx_l_flip = _add_single_pos(l_values_flip) if v_flip else None
+    idx_l_flip_y = _add_single_pos(l_values_flip_y) if v_flip_y else None
+    idx_l_flip_xy = _add_single_pos(l_values_flip_xy) if v_flip_xy else None
     idx_v = _add_single_pos(v_y_values)
     idx_vx = _add_single_pos(v_x_values) if v_x_values else None
     idx_t = _add_single_pos(t_values)
@@ -2161,8 +2211,10 @@ def install_fe04_gpos(
         chain_indices.append(_add_chain(v_x, idx_l_x, with_vx=False))
     if v_up and idx_l_up is not None:
         chain_indices.append(_add_chain(v_up, idx_l_up, with_vx=True))
-    if v_flip and idx_l_flip is not None:
-        chain_indices.append(_add_chain(v_flip, idx_l_flip, with_vx=True))
+    if v_flip_y and idx_l_flip_y is not None:
+        chain_indices.append(_add_chain(v_flip_y, idx_l_flip_y, with_vx=True))
+    if v_flip_xy and idx_l_flip_xy is not None:
+        chain_indices.append(_add_chain(v_flip_xy, idx_l_flip_xy, with_vx=True))
 
     _attach_gpos_features(
         gpos, chain_indices, ("rclt", "rlig", "liga"), scripts=script_tags
@@ -2255,7 +2307,11 @@ def install_yflip_batchim_gpos(
     # Any batchim orientation — L lift must not depend on T flip. Skip
     # ``T.sw`` (FE04 owns that path).
     t_ctx = sorted(
-        set(t for t in t_all if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")),
+        set(
+            t
+            for t in t_all
+            if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")
+        ),
         key=lambda n: glyph_map.get(n, 0),
     )
 
