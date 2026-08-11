@@ -1087,11 +1087,7 @@ def install_medial_batchim_squish_gsub(
     for T in t_forms:
         t_ctx.extend(hangul_orientation_forms(T, glyphs))
     t_ctx = sorted(
-        set(
-            t
-            for t in t_ctx
-            if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")
-        ),
+        set(t for t in t_ctx if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")),
         key=lambda n: glyph_map.get(n, 0),
     )
     if not t_ctx:
@@ -2053,20 +2049,14 @@ def install_fe04_gpos(
     dy_lv_up = dy_lv_i + fe04_unflipped_l_extra_dy(target_upem)
 
     v_x = [V for V in v_all if _axis_of(V) == "x"]
-    v_up = [
-        V for V in v_all if _axis_of(V) != "x" and not fe04_medial_is_y_flipped(V)
-    ]
-    v_flip = [
-        V for V in v_all if _axis_of(V) != "x" and fe04_medial_is_y_flipped(V)
-    ]
+    v_up = [V for V in v_all if _axis_of(V) != "x" and not fe04_medial_is_y_flipped(V)]
+    v_flip = [V for V in v_all if _axis_of(V) != "x" and fe04_medial_is_y_flipped(V)]
 
     def _l_values(default_dy: int) -> Dict[str, object]:
         out: Dict[str, object] = {}
         for L in l_all:
             if fe04_l_is_emmy(L):
-                dy = fe04_emmy_l_y_placement(
-                    L, glyphs=glyphs, target_upem=target_upem
-                )
+                dy = fe04_emmy_l_y_placement(L, glyphs=glyphs, target_upem=target_upem)
             else:
                 dy = default_dy
             out[L] = buildValue({"YPlacement": dy})
@@ -2265,11 +2255,7 @@ def install_yflip_batchim_gpos(
     # Any batchim orientation — L lift must not depend on T flip. Skip
     # ``T.sw`` (FE04 owns that path).
     t_ctx = sorted(
-        set(
-            t
-            for t in t_all
-            if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")
-        ),
+        set(t for t in t_all if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")),
         key=lambda n: glyph_map.get(n, 0),
     )
 
