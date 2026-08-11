@@ -2952,14 +2952,21 @@ def write_css(
     syll_cps: Sequence[int],
 ) -> None:
     css_path = os.path.join(out_dir, "panhangul.css")
+    # PUA VS + Unicode FE00..FE03 mirrors; FE04 top-swap (jamo GPOS).
+    vs_extra = (
+        set(range(VS_BASE, VS_LAST + 1))
+        | set(range(UVS_BASE, UVS_LAST + 1))
+        | {SWAP_CP}
+    )
     lines = [
         "/* Auto-generated Hangul fonts from Malgun Gothic */",
         "/* panhangul = conjoining jamo; panhanguls = syllables + compat */",
         "/* Local src first; GitHub raw as fallback. */",
+        "/* VS: U+E000..E003 / U+FE00..FE03 mirrors; U+FE04 = batchim top-swap. */",
         "",
     ]
     for family, cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
-        urange = unicode_range_css(cps)
+        urange = unicode_range_css(sorted(set(cps) | vs_extra))
         lines += [
             "@font-face {",
             f"  font-family: '{family}';",
