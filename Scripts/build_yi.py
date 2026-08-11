@@ -190,6 +190,7 @@ def build_panyi_font(
     *,
     write_ttf: bool = True,
     write_woff2: bool = True,
+    hint: bool = True,
 ) -> Tuple[str, int, List[int]]:
     """Build the single ``panyi`` font (standalones + D4 + FE08–FE09 slices)."""
     if not write_ttf and not write_woff2:
@@ -396,6 +397,9 @@ def build_panyi_font(
 
     os.makedirs(out_dir, exist_ok=True)
     fb.save(out_path)
+    from shared_hinting import autohint_ttf
+
+    autohint_ttf(out_path, enabled=hint)
     if write_woff2:
         print("  Compressing WOFF2...", flush=True)
         woff2.compress(out_path, out_path.replace(".ttf", ".woff2"))
@@ -476,6 +480,7 @@ def build_all(
     limit: Optional[int] = None,
     write_ttf: bool = True,
     write_woff2: bool = True,
+    hint: bool = True,
 ) -> None:
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
@@ -523,6 +528,7 @@ def build_all(
         target_upem,
         write_ttf=write_ttf,
         write_woff2=write_woff2,
+        hint=hint,
     )
     if count:
         write_css(out_dir, cps)
@@ -555,6 +561,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
+    p.add_argument(
+        "--no-hint",
+        action="store_true",
+        help="Skip ttfautohint-py TrueType autohint step",
+    )
     return p.parse_args()
 
 
@@ -567,4 +578,5 @@ if __name__ == "__main__":
         limit=args.limit,
         write_ttf=not args.woff2_only,
         write_woff2=not args.ttf_only,
+        hint=not args.no_hint,
     )

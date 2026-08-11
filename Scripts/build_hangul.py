@@ -2477,10 +2477,14 @@ def _save_font(
     *,
     write_ttf: bool,
     write_woff2: bool,
+    hint: bool = True,
 ) -> str:
+    from shared_hinting import autohint_ttf
+
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, f"{family}.ttf")
     fb.save(out_path)
+    autohint_ttf(out_path, enabled=hint)
     if write_woff2:
         print(f"  Compressing {family}.woff2...", flush=True)
         woff2.compress(out_path, out_path.replace(".ttf", ".woff2"))
@@ -2503,6 +2507,7 @@ def build_jamo_font(
     y_scale: float = MALGUN_Y_SCALE,
     write_ttf: bool = True,
     write_woff2: bool = True,
+    hint: bool = True,
 ) -> Tuple[str, int, List[int]]:
     src_path = resolve_malgun_path(in_dir)
     print(f"\n=== {FAMILY_JAMO} (conjoining jamo) ===", flush=True)
@@ -2798,7 +2803,12 @@ def build_jamo_font(
     )
 
     out_path = _save_font(
-        fb, out_dir, FAMILY_JAMO, write_ttf=write_ttf, write_woff2=write_woff2
+        fb,
+        out_dir,
+        FAMILY_JAMO,
+        write_ttf=write_ttf,
+        write_woff2=write_woff2,
+        hint=hint,
     )
     tt.close()
     return out_path, len(glyphs) - 1, sorted(cmap.keys())
@@ -2815,6 +2825,7 @@ def build_syllables_font(
     y_scale: float = MALGUN_Y_SCALE,
     write_ttf: bool = True,
     write_woff2: bool = True,
+    hint: bool = True,
 ) -> Tuple[str, int, List[int]]:
     src_path = resolve_malgun_path(in_dir)
     print(f"\n=== {FAMILY_SYLL} (syllables + compat jamo) ===", flush=True)
@@ -2940,7 +2951,12 @@ def build_syllables_font(
         )
 
     out_path = _save_font(
-        fb, out_dir, FAMILY_SYLL, write_ttf=write_ttf, write_woff2=write_woff2
+        fb,
+        out_dir,
+        FAMILY_SYLL,
+        write_ttf=write_ttf,
+        write_woff2=write_woff2,
+        hint=hint,
     )
     tt.close()
     return out_path, len(glyphs) - 1, sorted(cmap.keys())
@@ -3037,6 +3053,7 @@ def build_all(
     y_scale: float = MALGUN_Y_SCALE,
     write_ttf: bool = True,
     write_woff2: bool = True,
+    hint: bool = True,
 ) -> None:
     print(f"Hangul source: {MALGUN_FILENAME}")
     print(
@@ -3079,6 +3096,7 @@ def build_all(
             y_scale=y_scale,
             write_ttf=write_ttf,
             write_woff2=write_woff2,
+            hint=hint,
         )
         fut_syll = ex.submit(
             build_syllables_font,
@@ -3091,6 +3109,7 @@ def build_all(
             y_scale=y_scale,
             write_ttf=write_ttf,
             write_woff2=write_woff2,
+            hint=hint,
         )
         jamo_path, jamo_count, jamo_cps = fut_jamo.result()
         syll_path, syll_count, syll_cps = fut_syll.result()
@@ -3150,6 +3169,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
+    p.add_argument(
+        "--no-hint",
+        action="store_true",
+        help="Skip ttfautohint-py TrueType autohint step",
+    )
     return p.parse_args()
 
 
@@ -3165,4 +3189,5 @@ if __name__ == "__main__":
         y_scale=args.y_scale,
         write_ttf=not args.woff2_only,
         write_woff2=not args.ttf_only,
+        hint=not args.no_hint,
     )

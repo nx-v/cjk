@@ -15,10 +15,9 @@ Usage
   python yi_html.py -o dist/yi/all-yi-vs.html
 """
 
-from Scripts.shared_half_cells import TransformMode
-
-
 from __future__ import annotations
+
+from shared_half_cells import TransformMode
 
 import argparse
 import json

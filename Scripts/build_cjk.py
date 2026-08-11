@@ -419,6 +419,7 @@ def build_bucket_font(
     *,
     write_ttf: bool = True,
     write_woff2: bool = True,
+    hint: bool = True,
 ) -> Tuple[str, int, List[int]]:
     """Build one pigeonhole font with in-font D4 variant ligatures.
 
@@ -600,6 +601,9 @@ def build_bucket_font(
         )
 
     fb.save(out_path)
+    from shared_hinting import autohint_ttf
+
+    autohint_ttf(out_path, enabled=hint)
 
     if write_woff2:
         compress_woff2(out_path)
@@ -616,6 +620,7 @@ _WORKER_OUT_DIR: Optional[str] = None
 _WORKER_UPEM: Optional[int] = None
 _WORKER_WRITE_TTF: bool = True
 _WORKER_WRITE_WOFF2: bool = True
+_WORKER_HINT: bool = True
 
 
 def compress_woff2(ttf_path: str, woff2_path: Optional[str] = None) -> str:
@@ -659,14 +664,16 @@ def _init_build_worker(
     target_upem: int,
     write_ttf: bool,
     write_woff2: bool,
+    hint: bool = True,
 ) -> None:
     """Load source fonts once per process worker."""
     global _WORKER_SOURCES, _WORKER_OUT_DIR, _WORKER_UPEM
-    global _WORKER_WRITE_TTF, _WORKER_WRITE_WOFF2
+    global _WORKER_WRITE_TTF, _WORKER_WRITE_WOFF2, _WORKER_HINT
     _WORKER_OUT_DIR = out_dir
     _WORKER_UPEM = target_upem
     _WORKER_WRITE_TTF = write_ttf
     _WORKER_WRITE_WOFF2 = write_woff2
+    _WORKER_HINT = hint
     _WORKER_SOURCES = {
         p: SourceFont(p, local_scale=s, weightor=w) for p, s, w in font_entries
     }
@@ -688,6 +695,7 @@ def _build_bucket_task(
         _WORKER_UPEM,
         write_ttf=_WORKER_WRITE_TTF,
         write_woff2=_WORKER_WRITE_WOFF2,
+        hint=_WORKER_HINT,
     )
     return bucket_id, path, count, codepoints
 
@@ -841,6 +849,7 @@ def build_all(
     *,
     write_ttf: bool = True,
     write_woff2: bool = True,
+    hint: bool = True,
 ) -> None:
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
@@ -922,7 +931,7 @@ def build_all(
     with concurrent.futures.ProcessPoolExecutor(
         max_workers=workers,
         initializer=_init_build_worker,
-        initargs=(used_entries, out_dir, target_upem, write_ttf, write_woff2),
+        initargs=(used_entries, out_dir, target_upem, write_ttf, write_woff2, hint),
     ) as executor:
         futures = [executor.submit(_build_bucket_task, task) for task in tasks]
         for fut in concurrent.futures.as_completed(futures):
@@ -992,6 +1001,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
+    p.add_argument(
+        "--no-hint",
+        action="store_true",
+        help="Skip ttfautohint-py TrueType autohint step",
+    )
     return p.parse_args()
 
 
@@ -1007,4 +1021,5 @@ if __name__ == "__main__":
             args.jobs,
             write_ttf=not args.woff2_only,
             write_woff2=not args.ttf_only,
+            hint=not args.no_hint,
         )

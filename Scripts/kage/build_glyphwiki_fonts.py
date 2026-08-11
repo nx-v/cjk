@@ -70,6 +70,7 @@ from shared_half_cells import (  # noqa: E402
     install_overlay_gsub,
     make_composite_variant,
 )
+from shared_hinting import autohint_ttf  # noqa: E402
 from cdn_fonts import dist_rel, format_src_line  # noqa: E402
 
 # One SPUA-marker font: 6400 PUA selectors + 6400*8 rendered D4 variants
@@ -359,6 +360,7 @@ def build_marker_font(
     write_ttf: bool = True,
     write_woff2: bool = True,
     include_mirrors: bool = True,
+    hint: bool = True,
 ) -> tuple[int, int]:
     """Build one font for a single SPUA ``marker``.
 
@@ -588,6 +590,7 @@ def build_marker_font(
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fb.save(str(out_path))
+    autohint_ttf(str(out_path), enabled=hint)
     if write_woff2:
         woff_path = out_path.with_suffix(".woff2")
         woff2.compress(str(out_path), str(woff_path))

@@ -22,10 +22,10 @@ Logical encoding (matches ``cjk_diacritics`` / ``build_cjk``)::
 
 Usage
 -----
-  python cjk_digraph_html.py
-  python cjk_digraph_html.py --bucket 65 --bucket 66
-  python cjk_digraph_html.py --pairs 48 --limit 128
-  python cjk_digraph_html.py -o dist/subfonts/digraph-cjk.html
+  python cjk_digraphs_html.py
+  python cjk_digraphs_html.py --bucket 65 --bucket 66
+  python cjk_digraphs_html.py --pairs 48 --limit 128
+  python cjk_digraphs_html.py -o dist/subfonts/digraph-cjk.html
 """
 
 from __future__ import annotations

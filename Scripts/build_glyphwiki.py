@@ -106,6 +106,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
     p.add_argument(
+        "--no-hint",
+        action="store_true",
+        help="Skip ttfautohint-py TrueType autohint step",
+    )
+    p.add_argument(
         "--no-filters",
         action="store_true",
         help=(
@@ -202,6 +207,8 @@ def main(argv: list[str] | None = None) -> int:
         forwarded.append("--ttf-only")
     if args.woff2_only:
         forwarded.append("--woff2-only")
+    if args.no_hint:
+        forwarded.append("--no-hint")
     if args.no_filters:
         forwarded.append("--no-filters")
     if args.parallel:

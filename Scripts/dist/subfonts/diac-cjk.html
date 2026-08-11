@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<title>pancjk — CJK × VS1–7 × Viet marks</title>
+<link rel="stylesheet" href="./pancjk.css"/>
+<style>
+:root { --fs: 48px; color-scheme: dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: #111; color: #eee;
+  font-family: system-ui, sans-serif;
+}
+header {
+  position: sticky; top: 0; z-index: 5;
+  background: #111e; backdrop-filter: blur(6px);
+  border-bottom: 1px solid #333; padding: 12px 20px 14px;
+}
+h1 { font-size: 18px; font-weight: 600; color: #ccc; margin: 0 0 6px; }
+.meta { font-size: 12px; color: #777; margin: 0 0 10px; line-height: 1.45; }
+.controls {
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: end;
+  font-size: 12px; color: #aaa;
+}
+.controls label { display: flex; flex-direction: column; gap: 3px; }
+.controls select, .controls button, .controls input {
+  background: #1a1a1a; color: #ddd; border: 1px solid #444;
+  border-radius: 4px; padding: 5px 8px; font-size: 12px;
+}
+.controls button { cursor: pointer; background: #2a4a3a; border-color: #3a6a5a; }
+.controls button:hover { background: #355a48; }
+.controls button.danger { background: #4a2a2a; border-color: #6a3a3a; }
+#status { font-size: 12px; color: #8af; margin: 10px 20px 0; min-height: 1.2em; }
+main { padding: 12px 20px 80px; }
+#out {
+  font-family: 'pancjk 4E', 'pancjk 4F', serif;
+  font-size: var(--fs);
+  line-height: 1.35;
+  display: flex; flex-wrap: wrap; gap: 2px 4px;
+}
+.cell {
+  display: inline-flex; flex-direction: column; align-items: center;
+  min-width: 1.15em; padding: 4px 2px;
+  border-bottom: 1px solid #222;
+}
+.glyph {
+  line-height: 1;
+  font-feature-settings: "ccmp" 1, "rlig" 1, "liga" 1, "mark" 1, "mkmk" 1;
+}
+.tag {
+  font-family: system-ui, sans-serif; font-size: 9px; color: #666;
+  max-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+h2 {
+  font-size: 13px; color: #aaa; width: 100%; margin: 18px 0 8px;
+  border-bottom: 1px solid #333; padding-bottom: 4px;
+  font-family: system-ui, sans-serif; font-weight: 600;
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>pancjk — CJK × VS × marks × squish digraphs</h1>
+  <p class="meta">
+    Range: U+4E00–4EFF, U+4F00–4FFF (first 512) · 512 characters embedded<br/>
+    Base VS: identity / FE01..FE07 (full D4)<br/>
+    ca/nhay: <code>CJK FE0C–F MARK</code> (PUA E009–C; mark in free half)<br/>
+    Squish digraph: <code>A FE0B FE0C–F</code> + <code>B FE0D–F</code> (e.g. 明&#xFE0B;&#xFE0C;日&#xFE0D;)<br/>
+    Digraph pairs: 24 (24 cross-bucket) · gallery ≈ 18,688
+  </p>
+  <div class="controls">
+    <label>CJK start index
+      <input type="number" id="idxStart" min="0" max="511" value="0"/>
+    </label>
+    <label>Count
+      <input type="number" id="idxCount" min="1" max="512" value="64"/>
+    </label>
+    <label>Base orient
+      <select id="baseOrient"></select>
+    </label>
+    <label>Mark niche
+      <select id="nicheSel"></select>
+    </label>
+    <label>Mark
+      <select id="markSel"></select>
+    </label>
+    <label>Mark orient
+      <select id="markOrient"></select>
+    </label>
+    <button type="button" id="btnSlice">Render slice</button>
+    <button type="button" id="btnPlain">Plain CJK</button>
+    <button type="button" id="btnMarks">+ ca/nhay</button>
+    <button type="button" id="btnDk">FE0C .dk</button>
+    <button type="button" id="btnDkl">FE0D .dkl</button>
+    <button type="button" id="btnDkt">FE0E .dkb (top)</button>
+    <button type="button" id="btnDkb">FE0F .dkt (bottom)</button>
+    <button type="button" id="btnDigraph">Squish digraphs</button>
+    <button type="button" id="btnBaseGrid">Base VS × mark</button>
+    <button type="button" id="btnMarkGrid">Mark D4 grid</button>
+    <button type="button" id="btnEverything" class="danger">Render everything</button>
+  </div>
+</header>
+<div id="status"></div>
+<main><div id="out"></div></main>
+
+<script type="application/json" id="data">{"CJK": [{"cp": 19968, "ch": "一", "name": "CJK UNIFIED IDEOGRAPH-4E00", "short": "IDEOGRAPH4E00"}, {"cp": 20224, "ch": "伀", "name": "CJK UNIFIED IDEOGRAPH-4F00", "short": "IDEOGRAPH4F00"}, {"cp": 19969, "ch": "丁", "name": "CJK UNIFIED IDEOGRAPH-4E01", "short": "IDEOGRAPH4E01"}, {"cp": 20225, "ch": "企", "name": "CJK UNIFIED IDEOGRAPH-4F01", "short": "IDEOGRAPH4F01"}, {"cp": 19970, "ch": "丂", "name": "CJK UNIFIED IDEOGRAPH-4E02", "short": "IDEOGRAPH4E02"}, {"cp": 20226, "ch": "伂", "name": "CJK UNIFIED IDEOGRAPH-4F02", "short": "IDEOGRAPH4F02"}, {"cp": 19971, "ch": "七", "name": "CJK UNIFIED IDEOGRAPH-4E03", "short": "IDEOGRAPH4E03"}, {"cp": 20227, "ch": "伃", "name": "CJK UNIFIED IDEOGRAPH-4F03", "short": "IDEOGRAPH4F03"}, {"cp": 19972, "ch": "丄", "name": "CJK UNIFIED IDEOGRAPH-4E04", "short": "IDEOGRAPH4E04"}, {"cp": 20228, "ch": "伄", "name": "CJK UNIFIED IDEOGRAPH-4F04", "short": "IDEOGRAPH4F04"}, {"cp": 19973, "ch": "丅", "name": "CJK UNIFIED IDEOGRAPH-4E05", "short": "IDEOGRAPH4E05"}, {"cp": 20229, "ch": "伅", "name": "CJK UNIFIED IDEOGRAPH-4F05", "short": "IDEOGRAPH4F05"}, {"cp": 19974, "ch": "丆", "name": "CJK UNIFIED IDEOGRAPH-4E06", "short": "IDEOGRAPH4E06"}, {"cp": 20230, "ch": "伆", "name": "CJK UNIFIED IDEOGRAPH-4F06", "short": "IDEOGRAPH4F06"}, {"cp": 19975, "ch": "万", "name": "CJK UNIFIED IDEOGRAPH-4E07", "short": "IDEOGRAPH4E07"}, {"cp": 20231, "ch": "伇", "name": "CJK UNIFIED IDEOGRAPH-4F07", "short": "IDEOGRAPH4F07"}, {"cp": 19976, "ch": "丈", "name": "CJK UNIFIED IDEOGRAPH-4E08", "short": "IDEOGRAPH4E08"}, {"cp": 20232, "ch": "伈", "name": "CJK UNIFIED IDEOGRAPH-4F08", "short": "IDEOGRAPH4F08"}, {"cp": 19977, "ch": "三", "name": "CJK UNIFIED IDEOGRAPH-4E09", "short": "IDEOGRAPH4E09"}, {"cp": 20233, "ch": "伉", "name": "CJK UNIFIED IDEOGRAPH-4F09", "short": "IDEOGRAPH4F09"}, {"cp": 19978, "ch": "上", "name": "CJK UNIFIED IDEOGRAPH-4E0A", "short": "IDEOGRAPH4E0A"}, {"cp": 20234, "ch": "伊", "name": "CJK UNIFIED IDEOGRAPH-4F0A", "short": "IDEOGRAPH4F0A"}, {"cp": 19979, "ch": "下", "name": "CJK UNIFIED IDEOGRAPH-4E0B", "short": "IDEOGRAPH4E0B"}, {"cp": 20235, "ch": "伋", "name": "CJK UNIFIED IDEOGRAPH-4F0B", "short": "IDEOGRAPH4F0B"}, {"cp": 19980, "ch": "丌", "name": "CJK UNIFIED IDEOGRAPH-4E0C", "short": "IDEOGRAPH4E0C"}, {"cp": 20236, "ch": "伌", "name": "CJK UNIFIED IDEOGRAPH-4F0C", "short": "IDEOGRAPH4F0C"}, {"cp": 19981, "ch": "不", "name": "CJK UNIFIED IDEOGRAPH-4E0D", "short": "IDEOGRAPH4E0D"}, {"cp": 20237, "ch": "伍", "name": "CJK UNIFIED IDEOGRAPH-4F0D", "short": "IDEOGRAPH4F0D"}, {"cp": 19982, "ch": "与", "name": "CJK UNIFIED IDEOGRAPH-4E0E", "short": "IDEOGRAPH4E0E"}, {"cp": 20238, "ch": "伎", "name": "CJK UNIFIED IDEOGRAPH-4F0E", "short": "IDEOGRAPH4F0E"}, {"cp": 19983, "ch": "丏", "name": "CJK UNIFIED IDEOGRAPH-4E0F", "short": "IDEOGRAPH4E0F"}, {"cp": 20239, "ch": "伏", "name": "CJK UNIFIED IDEOGRAPH-4F0F", "short": "IDEOGRAPH4F0F"}, {"cp": 19984, "ch": "丐", "name": "CJK UNIFIED IDEOGRAPH-4E10", "short": "IDEOGRAPH4E10"}, {"cp": 20240, "ch": "伐", "name": "CJK UNIFIED IDEOGRAPH-4F10", "short": "IDEOGRAPH4F10"}, {"cp": 19985, "ch": "丑", "name": "CJK UNIFIED IDEOGRAPH-4E11", "short": "IDEOGRAPH4E11"}, {"cp": 20241, "ch": "休", "name": "CJK UNIFIED IDEOGRAPH-4F11", "short": "IDEOGRAPH4F11"}, {"cp": 19986, "ch": "丒", "name": "CJK UNIFIED IDEOGRAPH-4E12", "short": "IDEOGRAPH4E12"}, {"cp": 20242, "ch": "伒", "name": "CJK UNIFIED IDEOGRAPH-4F12", "short": "IDEOGRAPH4F12"}, {"cp": 19987, "ch": "专", "name": "CJK UNIFIED IDEOGRAPH-4E13", "short": "IDEOGRAPH4E13"}, {"cp": 20243, "ch": "伓", "name": "CJK UNIFIED IDEOGRAPH-4F13", "short": "IDEOGRAPH4F13"}, {"cp": 19988, "ch": "且", "name": "CJK UNIFIED IDEOGRAPH-4E14", "short": "IDEOGRAPH4E14"}, {"cp": 20244, "ch": "伔", "name": "CJK UNIFIED IDEOGRAPH-4F14", "short": "IDEOGRAPH4F14"}, {"cp": 19989, "ch": "丕", "name": "CJK UNIFIED IDEOGRAPH-4E15", "short": "IDEOGRAPH4E15"}, {"cp": 20245, "ch": "伕", "name": "CJK UNIFIED IDEOGRAPH-4F15", "short": "IDEOGRAPH4F15"}, {"cp": 19990, "ch": "世", "name": "CJK UNIFIED IDEOGRAPH-4E16", "short": "IDEOGRAPH4E16"}, {"cp": 20246, "ch": "伖", "name": "CJK UNIFIED IDEOGRAPH-4F16", "short": "IDEOGRAPH4F16"}, {"cp": 19991, "ch": "丗", "name": "CJK UNIFIED IDEOGRAPH-4E17", "short": "IDEOGRAPH4E17"}, {"cp": 20247, "ch": "众", "name": "CJK UNIFIED IDEOGRAPH-4F17", "short": "IDEOGRAPH4F17"}, {"cp": 19992, "ch": "丘", "name": "CJK UNIFIED IDEOGRAPH-4E18", "short": "IDEOGRAPH4E18"}, {"cp": 20248, "ch": "优", "name": "CJK UNIFIED IDEOGRAPH-4F18", "short": "IDEOGRAPH4F18"}, {"cp": 19993, "ch": "丙", "name": "CJK UNIFIED IDEOGRAPH-4E19", "short": "IDEOGRAPH4E19"}, {"cp": 20249, "ch": "伙", "name": "CJK UNIFIED IDEOGRAPH-4F19", "short": "IDEOGRAPH4F19"}, {"cp": 19994, "ch": "业", "name": "CJK UNIFIED IDEOGRAPH-4E1A", "short": "IDEOGRAPH4E1A"}, {"cp": 20250, "ch": "会", "name": "CJK UNIFIED IDEOGRAPH-4F1A", "short": "IDEOGRAPH4F1A"}, {"cp": 19995, "ch": "丛", "name": "CJK UNIFIED IDEOGRAPH-4E1B", "short": "IDEOGRAPH4E1B"}, {"cp": 20251, "ch": "伛", "name": "CJK UNIFIED IDEOGRAPH-4F1B", "short": "IDEOGRAPH4F1B"}, {"cp": 19996, "ch": "东", "name": "CJK UNIFIED IDEOGRAPH-4E1C", "short": "IDEOGRAPH4E1C"}, {"cp": 20252, "ch": "伜", "name": "CJK UNIFIED IDEOGRAPH-4F1C", "short": "IDEOGRAPH4F1C"}, {"cp": 19997, "ch": "丝", "name": "CJK UNIFIED IDEOGRAPH-4E1D", "short": "IDEOGRAPH4E1D"}, {"cp": 20253, "ch": "伝", "name": "CJK UNIFIED IDEOGRAPH-4F1D", "short": "IDEOGRAPH4F1D"}, {"cp": 19998, "ch": "丞", "name": "CJK UNIFIED IDEOGRAPH-4E1E", "short": "IDEOGRAPH4E1E"}, {"cp": 20254, "ch": "伞", "name": "CJK UNIFIED IDEOGRAPH-4F1E", "short": "IDEOGRAPH4F1E"}, {"cp": 19999, "ch": "丟", "name": "CJK UNIFIED IDEOGRAPH-4E1F", "short": "IDEOGRAPH4E1F"}, {"cp": 20255, "ch": "伟", "name": "CJK UNIFIED IDEOGRAPH-4F1F", "short": "IDEOGRAPH4F1F"}, {"cp": 20000, "ch": "丠", "name": "CJK UNIFIED IDEOGRAPH-4E20", "short": "IDEOGRAPH4E20"}, {"cp": 20256, "ch": "传", "name": "CJK UNIFIED IDEOGRAPH-4F20", "short": "IDEOGRAPH4F20"}, {"cp": 20001, "ch": "両", "name": "CJK UNIFIED IDEOGRAPH-4E21", "short": "IDEOGRAPH4E21"}, {"cp": 20257, "ch": "伡", "name": "CJK UNIFIED IDEOGRAPH-4F21", "short": "IDEOGRAPH4F21"}, {"cp": 20002, "ch": "丢", "name": "CJK UNIFIED IDEOGRAPH-4E22", "short": "IDEOGRAPH4E22"}, {"cp": 20258, "ch": "伢", "name": "CJK UNIFIED IDEOGRAPH-4F22", "short": "IDEOGRAPH4F22"}, {"cp": 20003, "ch": "丣", "name": "CJK UNIFIED IDEOGRAPH-4E23", "short": "IDEOGRAPH4E23"}, {"cp": 20259, "ch": "伣", "name": "CJK UNIFIED IDEOGRAPH-4F23", "short": "IDEOGRAPH4F23"}, {"cp": 20004, "ch": "两", "name": "CJK UNIFIED IDEOGRAPH-4E24", "short": "IDEOGRAPH4E24"}, {"cp": 20260, "ch": "伤", "name": "CJK UNIFIED IDEOGRAPH-4F24", "short": "IDEOGRAPH4F24"}, {"cp": 20005, "ch": "严", "name": "CJK UNIFIED IDEOGRAPH-4E25", "short": "IDEOGRAPH4E25"}, {"cp": 20261, "ch": "伥", "name": "CJK UNIFIED IDEOGRAPH-4F25", "short": "IDEOGRAPH4F25"}, {"cp": 20006, "ch": "並", "name": "CJK UNIFIED IDEOGRAPH-4E26", "short": "IDEOGRAPH4E26"}, {"cp": 20262, "ch": "伦", "name": "CJK UNIFIED IDEOGRAPH-4F26", "short": "IDEOGRAPH4F26"}, {"cp": 20007, "ch": "丧", "name": "CJK UNIFIED IDEOGRAPH-4E27", "short": "IDEOGRAPH4E27"}, {"cp": 20263, "ch": "伧", "name": "CJK UNIFIED IDEOGRAPH-4F27", "short": "IDEOGRAPH4F27"}, {"cp": 20008, "ch": "丨", "name": "CJK UNIFIED IDEOGRAPH-4E28", "short": "IDEOGRAPH4E28"}, {"cp": 20264, "ch": "伨", "name": "CJK UNIFIED IDEOGRAPH-4F28", "short": "IDEOGRAPH4F28"}, {"cp": 20009, "ch": "丩", "name": "CJK UNIFIED IDEOGRAPH-4E29", "short": "IDEOGRAPH4E29"}, {"cp": 20265, "ch": "伩", "name": "CJK UNIFIED IDEOGRAPH-4F29", "short": "IDEOGRAPH4F29"}, {"cp": 20010, "ch": "个", "name": "CJK UNIFIED IDEOGRAPH-4E2A", "short": "IDEOGRAPH4E2A"}, {"cp": 20266, "ch": "伪", "name": "CJK UNIFIED IDEOGRAPH-4F2A", "short": "IDEOGRAPH4F2A"}, {"cp": 20011, "ch": "丫", "name": "CJK UNIFIED IDEOGRAPH-4E2B", "short": "IDEOGRAPH4E2B"}, {"cp": 20267, "ch": "伫", "name": "CJK UNIFIED IDEOGRAPH-4F2B", "short": "IDEOGRAPH4F2B"}, {"cp": 20012, "ch": "丬", "name": "CJK UNIFIED IDEOGRAPH-4E2C", "short": "IDEOGRAPH4E2C"}, {"cp": 20268, "ch": "伬", "name": "CJK UNIFIED IDEOGRAPH-4F2C", "short": "IDEOGRAPH4F2C"}, {"cp": 20013, "ch": "中", "name": "CJK UNIFIED IDEOGRAPH-4E2D", "short": "IDEOGRAPH4E2D"}, {"cp": 20269, "ch": "伭", "name": "CJK UNIFIED IDEOGRAPH-4F2D", "short": "IDEOGRAPH4F2D"}, {"cp": 20014, "ch": "丮", "name": "CJK UNIFIED IDEOGRAPH-4E2E", "short": "IDEOGRAPH4E2E"}, {"cp": 20270, "ch": "伮", "name": "CJK UNIFIED IDEOGRAPH-4F2E", "short": "IDEOGRAPH4F2E"}, {"cp": 20015, "ch": "丯", "name": "CJK UNIFIED IDEOGRAPH-4E2F", "short": "IDEOGRAPH4E2F"}, {"cp": 20271, "ch": "伯", "name": "CJK UNIFIED IDEOGRAPH-4F2F", "short": "IDEOGRAPH4F2F"}, {"cp": 20016, "ch": "丰", "name": "CJK UNIFIED IDEOGRAPH-4E30", "short": "IDEOGRAPH4E30"}, {"cp": 20272, "ch": "估", "name": "CJK UNIFIED IDEOGRAPH-4F30", "short": "IDEOGRAPH4F30"}, {"cp": 20017, "ch": "丱", "name": "CJK UNIFIED IDEOGRAPH-4E31", "short": "IDEOGRAPH4E31"}, {"cp": 20273, "ch": "伱", "name": "CJK UNIFIED IDEOGRAPH-4F31", "short": "IDEOGRAPH4F31"}, {"cp": 20018, "ch": "串", "name": "CJK UNIFIED IDEOGRAPH-4E32", "short": "IDEOGRAPH4E32"}, {"cp": 20274, "ch": "伲", "name": "CJK UNIFIED IDEOGRAPH-4F32", "short": "IDEOGRAPH4F32"}, {"cp": 20019, "ch": "丳", "name": "CJK UNIFIED IDEOGRAPH-4E33", "short": "IDEOGRAPH4E33"}, {"cp": 20275, "ch": "伳", "name": "CJK UNIFIED IDEOGRAPH-4F33", "short": "IDEOGRAPH4F33"}, {"cp": 20020, "ch": "临", "name": "CJK UNIFIED IDEOGRAPH-4E34", "short": "IDEOGRAPH4E34"}, {"cp": 20276, "ch": "伴", "name": "CJK UNIFIED IDEOGRAPH-4F34", "short": "IDEOGRAPH4F34"}, {"cp": 20021, "ch": "丵", "name": "CJK UNIFIED IDEOGRAPH-4E35", "short": "IDEOGRAPH4E35"}, {"cp": 20277, "ch": "伵", "name": "CJK UNIFIED IDEOGRAPH-4F35", "short": "IDEOGRAPH4F35"}, {"cp": 20022, "ch": "丶", "name": "CJK UNIFIED IDEOGRAPH-4E36", "short": "IDEOGRAPH4E36"}, {"cp": 20278, "ch": "伶", "name": "CJK UNIFIED IDEOGRAPH-4F36", "short": "IDEOGRAPH4F36"}, {"cp": 20023, "ch": "丷", "name": "CJK UNIFIED IDEOGRAPH-4E37", "short": "IDEOGRAPH4E37"}, {"cp": 20279, "ch": "伷", "name": "CJK UNIFIED IDEOGRAPH-4F37", "short": "IDEOGRAPH4F37"}, {"cp": 20024, "ch": "丸", "name": "CJK UNIFIED IDEOGRAPH-4E38", "short": "IDEOGRAPH4E38"}, {"cp": 20280, "ch": "伸", "name": "CJK UNIFIED IDEOGRAPH-4F38", "short": "IDEOGRAPH4F38"}, {"cp": 20025, "ch": "丹", "name": "CJK UNIFIED IDEOGRAPH-4E39", "short": "IDEOGRAPH4E39"}, {"cp": 20281, "ch": "伹", "name": "CJK UNIFIED IDEOGRAPH-4F39", "short": "IDEOGRAPH4F39"}, {"cp": 20026, "ch": "为", "name": "CJK UNIFIED IDEOGRAPH-4E3A", "short": "IDEOGRAPH4E3A"}, {"cp": 20282, "ch": "伺", "name": "CJK UNIFIED IDEOGRAPH-4F3A", "short": "IDEOGRAPH4F3A"}, {"cp": 20027, "ch": "主", "name": "CJK UNIFIED IDEOGRAPH-4E3B", "short": "IDEOGRAPH4E3B"}, {"cp": 20283, "ch": "伻", "name": "CJK UNIFIED IDEOGRAPH-4F3B", "short": "IDEOGRAPH4F3B"}, {"cp": 20028, "ch": "丼", "name": "CJK UNIFIED IDEOGRAPH-4E3C", "short": "IDEOGRAPH4E3C"}, {"cp": 20284, "ch": "似", "name": "CJK UNIFIED IDEOGRAPH-4F3C", "short": "IDEOGRAPH4F3C"}, {"cp": 20029, "ch": "丽", "name": "CJK UNIFIED IDEOGRAPH-4E3D", "short": "IDEOGRAPH4E3D"}, {"cp": 20285, "ch": "伽", "name": "CJK UNIFIED IDEOGRAPH-4F3D", "short": "IDEOGRAPH4F3D"}, {"cp": 20030, "ch": "举", "name": "CJK UNIFIED IDEOGRAPH-4E3E", "short": "IDEOGRAPH4E3E"}, {"cp": 20286, "ch": "伾", "name": "CJK UNIFIED IDEOGRAPH-4F3E", "short": "IDEOGRAPH4F3E"}, {"cp": 20031, "ch": "丿", "name": "CJK UNIFIED IDEOGRAPH-4E3F", "short": "IDEOGRAPH4E3F"}, {"cp": 20287, "ch": "伿", "name": "CJK UNIFIED IDEOGRAPH-4F3F", "short": "IDEOGRAPH4F3F"}, {"cp": 20032, "ch": "乀", "name": "CJK UNIFIED IDEOGRAPH-4E40", "short": "IDEOGRAPH4E40"}, {"cp": 20288, "ch": "佀", "name": "CJK UNIFIED IDEOGRAPH-4F40", "short": "IDEOGRAPH4F40"}, {"cp": 20033, "ch": "乁", "name": "CJK UNIFIED IDEOGRAPH-4E41", "short": "IDEOGRAPH4E41"}, {"cp": 20289, "ch": "佁", "name": "CJK UNIFIED IDEOGRAPH-4F41", "short": "IDEOGRAPH4F41"}, {"cp": 20034, "ch": "乂", "name": "CJK UNIFIED IDEOGRAPH-4E42", "short": "IDEOGRAPH4E42"}, {"cp": 20290, "ch": "佂", "name": "CJK UNIFIED IDEOGRAPH-4F42", "short": "IDEOGRAPH4F42"}, {"cp": 20035, "ch": "乃", "name": "CJK UNIFIED IDEOGRAPH-4E43", "short": "IDEOGRAPH4E43"}, {"cp": 20291, "ch": "佃", "name": "CJK UNIFIED IDEOGRAPH-4F43", "short": "IDEOGRAPH4F43"}, {"cp": 20036, "ch": "乄", "name": "CJK UNIFIED IDEOGRAPH-4E44", "short": "IDEOGRAPH4E44"}, {"cp": 20292, "ch": "佄", "name": "CJK UNIFIED IDEOGRAPH-4F44", "short": "IDEOGRAPH4F44"}, {"cp": 20037, "ch": "久", "name": "CJK UNIFIED IDEOGRAPH-4E45", "short": "IDEOGRAPH4E45"}, {"cp": 20293, "ch": "佅", "name": "CJK UNIFIED IDEOGRAPH-4F45", "short": "IDEOGRAPH4F45"}, {"cp": 20038, "ch": "乆", "name": "CJK UNIFIED IDEOGRAPH-4E46", "short": "IDEOGRAPH4E46"}, {"cp": 20294, "ch": "但", "name": "CJK UNIFIED IDEOGRAPH-4F46", "short": "IDEOGRAPH4F46"}, {"cp": 20039, "ch": "乇", "name": "CJK UNIFIED IDEOGRAPH-4E47", "short": "IDEOGRAPH4E47"}, {"cp": 20295, "ch": "佇", "name": "CJK UNIFIED IDEOGRAPH-4F47", "short": "IDEOGRAPH4F47"}, {"cp": 20040, "ch": "么", "name": "CJK UNIFIED IDEOGRAPH-4E48", "short": "IDEOGRAPH4E48"}, {"cp": 20296, "ch": "佈", "name": "CJK UNIFIED IDEOGRAPH-4F48", "short": "IDEOGRAPH4F48"}, {"cp": 20041, "ch": "义", "name": "CJK UNIFIED IDEOGRAPH-4E49", "short": "IDEOGRAPH4E49"}, {"cp": 20297, "ch": "佉", "name": "CJK UNIFIED IDEOGRAPH-4F49", "short": "IDEOGRAPH4F49"}, {"cp": 20042, "ch": "乊", "name": "CJK UNIFIED IDEOGRAPH-4E4A", "short": "IDEOGRAPH4E4A"}, {"cp": 20298, "ch": "佊", "name": "CJK UNIFIED IDEOGRAPH-4F4A", "short": "IDEOGRAPH4F4A"}, {"cp": 20043, "ch": "之", "name": "CJK UNIFIED IDEOGRAPH-4E4B", "short": "IDEOGRAPH4E4B"}, {"cp": 20299, "ch": "佋", "name": "CJK UNIFIED IDEOGRAPH-4F4B", "short": "IDEOGRAPH4F4B"}, {"cp": 20044, "ch": "乌", "name": "CJK UNIFIED IDEOGRAPH-4E4C", "short": "IDEOGRAPH4E4C"}, {"cp": 20300, "ch": "佌", "name": "CJK UNIFIED IDEOGRAPH-4F4C", "short": "IDEOGRAPH4F4C"}, {"cp": 20045, "ch": "乍", "name": "CJK UNIFIED IDEOGRAPH-4E4D", "short": "IDEOGRAPH4E4D"}, {"cp": 20301, "ch": "位", "name": "CJK UNIFIED IDEOGRAPH-4F4D", "short": "IDEOGRAPH4F4D"}, {"cp": 20046, "ch": "乎", "name": "CJK UNIFIED IDEOGRAPH-4E4E", "short": "IDEOGRAPH4E4E"}, {"cp": 20302, "ch": "低", "name": "CJK UNIFIED IDEOGRAPH-4F4E", "short": "IDEOGRAPH4F4E"}, {"cp": 20047, "ch": "乏", "name": "CJK UNIFIED IDEOGRAPH-4E4F", "short": "IDEOGRAPH4E4F"}, {"cp": 20303, "ch": "住", "name": "CJK UNIFIED IDEOGRAPH-4F4F", "short": "IDEOGRAPH4F4F"}, {"cp": 20048, "ch": "乐", "name": "CJK UNIFIED IDEOGRAPH-4E50", "short": "IDEOGRAPH4E50"}, {"cp": 20304, "ch": "佐", "name": "CJK UNIFIED IDEOGRAPH-4F50", "short": "IDEOGRAPH4F50"}, {"cp": 20049, "ch": "乑", "name": "CJK UNIFIED IDEOGRAPH-4E51", "short": "IDEOGRAPH4E51"}, {"cp": 20305, "ch": "佑", "name": "CJK UNIFIED IDEOGRAPH-4F51", "short": "IDEOGRAPH4F51"}, {"cp": 20050, "ch": "乒", "name": "CJK UNIFIED IDEOGRAPH-4E52", "short": "IDEOGRAPH4E52"}, {"cp": 20306, "ch": "佒", "name": "CJK UNIFIED IDEOGRAPH-4F52", "short": "IDEOGRAPH4F52"}, {"cp": 20051, "ch": "乓", "name": "CJK UNIFIED IDEOGRAPH-4E53", "short": "IDEOGRAPH4E53"}, {"cp": 20307, "ch": "体", "name": "CJK UNIFIED IDEOGRAPH-4F53", "short": "IDEOGRAPH4F53"}, {"cp": 20052, "ch": "乔", "name": "CJK UNIFIED IDEOGRAPH-4E54", "short": "IDEOGRAPH4E54"}, {"cp": 20308, "ch": "佔", "name": "CJK UNIFIED IDEOGRAPH-4F54", "short": "IDEOGRAPH4F54"}, {"cp": 20053, "ch": "乕", "name": "CJK UNIFIED IDEOGRAPH-4E55", "short": "IDEOGRAPH4E55"}, {"cp": 20309, "ch": "何", "name": "CJK UNIFIED IDEOGRAPH-4F55", "short": "IDEOGRAPH4F55"}, {"cp": 20054, "ch": "乖", "name": "CJK UNIFIED IDEOGRAPH-4E56", "short": "IDEOGRAPH4E56"}, {"cp": 20310, "ch": "佖", "name": "CJK UNIFIED IDEOGRAPH-4F56", "short": "IDEOGRAPH4F56"}, {"cp": 20055, "ch": "乗", "name": "CJK UNIFIED IDEOGRAPH-4E57", "short": "IDEOGRAPH4E57"}, {"cp": 20311, "ch": "佗", "name": "CJK UNIFIED IDEOGRAPH-4F57", "short": "IDEOGRAPH4F57"}, {"cp": 20056, "ch": "乘", "name": "CJK UNIFIED IDEOGRAPH-4E58", "short": "IDEOGRAPH4E58"}, {"cp": 20312, "ch": "佘", "name": "CJK UNIFIED IDEOGRAPH-4F58", "short": "IDEOGRAPH4F58"}, {"cp": 20057, "ch": "乙", "name": "CJK UNIFIED IDEOGRAPH-4E59", "short": "IDEOGRAPH4E59"}, {"cp": 20313, "ch": "余", "name": "CJK UNIFIED IDEOGRAPH-4F59", "short": "IDEOGRAPH4F59"}, {"cp": 20058, "ch": "乚", "name": "CJK UNIFIED IDEOGRAPH-4E5A", "short": "IDEOGRAPH4E5A"}, {"cp": 20314, "ch": "佚", "name": "CJK UNIFIED IDEOGRAPH-4F5A", "short": "IDEOGRAPH4F5A"}, {"cp": 20059, "ch": "乛", "name": "CJK UNIFIED IDEOGRAPH-4E5B", "short": "IDEOGRAPH4E5B"}, {"cp": 20315, "ch": "佛", "name": "CJK UNIFIED IDEOGRAPH-4F5B", "short": "IDEOGRAPH4F5B"}, {"cp": 20060, "ch": "乜", "name": "CJK UNIFIED IDEOGRAPH-4E5C", "short": "IDEOGRAPH4E5C"}, {"cp": 20316, "ch": "作", "name": "CJK UNIFIED IDEOGRAPH-4F5C", "short": "IDEOGRAPH4F5C"}, {"cp": 20061, "ch": "九", "name": "CJK UNIFIED IDEOGRAPH-4E5D", "short": "IDEOGRAPH4E5D"}, {"cp": 20317, "ch": "佝", "name": "CJK UNIFIED IDEOGRAPH-4F5D", "short": "IDEOGRAPH4F5D"}, {"cp": 20062, "ch": "乞", "name": "CJK UNIFIED IDEOGRAPH-4E5E", "short": "IDEOGRAPH4E5E"}, {"cp": 20318, "ch": "佞", "name": "CJK UNIFIED IDEOGRAPH-4F5E", "short": "IDEOGRAPH4F5E"}, {"cp": 20063, "ch": "也", "name": "CJK UNIFIED IDEOGRAPH-4E5F", "short": "IDEOGRAPH4E5F"}, {"cp": 20319, "ch": "佟", "name": "CJK UNIFIED IDEOGRAPH-4F5F", "short": "IDEOGRAPH4F5F"}, {"cp": 20064, "ch": "习", "name": "CJK UNIFIED IDEOGRAPH-4E60", "short": "IDEOGRAPH4E60"}, {"cp": 20320, "ch": "你", "name": "CJK UNIFIED IDEOGRAPH-4F60", "short": "IDEOGRAPH4F60"}, {"cp": 20065, "ch": "乡", "name": "CJK UNIFIED IDEOGRAPH-4E61", "short": "IDEOGRAPH4E61"}, {"cp": 20321, "ch": "佡", "name": "CJK UNIFIED IDEOGRAPH-4F61", "short": "IDEOGRAPH4F61"}, {"cp": 20066, "ch": "乢", "name": "CJK UNIFIED IDEOGRAPH-4E62", "short": "IDEOGRAPH4E62"}, {"cp": 20322, "ch": "佢", "name": "CJK UNIFIED IDEOGRAPH-4F62", "short": "IDEOGRAPH4F62"}, {"cp": 20067, "ch": "乣", "name": "CJK UNIFIED IDEOGRAPH-4E63", "short": "IDEOGRAPH4E63"}, {"cp": 20323, "ch": "佣", "name": "CJK UNIFIED IDEOGRAPH-4F63", "short": "IDEOGRAPH4F63"}, {"cp": 20068, "ch": "乤", "name": "CJK UNIFIED IDEOGRAPH-4E64", "short": "IDEOGRAPH4E64"}, {"cp": 20324, "ch": "佤", "name": "CJK UNIFIED IDEOGRAPH-4F64", "short": "IDEOGRAPH4F64"}, {"cp": 20069, "ch": "乥", "name": "CJK UNIFIED IDEOGRAPH-4E65", "short": "IDEOGRAPH4E65"}, {"cp": 20325, "ch": "佥", "name": "CJK UNIFIED IDEOGRAPH-4F65", "short": "IDEOGRAPH4F65"}, {"cp": 20070, "ch": "书", "name": "CJK UNIFIED IDEOGRAPH-4E66", "short": "IDEOGRAPH4E66"}, {"cp": 20326, "ch": "佦", "name": "CJK UNIFIED IDEOGRAPH-4F66", "short": "IDEOGRAPH4F66"}, {"cp": 20071, "ch": "乧", "name": "CJK UNIFIED IDEOGRAPH-4E67", "short": "IDEOGRAPH4E67"}, {"cp": 20327, "ch": "佧", "name": "CJK UNIFIED IDEOGRAPH-4F67", "short": "IDEOGRAPH4F67"}, {"cp": 20072, "ch": "乨", "name": "CJK UNIFIED IDEOGRAPH-4E68", "short": "IDEOGRAPH4E68"}, {"cp": 20328, "ch": "佨", "name": "CJK UNIFIED IDEOGRAPH-4F68", "short": "IDEOGRAPH4F68"}, {"cp": 20073, "ch": "乩", "name": "CJK UNIFIED IDEOGRAPH-4E69", "short": "IDEOGRAPH4E69"}, {"cp": 20329, "ch": "佩", "name": "CJK UNIFIED IDEOGRAPH-4F69", "short": "IDEOGRAPH4F69"}, {"cp": 20074, "ch": "乪", "name": "CJK UNIFIED IDEOGRAPH-4E6A", "short": "IDEOGRAPH4E6A"}, {"cp": 20330, "ch": "佪", "name": "CJK UNIFIED IDEOGRAPH-4F6A", "short": "IDEOGRAPH4F6A"}, {"cp": 20075, "ch": "乫", "name": "CJK UNIFIED IDEOGRAPH-4E6B", "short": "IDEOGRAPH4E6B"}, {"cp": 20331, "ch": "佫", "name": "CJK UNIFIED IDEOGRAPH-4F6B", "short": "IDEOGRAPH4F6B"}, {"cp": 20076, "ch": "乬", "name": "CJK UNIFIED IDEOGRAPH-4E6C", "short": "IDEOGRAPH4E6C"}, {"cp": 20332, "ch": "佬", "name": "CJK UNIFIED IDEOGRAPH-4F6C", "short": "IDEOGRAPH4F6C"}, {"cp": 20077, "ch": "乭", "name": "CJK UNIFIED IDEOGRAPH-4E6D", "short": "IDEOGRAPH4E6D"}, {"cp": 20333, "ch": "佭", "name": "CJK UNIFIED IDEOGRAPH-4F6D", "short": "IDEOGRAPH4F6D"}, {"cp": 20078, "ch": "乮", "name": "CJK UNIFIED IDEOGRAPH-4E6E", "short": "IDEOGRAPH4E6E"}, {"cp": 20334, "ch": "佮", "name": "CJK UNIFIED IDEOGRAPH-4F6E", "short": "IDEOGRAPH4F6E"}, {"cp": 20079, "ch": "乯", "name": "CJK UNIFIED IDEOGRAPH-4E6F", "short": "IDEOGRAPH4E6F"}, {"cp": 20335, "ch": "佯", "name": "CJK UNIFIED IDEOGRAPH-4F6F", "short": "IDEOGRAPH4F6F"}, {"cp": 20080, "ch": "买", "name": "CJK UNIFIED IDEOGRAPH-4E70", "short": "IDEOGRAPH4E70"}, {"cp": 20336, "ch": "佰", "name": "CJK UNIFIED IDEOGRAPH-4F70", "short": "IDEOGRAPH4F70"}, {"cp": 20081, "ch": "乱", "name": "CJK UNIFIED IDEOGRAPH-4E71", "short": "IDEOGRAPH4E71"}, {"cp": 20337, "ch": "佱", "name": "CJK UNIFIED IDEOGRAPH-4F71", "short": "IDEOGRAPH4F71"}, {"cp": 20082, "ch": "乲", "name": "CJK UNIFIED IDEOGRAPH-4E72", "short": "IDEOGRAPH4E72"}, {"cp": 20338, "ch": "佲", "name": "CJK UNIFIED IDEOGRAPH-4F72", "short": "IDEOGRAPH4F72"}, {"cp": 20083, "ch": "乳", "name": "CJK UNIFIED IDEOGRAPH-4E73", "short": "IDEOGRAPH4E73"}, {"cp": 20339, "ch": "佳", "name": "CJK UNIFIED IDEOGRAPH-4F73", "short": "IDEOGRAPH4F73"}, {"cp": 20084, "ch": "乴", "name": "CJK UNIFIED IDEOGRAPH-4E74", "short": "IDEOGRAPH4E74"}, {"cp": 20340, "ch": "佴", "name": "CJK UNIFIED IDEOGRAPH-4F74", "short": "IDEOGRAPH4F74"}, {"cp": 20085, "ch": "乵", "name": "CJK UNIFIED IDEOGRAPH-4E75", "short": "IDEOGRAPH4E75"}, {"cp": 20341, "ch": "併", "name": "CJK UNIFIED IDEOGRAPH-4F75", "short": "IDEOGRAPH4F75"}, {"cp": 20086, "ch": "乶", "name": "CJK UNIFIED IDEOGRAPH-4E76", "short": "IDEOGRAPH4E76"}, {"cp": 20342, "ch": "佶", "name": "CJK UNIFIED IDEOGRAPH-4F76", "short": "IDEOGRAPH4F76"}, {"cp": 20087, "ch": "乷", "name": "CJK UNIFIED IDEOGRAPH-4E77", "short": "IDEOGRAPH4E77"}, {"cp": 20343, "ch": "佷", "name": "CJK UNIFIED IDEOGRAPH-4F77", "short": "IDEOGRAPH4F77"}, {"cp": 20088, "ch": "乸", "name": "CJK UNIFIED IDEOGRAPH-4E78", "short": "IDEOGRAPH4E78"}, {"cp": 20344, "ch": "佸", "name": "CJK UNIFIED IDEOGRAPH-4F78", "short": "IDEOGRAPH4F78"}, {"cp": 20089, "ch": "乹", "name": "CJK UNIFIED IDEOGRAPH-4E79", "short": "IDEOGRAPH4E79"}, {"cp": 20345, "ch": "佹", "name": "CJK UNIFIED IDEOGRAPH-4F79", "short": "IDEOGRAPH4F79"}, {"cp": 20090, "ch": "乺", "name": "CJK UNIFIED IDEOGRAPH-4E7A", "short": "IDEOGRAPH4E7A"}, {"cp": 20346, "ch": "佺", "name": "CJK UNIFIED IDEOGRAPH-4F7A", "short": "IDEOGRAPH4F7A"}, {"cp": 20091, "ch": "乻", "name": "CJK UNIFIED IDEOGRAPH-4E7B", "short": "IDEOGRAPH4E7B"}, {"cp": 20347, "ch": "佻", "name": "CJK UNIFIED IDEOGRAPH-4F7B", "short": "IDEOGRAPH4F7B"}, {"cp": 20092, "ch": "乼", "name": "CJK UNIFIED IDEOGRAPH-4E7C", "short": "IDEOGRAPH4E7C"}, {"cp": 20348, "ch": "佼", "name": "CJK UNIFIED IDEOGRAPH-4F7C", "short": "IDEOGRAPH4F7C"}, {"cp": 20093, "ch": "乽", "name": "CJK UNIFIED IDEOGRAPH-4E7D", "short": "IDEOGRAPH4E7D"}, {"cp": 20349, "ch": "佽", "name": "CJK UNIFIED IDEOGRAPH-4F7D", "short": "IDEOGRAPH4F7D"}, {"cp": 20094, "ch": "乾", "name": "CJK UNIFIED IDEOGRAPH-4E7E", "short": "IDEOGRAPH4E7E"}, {"cp": 20350, "ch": "佾", "name": "CJK UNIFIED IDEOGRAPH-4F7E", "short": "IDEOGRAPH4F7E"}, {"cp": 20095, "ch": "乿", "name": "CJK UNIFIED IDEOGRAPH-4E7F", "short": "IDEOGRAPH4E7F"}, {"cp": 20351, "ch": "使", "name": "CJK UNIFIED IDEOGRAPH-4F7F", "short": "IDEOGRAPH4F7F"}, {"cp": 20096, "ch": "亀", "name": "CJK UNIFIED IDEOGRAPH-4E80", "short": "IDEOGRAPH4E80"}, {"cp": 20352, "ch": "侀", "name": "CJK UNIFIED IDEOGRAPH-4F80", "short": "IDEOGRAPH4F80"}, {"cp": 20097, "ch": "亁", "name": "CJK UNIFIED IDEOGRAPH-4E81", "short": "IDEOGRAPH4E81"}, {"cp": 20353, "ch": "侁", "name": "CJK UNIFIED IDEOGRAPH-4F81", "short": "IDEOGRAPH4F81"}, {"cp": 20098, "ch": "亂", "name": "CJK UNIFIED IDEOGRAPH-4E82", "short": "IDEOGRAPH4E82"}, {"cp": 20354, "ch": "侂", "name": "CJK UNIFIED IDEOGRAPH-4F82", "short": "IDEOGRAPH4F82"}, {"cp": 20099, "ch": "亃", "name": "CJK UNIFIED IDEOGRAPH-4E83", "short": "IDEOGRAPH4E83"}, {"cp": 20355, "ch": "侃", "name": "CJK UNIFIED IDEOGRAPH-4F83", "short": "IDEOGRAPH4F83"}, {"cp": 20100, "ch": "亄", "name": "CJK UNIFIED IDEOGRAPH-4E84", "short": "IDEOGRAPH4E84"}, {"cp": 20356, "ch": "侄", "name": "CJK UNIFIED IDEOGRAPH-4F84", "short": "IDEOGRAPH4F84"}, {"cp": 20101, "ch": "亅", "name": "CJK UNIFIED IDEOGRAPH-4E85", "short": "IDEOGRAPH4E85"}, {"cp": 20357, "ch": "侅", "name": "CJK UNIFIED IDEOGRAPH-4F85", "short": "IDEOGRAPH4F85"}, {"cp": 20102, "ch": "了", "name": "CJK UNIFIED IDEOGRAPH-4E86", "short": "IDEOGRAPH4E86"}, {"cp": 20358, "ch": "來", "name": "CJK UNIFIED IDEOGRAPH-4F86", "short": "IDEOGRAPH4F86"}, {"cp": 20103, "ch": "亇", "name": "CJK UNIFIED IDEOGRAPH-4E87", "short": "IDEOGRAPH4E87"}, {"cp": 20359, "ch": "侇", "name": "CJK UNIFIED IDEOGRAPH-4F87", "short": "IDEOGRAPH4F87"}, {"cp": 20104, "ch": "予", "name": "CJK UNIFIED IDEOGRAPH-4E88", "short": "IDEOGRAPH4E88"}, {"cp": 20360, "ch": "侈", "name": "CJK UNIFIED IDEOGRAPH-4F88", "short": "IDEOGRAPH4F88"}, {"cp": 20105, "ch": "争", "name": "CJK UNIFIED IDEOGRAPH-4E89", "short": "IDEOGRAPH4E89"}, {"cp": 20361, "ch": "侉", "name": "CJK UNIFIED IDEOGRAPH-4F89", "short": "IDEOGRAPH4F89"}, {"cp": 20106, "ch": "亊", "name": "CJK UNIFIED IDEOGRAPH-4E8A", "short": "IDEOGRAPH4E8A"}, {"cp": 20362, "ch": "侊", "name": "CJK UNIFIED IDEOGRAPH-4F8A", "short": "IDEOGRAPH4F8A"}, {"cp": 20107, "ch": "事", "name": "CJK UNIFIED IDEOGRAPH-4E8B", "short": "IDEOGRAPH4E8B"}, {"cp": 20363, "ch": "例", "name": "CJK UNIFIED IDEOGRAPH-4F8B", "short": "IDEOGRAPH4F8B"}, {"cp": 20108, "ch": "二", "name": "CJK UNIFIED IDEOGRAPH-4E8C", "short": "IDEOGRAPH4E8C"}, {"cp": 20364, "ch": "侌", "name": "CJK UNIFIED IDEOGRAPH-4F8C", "short": "IDEOGRAPH4F8C"}, {"cp": 20109, "ch": "亍", "name": "CJK UNIFIED IDEOGRAPH-4E8D", "short": "IDEOGRAPH4E8D"}, {"cp": 20365, "ch": "侍", "name": "CJK UNIFIED IDEOGRAPH-4F8D", "short": "IDEOGRAPH4F8D"}, {"cp": 20110, "ch": "于", "name": "CJK UNIFIED IDEOGRAPH-4E8E", "short": "IDEOGRAPH4E8E"}, {"cp": 20366, "ch": "侎", "name": "CJK UNIFIED IDEOGRAPH-4F8E", "short": "IDEOGRAPH4F8E"}, {"cp": 20111, "ch": "亏", "name": "CJK UNIFIED IDEOGRAPH-4E8F", "short": "IDEOGRAPH4E8F"}, {"cp": 20367, "ch": "侏", "name": "CJK UNIFIED IDEOGRAPH-4F8F", "short": "IDEOGRAPH4F8F"}, {"cp": 20112, "ch": "亐", "name": "CJK UNIFIED IDEOGRAPH-4E90", "short": "IDEOGRAPH4E90"}, {"cp": 20368, "ch": "侐", "name": "CJK UNIFIED IDEOGRAPH-4F90", "short": "IDEOGRAPH4F90"}, {"cp": 20113, "ch": "云", "name": "CJK UNIFIED IDEOGRAPH-4E91", "short": "IDEOGRAPH4E91"}, {"cp": 20369, "ch": "侑", "name": "CJK UNIFIED IDEOGRAPH-4F91", "short": "IDEOGRAPH4F91"}, {"cp": 20114, "ch": "互", "name": "CJK UNIFIED IDEOGRAPH-4E92", "short": "IDEOGRAPH4E92"}, {"cp": 20370, "ch": "侒", "name": "CJK UNIFIED IDEOGRAPH-4F92", "short": "IDEOGRAPH4F92"}, {"cp": 20115, "ch": "亓", "name": "CJK UNIFIED IDEOGRAPH-4E93", "short": "IDEOGRAPH4E93"}, {"cp": 20371, "ch": "侓", "name": "CJK UNIFIED IDEOGRAPH-4F93", "short": "IDEOGRAPH4F93"}, {"cp": 20116, "ch": "五", "name": "CJK UNIFIED IDEOGRAPH-4E94", "short": "IDEOGRAPH4E94"}, {"cp": 20372, "ch": "侔", "name": "CJK UNIFIED IDEOGRAPH-4F94", "short": "IDEOGRAPH4F94"}, {"cp": 20117, "ch": "井", "name": "CJK UNIFIED IDEOGRAPH-4E95", "short": "IDEOGRAPH4E95"}, {"cp": 20373, "ch": "侕", "name": "CJK UNIFIED IDEOGRAPH-4F95", "short": "IDEOGRAPH4F95"}, {"cp": 20118, "ch": "亖", "name": "CJK UNIFIED IDEOGRAPH-4E96", "short": "IDEOGRAPH4E96"}, {"cp": 20374, "ch": "侖", "name": "CJK UNIFIED IDEOGRAPH-4F96", "short": "IDEOGRAPH4F96"}, {"cp": 20119, "ch": "亗", "name": "CJK UNIFIED IDEOGRAPH-4E97", "short": "IDEOGRAPH4E97"}, {"cp": 20375, "ch": "侗", "name": "CJK UNIFIED IDEOGRAPH-4F97", "short": "IDEOGRAPH4F97"}, {"cp": 20120, "ch": "亘", "name": "CJK UNIFIED IDEOGRAPH-4E98", "short": "IDEOGRAPH4E98"}, {"cp": 20376, "ch": "侘", "name": "CJK UNIFIED IDEOGRAPH-4F98", "short": "IDEOGRAPH4F98"}, {"cp": 20121, "ch": "亙", "name": "CJK UNIFIED IDEOGRAPH-4E99", "short": "IDEOGRAPH4E99"}, {"cp": 20377, "ch": "侙", "name": "CJK UNIFIED IDEOGRAPH-4F99", "short": "IDEOGRAPH4F99"}, {"cp": 20122, "ch": "亚", "name": "CJK UNIFIED IDEOGRAPH-4E9A", "short": "IDEOGRAPH4E9A"}, {"cp": 20378, "ch": "侚", "name": "CJK UNIFIED IDEOGRAPH-4F9A", "short": "IDEOGRAPH4F9A"}, {"cp": 20123, "ch": "些", "name": "CJK UNIFIED IDEOGRAPH-4E9B", "short": "IDEOGRAPH4E9B"}, {"cp": 20379, "ch": "供", "name": "CJK UNIFIED IDEOGRAPH-4F9B", "short": "IDEOGRAPH4F9B"}, {"cp": 20124, "ch": "亜", "name": "CJK UNIFIED IDEOGRAPH-4E9C", "short": "IDEOGRAPH4E9C"}, {"cp": 20380, "ch": "侜", "name": "CJK UNIFIED IDEOGRAPH-4F9C", "short": "IDEOGRAPH4F9C"}, {"cp": 20125, "ch": "亝", "name": "CJK UNIFIED IDEOGRAPH-4E9D", "short": "IDEOGRAPH4E9D"}, {"cp": 20381, "ch": "依", "name": "CJK UNIFIED IDEOGRAPH-4F9D", "short": "IDEOGRAPH4F9D"}, {"cp": 20126, "ch": "亞", "name": "CJK UNIFIED IDEOGRAPH-4E9E", "short": "IDEOGRAPH4E9E"}, {"cp": 20382, "ch": "侞", "name": "CJK UNIFIED IDEOGRAPH-4F9E", "short": "IDEOGRAPH4F9E"}, {"cp": 20127, "ch": "亟", "name": "CJK UNIFIED IDEOGRAPH-4E9F", "short": "IDEOGRAPH4E9F"}, {"cp": 20383, "ch": "侟", "name": "CJK UNIFIED IDEOGRAPH-4F9F", "short": "IDEOGRAPH4F9F"}, {"cp": 20128, "ch": "亠", "name": "CJK UNIFIED IDEOGRAPH-4EA0", "short": "IDEOGRAPH4EA0"}, {"cp": 20384, "ch": "侠", "name": "CJK UNIFIED IDEOGRAPH-4FA0", "short": "IDEOGRAPH4FA0"}, {"cp": 20129, "ch": "亡", "name": "CJK UNIFIED IDEOGRAPH-4EA1", "short": "IDEOGRAPH4EA1"}, {"cp": 20385, "ch": "価", "name": "CJK UNIFIED IDEOGRAPH-4FA1", "short": "IDEOGRAPH4FA1"}, {"cp": 20130, "ch": "亢", "name": "CJK UNIFIED IDEOGRAPH-4EA2", "short": "IDEOGRAPH4EA2"}, {"cp": 20386, "ch": "侢", "name": "CJK UNIFIED IDEOGRAPH-4FA2", "short": "IDEOGRAPH4FA2"}, {"cp": 20131, "ch": "亣", "name": "CJK UNIFIED IDEOGRAPH-4EA3", "short": "IDEOGRAPH4EA3"}, {"cp": 20387, "ch": "侣", "name": "CJK UNIFIED IDEOGRAPH-4FA3", "short": "IDEOGRAPH4FA3"}, {"cp": 20132, "ch": "交", "name": "CJK UNIFIED IDEOGRAPH-4EA4", "short": "IDEOGRAPH4EA4"}, {"cp": 20388, "ch": "侤", "name": "CJK UNIFIED IDEOGRAPH-4FA4", "short": "IDEOGRAPH4FA4"}, {"cp": 20133, "ch": "亥", "name": "CJK UNIFIED IDEOGRAPH-4EA5", "short": "IDEOGRAPH4EA5"}, {"cp": 20389, "ch": "侥", "name": "CJK UNIFIED IDEOGRAPH-4FA5", "short": "IDEOGRAPH4FA5"}, {"cp": 20134, "ch": "亦", "name": "CJK UNIFIED IDEOGRAPH-4EA6", "short": "IDEOGRAPH4EA6"}, {"cp": 20390, "ch": "侦", "name": "CJK UNIFIED IDEOGRAPH-4FA6", "short": "IDEOGRAPH4FA6"}, {"cp": 20135, "ch": "产", "name": "CJK UNIFIED IDEOGRAPH-4EA7", "short": "IDEOGRAPH4EA7"}, {"cp": 20391, "ch": "侧", "name": "CJK UNIFIED IDEOGRAPH-4FA7", "short": "IDEOGRAPH4FA7"}, {"cp": 20136, "ch": "亨", "name": "CJK UNIFIED IDEOGRAPH-4EA8", "short": "IDEOGRAPH4EA8"}, {"cp": 20392, "ch": "侨", "name": "CJK UNIFIED IDEOGRAPH-4FA8", "short": "IDEOGRAPH4FA8"}, {"cp": 20137, "ch": "亩", "name": "CJK UNIFIED IDEOGRAPH-4EA9", "short": "IDEOGRAPH4EA9"}, {"cp": 20393, "ch": "侩", "name": "CJK UNIFIED IDEOGRAPH-4FA9", "short": "IDEOGRAPH4FA9"}, {"cp": 20138, "ch": "亪", "name": "CJK UNIFIED IDEOGRAPH-4EAA", "short": "IDEOGRAPH4EAA"}, {"cp": 20394, "ch": "侪", "name": "CJK UNIFIED IDEOGRAPH-4FAA", "short": "IDEOGRAPH4FAA"}, {"cp": 20139, "ch": "享", "name": "CJK UNIFIED IDEOGRAPH-4EAB", "short": "IDEOGRAPH4EAB"}, {"cp": 20395, "ch": "侫", "name": "CJK UNIFIED IDEOGRAPH-4FAB", "short": "IDEOGRAPH4FAB"}, {"cp": 20140, "ch": "京", "name": "CJK UNIFIED IDEOGRAPH-4EAC", "short": "IDEOGRAPH4EAC"}, {"cp": 20396, "ch": "侬", "name": "CJK UNIFIED IDEOGRAPH-4FAC", "short": "IDEOGRAPH4FAC"}, {"cp": 20141, "ch": "亭", "name": "CJK UNIFIED IDEOGRAPH-4EAD", "short": "IDEOGRAPH4EAD"}, {"cp": 20397, "ch": "侭", "name": "CJK UNIFIED IDEOGRAPH-4FAD", "short": "IDEOGRAPH4FAD"}, {"cp": 20142, "ch": "亮", "name": "CJK UNIFIED IDEOGRAPH-4EAE", "short": "IDEOGRAPH4EAE"}, {"cp": 20398, "ch": "侮", "name": "CJK UNIFIED IDEOGRAPH-4FAE", "short": "IDEOGRAPH4FAE"}, {"cp": 20143, "ch": "亯", "name": "CJK UNIFIED IDEOGRAPH-4EAF", "short": "IDEOGRAPH4EAF"}, {"cp": 20399, "ch": "侯", "name": "CJK UNIFIED IDEOGRAPH-4FAF", "short": "IDEOGRAPH4FAF"}, {"cp": 20144, "ch": "亰", "name": "CJK UNIFIED IDEOGRAPH-4EB0", "short": "IDEOGRAPH4EB0"}, {"cp": 20400, "ch": "侰", "name": "CJK UNIFIED IDEOGRAPH-4FB0", "short": "IDEOGRAPH4FB0"}, {"cp": 20145, "ch": "亱", "name": "CJK UNIFIED IDEOGRAPH-4EB1", "short": "IDEOGRAPH4EB1"}, {"cp": 20401, "ch": "侱", "name": "CJK UNIFIED IDEOGRAPH-4FB1", "short": "IDEOGRAPH4FB1"}, {"cp": 20146, "ch": "亲", "name": "CJK UNIFIED IDEOGRAPH-4EB2", "short": "IDEOGRAPH4EB2"}, {"cp": 20402, "ch": "侲", "name": "CJK UNIFIED IDEOGRAPH-4FB2", "short": "IDEOGRAPH4FB2"}, {"cp": 20147, "ch": "亳", "name": "CJK UNIFIED IDEOGRAPH-4EB3", "short": "IDEOGRAPH4EB3"}, {"cp": 20403, "ch": "侳", "name": "CJK UNIFIED IDEOGRAPH-4FB3", "short": "IDEOGRAPH4FB3"}, {"cp": 20148, "ch": "亴", "name": "CJK UNIFIED IDEOGRAPH-4EB4", "short": "IDEOGRAPH4EB4"}, {"cp": 20404, "ch": "侴", "name": "CJK UNIFIED IDEOGRAPH-4FB4", "short": "IDEOGRAPH4FB4"}, {"cp": 20149, "ch": "亵", "name": "CJK UNIFIED IDEOGRAPH-4EB5", "short": "IDEOGRAPH4EB5"}, {"cp": 20405, "ch": "侵", "name": "CJK UNIFIED IDEOGRAPH-4FB5", "short": "IDEOGRAPH4FB5"}, {"cp": 20150, "ch": "亶", "name": "CJK UNIFIED IDEOGRAPH-4EB6", "short": "IDEOGRAPH4EB6"}, {"cp": 20406, "ch": "侶", "name": "CJK UNIFIED IDEOGRAPH-4FB6", "short": "IDEOGRAPH4FB6"}, {"cp": 20151, "ch": "亷", "name": "CJK UNIFIED IDEOGRAPH-4EB7", "short": "IDEOGRAPH4EB7"}, {"cp": 20407, "ch": "侷", "name": "CJK UNIFIED IDEOGRAPH-4FB7", "short": "IDEOGRAPH4FB7"}, {"cp": 20152, "ch": "亸", "name": "CJK UNIFIED IDEOGRAPH-4EB8", "short": "IDEOGRAPH4EB8"}, {"cp": 20408, "ch": "侸", "name": "CJK UNIFIED IDEOGRAPH-4FB8", "short": "IDEOGRAPH4FB8"}, {"cp": 20153, "ch": "亹", "name": "CJK UNIFIED IDEOGRAPH-4EB9", "short": "IDEOGRAPH4EB9"}, {"cp": 20409, "ch": "侹", "name": "CJK UNIFIED IDEOGRAPH-4FB9", "short": "IDEOGRAPH4FB9"}, {"cp": 20154, "ch": "人", "name": "CJK UNIFIED IDEOGRAPH-4EBA", "short": "IDEOGRAPH4EBA"}, {"cp": 20410, "ch": "侺", "name": "CJK UNIFIED IDEOGRAPH-4FBA", "short": "IDEOGRAPH4FBA"}, {"cp": 20155, "ch": "亻", "name": "CJK UNIFIED IDEOGRAPH-4EBB", "short": "IDEOGRAPH4EBB"}, {"cp": 20411, "ch": "侻", "name": "CJK UNIFIED IDEOGRAPH-4FBB", "short": "IDEOGRAPH4FBB"}, {"cp": 20156, "ch": "亼", "name": "CJK UNIFIED IDEOGRAPH-4EBC", "short": "IDEOGRAPH4EBC"}, {"cp": 20412, "ch": "侼", "name": "CJK UNIFIED IDEOGRAPH-4FBC", "short": "IDEOGRAPH4FBC"}, {"cp": 20157, "ch": "亽", "name": "CJK UNIFIED IDEOGRAPH-4EBD", "short": "IDEOGRAPH4EBD"}, {"cp": 20413, "ch": "侽", "name": "CJK UNIFIED IDEOGRAPH-4FBD", "short": "IDEOGRAPH4FBD"}, {"cp": 20158, "ch": "亾", "name": "CJK UNIFIED IDEOGRAPH-4EBE", "short": "IDEOGRAPH4EBE"}, {"cp": 20414, "ch": "侾", "name": "CJK UNIFIED IDEOGRAPH-4FBE", "short": "IDEOGRAPH4FBE"}, {"cp": 20159, "ch": "亿", "name": "CJK UNIFIED IDEOGRAPH-4EBF", "short": "IDEOGRAPH4EBF"}, {"cp": 20415, "ch": "便", "name": "CJK UNIFIED IDEOGRAPH-4FBF", "short": "IDEOGRAPH4FBF"}, {"cp": 20160, "ch": "什", "name": "CJK UNIFIED IDEOGRAPH-4EC0", "short": "IDEOGRAPH4EC0"}, {"cp": 20416, "ch": "俀", "name": "CJK UNIFIED IDEOGRAPH-4FC0", "short": "IDEOGRAPH4FC0"}, {"cp": 20161, "ch": "仁", "name": "CJK UNIFIED IDEOGRAPH-4EC1", "short": "IDEOGRAPH4EC1"}, {"cp": 20417, "ch": "俁", "name": "CJK UNIFIED IDEOGRAPH-4FC1", "short": "IDEOGRAPH4FC1"}, {"cp": 20162, "ch": "仂", "name": "CJK UNIFIED IDEOGRAPH-4EC2", "short": "IDEOGRAPH4EC2"}, {"cp": 20418, "ch": "係", "name": "CJK UNIFIED IDEOGRAPH-4FC2", "short": "IDEOGRAPH4FC2"}, {"cp": 20163, "ch": "仃", "name": "CJK UNIFIED IDEOGRAPH-4EC3", "short": "IDEOGRAPH4EC3"}, {"cp": 20419, "ch": "促", "name": "CJK UNIFIED IDEOGRAPH-4FC3", "short": "IDEOGRAPH4FC3"}, {"cp": 20164, "ch": "仄", "name": "CJK UNIFIED IDEOGRAPH-4EC4", "short": "IDEOGRAPH4EC4"}, {"cp": 20420, "ch": "俄", "name": "CJK UNIFIED IDEOGRAPH-4FC4", "short": "IDEOGRAPH4FC4"}, {"cp": 20165, "ch": "仅", "name": "CJK UNIFIED IDEOGRAPH-4EC5", "short": "IDEOGRAPH4EC5"}, {"cp": 20421, "ch": "俅", "name": "CJK UNIFIED IDEOGRAPH-4FC5", "short": "IDEOGRAPH4FC5"}, {"cp": 20166, "ch": "仆", "name": "CJK UNIFIED IDEOGRAPH-4EC6", "short": "IDEOGRAPH4EC6"}, {"cp": 20422, "ch": "俆", "name": "CJK UNIFIED IDEOGRAPH-4FC6", "short": "IDEOGRAPH4FC6"}, {"cp": 20167, "ch": "仇", "name": "CJK UNIFIED IDEOGRAPH-4EC7", "short": "IDEOGRAPH4EC7"}, {"cp": 20423, "ch": "俇", "name": "CJK UNIFIED IDEOGRAPH-4FC7", "short": "IDEOGRAPH4FC7"}, {"cp": 20168, "ch": "仈", "name": "CJK UNIFIED IDEOGRAPH-4EC8", "short": "IDEOGRAPH4EC8"}, {"cp": 20424, "ch": "俈", "name": "CJK UNIFIED IDEOGRAPH-4FC8", "short": "IDEOGRAPH4FC8"}, {"cp": 20169, "ch": "仉", "name": "CJK UNIFIED IDEOGRAPH-4EC9", "short": "IDEOGRAPH4EC9"}, {"cp": 20425, "ch": "俉", "name": "CJK UNIFIED IDEOGRAPH-4FC9", "short": "IDEOGRAPH4FC9"}, {"cp": 20170, "ch": "今", "name": "CJK UNIFIED IDEOGRAPH-4ECA", "short": "IDEOGRAPH4ECA"}, {"cp": 20426, "ch": "俊", "name": "CJK UNIFIED IDEOGRAPH-4FCA", "short": "IDEOGRAPH4FCA"}, {"cp": 20171, "ch": "介", "name": "CJK UNIFIED IDEOGRAPH-4ECB", "short": "IDEOGRAPH4ECB"}, {"cp": 20427, "ch": "俋", "name": "CJK UNIFIED IDEOGRAPH-4FCB", "short": "IDEOGRAPH4FCB"}, {"cp": 20172, "ch": "仌", "name": "CJK UNIFIED IDEOGRAPH-4ECC", "short": "IDEOGRAPH4ECC"}, {"cp": 20428, "ch": "俌", "name": "CJK UNIFIED IDEOGRAPH-4FCC", "short": "IDEOGRAPH4FCC"}, {"cp": 20173, "ch": "仍", "name": "CJK UNIFIED IDEOGRAPH-4ECD", "short": "IDEOGRAPH4ECD"}, {"cp": 20429, "ch": "俍", "name": "CJK UNIFIED IDEOGRAPH-4FCD", "short": "IDEOGRAPH4FCD"}, {"cp": 20174, "ch": "从", "name": "CJK UNIFIED IDEOGRAPH-4ECE", "short": "IDEOGRAPH4ECE"}, {"cp": 20430, "ch": "俎", "name": "CJK UNIFIED IDEOGRAPH-4FCE", "short": "IDEOGRAPH4FCE"}, {"cp": 20175, "ch": "仏", "name": "CJK UNIFIED IDEOGRAPH-4ECF", "short": "IDEOGRAPH4ECF"}, {"cp": 20431, "ch": "俏", "name": "CJK UNIFIED IDEOGRAPH-4FCF", "short": "IDEOGRAPH4FCF"}, {"cp": 20176, "ch": "仐", "name": "CJK UNIFIED IDEOGRAPH-4ED0", "short": "IDEOGRAPH4ED0"}, {"cp": 20432, "ch": "俐", "name": "CJK UNIFIED IDEOGRAPH-4FD0", "short": "IDEOGRAPH4FD0"}, {"cp": 20177, "ch": "仑", "name": "CJK UNIFIED IDEOGRAPH-4ED1", "short": "IDEOGRAPH4ED1"}, {"cp": 20433, "ch": "俑", "name": "CJK UNIFIED IDEOGRAPH-4FD1", "short": "IDEOGRAPH4FD1"}, {"cp": 20178, "ch": "仒", "name": "CJK UNIFIED IDEOGRAPH-4ED2", "short": "IDEOGRAPH4ED2"}, {"cp": 20434, "ch": "俒", "name": "CJK UNIFIED IDEOGRAPH-4FD2", "short": "IDEOGRAPH4FD2"}, {"cp": 20179, "ch": "仓", "name": "CJK UNIFIED IDEOGRAPH-4ED3", "short": "IDEOGRAPH4ED3"}, {"cp": 20435, "ch": "俓", "name": "CJK UNIFIED IDEOGRAPH-4FD3", "short": "IDEOGRAPH4FD3"}, {"cp": 20180, "ch": "仔", "name": "CJK UNIFIED IDEOGRAPH-4ED4", "short": "IDEOGRAPH4ED4"}, {"cp": 20436, "ch": "俔", "name": "CJK UNIFIED IDEOGRAPH-4FD4", "short": "IDEOGRAPH4FD4"}, {"cp": 20181, "ch": "仕", "name": "CJK UNIFIED IDEOGRAPH-4ED5", "short": "IDEOGRAPH4ED5"}, {"cp": 20437, "ch": "俕", "name": "CJK UNIFIED IDEOGRAPH-4FD5", "short": "IDEOGRAPH4FD5"}, {"cp": 20182, "ch": "他", "name": "CJK UNIFIED IDEOGRAPH-4ED6", "short": "IDEOGRAPH4ED6"}, {"cp": 20438, "ch": "俖", "name": "CJK UNIFIED IDEOGRAPH-4FD6", "short": "IDEOGRAPH4FD6"}, {"cp": 20183, "ch": "仗", "name": "CJK UNIFIED IDEOGRAPH-4ED7", "short": "IDEOGRAPH4ED7"}, {"cp": 20439, "ch": "俗", "name": "CJK UNIFIED IDEOGRAPH-4FD7", "short": "IDEOGRAPH4FD7"}, {"cp": 20184, "ch": "付", "name": "CJK UNIFIED IDEOGRAPH-4ED8", "short": "IDEOGRAPH4ED8"}, {"cp": 20440, "ch": "俘", "name": "CJK UNIFIED IDEOGRAPH-4FD8", "short": "IDEOGRAPH4FD8"}, {"cp": 20185, "ch": "仙", "name": "CJK UNIFIED IDEOGRAPH-4ED9", "short": "IDEOGRAPH4ED9"}, {"cp": 20441, "ch": "俙", "name": "CJK UNIFIED IDEOGRAPH-4FD9", "short": "IDEOGRAPH4FD9"}, {"cp": 20186, "ch": "仚", "name": "CJK UNIFIED IDEOGRAPH-4EDA", "short": "IDEOGRAPH4EDA"}, {"cp": 20442, "ch": "俚", "name": "CJK UNIFIED IDEOGRAPH-4FDA", "short": "IDEOGRAPH4FDA"}, {"cp": 20187, "ch": "仛", "name": "CJK UNIFIED IDEOGRAPH-4EDB", "short": "IDEOGRAPH4EDB"}, {"cp": 20443, "ch": "俛", "name": "CJK UNIFIED IDEOGRAPH-4FDB", "short": "IDEOGRAPH4FDB"}, {"cp": 20188, "ch": "仜", "name": "CJK UNIFIED IDEOGRAPH-4EDC", "short": "IDEOGRAPH4EDC"}, {"cp": 20444, "ch": "俜", "name": "CJK UNIFIED IDEOGRAPH-4FDC", "short": "IDEOGRAPH4FDC"}, {"cp": 20189, "ch": "仝", "name": "CJK UNIFIED IDEOGRAPH-4EDD", "short": "IDEOGRAPH4EDD"}, {"cp": 20445, "ch": "保", "name": "CJK UNIFIED IDEOGRAPH-4FDD", "short": "IDEOGRAPH4FDD"}, {"cp": 20190, "ch": "仞", "name": "CJK UNIFIED IDEOGRAPH-4EDE", "short": "IDEOGRAPH4EDE"}, {"cp": 20446, "ch": "俞", "name": "CJK UNIFIED IDEOGRAPH-4FDE", "short": "IDEOGRAPH4FDE"}, {"cp": 20191, "ch": "仟", "name": "CJK UNIFIED IDEOGRAPH-4EDF", "short": "IDEOGRAPH4EDF"}, {"cp": 20447, "ch": "俟", "name": "CJK UNIFIED IDEOGRAPH-4FDF", "short": "IDEOGRAPH4FDF"}, {"cp": 20192, "ch": "仠", "name": "CJK UNIFIED IDEOGRAPH-4EE0", "short": "IDEOGRAPH4EE0"}, {"cp": 20448, "ch": "俠", "name": "CJK UNIFIED IDEOGRAPH-4FE0", "short": "IDEOGRAPH4FE0"}, {"cp": 20193, "ch": "仡", "name": "CJK UNIFIED IDEOGRAPH-4EE1", "short": "IDEOGRAPH4EE1"}, {"cp": 20449, "ch": "信", "name": "CJK UNIFIED IDEOGRAPH-4FE1", "short": "IDEOGRAPH4FE1"}, {"cp": 20194, "ch": "仢", "name": "CJK UNIFIED IDEOGRAPH-4EE2", "short": "IDEOGRAPH4EE2"}, {"cp": 20450, "ch": "俢", "name": "CJK UNIFIED IDEOGRAPH-4FE2", "short": "IDEOGRAPH4FE2"}, {"cp": 20195, "ch": "代", "name": "CJK UNIFIED IDEOGRAPH-4EE3", "short": "IDEOGRAPH4EE3"}, {"cp": 20451, "ch": "俣", "name": "CJK UNIFIED IDEOGRAPH-4FE3", "short": "IDEOGRAPH4FE3"}, {"cp": 20196, "ch": "令", "name": "CJK UNIFIED IDEOGRAPH-4EE4", "short": "IDEOGRAPH4EE4"}, {"cp": 20452, "ch": "俤", "name": "CJK UNIFIED IDEOGRAPH-4FE4", "short": "IDEOGRAPH4FE4"}, {"cp": 20197, "ch": "以", "name": "CJK UNIFIED IDEOGRAPH-4EE5", "short": "IDEOGRAPH4EE5"}, {"cp": 20453, "ch": "俥", "name": "CJK UNIFIED IDEOGRAPH-4FE5", "short": "IDEOGRAPH4FE5"}, {"cp": 20198, "ch": "仦", "name": "CJK UNIFIED IDEOGRAPH-4EE6", "short": "IDEOGRAPH4EE6"}, {"cp": 20454, "ch": "俦", "name": "CJK UNIFIED IDEOGRAPH-4FE6", "short": "IDEOGRAPH4FE6"}, {"cp": 20199, "ch": "仧", "name": "CJK UNIFIED IDEOGRAPH-4EE7", "short": "IDEOGRAPH4EE7"}, {"cp": 20455, "ch": "俧", "name": "CJK UNIFIED IDEOGRAPH-4FE7", "short": "IDEOGRAPH4FE7"}, {"cp": 20200, "ch": "仨", "name": "CJK UNIFIED IDEOGRAPH-4EE8", "short": "IDEOGRAPH4EE8"}, {"cp": 20456, "ch": "俨", "name": "CJK UNIFIED IDEOGRAPH-4FE8", "short": "IDEOGRAPH4FE8"}, {"cp": 20201, "ch": "仩", "name": "CJK UNIFIED IDEOGRAPH-4EE9", "short": "IDEOGRAPH4EE9"}, {"cp": 20457, "ch": "俩", "name": "CJK UNIFIED IDEOGRAPH-4FE9", "short": "IDEOGRAPH4FE9"}, {"cp": 20202, "ch": "仪", "name": "CJK UNIFIED IDEOGRAPH-4EEA", "short": "IDEOGRAPH4EEA"}, {"cp": 20458, "ch": "俪", "name": "CJK UNIFIED IDEOGRAPH-4FEA", "short": "IDEOGRAPH4FEA"}, {"cp": 20203, "ch": "仫", "name": "CJK UNIFIED IDEOGRAPH-4EEB", "short": "IDEOGRAPH4EEB"}, {"cp": 20459, "ch": "俫", "name": "CJK UNIFIED IDEOGRAPH-4FEB", "short": "IDEOGRAPH4FEB"}, {"cp": 20204, "ch": "们", "name": "CJK UNIFIED IDEOGRAPH-4EEC", "short": "IDEOGRAPH4EEC"}, {"cp": 20460, "ch": "俬", "name": "CJK UNIFIED IDEOGRAPH-4FEC", "short": "IDEOGRAPH4FEC"}, {"cp": 20205, "ch": "仭", "name": "CJK UNIFIED IDEOGRAPH-4EED", "short": "IDEOGRAPH4EED"}, {"cp": 20461, "ch": "俭", "name": "CJK UNIFIED IDEOGRAPH-4FED", "short": "IDEOGRAPH4FED"}, {"cp": 20206, "ch": "仮", "name": "CJK UNIFIED IDEOGRAPH-4EEE", "short": "IDEOGRAPH4EEE"}, {"cp": 20462, "ch": "修", "name": "CJK UNIFIED IDEOGRAPH-4FEE", "short": "IDEOGRAPH4FEE"}, {"cp": 20207, "ch": "仯", "name": "CJK UNIFIED IDEOGRAPH-4EEF", "short": "IDEOGRAPH4EEF"}, {"cp": 20463, "ch": "俯", "name": "CJK UNIFIED IDEOGRAPH-4FEF", "short": "IDEOGRAPH4FEF"}, {"cp": 20208, "ch": "仰", "name": "CJK UNIFIED IDEOGRAPH-4EF0", "short": "IDEOGRAPH4EF0"}, {"cp": 20464, "ch": "俰", "name": "CJK UNIFIED IDEOGRAPH-4FF0", "short": "IDEOGRAPH4FF0"}, {"cp": 20209, "ch": "仱", "name": "CJK UNIFIED IDEOGRAPH-4EF1", "short": "IDEOGRAPH4EF1"}, {"cp": 20465, "ch": "俱", "name": "CJK UNIFIED IDEOGRAPH-4FF1", "short": "IDEOGRAPH4FF1"}, {"cp": 20210, "ch": "仲", "name": "CJK UNIFIED IDEOGRAPH-4EF2", "short": "IDEOGRAPH4EF2"}, {"cp": 20466, "ch": "俲", "name": "CJK UNIFIED IDEOGRAPH-4FF2", "short": "IDEOGRAPH4FF2"}, {"cp": 20211, "ch": "仳", "name": "CJK UNIFIED IDEOGRAPH-4EF3", "short": "IDEOGRAPH4EF3"}, {"cp": 20467, "ch": "俳", "name": "CJK UNIFIED IDEOGRAPH-4FF3", "short": "IDEOGRAPH4FF3"}, {"cp": 20212, "ch": "仴", "name": "CJK UNIFIED IDEOGRAPH-4EF4", "short": "IDEOGRAPH4EF4"}, {"cp": 20468, "ch": "俴", "name": "CJK UNIFIED IDEOGRAPH-4FF4", "short": "IDEOGRAPH4FF4"}, {"cp": 20213, "ch": "仵", "name": "CJK UNIFIED IDEOGRAPH-4EF5", "short": "IDEOGRAPH4EF5"}, {"cp": 20469, "ch": "俵", "name": "CJK UNIFIED IDEOGRAPH-4FF5", "short": "IDEOGRAPH4FF5"}, {"cp": 20214, "ch": "件", "name": "CJK UNIFIED IDEOGRAPH-4EF6", "short": "IDEOGRAPH4EF6"}, {"cp": 20470, "ch": "俶", "name": "CJK UNIFIED IDEOGRAPH-4FF6", "short": "IDEOGRAPH4FF6"}, {"cp": 20215, "ch": "价", "name": "CJK UNIFIED IDEOGRAPH-4EF7", "short": "IDEOGRAPH4EF7"}, {"cp": 20471, "ch": "俷", "name": "CJK UNIFIED IDEOGRAPH-4FF7", "short": "IDEOGRAPH4FF7"}, {"cp": 20216, "ch": "仸", "name": "CJK UNIFIED IDEOGRAPH-4EF8", "short": "IDEOGRAPH4EF8"}, {"cp": 20472, "ch": "俸", "name": "CJK UNIFIED IDEOGRAPH-4FF8", "short": "IDEOGRAPH4FF8"}, {"cp": 20217, "ch": "仹", "name": "CJK UNIFIED IDEOGRAPH-4EF9", "short": "IDEOGRAPH4EF9"}, {"cp": 20473, "ch": "俹", "name": "CJK UNIFIED IDEOGRAPH-4FF9", "short": "IDEOGRAPH4FF9"}, {"cp": 20218, "ch": "仺", "name": "CJK UNIFIED IDEOGRAPH-4EFA", "short": "IDEOGRAPH4EFA"}, {"cp": 20474, "ch": "俺", "name": "CJK UNIFIED IDEOGRAPH-4FFA", "short": "IDEOGRAPH4FFA"}, {"cp": 20219, "ch": "任", "name": "CJK UNIFIED IDEOGRAPH-4EFB", "short": "IDEOGRAPH4EFB"}, {"cp": 20475, "ch": "俻", "name": "CJK UNIFIED IDEOGRAPH-4FFB", "short": "IDEOGRAPH4FFB"}, {"cp": 20220, "ch": "仼", "name": "CJK UNIFIED IDEOGRAPH-4EFC", "short": "IDEOGRAPH4EFC"}, {"cp": 20476, "ch": "俼", "name": "CJK UNIFIED IDEOGRAPH-4FFC", "short": "IDEOGRAPH4FFC"}, {"cp": 20221, "ch": "份", "name": "CJK UNIFIED IDEOGRAPH-4EFD", "short": "IDEOGRAPH4EFD"}, {"cp": 20477, "ch": "俽", "name": "CJK UNIFIED IDEOGRAPH-4FFD", "short": "IDEOGRAPH4FFD"}, {"cp": 20222, "ch": "仾", "name": "CJK UNIFIED IDEOGRAPH-4EFE", "short": "IDEOGRAPH4EFE"}, {"cp": 20478, "ch": "俾", "name": "CJK UNIFIED IDEOGRAPH-4FFE", "short": "IDEOGRAPH4FFE"}, {"cp": 20223, "ch": "仿", "name": "CJK UNIFIED IDEOGRAPH-4EFF", "short": "IDEOGRAPH4EFF"}, {"cp": 20479, "ch": "俿", "name": "CJK UNIFIED IDEOGRAPH-4FFF", "short": "IDEOGRAPH4FFF"}], "MARKS": [{"cp": 94192, "ch": "𖿰", "label": "ca"}, {"cp": 94193, "ch": "𖿱", "label": "nhay"}], "BASE_ORIENT_VS": [65024, 65025, 65026, 65027, 65028, 65029, 65030, 65031], "BASE_ORIENT_LABEL": ["id", "r90", "r180", "r270", "mx", "my", "r90mx", "r90my"], "MARK_ORIENT_VS": [65024, 65025, 65026, 65027, 65028, 65029, 65030, 65031], "MARK_ORIENT_LABEL": ["id", "r90", "r180", "r270", "mx", "my", "r90mx", "r90my"], "OV_SEL": 65035, "SQUISH_R": 65036, "SQUISH_L": 65037, "SQUISH_T": 65038, "SQUISH_B": 65039, "OV_PUA": 57352, "SQUISH_R_PUA": 57353, "SQUISH_L_PUA": 57354, "SQUISH_T_PUA": 57355, "SQUISH_B_PUA": 57356, "D4_PUA_BASE": 57344, "DIGRAPH_PAIRS": [{"a": 0, "b": 1, "cross": true}, {"a": 3, "b": 6, "cross": true}, {"a": 4, "b": 13, "cross": true}, {"a": 7, "b": 18, "cross": true}, {"a": 8, "b": 25, "cross": true}, {"a": 11, "b": 30, "cross": true}, {"a": 12, "b": 37, "cross": true}, {"a": 15, "b": 42, "cross": true}, {"a": 16, "b": 49, "cross": true}, {"a": 19, "b": 54, "cross": true}, {"a": 20, "b": 61, "cross": true}, {"a": 23, "b": 66, "cross": true}, {"a": 24, "b": 73, "cross": true}, {"a": 27, "b": 78, "cross": true}, {"a": 28, "b": 85, "cross": true}, {"a": 31, "b": 90, "cross": true}, {"a": 32, "b": 97, "cross": true}, {"a": 35, "b": 102, "cross": true}, {"a": 36, "b": 109, "cross": true}, {"a": 39, "b": 114, "cross": true}, {"a": 40, "b": 121, "cross": true}, {"a": 43, "b": 126, "cross": true}, {"a": 44, "b": 133, "cross": true}, {"a": 47, "b": 138, "cross": true}], "DIGRAPH_NICHES": [{"a": "R", "b": "L"}, {"a": "L", "b": "R"}, {"a": "T", "b": "B"}, {"a": "B", "b": "T"}], "OPPOSING_ORIENT_OI": [2, 3, 0, 1, 5, 4, 7, 6], "n": 512, "total": 18688}</script>
+<script>
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const out = document.getElementById('out');
+const status = document.getElementById('status');
+const idxStart = document.getElementById('idxStart');
+const idxCount = document.getElementById('idxCount');
+const nicheSel = document.getElementById('nicheSel');
+const baseOrient = document.getElementById('baseOrient');
+const markSel = document.getElementById('markSel');
+const markOrient = document.getElementById('markOrient');
+
+function fillOrient(sel, labels, vs) {
+  labels.forEach((lab, i) => {
+    const o = document.createElement('option');
+    o.value = String(i);
+    const v = vs[i];
+    o.textContent = lab + (v != null
+      ? ' (FE' + (v - 0xFE00).toString(16).toUpperCase().padStart(2, '0') + ')'
+      : '');
+    sel.appendChild(o);
+  });
+}
+function fillMarks(sel) {
+  const all = document.createElement('option');
+  all.value = 'all'; all.textContent = 'all marks';
+  sel.appendChild(all);
+  DATA.MARKS.forEach((m, i) => {
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = m.label + ' U+' + m.cp.toString(16).toUpperCase();
+    sel.appendChild(o);
+  });
+}
+function fillNiches(sel) {
+  for (const [side, lab] of [['R','FE0C .dk (left)'],['L','FE0D .dkl (right)'],['T','FE0E .dkb (top)'],['B','FE0F .dkt (bottom)']]) {
+    const o = document.createElement('option');
+    o.value = side;
+    o.textContent = lab;
+    sel.appendChild(o);
+  }
+}
+fillOrient(baseOrient, DATA.BASE_ORIENT_LABEL, DATA.BASE_ORIENT_VS);
+fillOrient(markOrient, DATA.MARK_ORIENT_LABEL, DATA.MARK_ORIENT_VS);
+fillMarks(markSel);
+fillNiches(nicheSel);
+baseOrient.value = '0';
+markOrient.value = '0';
+markSel.value = 'all';
+nicheSel.value = 'R';
+
+function vsChar(vs) { return vs == null ? '' : String.fromCodePoint(vs); }
+function sliceIndices() {
+  const start = Math.max(0, Math.min(DATA.n - 1, +idxStart.value || 0));
+  const count = Math.max(1, +idxCount.value || 1);
+  const out = [];
+  for (let i = start; i < Math.min(DATA.n, start + count); i++) out.push(i);
+  return out;
+}
+function markList() {
+  if (markSel.value === 'all') return DATA.MARKS.map((_, i) => i);
+  return [+markSel.value];
+}
+function selectedNiche() {
+  const s = nicheSel.value;
+  return (s === 'R' || s === 'L' || s === 'T' || s === 'B') ? s : 'R';
+}
+function d4Pua(oi) {
+  const fe = DATA.BASE_ORIENT_VS[oi];
+  if (fe == null) return '';
+  return String.fromCodePoint(DATA.D4_PUA_BASE + (fe - 0xFE00));
+}
+function cjkPiece(idx, baseOi) {
+  const c = DATA.CJK[idx];
+  return c.ch + d4Pua(baseOi);
+}
+function markPiece(mi, markOi) {
+  const m = DATA.MARKS[mi];
+  // No mark FE00 no-op liga — omit identity D4 so vs01 is not left hanging.
+  const d4 = (DATA.MARK_ORIENT_LABEL[markOi] || 'id') === 'id' ? '' : d4Pua(markOi);
+  return m.ch + d4;
+}
+function squishPiece(side) {
+  // PUA E009–E00C (FE0C–F mirrors) so browsers keep selectors for GSUB.
+  const sel = side === 'R' ? DATA.SQUISH_R_PUA
+    : side === 'L' ? DATA.SQUISH_L_PUA
+    : side === 'T' ? DATA.SQUISH_T_PUA
+    : side === 'B' ? DATA.SQUISH_B_PUA
+    : null;
+  return sel != null ? String.fromCodePoint(sel) : '';
+}
+function markedCjk(idx, baseOi, mi, markOi, side) {
+  // Niche VS selects half; bare MARK also auto-squishes to .dk via liga.
+  return cjkPiece(idx, baseOi) + squishPiece(side) + markPiece(mi, markOi);
+}
+function digraphFirst(idx, oi, side) {
+  // A (D4 PUA)? E008 E009–C — zero-width half overlay
+  return cjkPiece(idx, oi)
+    + String.fromCodePoint(DATA.OV_PUA)
+    + squishPiece(side);
+}
+function digraphSecond(idx, oi, side) {
+  // B (D4 PUA)? E00A–C — opposing niche, keeps advance
+  return cjkPiece(idx, oi) + squishPiece(side);
+}
+function squishHex(side) {
+  const sel = side === 'R' ? DATA.SQUISH_R
+    : side === 'L' ? DATA.SQUISH_L
+    : side === 'T' ? DATA.SQUISH_T
+    : side === 'B' ? DATA.SQUISH_B
+    : null;
+  return sel != null ? sel.toString(16).toUpperCase() : side;
+}
+function tagFor(idx, baseOi, mi, markOi, side) {
+  const c = DATA.CJK[idx];
+  const bo = DATA.BASE_ORIENT_LABEL[baseOi] || 'id';
+  let t = c.short + (bo === 'id' ? '' : '.' + bo);
+  if (side) t += '[' + side + ']';
+  if (mi != null) {
+    const m = DATA.MARKS[mi];
+    const mo = DATA.MARK_ORIENT_LABEL[markOi] || 'id';
+    t += '+' + m.label + (mo === 'id' ? '' : '.' + mo);
+  }
+  return t;
+}
+function digraphTag(ia, oia, sa, ib, oib, sb, cross) {
+  const a = DATA.CJK[ia], b = DATA.CJK[ib];
+  const va = DATA.BASE_ORIENT_VS[oia];
+  const vb = DATA.BASE_ORIENT_VS[oib];
+  let left = a.cp.toString(16).toUpperCase();
+  if (va != null) left += ' FE' + (va - 0xFE00).toString(16).toUpperCase().padStart(2, '0');
+  left += ' FE0B ' + squishHex(sa);
+  let right = b.cp.toString(16).toUpperCase();
+  if (vb != null) right += ' FE' + (vb - 0xFE00).toString(16).toUpperCase().padStart(2, '0');
+  right += ' ' + squishHex(sb);
+  return left + ' + ' + right + (cross ? ' ⇄font' : '');
+}
+function cell(text, tag) {
+  const d = document.createElement('div');
+  d.className = 'cell';
+  const g = document.createElement('div');
+  g.className = 'glyph';
+  g.textContent = text;
+  const t = document.createElement('div');
+  t.className = 'tag';
+  t.textContent = tag;
+  d.appendChild(g);
+  d.appendChild(t);
+  return d;
+}
+function heading(s) {
+  const h = document.createElement('h2');
+  h.textContent = s;
+  return h;
+}
+function clearOut() { out.replaceChildren(); }
+function setStatus(s) { status.textContent = s; }
+
+const SQUISH_LABEL = {
+  R: 'FE0C /.dk',
+  L: 'FE0D /.dkl',
+  T: 'FE0E /.dkb (top)',
+  B: 'FE0F /.dkt (bottom)',
+};
+
+function renderPlain(indices) {
+  clearOut();
+  out.appendChild(heading('Plain CJK'));
+  let n = 0;
+  for (const i of indices) {
+    out.appendChild(cell(DATA.CJK[i].ch, DATA.CJK[i].short));
+    n++;
+  }
+  setStatus('Rendered ' + n.toLocaleString() + ' plain cells');
+}
+
+function renderMarks(indices, baseOi, markIndices, markOi, side) {
+  const niche = side || selectedNiche();
+  clearOut();
+  out.appendChild(heading('CJK + ' + SQUISH_LABEL[niche] + ' + ca/nhay'));
+  let n = 0;
+  for (const i of indices) {
+    for (const mi of markIndices) {
+      const text = markedCjk(i, baseOi, mi, markOi, niche);
+      out.appendChild(cell(text, tagFor(i, baseOi, mi, markOi, niche)));
+      n++;
+    }
+  }
+  setStatus('Rendered ' + n.toLocaleString() + ' mark cells');
+}
+
+function renderSquish(indices, baseOi, side) {
+  clearOut();
+  out.appendChild(heading('CJK squish (' + SQUISH_LABEL[side] + ')'));
+  let n = 0;
+  for (const i of indices) {
+    const text = cjkPiece(i, baseOi) + squishPiece(side);
+    out.appendChild(cell(text, tagFor(i, baseOi, null, 0, side)));
+    n++;
+  }
+  setStatus('Rendered ' + n.toLocaleString() + ' squish cells');
+}
+
+function renderDigraphs(orientOi) {
+  clearOut();
+  const pairs = DATA.DIGRAPH_PAIRS || [];
+  const niches = DATA.DIGRAPH_NICHES || [];
+  const opp = DATA.OPPOSING_ORIENT_OI || [];
+  out.appendChild(heading(
+    'Squish digraphs — first FE0B(+niche) zero-width · second niche · opposing orient'));
+  let n = 0;
+  for (const p of pairs) {
+    const oia = orientOi;
+    const oib = opp[oia] != null ? opp[oia] : oia;
+    for (const niche of niches) {
+      const text = digraphFirst(p.a, oia, niche.a)
+        + digraphSecond(p.b, oib, niche.b);
+      out.appendChild(cell(
+        text,
+        digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross)));
+      n++;
+    }
+  }
+  setStatus('Rendered ' + n.toLocaleString() + ' digraph cells ('
+    + pairs.filter(p => p.cross).length + ' cross-bucket pairs)');
+}
+
+function renderDigraphGrid() {
+  clearOut();
+  const pairs = DATA.DIGRAPH_PAIRS || [];
+  const niches = DATA.DIGRAPH_NICHES || [];
+  const opp = DATA.OPPOSING_ORIENT_OI || [];
+  out.appendChild(heading('Squish digraphs × all base orients (opposing)'));
+  let n = 0;
+  for (let oia = 0; oia < DATA.BASE_ORIENT_VS.length; oia++) {
+    const oib = opp[oia] != null ? opp[oia] : oia;
+    const lab = (DATA.BASE_ORIENT_LABEL[oia] || 'id')
+      + ' ↔ ' + (DATA.BASE_ORIENT_LABEL[oib] || 'id');
+    out.appendChild(heading(lab));
+    for (const p of pairs) {
+      for (const niche of niches) {
+        const text = digraphFirst(p.a, oia, niche.a)
+          + digraphSecond(p.b, oib, niche.b);
+        out.appendChild(cell(
+          text,
+          digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross)));
+        n++;
+      }
+    }
+  }
+  setStatus('Rendered ' + n.toLocaleString() + ' digraph×orient cells');
+}
+
+function renderBaseGrid(indices, markIndices) {
+  const niche = selectedNiche();
+  clearOut();
+  out.appendChild(heading('Base VS1–8 × ' + SQUISH_LABEL[niche] + ' × mark'));
+  let n = 0;
+  for (const i of indices) {
+    for (let bo = 0; bo < DATA.BASE_ORIENT_VS.length; bo++) {
+      for (const mi of markIndices) {
+        const text = markedCjk(i, bo, mi, 0, niche);
+        out.appendChild(cell(text, tagFor(i, bo, mi, 0, niche)));
+        n++;
+      }
+    }
+  }
+  setStatus('Rendered ' + n.toLocaleString() + ' base-orient × mark cells');
+}
+
+function renderMarkGrid(indices, baseOi, markIndices) {
+  const niche = selectedNiche();
+  clearOut();
+  out.appendChild(heading('Mark D4 grid · ' + SQUISH_LABEL[niche]));
+  let n = 0;
+  for (const i of indices) {
+    for (const mi of markIndices) {
+      for (let mo = 0; mo < DATA.MARK_ORIENT_VS.length; mo++) {
+        const text = markedCjk(i, baseOi, mi, mo, niche);
+        out.appendChild(cell(text, tagFor(i, baseOi, mi, mo, niche)));
+        n++;
+      }
+    }
+  }
+  setStatus('Rendered ' + n.toLocaleString() + ' mark-orient cells');
+}
+
+function renderEverything() {
+  const indices = sliceIndices();
+  clearOut();
+  let n = 0;
+  out.appendChild(heading('Plain'));
+  for (const i of indices) {
+    out.appendChild(cell(DATA.CJK[i].ch, DATA.CJK[i].short));
+    n++;
+  }
+  for (const side of ['R', 'L', 'T', 'B']) {
+    out.appendChild(heading('ca/nhay · ' + SQUISH_LABEL[side]));
+    for (const i of indices) {
+      for (let mi = 0; mi < DATA.MARKS.length; mi++) {
+        out.appendChild(cell(
+          markedCjk(i, 0, mi, 0, side),
+          tagFor(i, 0, mi, 0, side)));
+        n++;
+      }
+    }
+  }
+  for (const side of ['R', 'L', 'T', 'B']) {
+    out.appendChild(heading(SQUISH_LABEL[side]));
+    for (const i of indices) {
+      out.appendChild(cell(
+        cjkPiece(i, 0) + squishPiece(side),
+        tagFor(i, 0, null, 0, side)));
+      n++;
+    }
+  }
+  out.appendChild(heading('Squish digraphs (id ↔ r180)'));
+  const pairs = DATA.DIGRAPH_PAIRS || [];
+  const niches = DATA.DIGRAPH_NICHES || [];
+  const opp = DATA.OPPOSING_ORIENT_OI || [];
+  const oib = opp[0] != null ? opp[0] : 0;
+  for (const p of pairs) {
+    for (const niche of niches) {
+      out.appendChild(cell(
+        digraphFirst(p.a, 0, niche.a) + digraphSecond(p.b, oib, niche.b),
+        digraphTag(p.a, 0, niche.a, p.b, oib, niche.b, !!p.cross)));
+      n++;
+    }
+  }
+  setStatus('Rendered ' + n.toLocaleString() + ' cells');
+}
+
+document.getElementById('btnPlain').onclick = () =>
+  renderPlain(sliceIndices());
+document.getElementById('btnMarks').onclick = () =>
+  renderMarks(sliceIndices(), +baseOrient.value, markList(), +markOrient.value);
+document.getElementById('btnDk').onclick = () => {
+  nicheSel.value = 'R';
+  renderSquish(sliceIndices(), +baseOrient.value, 'R');
+};
+document.getElementById('btnDkl').onclick = () => {
+  nicheSel.value = 'L';
+  renderSquish(sliceIndices(), +baseOrient.value, 'L');
+};
+document.getElementById('btnDkt').onclick = () => {
+  nicheSel.value = 'T';
+  renderSquish(sliceIndices(), +baseOrient.value, 'T');
+};
+document.getElementById('btnDkb').onclick = () => {
+  nicheSel.value = 'B';
+  renderSquish(sliceIndices(), +baseOrient.value, 'B');
+};
+document.getElementById('btnDigraph').onclick = () =>
+  renderDigraphs(+baseOrient.value);
+document.getElementById('btnSlice').onclick = () =>
+  renderMarks(sliceIndices(), +baseOrient.value, markList(), +markOrient.value);
+document.getElementById('btnBaseGrid').onclick = () =>
+  renderBaseGrid(sliceIndices(), markList());
+document.getElementById('btnMarkGrid').onclick = () =>
+  renderMarkGrid(sliceIndices(), +baseOrient.value, markList());
+document.getElementById('btnEverything').onclick = renderEverything;
+
+renderMarks(sliceIndices(), 0, markList(), 0, 'R');
+</script>
+</body>
+</html>

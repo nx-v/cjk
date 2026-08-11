@@ -1,0 +1,10 @@
+c:/python314/python.exe c:/Users/Admin/fonts/Scripts/cjk_diacritics_html.py;
+c:/python314/python.exe c:/Users/Admin/fonts/Scripts/cjk_digraphs_html.py;
+c:/python314/python.exe c:/Users/Admin/fonts/Scripts/hangul_html.py;
+c:/python314/python.exe c:/Users/Admin/fonts/Scripts/yi_html.py;
+& c:/python314/python.exe c:/Users/Admin/fonts/Scripts/build_hangul.py --woff2-only;
+& c:/python314/python.exe c:/Users/Admin/fonts/Scripts/build_yi.py --woff2-only;
+& c:/python314/python.exe c:/Users/Admin/fonts/Scripts/build_cjk.py --woff2-only -j 64;
+& c:/python314/python.exe c:/Users/Admin/fonts/Scripts/sync_obsidian_panfonts.py;
+& c:/python314/python.exe c:/Users/Admin/fonts/Scripts/update_obsidian_theme_fonts.py --bake --vault "C:/Users/Admin/Dropbox" --private-only
+robocopy "c:/Users/Admin/fonts/Scripts/obsidian-panfonts" "C:/Users/Admin/Dropbox/.obsidian/plugins/obsidian-panfonts" /E /XO

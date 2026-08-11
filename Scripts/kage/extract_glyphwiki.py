@@ -903,6 +903,7 @@ def _build_marker_task(
     write_ttf: bool = True,
     write_woff2: bool = True,
     style: str = "mincho",
+    hint: bool = True,
 ) -> tuple[int, str, int, int]:
     """Process-pool worker: build one marker font.
 
@@ -917,6 +918,7 @@ def _build_marker_task(
         write_ttf=write_ttf,
         write_woff2=write_woff2,
         style=style,
+        hint=hint,
     )
     return marker, style, rendered, total
 
@@ -929,6 +931,7 @@ def build_fonts_from_mappings(
     include_mirrors: bool = True,
     write_ttf: bool = True,
     write_woff2: bool = True,
+    hint: bool = True,
     styles: Sequence[str] | None = None,
     jobs: int = 1,
 ) -> None:
@@ -973,6 +976,7 @@ def build_fonts_from_mappings(
                     include_mirrors=include_mirrors,
                     write_ttf=write_ttf,
                     write_woff2=write_woff2,
+                    hint=hint,
                 )
                 print(f"      rendered {rendered}, glyphs in file {total}")
         regenerate_css_from_dist(FONT_DIR)
@@ -999,6 +1003,7 @@ def build_fonts_from_mappings(
                     write_ttf,
                     write_woff2,
                     style,
+                    hint,
                 )
             )
 
@@ -1028,6 +1033,7 @@ def resolve_and_build_pipelined(
     include_mirrors: bool = True,
     write_ttf: bool = True,
     write_woff2: bool = True,
+    hint: bool = True,
     styles: Sequence[str] | None = None,
     jobs: int = 1,
 ) -> dict[str, str]:
@@ -1081,6 +1087,7 @@ def resolve_and_build_pipelined(
                     include_mirrors=include_mirrors,
                     write_ttf=write_ttf,
                     write_woff2=write_woff2,
+                    hint=hint,
                 )
                 print(f"      rendered {rendered}, glyphs in file {total}", flush=True)
         regenerate_css_from_dist(FONT_DIR)
@@ -1113,6 +1120,7 @@ def resolve_and_build_pipelined(
                     write_ttf,
                     write_woff2,
                     style,
+                    hint,
                 )
                 pending[fut] = (marker, style)
                 print(
@@ -1291,6 +1299,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
     parser.add_argument(
+        "--no-hint",
+        action="store_true",
+        help="Skip ttfautohint-py TrueType autohint step",
+    )
+    parser.add_argument(
         "--no-filters",
         action="store_true",
         help=(
@@ -1320,6 +1333,7 @@ def main(argv: list[str] | None = None) -> int:
     include_mirrors = not args.no_mirrors
     write_ttf = not args.woff2_only
     write_woff2 = not args.ttf_only
+    hint = not args.no_hint
     styles = resolve_shotai_styles(args)
     per_file = glyphs_per_file(include_mirrors=include_mirrors)
 
@@ -1394,6 +1408,7 @@ def main(argv: list[str] | None = None) -> int:
             include_mirrors=include_mirrors,
             write_ttf=write_ttf,
             write_woff2=write_woff2,
+            hint=hint,
             styles=styles,
             jobs=jobs,
         )
@@ -1519,6 +1534,7 @@ def main(argv: list[str] | None = None) -> int:
             include_mirrors=include_mirrors,
             write_ttf=write_ttf,
             write_woff2=write_woff2,
+            hint=hint,
             styles=styles,
             jobs=jobs,
         )
@@ -1580,6 +1596,7 @@ def main(argv: list[str] | None = None) -> int:
             include_mirrors=include_mirrors,
             write_ttf=write_ttf,
             write_woff2=write_woff2,
+            hint=hint,
             styles=styles,
             jobs=jobs,
         )
