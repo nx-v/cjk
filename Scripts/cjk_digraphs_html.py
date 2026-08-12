@@ -10,19 +10,19 @@ Logical encoding (matches ``cjk_diacritics`` / ``build_cjk``)::
     &#x660E;&#xFE00;&#xFE0B;&#xFE0C;&#x65E5;&#xFE02;&#xFE0D;
     (明 FE00 FE0B FE0C + 日 FE02 FE0D; each side picks its own D4)
 
-  Gallery text uses the same FE0* selectors (BMP PUA is pankana).
+  Gallery text uses the same FE0* selectors (BMP PUA is edenia kana).
 
   * First kanji is zero-width overlay (``FE0B`` + niche)
   * Niches oppose: FE0C↔FE0D (L↔R), FE0E↔FE0F (T↔B)
   * D4 orients are independent per character (FE00..FE07); GSUB liga only
-  * Prefer pairs from different pancjk buckets (``cp >> 8``); seed 明日
+  * Prefer pairs from different edenia cjk buckets (``cp >> 8``); seed 明日
 
 Usage
 -----
   python cjk_digraphs_html.py
   python cjk_digraphs_html.py --bucket 65 --bucket 66
   python cjk_digraphs_html.py --pairs 48 --limit 128
-  python cjk_digraphs_html.py -o dist/subfonts/digraph-cjk.html
+  python cjk_digraphs_html.py -o dist/cjk/digraph-cjk.html
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ import json
 import os
 from typing import List, Sequence, Tuple
 
-from build_cjk import IN_DIR, OUT_DIR as SUBFONTS_OUT
+from build_cjk import IN_DIR, OUT_DIR as CJK_OUT
 from cjk_diacritics_html import (
     BASE_ORIENT_LABEL,
     BASE_ORIENT_VS,
@@ -52,7 +52,7 @@ from cjk_diacritics import (
 )
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "subfonts", "digraph-cjk.html")
+DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "cjk", "digraph-cjk.html")
 
 
 def write_html(
@@ -105,8 +105,8 @@ def write_html(
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8"/>
-<title>pancjk — CJK squish digraphs</title>
-<link rel="stylesheet" href="./pancjk.css"/>
+<title>edenia cjk — CJK squish digraphs</title>
+<link rel="stylesheet" href="./edenia-cjk.css"/>
 <style>
 :root {{ --fs: {font_size}px; color-scheme: dark; }}
 * {{ box-sizing: border-box; }}
@@ -172,7 +172,7 @@ h2 {{
 </head>
 <body>
 <header>
-  <h1>pancjk — CJK squish digraphs</h1>
+  <h1>edenia cjk — CJK squish digraphs</h1>
   <p class="meta">
     Range: {range_note}<br/>
     Encoding: <code>A FE00..FE07 FE0B FE0C–F</code> + <code>B FE00..FE07 FE0D–F</code>
@@ -318,7 +318,7 @@ function orientLabel(oia, oib) {{
 }}
 function bucketFamily(cp) {{
   // Pin each half to its pigeonhole face so selector GSUB ligas stay in-font.
-  return 'pancjk ' + (cp >> 8).toString(16).toUpperCase();
+  return 'edenia cjk ' + (cp >> 8).toString(16).toUpperCase();
 }}
 function cell(textA, textB, cpA, cpB, tag, cross) {{
   let d = document.createElement('div');
@@ -453,13 +453,13 @@ renderDigraphs();
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build CJK squish digraph HTML gallery (pancjk)"
+        description="Build CJK squish digraph HTML gallery (edenia cjk)"
     )
     p.add_argument("-o", "--out", default=DEFAULT_OUT)
     p.add_argument(
         "--font-dir",
-        default=SUBFONTS_OUT,
-        help="Directory with pancjk bucket fonts / pancjk.css",
+        default=CJK_OUT,
+        help="Directory with edenia cjk bucket fonts / edenia-cjk.css",
     )
     p.add_argument(
         "--range",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build an HTML gallery of pankana chart × D4 × smalls × slices × dakuten.
+"""Build an HTML gallery of edenia kana chart × D4 × smalls × slices × dakuten.
 
 Encoding (matches ``build_kana``)::
 
@@ -42,11 +42,17 @@ from build_kana import (
     pair_index,
     small_cp,
 )
+from shared_diacritics import (
+    DAKUTEN_SLOT_COUNT,
+    DAKUTEN_SLOT_CYCLE,
+    dakuten_count_options_html,
+    dakuten_skip_options_html,
+)
 from shared_half_cells import YI_ORIENTATION_MODES
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "kana", "all-kana.html")
-KANA_FONT = os.path.join(SCRIPT_DIR, "dist", "kana", "pankana.woff2")
+KANA_FONT = os.path.join(SCRIPT_DIR, "dist", "kana", "edenia-kana.woff2")
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
 
 ORIENT_LABEL = [
@@ -129,14 +135,11 @@ def dakuten_mark_entries(limit: int = 64) -> List[dict]:
         except Exception:
             pass
 
+    from shared_diacritics import dakuten_mark_label, visible_dakuten_cps
+
     out: List[dict] = []
-    for cp in cps[: max(0, limit) or None]:
-        ch = chr(cp)
-        try:
-            name = unicodedata.name(ch)
-        except ValueError:
-            name = f"U+{cp:04X}"
-        short = name.split()[-1].replace("-", "") if name else f"{cp:04X}"
+    for cp in visible_dakuten_cps(cps)[: max(0, limit) or None]:
+        ch, name, short = dakuten_mark_label(cp)
         out.append({"cp": cp, "ch": ch, "name": name, "short": short})
     return out
 
@@ -167,6 +170,7 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
         "n_pair": n_pair,
         "n_rows": n_rows,
         "n_cols": n_cols,
+        "SLOT_COUNT": DAKUTEN_SLOT_COUNT,
     }
 
     font_bust = 0
@@ -180,13 +184,13 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
 <html lang="ja">
 <head>
 <meta charset="utf-8"/>
-<title>pankana — chart × D4 × smalls × slices × dakuten</title>
-<link rel="stylesheet" href="./pankana.css"/>
+<title>edenia kana — chart × D4 × smalls × slices × dakuten</title>
+<link rel="stylesheet" href="./edenia-kana.css"/>
 <style>
 @font-face {{
-  font-family: 'pankana-local';
-  src: url("./pankana.woff2?v={font_bust}") format("woff2"),
-       url("./pankana.ttf?v={font_bust}") format("truetype");
+  font-family: 'edenia-kana-local';
+  src: url("./edenia-kana.woff2?v={font_bust}") format("woff2"),
+       url("./edenia-kana.ttf?v={font_bust}") format("truetype");
   font-weight: normal;
   font-style: normal;
   font-display: block;
@@ -215,7 +219,7 @@ button:hover {{ background: #355a48; }}
 button.danger {{ background: #4a2a2a; border-color: #6a3a3a; }}
 #status {{ font-size: 13px; color: #8af; margin: 8px 0 16px; min-height: 1.2em; }}
 #out {{
-  font-family: pankana-local, pankana, sans-serif;
+  font-family: edenia-kana-local, 'edenia kana', sans-serif;
   font-size: var(--fs);
   line-height: 1.35;
   display: flex; flex-wrap: wrap; gap: 2px;
@@ -241,7 +245,7 @@ h2 {{
   grid-template-columns: auto repeat({n_cols}, minmax(2.2em, 1fr));
   gap: 2px 4px;
   width: 100%;
-  font-family: pankana-local, pankana, sans-serif;
+  font-family: edenia-kana-local, 'edenia kana', sans-serif;
   font-size: var(--fs);
   margin-bottom: 12px;
 }}
@@ -256,14 +260,15 @@ h2 {{
 </style>
 </head>
 <body>
-<h1>pankana — chart × D4 × smalls × slices × dakuten</h1>
+<h1>edenia kana — chart × D4 × smalls × slices × dakuten</h1>
 <p class="meta">
   {n:,} logical ({HIRAGANA_COUNT} hiragana + {n - HIRAGANA_COUNT} katakana,
   {len(CONSONANTS)}×{n_cols} each) · {D4_COUNT} D4 orientations as PUA
   (odd=full, even=small @ U+E000…; halfwidth @ U+F0000…) · slices FE00 / FE01 ·
   dakuten {len(marks)} (sample).<br/>
   Orientation gallery: {n_orient:,} · pairwise slices: {n_pair:,} each mode
-  (on demand). Diacritics optional: 1–4 marks → TR→BR→TL→BL (contour anchors).
+  (on demand). Diacritics optional: 1–{DAKUTEN_SLOT_COUNT} marks →
+  {DAKUTEN_SLOT_CYCLE} (contour anchors); CGJ (U+034F) skips a slot.
 </p>
 
 <div class="controls">
@@ -296,10 +301,12 @@ h2 {{
   </label>
   <label>Mark count
     <select id="markCount">
-      <option value="1">1 (TR)</option>
-      <option value="2">2 (+BR)</option>
-      <option value="3">3 (+TL)</option>
-      <option value="4">4 (+BL)</option>
+      {dakuten_count_options_html()}
+    </select>
+  </label>
+  <label>Skip (CGJ)
+    <select id="skipSlots">
+      {dakuten_skip_options_html()}
     </select>
   </label>
   <button type="button" id="btnChart">Chart grid (selected orient)</button>
@@ -325,6 +332,7 @@ let orientB = document.getElementById('orientB');
 let sliceMode = document.getElementById('sliceMode');
 let sizeMode = document.getElementById('sizeMode');
 let pickMark = document.getElementById('pickMark');
+const SLOT_N = DATA.SLOT_COUNT || 8;
 
 function fillKanaSelect(sel) {{
   DATA.KANA.forEach((k, i) => {{
@@ -402,20 +410,26 @@ function tagFor(idx, orientIdx) {{
   let sz = (useHw() ? 'ₕ' : '') + (useSmall() ? 'ₛ' : '');
   return k.label + sz + '.' + lab;
 }}
+function skipPrefix() {{
+  let n = Math.max(0, Math.min(SLOT_N - 1, +document.getElementById('skipSlots').value || 0));
+  return String.fromCodePoint(0x034F).repeat(n);
+}}
 function markSuffix() {{
   if (!document.getElementById('wantMarks').checked) return '';
   if (!DATA.MARKS.length) return '';
   let m = DATA.MARKS[+pickMark.value];
   if (!m) return '';
-  let n = Math.max(1, Math.min(4, +document.getElementById('markCount').value || 1));
-  return m.ch.repeat(n);
+  let n = Math.max(1, Math.min(SLOT_N, +document.getElementById('markCount').value || 1));
+  return skipPrefix() + m.ch.repeat(n);
 }}
 function markTag() {{
   if (!document.getElementById('wantMarks').checked) return '';
   if (!DATA.MARKS.length) return '';
   let m = DATA.MARKS[+pickMark.value];
-  let n = Math.max(1, Math.min(4, +document.getElementById('markCount').value || 1));
-  return m ? ('+' + m.short + '×' + n) : '';
+  let n = Math.max(1, Math.min(SLOT_N, +document.getElementById('markCount').value || 1));
+  if (!m) return '';
+  let skip = Math.max(0, Math.min(SLOT_N - 1, +document.getElementById('skipSlots').value || 0));
+  return (skip ? '+CGJ×' + skip : '') + '+' + m.short + '×' + n;
 }}
 function currentSlice() {{
   return DATA.SLICE_MODES[+sliceMode.value] || DATA.SLICE_MODES[0];

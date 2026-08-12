@@ -59,6 +59,7 @@ from cape_weightor import (
     ttglyph_from_layer,
 )
 from shared_diacritics import (
+    CGJ_CP,
     MAX_DIACRITIC_FRAC,
     _glyph_ink_size,
     _is_superimposed_mark,
@@ -748,7 +749,7 @@ def load_shared_marks(
             scale = (float(target_upem) / src_upem) if src_upem else 1.0
 
             for cp in iter_dakuten_codepoints(cmap):
-                if cp in claimed:
+                if cp == CGJ_CP or cp in claimed:
                     continue
                 ch = chr(cp)
                 cat = unicodedata.category(ch)
@@ -808,7 +809,7 @@ def inventory_shared_mark_cps(in_dir: str) -> List[int]:
                 if table.isUnicode():
                     cmap.update(table.cmap)
             for cp in iter_dakuten_codepoints(cmap):
-                if cp in seen or cp in CORE_MARK_CPS:
+                if cp == CGJ_CP or cp in seen or cp in CORE_MARK_CPS:
                     continue
                 ch = chr(cp)
                 cat = unicodedata.category(ch)

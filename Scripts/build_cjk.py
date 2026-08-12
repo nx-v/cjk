@@ -17,7 +17,7 @@ only. Squish = one half of the ideographic cell (``.dk``/``.dkl``/``.dkt``/
 ``.dkb``); ca/nhay sits in the free half via niche GPOS. Same half-cell glyphs
 for ``FE0C``–``FE0F`` access; ``FE0B`` = zero-width overlay.
 
-Also writes pancjk.css (@font-face) and fontlist.css (CSS-safe stack).
+Also writes edenia-cjk.css (@font-face) and fontlist.css (CSS-safe stack).
 """
 
 from __future__ import annotations
@@ -69,6 +69,7 @@ from shared_half_cells import (
     uvs_selector_for_mode,
     vs_glyph_name,
 )
+from edenia_names import CSS_CJK, STACK_CJK_TAIL, family_cjk, ps_cjk
 from sync_obsidian_panfonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
 
@@ -76,11 +77,12 @@ from cdn_fonts import dist_rel, format_src_line
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
-OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "subfonts")
+CJK_FOLDER = "cjk"
+OUT_DIR = os.path.join(SCRIPT_DIR, "dist", CJK_FOLDER)
 
 DEFAULT_UPEM = 1000
 
-CSS_FAMILY = "pancjk"
+CSS_FAMILY = "edenia cjk"
 
 # ---------- Source priority (highest first) ----------
 # Each entry: (filename, local_scale, weightor)
@@ -89,23 +91,25 @@ CSS_FAMILY = "pancjk"
 # * weightor — CAPE Weightor Weight-mode factor after fit (>1 bolden, <1 lighten,
 #   1.0 = none). Outer width/height are preserved.
 
+# Harmony target @ 1000 UPM (median of these sources): ink ≈ 874, stem ≈ 73.
+# local_scale = target_ink / native_ink; weightor = target_stem / (stem * scale).
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    # Skipping over Windows fonts for now, as they are not always available.
-    # ("NGULIM.TTF", 1.0, 1.15),
-    # ("malgun.ttf", 1.0, 1.0),
-    # ("msyh.ttc", 0.92, 0.95),
-    ("LXGWClearGothic-Regular.ttf", 1.0, 1.0),
-    ("LXGWXiHeiMN.ttf", 1.0, 1.0),
-    ("LXGWXiHeiCL.ttf", 1.0, 1.0),
-    ("Han-Nom Gothic 1.32.otf", 0.97, 1.05),
-    ("LXGWNeoXiHeiPlus.ttf", 1.0, 1.0),
-    ("ChironHeiHK-R.ttf", 0.97, 1.05),
-    ("Gothic Nguyen Regular.ttf", 0.97, 1.05),
-    ("YshiYuanGothicCleaned.ttf", 0.97, 1.05),
-    ("ChocolateClassicalSans-Regular.ttf", 0.97, 1.05),
-    ("SukimaGothic.ttf", 0.97, 1.05),
-    ("PlangothicP1-Regular.ttf", 0.97, 1.05),
-    ("PlangothicP2-Regular.ttf", 0.97, 1.05),
+    ("NGULIM.TTF", 1.02, 1.22),
+    ("malgun.ttf", 1.01, 1.14),
+    ("msjh.ttc", 1.01, 1.35),
+    ("msyh.ttc", 0.93, 1.03),
+    ("Han-Nom Gothic 1.32.otf", 0.96, 1.06),
+    ("LXGWClearGothic-Regular.ttf", 1.01, 1.02),
+    ("LXGWXiHeiMN.ttf", 1.01, 1.02),
+    ("LXGWXiHeiCL.ttf", 1.01, 1.02),
+    ("LXGWNeoXiHeiPlus.ttf", 1.01, 1.02),
+    ("ChironHeiHK-R.ttf", 1.0, 1.0),
+    ("Gothic Nguyen Regular.ttf", 1.0, 1.0),
+    ("YshiYuanGothicCleaned.ttf", 1.0, 1.0),
+    ("ChocolateClassicalSans-Regular.ttf", 1.0, 1.0),
+    ("SukimaGothic.ttf", 1.0, 1.0),
+    ("PlangothicP1-Regular.ttf", 1.0, 1.0),
+    ("PlangothicP2-Regular.ttf", 1.0, 1.0),
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
@@ -502,7 +506,7 @@ def build_bucket_font(
 
     # Inject VS marks so D4 ligatures stay in-font.
     # Unicode VS U+FE00..FE07 only (FE00 = identity no-op liga). BMP PUA
-    # E000+ is pankana — do not cmap those aliases.
+    # E000+ is edenia kana — do not cmap those aliases.
     for mode_i, (vs_cp, _rot, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
         vname = vs_glyph_name(vs_cp)
         if vname not in glyphs:
@@ -547,8 +551,8 @@ def build_bucket_font(
 
     ascent = otRound(target_upem * 0.88)
     descent = otRound(target_upem * -0.12)
-    family = f"pancjk {hex_id}"
-    ps = f"pancjk-{hex_id}"
+    family = family_cjk(hex_id)
+    ps = ps_cjk(hex_id)
 
     fb = FontBuilder(target_upem, isTTF=True)
     fb.setupGlyphOrder(glyph_order)
@@ -701,10 +705,10 @@ def _build_bucket_task(
 def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
     """CSS unicode-range for this bucket's CJK + selectors + reading marks.
 
-    Per-bucket ``'pancjk XX'`` faces list FE00..FE0F. Pin each half to its
-    bucket face; do not share a single ``pancjk`` family (overlapping
+    Per-bucket ``'edenia cjk XX'`` faces list FE00..FE0F. Pin each half to its
+    bucket face; do not share a single ``edenia cjk`` family (overlapping
     unicode-range faces conflict). U+16FF0/16FF1 stay listed so marks load
-    from this face. BMP PUA is pankana.
+    from this face. BMP PUA is edenia kana.
     """
     side_sels = set(SIDE_SELECTOR_CPS)
     # FE00..FE0F (D4 + squish/overlay / mark niches).
@@ -745,11 +749,11 @@ def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
 
 
 def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
-    """Write pancjk.css (@font-face) and fontlist.css (CSS-safe stack)."""
-    css_path = os.path.join(out_dir, "pancjk.css")
+    """Write edenia-cjk.css (@font-face) and fontlist.css (CSS-safe stack)."""
+    css_path = os.path.join(out_dir, CSS_CJK)
     lines: List[str] = [
-        "/* Auto-generated Pan-CJK pigeonhole @font-face rules */",
-        "/* One family per bucket ('pancjk XX'). Digraph / multi-bucket",
+        "/* Auto-generated Edenia CJK pigeonhole @font-face rules */",
+        "/* One family per bucket ('edenia cjk XX'). Digraph / multi-bucket",
         "   stacks list those families; FE00–FE0F are in each face's",
         "   unicode-range for single-face GSUB liga. */",
         "",
@@ -758,12 +762,12 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
 
     def _face(family: str, hex_id: str, urange: str) -> None:
         # Remote CDNs first (raw → statically → jsDelivr mirrors); local last.
-        # Obsidian themes resolve ./ relative to theme.css (no subfonts beside it).
+        # Obsidian themes resolve ./ relative to theme.css (no cjk beside it).
         lines.append("@font-face {")
         lines.append(f"  font-family: '{family}';")
         lines.append(
             format_src_line(
-                dist_rel("subfonts", f"{hex_id}.woff2"),
+                dist_rel(CJK_FOLDER, f"{hex_id}.woff2"),
                 fmt="woff2",
                 local=(
                     (f"./{hex_id}.woff2", "woff2"),
@@ -781,7 +785,7 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
 
     for hex_id, _count, codepoints in built:
         bucket_id = int(hex_id, 16)
-        family = f"pancjk {hex_id}"
+        family = family_cjk(hex_id)
         family_names.append(family)
         urange = unicode_range_for_bucket(bucket_id, codepoints)
         _face(family, hex_id, urange)
@@ -793,16 +797,16 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     # CSS-safe quoted per-bucket family list for stacks.
     quoted = ", ".join(f"'{name}'" for name in family_names)
     fontlist_path = os.path.join(out_dir, "fontlist.css")
-    fontlist = f"""/* src/scss/index.scss — Pan-CJK pigeonhole font stack */
+    fontlist = f"""/* src/scss/index.scss — Edenia CJK pigeonhole font stack */
 body {{
   --font-editor-theme: '';
   --font-editor: var(--font-editor-theme), var(--font-text);
   --font-text-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, pankana, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, {STACK_CJK_TAIL}, monospace;
   --font-interface-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, pankana, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, {STACK_CJK_TAIL}, monospace;
   --font-monospace-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, pankana, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, {STACK_CJK_TAIL}, monospace;
 }}
 """
     with open(fontlist_path, "w", encoding="utf-8") as f:
@@ -811,7 +815,7 @@ body {{
 
 
 def regenerate_css_from_dist(out_dir: str) -> None:
-    """Rewrite pancjk.css / fontlist.css from existing ``*.woff2`` / ``*.ttf``."""
+    """Rewrite edenia-cjk.css / fontlist.css from existing ``*.woff2`` / ``*.ttf``."""
     seen: Dict[str, None] = {}
     built: List[Tuple[str, int, List[int]]] = []
     for name in sorted(os.listdir(out_dir)):
@@ -833,7 +837,7 @@ def regenerate_css_from_dist(out_dir: str) -> None:
         sys.exit(1)
     print(f"Regenerating CSS for {len(built)} buckets from {out_dir}")
     write_css(out_dir, built)
-    sync_dist_to_plugin("subfonts", out_dir)
+    sync_dist_to_plugin(CJK_FOLDER, out_dir)
 
 
 def build_all(
@@ -956,7 +960,7 @@ def build_all(
         f"{skipped} empty skipped, UPM={target_upem}, jobs={workers}",
         flush=True,
     )
-    sync_dist_to_plugin("subfonts", out_dir)
+    sync_dist_to_plugin(CJK_FOLDER, out_dir)
 
 
 def parse_args() -> argparse.Namespace:
@@ -983,7 +987,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--css-only",
         action="store_true",
-        help="Only regenerate pancjk.css / fontlist.css from existing fonts",
+        help="Only regenerate edenia-cjk.css / fontlist.css from existing fonts",
     )
     fmt = p.add_mutually_exclusive_group()
     fmt.add_argument(

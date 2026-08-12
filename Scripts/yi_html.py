@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Build an HTML gallery of Yi orientations × slices × dakuten.
 
-Inventory: NuosuSIL Yi syllables / radicals present in ``panyi``.
+Inventory: NuosuSIL Yi syllables / radicals present in ``edenia yi``.
 
 Combinations (rendered on demand):
 
   * Every Yi × {{∅, FE01..FE07}} orientation
   * Slice pairs: A × B × {{FE08 horizontal, FE09 vertical}}
-  * Optional dakuten marks (0–4; corners TR→BR→TL→BL)
+  * Optional dakuten marks (0–8; TR→CR→BR→TM→BM→TL→CL→BL; CGJ skips a slot)
 
 Usage
 -----
@@ -17,6 +17,12 @@ Usage
 
 from __future__ import annotations
 
+from shared_diacritics import (
+    DAKUTEN_SLOT_COUNT,
+    DAKUTEN_SLOT_CYCLE,
+    dakuten_count_options_html,
+    dakuten_skip_options_html,
+)
 from shared_half_cells import TransformMode
 
 import argparse
@@ -38,7 +44,7 @@ from yi_slice import SLICE_H_CP, SLICE_V_CP
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "yi", "all-yi-vs.html")
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
-YI_FONT = os.path.join(SCRIPT_DIR, "dist", "yi", "panyi.woff2")
+YI_FONT = os.path.join(SCRIPT_DIR, "dist", "yi", "edenia-yi.woff2")
 JULIAMONO = os.path.join(SCRIPT_DIR, "src", "JuliaMono-Regular.ttf")
 
 # Orientation UVS: FE00 = identity (omit), FE01..FE07 = non-id.
@@ -94,14 +100,11 @@ def dakuten_mark_entries(limit: int = 64) -> List[dict]:
         except Exception:
             pass
 
+    from shared_diacritics import dakuten_mark_label, visible_dakuten_cps
+
     out: List[dict] = []
-    for cp in cps[: max(0, limit) or None]:
-        ch = chr(cp)
-        try:
-            name = unicodedata.name(ch)
-        except ValueError:
-            name = f"U+{cp:04X}"
-        short = name.split()[-1].replace("-", "") if name else f"{cp:04X}"
+    for cp in visible_dakuten_cps(cps)[: max(0, limit) or None]:
+        ch, name, short = dakuten_mark_label(cp)
         out.append({"cp": cp, "ch": ch, "name": name, "short": short})
     return out
 
@@ -125,6 +128,7 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
         "n_orient": n_orient,
         "n_pair": n_pair,
         "total": total,
+        "SLOT_COUNT": DAKUTEN_SLOT_COUNT,
     }
 
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -134,8 +138,8 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
 <html lang="ii">
 <head>
 <meta charset="utf-8"/>
-<title>panyi — Yi × orientations × slices × dakuten</title>
-<link rel="stylesheet" href="./panyi.css"/>
+<title>edenia yi — Yi × orientations × slices × dakuten</title>
+<link rel="stylesheet" href="./edenia-yi.css"/>
 <style>
   :root {{ color-scheme: dark; }}
   body {{
@@ -160,7 +164,7 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
   button.danger {{ background: #4a2a2a; border-color: #6a3a3a; }}
   #status {{ font-size: 13px; color: #8af; margin: 8px 0 16px; min-height: 1.2em; }}
   #out {{
-    font-family: panyi, serif;
+    font-family: 'edenia yi', serif;
     font-size: {font_size}px;
     line-height: 1.35;
     display: flex; flex-wrap: wrap; gap: 2px;
@@ -183,12 +187,13 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
 </style>
 </head>
 <body>
-<h1>panyi — Yi × orientations × slices × dakuten</h1>
+<h1>edenia yi — Yi × orientations × slices × dakuten</h1>
 <p class="meta">
   {n:,} Yi · {len(ORIENT_VS)} orientations (FE00 id / FE01..FE07) ·
   slices FE08 horizontal / FE09 vertical · dakuten {len(marks)} (sample).<br/>
   Orientation gallery: {n_orient:,} · pairwise slices: {n_pair:,} each mode
-  (on demand). Diacritics optional: 1–4 marks → TR→BR→TL→BL.
+  (on demand). Diacritics optional: 1–{DAKUTEN_SLOT_COUNT} marks →
+  {DAKUTEN_SLOT_CYCLE}; CGJ skips a slot.
 </p>
 
 <div class="controls">
@@ -213,10 +218,12 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
   </label>
   <label>Mark count
     <select id="markCount">
-      <option value="1">1 (TR)</option>
-      <option value="2">2 (+BR)</option>
-      <option value="3">3 (+TL)</option>
-      <option value="4">4 (+BL)</option>
+      {dakuten_count_options_html()}
+    </select>
+  </label>
+  <label>Skip (CGJ)
+    <select id="skipSlots">
+      {dakuten_skip_options_html()}
     </select>
   </label>
   <button type="button" id="btnOrientA">All orientations of A</button>
@@ -240,6 +247,7 @@ let orientA = document.getElementById('orientA');
 let orientB = document.getElementById('orientB');
 let sliceMode = document.getElementById('sliceMode');
 let pickMark = document.getElementById('pickMark');
+const SLOT_N = DATA.SLOT_COUNT || 8;
 
 function fillYiSelect(sel) {{
   DATA.YI.forEach((y, i) => {{
@@ -306,20 +314,26 @@ function tagFor(idx, orientIdx) {{
   let mark = DATA.ORIENT_MARK[orientIdx] || '';
   return y.short + mark;
 }}
+function skipPrefix() {{
+  let n = Math.max(0, Math.min(SLOT_N - 1, +document.getElementById('skipSlots').value || 0));
+  return String.fromCodePoint(0x034F).repeat(n);
+}}
 function markSuffix() {{
   if (!document.getElementById('wantMarks').checked) return '';
   if (!DATA.MARKS.length) return '';
   let m = DATA.MARKS[+pickMark.value];
   if (!m) return '';
-  let n = Math.max(1, Math.min(4, +document.getElementById('markCount').value || 1));
-  return m.ch.repeat(n);
+  let n = Math.max(1, Math.min(SLOT_N, +document.getElementById('markCount').value || 1));
+  return skipPrefix() + m.ch.repeat(n);
 }}
 function markTag() {{
   if (!document.getElementById('wantMarks').checked) return '';
   if (!DATA.MARKS.length) return '';
   let m = DATA.MARKS[+pickMark.value];
-  let n = Math.max(1, Math.min(4, +document.getElementById('markCount').value || 1));
-  return m ? ('+' + m.short + '×' + n) : '';
+  let n = Math.max(1, Math.min(SLOT_N, +document.getElementById('markCount').value || 1));
+  if (!m) return '';
+  let skip = Math.max(0, Math.min(SLOT_N - 1, +document.getElementById('skipSlots').value || 0));
+  return (skip ? '+CGJ×' + skip : '') + '+' + m.short + '×' + n;
 }}
 function currentSlice() {{
   return DATA.SLICE_MODES[+sliceMode.value] || DATA.SLICE_MODES[0];

@@ -14,12 +14,20 @@ Marks are normalized to a **fixed ink height**, then attach via GPOS
 corner is the mark anchor so TR/BR are **right-aligned** and TL/BL
 **left-aligned** (flush inside the ideograph, not centered past the edge).
 
-Successive marks fill slots via GSUB cycling::
+Successive marks fill slots via GSUB cycling (corners then edge midpoints)::
 
     1st → top-right
-    2nd → bottom-right
-    3rd → top-left
-    4th → bottom-left
+    2nd → center-right
+    3rd → bottom-right
+    4th → top-middle
+    5th → bottom-middle
+    6th → top-left
+    7th → center-left
+    8th → bottom-left
+
+``U+034F`` CGJ is an empty mark that occupies the next slot, so
+``base + CGJ + mark`` attaches at CR, ``base + CGJ×2 + mark`` at BR, etc.
+Interleaved CGJ skips the following slot.
 
 Bases include Yi identity + all D4 orientations (VS02..VS08 / FE01..FE07,
 including ``r90my``) and shared ``sliceAdv`` after FE08–FE09 expansion.
@@ -91,14 +99,25 @@ DAKUTEN_VS_MODE_COUNT = 8
 
 DAKUTEN_EDGE_PAD_FRAC = 0.03
 
-# Successive-mark corner order (mark class index = position in this tuple).
+# Successive-mark slot order (mark class index = position in this tuple).
 # Suffix None → cmap glyph ``uXXXX.mk`` (top-right); others are composites.
 DAKUTEN_SLOTS: Tuple[Tuple[str, Optional[str]], ...] = (
     ("tr", None),
+    ("cr", "cr"),
     ("br", "br"),
+    ("tm", "tm"),
+    ("bm", "bm"),
     ("tl", "tl"),
+    ("cl", "cl"),
     ("bl", "bl"),
 )
+DAKUTEN_SLOT_LABELS: Tuple[str, ...] = tuple(slot.upper() for slot, _ in DAKUTEN_SLOTS)
+DAKUTEN_SLOT_SUFFIXES = frozenset(suf for _slot, suf in DAKUTEN_SLOTS if suf)
+DAKUTEN_SLOT_CYCLE = "→".join(DAKUTEN_SLOT_LABELS)
+DAKUTEN_SLOT_COUNT = len(DAKUTEN_SLOTS)
+
+# Combining Grapheme Joiner: empty mark, same slot cycle as visible diacritics.
+CGJ_CP = 0x034F
 
 GDEF_CLASS_BASE = 1
 GDEF_CLASS_MARK = 3
@@ -242,6 +261,61 @@ def dakuten_mark_slot_variant_name(
     return base if not slot_suffix else f"{base}.{slot_suffix}"
 
 
+def dakuten_mark_label(cp: int) -> Tuple[str, str, str]:
+    """``(char, Unicode name, short picker label)``."""
+    ch = chr(cp)
+    if cp == CGJ_CP:
+        return ch, "COMBINING GRAPHEME JOINER", "CGJ"
+    try:
+        name = unicodedata.name(ch)
+    except ValueError:
+        name = f"U+{cp:04X}"
+    short = name.split()[-1].replace("-", "") if name else f"{cp:04X}"
+    return ch, name, short
+
+
+def visible_dakuten_cps(cps: Sequence[int]) -> List[int]:
+    """Picker inventory — CGJ is a skip control, not a visible mark."""
+    return [cp for cp in cps if cp != CGJ_CP]
+
+
+def dakuten_count_options_html(indent: str = "      ") -> str:
+    """``<option>`` list for mark-count (1..N, labels TR / +CR / …)."""
+    lines: List[str] = []
+    for i, lab in enumerate(DAKUTEN_SLOT_LABELS, 1):
+        tag = lab if i == 1 else f"+{lab}"
+        lines.append(f'<option value="{i}">{i} ({tag})</option>')
+    return ("\n" + indent).join(lines)
+
+
+def dakuten_skip_options_html(indent: str = "      ") -> str:
+    """``<option>`` list for CGJ skip (0 starts TR, 1 starts CR, …)."""
+    labs = DAKUTEN_SLOT_LABELS
+    lines = [f'<option value="0">0 — start {labs[0]}</option>']
+    for i, lab in enumerate(labs[1:], 1):
+        lines.append(f'<option value="{i}">{i} — start {lab}</option>')
+    return ("\n" + indent).join(lines)
+
+
+def make_empty_mark_glyph() -> TTGlyph:
+    """Zero-contour mark (CGJ skip slot)."""
+    g = TTGlyph()
+    g.numberOfContours = 0
+    g.xMin = g.yMin = g.xMax = g.yMax = 0
+    return g
+
+
+def ensure_cgj_skip_mark(
+    mark_cps: List[int],
+    mark_glyphs: Dict[int, TTGlyph],
+) -> None:
+    """Force empty U+034F so each CGJ consumes the next dakuten slot."""
+    mark_glyphs[CGJ_CP] = make_empty_mark_glyph()
+    if CGJ_CP in mark_cps:
+        mark_cps.remove(CGJ_CP)
+    mark_cps.insert(0, CGJ_CP)
+
+
 def dakuten_orientation_modes(
     modes: Optional[Sequence] = None,
 ) -> List:
@@ -266,7 +340,7 @@ def yi_forms_for_dakuten(
 
 
 def cjk_corner_anchors(target_upem: int) -> Dict[str, Tuple[int, int]]:
-    """Fixed dakuten positions at the four CJK typo-box corners."""
+    """Fixed dakuten positions at CJK typo-box corners and edge midpoints."""
     edge = target_upem * DAKUTEN_EDGE_PAD_FRAC
     typo_top = target_upem * TYPO_ASCENDER_FRAC
     typo_bot = target_upem * TYPO_DESCENDER_FRAC
@@ -274,10 +348,16 @@ def cjk_corner_anchors(target_upem: int) -> Dict[str, Tuple[int, int]]:
     x_l = otRound(edge)
     y_t = otRound(typo_top - edge)
     y_b = otRound(typo_bot + edge)
+    x_m = otRound((x_l + x_r) / 2.0)
+    y_m = otRound((y_t + y_b) / 2.0)
     return {
         "tr": (x_r, y_t),
+        "cr": (x_r, y_m),
         "br": (x_r, y_b),
+        "tm": (x_m, y_t),
+        "bm": (x_m, y_b),
         "tl": (x_l, y_t),
+        "cl": (x_l, y_m),
         "bl": (x_l, y_b),
     }
 
@@ -322,10 +402,11 @@ def mark_corner_anchor(
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[int, int]:
-    """Ink corner of the mark that pins to the matching CJK cell corner.
+    """Ink point of the mark that pins to the matching CJK cell slot.
 
-    Right slots (``tr``/``br``) right-align; left slots left-align. Top/bottom
-    likewise, so the diacritic sits on the cell edge rather than straddling it.
+    Right slots right-align, left slots left-align, top/bottom likewise.
+    Mid-edge slots (``cr``/``cl``/``tm``/``bm``) pin the mark's center on
+    that axis so the diacritic sits on the cell edge rather than straddling it.
     """
     try:
         if glyph.isComposite() and glyph_set is not None:
@@ -336,8 +417,18 @@ def mark_corner_anchor(
         x1, y1 = float(glyph.xMax), float(glyph.yMax)
     except Exception:
         return 0, 0
-    x = x1 if slot in ("tr", "br") else x0
-    y = y1 if slot in ("tr", "tl") else y0
+    if slot in ("tr", "cr", "br"):
+        x = x1
+    elif slot in ("tl", "cl", "bl"):
+        x = x0
+    else:
+        x = (x0 + x1) / 2.0
+    if slot in ("tr", "tm", "tl"):
+        y = y1
+    elif slot in ("br", "bm", "bl"):
+        y = y0
+    else:
+        y = (y0 + y1) / 2.0
     return otRound(x), otRound(y)
 
 
@@ -374,6 +465,8 @@ def load_dakuten_marks(
         cps: List[int] = []
         glyphs: Dict[int, TTGlyph] = {}
         for cp in iter_dakuten_codepoints(cmap):
+            if cp == CGJ_CP:
+                continue
             ch = chr(cp)
             cat = unicodedata.category(ch)
             name = unicodedata.name(ch, "")
@@ -417,10 +510,11 @@ def load_dakuten_marks_from_stack(
     for path in font_paths:
         cps, glyphs = load_dakuten_marks(path, target_upem)
         for cp in cps:
-            if cp in claimed:
+            if cp == CGJ_CP or cp in claimed:
                 continue
             claimed[cp] = glyphs[cp]
             order.append(cp)
+    ensure_cgj_skip_mark(order, claimed)
     return order, claimed
 
 
@@ -433,6 +527,10 @@ def scale_dakuten_mark_glyph(
     """Uniform scale about origin, optional CAPE Weight bolden, re-center at 0."""
     if scale <= 0:
         return None
+    if getattr(glyph, "numberOfContours", 0) == 0 and not (
+        hasattr(glyph, "isComposite") and glyph.isComposite()
+    ):
+        return make_empty_mark_glyph()
     try:
         rec = RecordingPen()
         glyph.draw(rec, None)
@@ -472,7 +570,7 @@ def add_dakuten_mark_glyphs(
     metrics: Dict[str, Tuple[int, int]],
     cmap: Dict[int, str],
 ) -> List[str]:
-    """Install cmap ``.mk`` glyphs plus ``.br``/``.tl``/``.bl`` slot composites.
+    """Install cmap ``.mk`` glyphs plus per-slot composites (``.cr``…``.bl``).
 
     Returns every mark glyph name (all slots) for GPOS / GDEF.
     """
@@ -559,7 +657,7 @@ def collect_dakuten_base_anchors(
     glyphs: Dict[str, TTGlyph],
     target_upem: int,
 ) -> Dict[str, Dict[int, Tuple[int, int]]]:
-    """Map bases → ``{mark_class: (x, y)}`` for all four CJK corners."""
+    """Map bases → ``{mark_class: (x, y)}`` for all dakuten box slots."""
     corners = cjk_corner_anchors(target_upem)
     class_xy = {i: corners[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)}
     anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
@@ -652,7 +750,7 @@ def install_dakuten_mark_variant_gsub(
     """After ``base_names`` (or prior ``.<variant>`` marks), ``.mk`` → ``.mk.<variant>``.
 
     Lets successive marks after a small base all pick up the scaled outline
-    before slot cycling (``.mk.sm`` → ``.mk.sm.br`` → …).
+    before slot cycling (``.mk.sm`` → ``.mk.sm.cr`` → …).
     """
     from shared_half_cells import (
         build_chain_context_format2,
@@ -757,13 +855,15 @@ def install_dakuten_slot_gsub(
     base_names: Sequence[str],
     variant: str = "",
 ) -> int:
-    """Cycle successive marks into ``.br`` / ``.tl`` / ``.bl`` slots.
+    """Cycle successive marks through ``DAKUTEN_SLOTS`` (TR→…→BL).
 
     Transitions::
 
-        (base, TR) + TR  →  .br
-        .br + TR         →  .tl
-        .tl + TR         →  .bl
+        (base, TR) + TR  →  next slot
+        <slot i> + TR    →  slot i+1
+
+    CGJ (empty ``u034F.mk``) uses the same cycle, so each CGJ skips one
+    slot for the following mark.
 
     ``variant`` (e.g. ``\"sm\"``) selects ``uXXXX.mk.sm`` / ``.sm.br`` names.
     Uses Format 2 ChainContext + Extension lookups (compact; no type-6 split).
@@ -909,10 +1009,10 @@ def install_dakuten_gpos(
     extra_script_tags: Sequence[str] = (),
     base_chunk: int = 2048,
 ) -> int:
-    """Install ``mark``/``abvm`` MarkToBase at four CJK corners.
+    """Install ``mark``/``abvm`` MarkToBase at CJK box corners and edge mids.
 
-    Mark anchors are the matching ink corners (left-/right-aligned). Base
-    anchors stay at the padded cell corners. ``extra_script_tags`` (e.g.
+    Mark anchors are the matching ink points (left-/right-/center-aligned).
+    Base anchors stay at the padded cell slots. ``extra_script_tags`` (e.g.
     ``hang``) merge into the GPOS script list alongside
     ``COMPOSITION_LANGUAGE_SYSTEMS``. Large base inventories are split into
     Extension MarkToBase subtables.
@@ -960,7 +1060,7 @@ def install_dakuten_gpos(
             if not n.startswith(prefix):
                 continue
             tok = n[len(prefix) :].split(".", 1)[0]
-            if tok and tok not in ("br", "tl", "bl"):
+            if tok and tok not in DAKUTEN_SLOT_SUFFIXES:
                 seen_vars.add(tok)
     variants = sorted(seen_vars, key=lambda v: (v != "", v))
 

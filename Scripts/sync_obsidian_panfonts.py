@@ -1,8 +1,8 @@
-"""Sync Scripts/dist/<folder> into Scripts/obsidian-panfonts/panfonts/<folder>.
+"""Sync Scripts/dist/<folder> into Scripts/obsidian-edenia/edenia/<folder>.
 
 Used by build_cjk / build_hangul / build_yi / build_kana so the Obsidian plugin tree
 stays current after each build. Layout matches update_obsidian_theme_fonts
-``sync_woff2(PLUGIN_DIR / "panfonts")``.
+``sync_woff2(PLUGIN_DIR / PLUGIN_ASSET)``.
 """
 
 from __future__ import annotations
@@ -10,8 +10,10 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from edenia_names import PLUGIN_ASSET, PLUGIN_DIR_NAME
+
 SCRIPT_DIR = Path(__file__).resolve().parent
-PLUGIN_PANFONTS = SCRIPT_DIR / "obsidian-panfonts" / "panfonts"
+PLUGIN_PANFONTS = SCRIPT_DIR / PLUGIN_DIR_NAME / PLUGIN_ASSET
 
 
 def sync_dist_to_plugin(folder: str, src_dir: str | Path | None = None) -> int:
@@ -42,3 +44,10 @@ def sync_dist_to_plugin(folder: str, src_dir: str | Path | None = None) -> int:
         shown = dst
     print(f"  synced {n} files -> {shown}", flush=True)
     return n
+
+
+if __name__ == "__main__":
+    total = 0
+    for folder in ("hangul", "yi", "kana", "cjk"):
+        total += sync_dist_to_plugin(folder)
+    print(f"synced {total} files into {PLUGIN_PANFONTS}")

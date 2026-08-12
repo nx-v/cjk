@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Refresh Obsidian theme.css pan-font blocks from GitHub CDN or local dist.
+"""Refresh Obsidian theme.css Edenia font blocks from GitHub CDN or local dist.
 
-Each panCJK bucket keeps its own family name (``pancjk 4E``, …) matching the
-name table inside the WOFF2. Digraphs and Obsidian both need those distinct
-names — renaming every face to a shared ``pancjk`` does not work reliably
-with ``FontFace`` / the theme stack.
+Each Edenia CJK bucket keeps its own family name (``edenia cjk 4E``, …)
+matching the name table inside the WOFF2. Digraphs and Obsidian both need
+those distinct names — collapsing every face to a shared family does not
+work reliably with ``FontFace`` / the theme stack.
 
 Default: font files via **jsDelivr**.
 
@@ -39,28 +39,39 @@ import urllib.request
 from pathlib import Path
 
 from cdn_fonts import dist_rel, format_src_line, remote_urls
+from edenia_names import (
+    CSS_CJK,
+    CSS_HANGUL,
+    CSS_KANA,
+    CSS_YI,
+    PLUGIN_ASSET,
+    PLUGIN_CLASS,
+    PLUGIN_DIR_NAME,
+    PLUGIN_DISPLAY_NAME,
+    PLUGIN_ID,
+    STACK_CJK_TAIL,
+)
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 DIST_DIR = SCRIPT_DIR / "dist"
-BAKE_FOLDERS = ("hangul", "yi", "kana", "subfonts")
-PLUGIN_ID = "panfonts"
-PLUGIN_DIR = SCRIPT_DIR / "obsidian-panfonts"
+BAKE_FOLDERS = ("hangul", "yi", "kana", "cjk")
+PLUGIN_DIR = SCRIPT_DIR / PLUGIN_DIR_NAME
 
 # CSS fetch order: GitHub raw → statically → jsDelivr (avoid overloading one host).
 _CSS_REL = {
-    "hangul": "Scripts/dist/hangul/panhangul.css",
-    "yi": "Scripts/dist/yi/panyi.css",
-    "kana": "Scripts/dist/kana/pankana.css",
-    "cjk": "Scripts/dist/subfonts/pancjk.css",
+    "hangul": f"Scripts/dist/hangul/{CSS_HANGUL}",
+    "yi": f"Scripts/dist/yi/{CSS_YI}",
+    "kana": f"Scripts/dist/kana/{CSS_KANA}",
+    "cjk": f"Scripts/dist/cjk/{CSS_CJK}",
 }
 CSS_URLS = {k: remote_urls(rel)[0] for k, rel in _CSS_REL.items()}
 CSS_URLS_FALLBACK = {k: remote_urls(rel)[1:] for k, rel in _CSS_REL.items()}
 LOCAL_CSS = {
-    "hangul": DIST_DIR / "hangul" / "panhangul.css",
-    "yi": DIST_DIR / "yi" / "panyi.css",
-    "kana": DIST_DIR / "kana" / "pankana.css",
-    "cjk": DIST_DIR / "subfonts" / "pancjk.css",
+    "hangul": DIST_DIR / "hangul" / CSS_HANGUL,
+    "yi": DIST_DIR / "yi" / CSS_YI,
+    "kana": DIST_DIR / "kana" / CSS_KANA,
+    "cjk": DIST_DIR / "cjk" / CSS_CJK,
 }
 
 _ANY_NEXOVOLTA_DIST = re.compile(
@@ -72,7 +83,9 @@ _ANY_NEXOVOLTA_DIST = re.compile(
     r"Scripts/dist/",
     re.I,
 )
-_PANCJK_FAMILY = re.compile(r"font-family:\s*['\"](pancjk\s+[0-9A-Fa-f]+)['\"]")
+_PANCJK_FAMILY = re.compile(
+    r"font-family:\s*['\"](edenia cjk\s+[0-9A-Fa-f]+)['\"]"
+)
 
 MARK_FACES_BEGIN = "/* === BEGIN auto pan fonts (update_obsidian_theme_fonts.py) === */"
 MARK_FACES_END = "/* === END auto pan fonts === */"
@@ -85,7 +98,6 @@ STACK_LATIN = (
     "Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "
     "FlopDesignFont, MKanaPlus"
 )
-STACK_CJK_TAIL = "pankana, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2"
 STACK_TAIL = "monospace"
 
 
@@ -130,7 +142,7 @@ def load_css(kind: str, *, local: bool) -> str:
 
 
 def sync_woff2(dest_root: Path) -> int:
-    """Copy hangul/yi/subfonts .woff2 into dest_root/{folder}/."""
+    """Copy hangul/yi/kana/cjk .woff2 into dest_root/{folder}/."""
     n = 0
     for folder in BAKE_FOLDERS:
         src_dir = DIST_DIR / folder
@@ -148,7 +160,7 @@ def sync_woff2(dest_root: Path) -> int:
 
 
 def pancjk_families_from_css(css: str) -> list[str]:
-    """Ordered unique per-bucket family names from pancjk.css."""
+    """Ordered unique per-bucket family names from edenia-cjk.css."""
     seen: set[str] = set()
     out: list[str] = []
     for m in _PANCJK_FAMILY.finditer(css):
@@ -167,7 +179,7 @@ def css_family_token(name: str) -> str:
 
 
 def collect_faces(css: str, *, folder: str) -> list[dict]:
-    """Parse @font-face list for the panfonts plugin (keep CSS family names)."""
+    """Parse @font-face list for the Edenia plugin (keep CSS family names)."""
     out: list[dict] = []
     for m in re.finditer(r"@font-face\s*\{([^{}]*)\}", css, flags=re.S):
         block = m.group(1)
@@ -182,7 +194,7 @@ def collect_faces(css: str, *, folder: str) -> list[dict]:
         out.append(
             {
                 "family": fam_m.group(1),
-                "file": f"panfonts/{folder}/{name_m.group(2)}",
+                "file": f"{PLUGIN_ASSET}/{folder}/{name_m.group(2)}",
                 "unicodeRange": ur_m.group(1).strip(),
             }
         )
@@ -193,10 +205,10 @@ def write_plugin(faces: list[dict]) -> None:
     PLUGIN_DIR.mkdir(parents=True, exist_ok=True)
     manifest = {
         "id": PLUGIN_ID,
-        "name": "Pan Fonts",
+        "name": PLUGIN_DISPLAY_NAME,
         "version": "1.2.0",
         "minAppVersion": "1.5.0",
-        "description": "Loads baked pancjk XX / panyi / pankana / panhangul via FontFace + readBinary.",
+        "description": "Loads baked edenia cjk XX / yi / kana / hangul via FontFace + readBinary.",
         "author": "nexovolta",
         "isDesktopOnly": False,
     }
@@ -204,7 +216,7 @@ def write_plugin(faces: list[dict]) -> None:
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
     faces_json = json.dumps(faces, ensure_ascii=True)
-    # Prefer vault-root panfonts/ (getResourcePath-friendly). Fall back to
+    # Prefer vault-root edenia/ (getResourcePath-friendly). Fall back to
     # files beside the plugin. Load with FontFace(ArrayBuffer) — app://
     # resource URLs under .obsidian/plugins often 404 for @font-face.
     main_js = f"""const {{ Plugin, normalizePath }} = require("obsidian");
@@ -213,7 +225,7 @@ def write_plugin(faces: list[dict]) -> None:
 const FACES = {faces_json};
 const BATCH = 24;
 
-module.exports = class PanFontsPlugin extends Plugin {{
+module.exports = class {PLUGIN_CLASS} extends Plugin {{
   async onload() {{
     const adapter = this.app.vault.adapter;
     const pluginRoot = normalizePath(
@@ -237,7 +249,7 @@ module.exports = class PanFontsPlugin extends Plugin {{
       const rel = await resolve(f.file);
       if (!rel) {{
         missing++;
-        if (missing <= 5) console.warn(`[panfonts] missing ${{f.file}}`);
+        if (missing <= 5) console.warn(`[edenia] missing ${{f.file}}`);
         return;
       }}
       try {{
@@ -253,16 +265,16 @@ module.exports = class PanFontsPlugin extends Plugin {{
         ok++;
       }} catch (err) {{
         failed++;
-        if (failed <= 5) console.warn(`[panfonts] fail ${{rel}}`, err);
+        if (failed <= 5) console.warn(`[edenia] fail ${{rel}}`, err);
       }}
     }};
 
-    console.info(`[panfonts] loading ${{FACES.length}} faces…`);
+    console.info(`[edenia] loading ${{FACES.length}} faces…`);
     for (let i = 0; i < FACES.length; i += BATCH) {{
       await Promise.all(FACES.slice(i, i + BATCH).map(loadOne));
     }}
     console.info(
-      `[panfonts] ready: ${{ok}} loaded, ${{missing}} missing, ${{failed}} failed`
+      `[edenia] ready: ${{ok}} loaded, ${{missing}} missing, ${{failed}} failed`
     );
   }}
 }};
@@ -272,17 +284,24 @@ module.exports = class PanFontsPlugin extends Plugin {{
 
 
 def install_to_vault(vault: Path) -> None:
-    """Sync vault/panfonts + copy plugin js into .obsidian/plugins/obsidian-panfonts."""
+    """Sync vault/edenia + copy plugin js into .obsidian/plugins/obsidian-edenia."""
     vault = vault.resolve()
     if not (vault / ".obsidian").is_dir():
         raise FileNotFoundError(f"not an Obsidian vault (no .obsidian): {vault}")
-    sync_woff2(vault / "panfonts")
-    plug = vault / ".obsidian" / "plugins" / "obsidian-panfonts"
+    sync_woff2(vault / PLUGIN_ASSET)
+    plug = vault / ".obsidian" / "plugins" / PLUGIN_DIR_NAME
     plug.mkdir(parents=True, exist_ok=True)
     shutil.copy2(PLUGIN_DIR / "main.js", plug / "main.js")
     shutil.copy2(PLUGIN_DIR / "manifest.json", plug / "manifest.json")
-    # Optional: keep a copy under the plugin too (offline if vault panfonts deleted)
-    sync_woff2(plug / "panfonts")
+    # Optional: keep a copy under the plugin too (offline if vault edenia deleted)
+    sync_woff2(plug / PLUGIN_ASSET)
+    for stale in (
+        vault / "panfonts",
+        vault / ".obsidian" / "plugins" / "obsidian-panfonts",
+    ):
+        if stale.is_dir():
+            shutil.rmtree(stale)
+            print(f"  removed stale {stale}")
     print(f"  installed plugin -> {plug}")
 
 
@@ -339,8 +358,8 @@ def build_faces_block(
         return "\n".join(
             [
                 MARK_FACES_BEGIN,
-                "/* Hangul + Yi + Kana + Pan-CJK: loaded by the panfonts Obsidian plugin",
-                "   (Scripts/obsidian-panfonts). Relative/data URLs do not work. */",
+                "/* Hangul + Yi + Kana + Edenia CJK: loaded by the edenia Obsidian plugin",
+                f"   (Scripts/{PLUGIN_DIR_NAME}). Relative/data URLs do not work. */",
                 MARK_FACES_END,
                 "",
             ]
@@ -355,7 +374,7 @@ def build_faces_block(
         "",
         transform_face_css(kana, folder="kana").rstrip(),
         "",
-        transform_face_css(cjk, folder="subfonts").rstrip(),
+        transform_face_css(cjk, folder="cjk").rstrip(),
         "",
         MARK_FACES_END,
         "",
@@ -369,13 +388,13 @@ def _double_quotes(css: str) -> str:
 
 def build_stack_block(*, pancjk_families: list[str]) -> str:
     if not pancjk_families:
-        raise ValueError("no pancjk XX families found in CSS")
+        raise ValueError("no edenia cjk XX families found in CSS")
     cjk = ", ".join([css_family_token(n) for n in pancjk_families] + [STACK_CJK_TAIL])
     stack = f"{STACK_LATIN}, {cjk}, {STACK_TAIL}"
     return "\n".join(
         [
             MARK_STACK_BEGIN,
-            "/* Force --font-text: one entry per panCJK bucket (matches name tables). */",
+            "/* Force --font-text: one entry per Edenia CJK bucket (matches name tables). */",
             "body {",
             f"  --font-text-theme: {stack};",
             f"  --font-interface-theme: {stack};",
@@ -455,9 +474,9 @@ def patch_theme(theme_path: Path, faces: str, stack: str) -> None:
         text = _replace_legacy_stack(text, stack)
 
     theme_path.write_text(text, encoding="utf-8")
-    n_unique = len(set(re.findall(r'["\']pancjk\s+[0-9A-Fa-f]+["\']', text)))
+    n_unique = len(set(re.findall(r'["\']edenia cjk\s+[0-9A-Fa-f]+["\']', text)))
     size_mb = theme_path.stat().st_size / (1024 * 1024)
-    print(f"Wrote {theme_path} (pancjk XX families~{n_unique}, {size_mb:.1f} MiB)")
+    print(f"Wrote {theme_path} (edenia cjk XX families~{n_unique}, {size_mb:.1f} MiB)")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -477,7 +496,7 @@ def main(argv: list[str] | None = None) -> int:
         "--bake",
         action="store_true",
         help=(
-            "Build Scripts/obsidian-panfonts plugin with local .woff2 "
+            f"Build Scripts/{PLUGIN_DIR_NAME} plugin with local .woff2 "
             "(implies --local). Theme keeps the font stack only."
         ),
     )
@@ -486,11 +505,13 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help=(
             "With --bake: install into this Obsidian vault "
-            "(sync <vault>/panfonts + plugin under .obsidian/plugins/)"
+            f"(sync <vault>/{PLUGIN_ASSET} + plugin under .obsidian/plugins/)"
         ),
     )
     ap.add_argument(
         "--also-private",
+        "--private-only",
+        dest="also_private",
         action="store_true",
         help="Also patch Scripts/private/theme.css",
     )
@@ -503,31 +524,36 @@ def main(argv: list[str] | None = None) -> int:
     if args.also_private:
         themes.append(SCRIPT_DIR / "private" / "theme.css")
 
-    print("Loading pan font CSS…")
+    print("Loading Edenia font CSS…")
     hangul = load_css("hangul", local=args.local)
     yi = load_css("yi", local=args.local)
     kana = load_css("kana", local=args.local)
     cjk = load_css("cjk", local=args.local)
 
     if args.bake:
-        print("Baking Obsidian panfonts plugin…")
-        sync_woff2(PLUGIN_DIR / "panfonts")
+        print("Baking Obsidian edenia plugin…")
+        sync_woff2(PLUGIN_DIR / PLUGIN_ASSET)
         faces_meta = (
             collect_faces(hangul, folder="hangul")
             + collect_faces(yi, folder="yi")
             + collect_faces(kana, folder="kana")
-            + collect_faces(cjk, folder="subfonts")
+            + collect_faces(cjk, folder="cjk")
         )
         write_plugin(faces_meta)
         if args.vault:
             install_to_vault(args.vault)
-        for stale in (REPO_ROOT / "panfonts", SCRIPT_DIR / "private" / "panfonts"):
+        for stale in (
+            REPO_ROOT / "panfonts",
+            SCRIPT_DIR / "private" / "panfonts",
+            REPO_ROOT / PLUGIN_ASSET,
+            SCRIPT_DIR / "private" / PLUGIN_ASSET,
+        ):
             if stale.is_dir():
                 shutil.rmtree(stale)
                 print(f"  removed stale {stale.relative_to(REPO_ROOT)}")
 
     pancjk_families = pancjk_families_from_css(cjk)
-    print(f"  pancjk families: {len(pancjk_families)}")
+    print(f"  edenia cjk families: {len(pancjk_families)}")
     faces = build_faces_block(hangul, yi, kana, cjk, bake=args.bake)
     stack = build_stack_block(pancjk_families=pancjk_families)
     if not args.bake:
@@ -543,7 +569,7 @@ def main(argv: list[str] | None = None) -> int:
         patch_theme(path, faces, stack)
     print(
         "Note: if CJK still missing in Obsidian, reset Appearance / Style Settings "
-        "text font (cached stacks may still list a lone shared 'pancjk')."
+        "text font (cached stacks may still list a lone shared 'edenia cjk')."
     )
     if args.bake and not args.vault:
         print(
@@ -553,7 +579,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.bake:
         print(
             "Reload Obsidian; console should show "
-            f"[panfonts] ready: {4 + len(pancjk_families)} loaded."
+            f"[edenia] ready: {4 + len(pancjk_families)} loaded."
         )
     return 0
 

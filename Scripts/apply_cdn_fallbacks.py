@@ -52,13 +52,13 @@ def main() -> int:
         [sys.executable, str(SCRIPT / "build_cjk.py"), "--css-only"],
         cwd=str(SCRIPT),
     )
-    rewrite_dist_css(SCRIPT / "dist" / "hangul" / "panhangul.css", "hangul")
-    rewrite_dist_css(SCRIPT / "dist" / "yi" / "panyi.css", "yi")
-    rewrite_dist_css(SCRIPT / "dist" / "kana" / "pankana.css", "kana")
-    # pancjk already rewritten by --css-only
+    rewrite_dist_css(SCRIPT / "dist" / "hangul" / "edenia-hangul.css", "hangul")
+    rewrite_dist_css(SCRIPT / "dist" / "yi" / "edenia-yi.css", "yi")
+    rewrite_dist_css(SCRIPT / "dist" / "kana" / "edenia-kana.css", "kana")
+    # edenia-cjk already rewritten by --css-only
     subprocess.check_call([sys.executable, str(SCRIPT / "rewrite_theme_cdns.py")])
-    sample = (SCRIPT / "dist" / "subfonts" / "pancjk.css").read_text(encoding="utf-8")
-    print("--- pancjk sample ---")
+    sample = (SCRIPT / "dist" / "cjk" / "edenia-cjk.css").read_text(encoding="utf-8")
+    print("--- edenia-cjk sample ---")
     print("\n".join(sample.splitlines()[5:22]))
     return 0
 

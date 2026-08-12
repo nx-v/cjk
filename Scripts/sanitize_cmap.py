@@ -42,11 +42,11 @@ def sanitize(path_str: str) -> tuple[str, str]:
 
 def main() -> None:
     files: list[str] = []
-    sub = ROOT / "subfonts"
+    sub = ROOT / "cjk"
     files.extend(
         sorted(str(p) for p in sub.glob("*.woff2") if not p.name.startswith("_"))
     )
-    yi = ROOT / "yi" / "panyi.woff2"
+    yi = ROOT / "yi" / "edenia-yi.woff2"
     if yi.exists():
         files.append(str(yi))
     print("files", len(files))

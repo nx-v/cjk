@@ -4,9 +4,9 @@ Build Hangul fonts from Malgun Gothic.
 
 Two families
 ------------
-* ``panhangul`` — conjoining jamo (U+1100.., Ext-A/B) with Malgun
+* ``edenia hangul`` — conjoining jamo (U+1100.., Ext-A/B) with Malgun
   ``ljmo`` / ``vjmo`` / ``tjmo`` shaping.
-* ``panhanguls`` — precomposed syllables (U+AC00..D7A3) and compatibility
+* ``edenia hanguls`` — precomposed syllables (U+AC00..D7A3) and compatibility
   jamo (U+3131..318E).
 
 Glyphs use a **1000×1000 em square** (``--upem``, default 1000): full-width
@@ -23,7 +23,7 @@ VS3     U+FE02     my — negate Y about contour bbox center
 VS4     U+FE03     mxy — both axes
 ======= ========== ================================
 
-* **Jamo (``panhangul``):** VS may follow each jamo (``L+VS V+VS T+VS``).
+* **Jamo (``edenia hangul``):** VS may follow each jamo (``L+VS V+VS T+VS``).
   ``U+FE0n`` uses cmap-14 UVS (and ``ccmp`` liga). Roles:
 
   * **Choseong (initial) + VS** — bbox-flips that initial only (orientation).
@@ -43,7 +43,7 @@ VS4     U+FE03     mxy — both axes
     stay aligned with the consonant. No outline rescale. ``vs05`` stays a
     zero-width mark so GPOS can see it. Open syllables ignore FE04.
 
-* **Syllables (``panhanguls``):** ``char + VS`` / cmap-14 UVS flips the
+* **Syllables (``edenia hanguls``):** ``char + VS`` / cmap-14 UVS flips the
   whole precomposed (or compat) glyph about its bbox center.
 
 Dakuten (combining marks)
@@ -51,7 +51,7 @@ Dakuten (combining marks)
 Stack: mkanaplus → Nexsevka → JuliaMono → Constructium → Droid Sans →
 Arial Unicode MS → Gentium. Marks are fixed-height and
 left-/right-aligned to CJK cell corners. Same TR → BR → TL → BL slot order as
-``panyi`` via GSUB + GPOS ``mark``/``abvm``. Every orientation / layout form
+``edenia yi`` via GSUB + GPOS ``mark``/``abvm``. Every orientation / layout form
 (identity + ``mx``/``my``/``mxy`` + ``.em*`` chains) gets corner anchors —
 no VS form is skipped. Installed in both families (zero-advance V/T bases
 shift local X by ``-upem``).
@@ -95,6 +95,9 @@ from shared_half_cells import (
     variant_glyph_name,
 )
 from shared_diacritics import (
+    CGJ_CP,
+    DAKUTEN_SLOT_CYCLE,
+    DAKUTEN_SLOT_COUNT,
     add_dakuten_mark_glyphs,
     cjk_corner_anchors,
     DAKUTEN_SLOTS,
@@ -104,6 +107,7 @@ from shared_diacritics import (
     load_dakuten_marks_from_stack,
     resolve_dakuten_mark_font_stack,
 )
+from edenia_names import CSS_HANGUL, FAMILY_HANGUL, FAMILY_HANGULS, PS_HANGUL, PS_HANGULS, stem
 from sync_obsidian_panfonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
 
@@ -112,8 +116,10 @@ IN_DIR = os.path.join(SCRIPT_DIR, "src")
 OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "hangul")
 
 MALGUN_FILENAME = "malgun.ttf"
-FAMILY_JAMO = "panhangul"
-FAMILY_SYLL = "panhanguls"
+FAMILY_JAMO = FAMILY_HANGUL
+FAMILY_SYLL = FAMILY_HANGULS
+PS_JAMO = PS_HANGUL
+PS_SYLL = PS_HANGULS
 # BBox-center trim after UPM fit (Hangul inset; Yi uses STANDALONE_CELL_SCALE).
 LOCAL_SCALE = 1.0
 # Uniform Y translate after UPM fit (target-upem units). Malgun Hangul sits
@@ -122,7 +128,7 @@ MALGUN_Y_SHIFT = -40
 # Extra Y scale about the ideographic center after UPM fit (1.0 = none).
 # Malgun Hangul syllables are ~935 tall vs CJK median ~901 → ~0.96.
 MALGUN_Y_SCALE = 0.93
-# VS1..VS4 — axis mirrors (Unicode VS U+FE00..FE03). PUA E000+ is pankana.
+# VS1..VS4 — axis mirrors (Unicode VS U+FE00..FE03). PUA E000+ is edenia kana.
 HANGUL_MIRROR_MODES: List[Tuple[int, bool, bool, Optional[str]]] = [
     (0xE000, False, False, None),
     (0xE001, True, False, "mx"),
@@ -440,7 +446,7 @@ def collect_hangul_dakuten_base_anchors(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
 ) -> Dict[str, Dict[int, Tuple[int, int]]]:
-    """Four CJK corners; zero-advance V/T forms shift anchors by ``-upem`` in X."""
+    """CJK box slots; zero-advance V/T forms shift anchors by ``-upem`` in X."""
     corners = cjk_corner_anchors(target_upem)
     class_xy = {i: corners[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)}
     anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
@@ -489,8 +495,9 @@ def prepare_hangul_dakuten(
         target_upem=target_upem,
     )
     print(
-        f"  Dakuten: {len(mark_cps)} marks × 4 corners, "
-        f"{len(base_anchors)} bases (TR→BR→TL→BL; fixed H, L/R align)",
+        f"  Dakuten: {len(mark_cps)} marks × {DAKUTEN_SLOT_COUNT} slots, "
+        f"{len(base_anchors)} bases ({DAKUTEN_SLOT_CYCLE}; CGJ skips a slot; "
+        f"fixed H, L/R align)",
         flush=True,
     )
     if not mark_names or not base_anchors:
@@ -508,7 +515,7 @@ def compile_hangul_dakuten(
     glyph_order: Sequence[str],
 ) -> None:
     """Install dakuten slot GSUB + corner GPOS (call after Hangul/VS GSUB exists)."""
-    print("  Compiling GSUB (dakuten corner slots TR→BR→TL→BL)...", flush=True)
+    print(f"  Compiling GSUB (dakuten slots {DAKUTEN_SLOT_CYCLE})...", flush=True)
     install_dakuten_slot_gsub(
         font,
         mark_cps,
@@ -2481,11 +2488,12 @@ def _save_font(
     from shared_hinting import autohint_ttf
 
     os.makedirs(out_dir, exist_ok=True)
-    out_path = os.path.join(out_dir, f"{family}.ttf")
+    file_stem = stem(family)
+    out_path = os.path.join(out_dir, f"{file_stem}.ttf")
     fb.save(out_path)
     autohint_ttf(out_path, enabled=hint)
     if write_woff2:
-        print(f"  Compressing {family}.woff2...", flush=True)
+        print(f"  Compressing {file_stem}.woff2...", flush=True)
         woff2.compress(out_path, out_path.replace(".ttf", ".woff2"))
     if not write_ttf:
         try:
@@ -2703,7 +2711,7 @@ def build_jamo_font(
             "styleName": "Regular",
             "uniqueFontIdentifier": FAMILY_JAMO,
             "fullName": FAMILY_JAMO,
-            "psName": FAMILY_JAMO,
+            "psName": PS_JAMO,
             "version": "Version 1.000",
         }
     )
@@ -2921,7 +2929,7 @@ def build_syllables_font(
             "styleName": "Regular",
             "uniqueFontIdentifier": FAMILY_SYLL,
             "fullName": FAMILY_SYLL,
-            "psName": FAMILY_SYLL,
+            "psName": PS_SYLL,
             "version": "Version 1.000",
         }
     )
@@ -2988,27 +2996,28 @@ def write_css(
     jamo_cps: Sequence[int],
     syll_cps: Sequence[int],
 ) -> None:
-    css_path = os.path.join(out_dir, "panhangul.css")
-    # Unicode FE00..FE03 mirrors; FE04 top-swap (jamo GPOS). No BMP PUA (pankana).
-    vs_extra = set(range(UVS_BASE, UVS_LAST + 1)) | {SWAP_CP}
+    css_path = os.path.join(out_dir, CSS_HANGUL)
+    # Unicode FE00..FE03 mirrors; FE04 top-swap (jamo GPOS). No BMP PUA (edenia kana).
+    vs_extra = set(range(UVS_BASE, UVS_LAST + 1)) | {SWAP_CP, CGJ_CP}
     lines = [
         "/* Auto-generated Hangul fonts from Malgun Gothic */",
-        "/* panhangul = conjoining jamo; panhanguls = syllables + compat */",
+        "/* edenia hangul = conjoining jamo; edenia hanguls = syllables + compat */",
         "/* Local src first; GitHub raw as fallback. */",
         "/* VS: U+FE00..FE03 mirrors; U+FE04 = batchim top-swap. */",
         "",
     ]
     for family, cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
+        file_stem = stem(family)
         urange = unicode_range_css(sorted(set(cps) | vs_extra))
         lines += [
             "@font-face {",
             f"  font-family: '{family}';",
             format_src_line(
-                dist_rel("hangul", f"{family}.woff2"),
+                dist_rel("hangul", f"{file_stem}.woff2"),
                 fmt="woff2",
                 local=(
-                    (f"./{family}.woff2", "woff2"),
-                    (f"./{family}.ttf", "truetype"),
+                    (f"./{file_stem}.woff2", "woff2"),
+                    (f"./{file_stem}.ttf", "truetype"),
                 ),
                 indent="  ",
             ),
@@ -3024,14 +3033,14 @@ def write_css(
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
-    fontlist_path = os.path.join(out_dir, "panhangul-fontlist.css")
+    fontlist_path = os.path.join(out_dir, f"{PS_JAMO}-fontlist.css")
     with open(fontlist_path, "w", encoding="utf-8") as f:
         f.write(
             "/* Hangul font families */\n"
             ":root {\n"
-            f"  --font-panhangul: '{FAMILY_JAMO}', '{FAMILY_SYLL}';\n"
-            f"  --font-panhangul-jamo: '{FAMILY_JAMO}';\n"
-            f"  --font-panhanguls: '{FAMILY_SYLL}';\n"
+            f"  --font-edenia-hangul: '{FAMILY_JAMO}', '{FAMILY_SYLL}';\n"
+            f"  --font-edenia-hangul-jamo: '{FAMILY_JAMO}';\n"
+            f"  --font-edenia-hanguls: '{FAMILY_SYLL}';\n"
             "}\n"
         )
     print(f"Wrote {fontlist_path}")
@@ -3063,8 +3072,8 @@ def build_all(
     print(f"  Syllables ({FAMILY_SYLL}): whole-glyph VS / UVS")
     print(
         "  Dakuten: mkanaplus + Nexsevka + JuliaMono + Constructium + "
-        "Droid Sans + Arial Unicode MS + Gentium \\p{M} @ CJK corners "
-        "(TR→BR→TL→BL; fixed H, L/R align; both families)"
+        "Droid Sans + Arial Unicode MS + Gentium \\p{M} @ CJK box slots "
+        f"({DAKUTEN_SLOT_CYCLE}; fixed H, L/R/mid align; both families)"
     )
     print(f"  Local scale: {local_scale:g} about bbox center")
     print(f"  Y shift: {y_shift:g} (align Malgun to CJK/Yi typo mid)")
@@ -3075,7 +3084,7 @@ def build_all(
         else ("ttf only" if write_ttf else "woff2 only")
     )
     print(f"  Formats: {fmt_note}")
-    print("  Building panhangul + panhanguls in parallel...", flush=True)
+    print("  Building edenia hangul + edenia hanguls in parallel...", flush=True)
 
     # Two independent fonts — run concurrently (separate processes so
     # FontBuilder/CPU work is not serialized by the GIL).
@@ -3121,7 +3130,7 @@ def build_all(
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build panhangul (jamo) + panhanguls (syllables) from Malgun"
+        description="Build edenia hangul (jamo) + edenia hanguls (syllables) from Malgun"
     )
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
     p.add_argument("--out", dest="out_dir", default=OUT_DIR)

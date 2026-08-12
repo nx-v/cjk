@@ -10,14 +10,14 @@ Encoding (matches ``cjk_diacritics`` / ``build_cjk``)::
       CJK (D4)? FE0E MARK → base ``.dkb`` (top)    + mark bottom
       CJK (D4)? FE0F MARK → base ``.dkt`` (bottom) + mark top
 
-    Gallery text uses the same FE0* selectors (BMP PUA is pankana).
+    Gallery text uses the same FE0* selectors (BMP PUA is edenia kana).
 
     Squish = occupy one half of the ideographic area (same ``.dk*`` glyphs):
       FE0B       → zero-width ``.ov``
       FE0C–FE0F  → ``.dk`` / ``.dkl`` / ``.dkb`` / ``.dkt`` (L/R/T/B)
       FE0B+FE0C–F → zero-width half-cell overlay
 
-    Squish digraph (two kanji, often different pancjk buckets)::
+    Squish digraph (two kanji, often different edenia cjk buckets)::
 
       A (D4)? FE0B FE0C–F   B (D4)? FE0D–F
       e.g. ``明`` FE0B FE0C + ``日`` FE0D
@@ -29,7 +29,7 @@ Usage
   python cjk_diacritics_html.py --limit 256
   python cjk_diacritics_html.py --range URO --limit 0
   python cjk_diacritics_html.py --bucket 4E --bucket 4F
-  python cjk_diacritics_html.py --range 4E00-4FFF -o dist/subfonts/diac-cjk.html
+  python cjk_diacritics_html.py --range 4E00-4FFF -o dist/cjk/diac-cjk.html
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ import unicodedata
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 from collections import defaultdict
 
-from build_cjk import CHAR_RANGES, IN_DIR, OUT_DIR as SUBFONTS_OUT
+from build_cjk import CHAR_RANGES, IN_DIR, OUT_DIR as CJK_OUT
 from cjk_diacritics import (
     CORE_MARK_CPS,
     OV_SELECTOR_CP,
@@ -54,7 +54,7 @@ from cjk_diacritics import (
 from shared_half_cells import TRANSFORM_MODES, uvs_selector_for_mode
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "subfonts", "diac-cjk.html")
+DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "cjk", "diac-cjk.html")
 
 # Named subsets → inclusive ranges (aligned with build_cjk.CHAR_RANGES).
 NAMED_RANGES: Dict[str, Tuple[Tuple[int, int], ...]] = {
@@ -297,7 +297,7 @@ def pancjk_font_stack(
     ranges: Optional[Sequence[Tuple[int, int]]] = None,
     force_all: bool = False,
 ) -> str:
-    """Quoted font stack for galleries (per-bucket ``'pancjk XX'`` only)."""
+    """Quoted font stack for galleries (per-bucket ``'edenia cjk XX'`` only)."""
     buckets: List[int] = []
     if ranges:
         seen: set = set()
@@ -307,9 +307,9 @@ def pancjk_font_stack(
                     seen.add(bid)
                     buckets.append(bid)
         if not force_all and len(buckets) == 1:
-            return f"'pancjk {buckets[0]:X}'"
+            return f"'edenia cjk {buckets[0]:X}'"
         if buckets and not force_all:
-            return ", ".join(f"'pancjk {bid:X}'" for bid in buckets)
+            return ", ".join(f"'edenia cjk {bid:X}'" for bid in buckets)
 
     # All faces present in font_dir (or ranges when force_all).
     del force_all
@@ -331,8 +331,8 @@ def pancjk_font_stack(
                 uniq.append(bid)
         buckets = uniq
     if not buckets:
-        return "'pancjk 4E'"
-    return ", ".join(f"'pancjk {bid:X}'" for bid in buckets)
+        return "'edenia cjk 4E'"
+    return ", ".join(f"'edenia cjk {bid:X}'" for bid in buckets)
 
 
 def write_html(
@@ -406,8 +406,8 @@ def write_html(
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8"/>
-<title>pancjk — CJK × VS1–7 × Viet marks</title>
-<link rel="stylesheet" href="./pancjk.css"/>
+<title>edenia cjk — CJK × VS1–7 × Viet marks</title>
+<link rel="stylesheet" href="./edenia-cjk.css"/>
 <style>
 :root {{ --fs: {font_size}px; color-scheme: dark; }}
 * {{ box-sizing: border-box; }}
@@ -464,7 +464,7 @@ h2 {{
 </head>
 <body>
 <header>
-  <h1>pancjk — CJK × VS × marks × squish digraphs</h1>
+  <h1>edenia cjk — CJK × VS × marks × squish digraphs</h1>
   <p class="meta">
     Range: {range_note} · {n:,} characters embedded<br/>
     Base VS: identity / FE01..FE07 (full D4)<br/>
@@ -877,13 +877,13 @@ renderMarks(sliceIndices(), 0, markList(), 0, 'R');
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build CJK × Viet diacritic HTML gallery (pancjk)"
+        description="Build CJK × Viet diacritic HTML gallery (edenia cjk)"
     )
     p.add_argument("-o", "--out", default=DEFAULT_OUT)
     p.add_argument(
         "--font-dir",
-        default=SUBFONTS_OUT,
-        help="Directory with pancjk bucket fonts / pancjk.css (default: dist/subfonts)",
+        default=CJK_OUT,
+        help="Directory with edenia cjk bucket fonts / edenia-cjk.css (default: dist/cjk)",
     )
     p.add_argument(
         "--range",
@@ -920,12 +920,12 @@ def main() -> None:
     if args.bucket:
         specs.extend(args.bucket)
     if not specs:
-        # Two buckets → digraphs can pull different pancjk faces.
+        # Two buckets → digraphs can pull different edenia cjk faces.
         specs = ["4E", "4F"]
     ranges: List[Tuple[int, int]] = []
     for spec in specs:
         ranges.extend(parse_range_spec(spec))
-    # Place HTML next to pancjk.css when using default font-dir.
+    # Place HTML next to edenia-cjk.css when using default font-dir.
     out = args.out
     write_html(
         out,

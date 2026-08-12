@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build the single ``pankana`` font (PUA D4 cmap + smalls + FE00/FE01 slices + dakuten).
+Build the single ``edenia kana`` font (PUA D4 cmap + smalls + FE00/FE01 slices + dakuten).
 
 Encoding
 --------
@@ -51,8 +51,11 @@ from cape_weightor import (
     widen_ttglyph,
 )
 from shared_diacritics import (
+    CGJ_CP,
     DAKUTEN_EDGE_PAD_FRAC,
     DAKUTEN_MARK_HEIGHT_FRAC,
+    DAKUTEN_SLOT_CYCLE,
+    DAKUTEN_SLOTS,
     add_dakuten_mark_glyphs,
     add_dakuten_mark_scale_variants,
     dakuten_mark_stack_label,
@@ -86,6 +89,7 @@ from yi_slice import (
     inject_slice_marks,
     install_slice_gsub,
 )
+from edenia_names import CSS_KANA, FAMILY_KANA, PS_KANA
 from sync_obsidian_panfonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
 
@@ -94,8 +98,8 @@ REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
 OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "kana")
 
-FAMILY_NAME = "pankana"
-PS_NAME = "pankana"
+FAMILY_NAME = FAMILY_KANA
+PS_NAME = PS_KANA
 
 PUA_START = 0xE000
 PUA_END = 0xF8FF  # inclusive; 6400 CPs
@@ -841,12 +845,12 @@ def kana_dakuten_corner_anchors(
     *,
     mark_scale: float = 1.0,
 ) -> Dict[str, Tuple[int, int]]:
-    """Four dakuten anchors nestled against ink, inside the ideographic cell.
+    """Dakuten anchors nestled against ink, inside the ideographic cell.
 
-    MarkToBase pins the mark's matching corner here, so the mark body extends
-    *inward* from each slot (TR → left+down, etc.). Place each anchor just
-    outside the ink by ~mark size, then clamp so the whole mark footprint
-    stays in the padded CJK cell — close to the glyph, no cell overflow.
+    MarkToBase pins the mark's matching slot here, so the mark body extends
+    *inward* from each edge (TR → left+down, CR → left, TM → down, etc.).
+    Place each anchor just outside the ink by ~mark size, then clamp so the
+    whole mark footprint stays in the padded CJK cell.
 
     ``mark_scale`` shrinks the assumed mark footprint (e.g. ``SMALL_WIDTH_FACTOR``
     for small kana so anchors track scaled ``.mk.sm`` marks).
@@ -861,34 +865,63 @@ def kana_dakuten_corner_anchors(
     # Mark outline is normalized to this height; treat footprint as ~square.
     mark_h = float(target_upem) * DAKUTEN_MARK_HEIGHT_FRAC * float(mark_scale)
     mark_w = mark_h
+    half_w = mark_w * 0.5
+    half_h = mark_h * 0.5
     # Small air gap between ink and mark body.
     gap = mark_h * 0.12
+    x_mid = (ix0 + ix1) / 2.0
+    y_mid = (iy0 + iy1) / 2.0
 
     def _tr() -> Tuple[int, int]:
-        # Mark occupies [ax - mark_w, ax] × [ay - mark_h, ay].
         ax = _clamp(ix1 + gap, cell_l + mark_w, cell_r)
         ay = _clamp(iy1 + gap, cell_b + mark_h, cell_t)
         return otRound(ax), otRound(ay)
 
-    def _br() -> Tuple[int, int]:
-        # Mark occupies [ax - mark_w, ax] × [ay, ay + mark_h].
+    def _cr() -> Tuple[int, int]:
         ax = _clamp(ix1 + gap, cell_l + mark_w, cell_r)
+        ay = _clamp(y_mid, cell_b + half_h, cell_t - half_h)
+        return otRound(ax), otRound(ay)
+
+    def _br() -> Tuple[int, int]:
+        ax = _clamp(ix1 + gap, cell_l + mark_w, cell_r)
+        ay = _clamp(iy0 - gap, cell_b, cell_t - mark_h)
+        return otRound(ax), otRound(ay)
+
+    def _tm() -> Tuple[int, int]:
+        ax = _clamp(x_mid, cell_l + half_w, cell_r - half_w)
+        ay = _clamp(iy1 + gap, cell_b + mark_h, cell_t)
+        return otRound(ax), otRound(ay)
+
+    def _bm() -> Tuple[int, int]:
+        ax = _clamp(x_mid, cell_l + half_w, cell_r - half_w)
         ay = _clamp(iy0 - gap, cell_b, cell_t - mark_h)
         return otRound(ax), otRound(ay)
 
     def _tl() -> Tuple[int, int]:
-        # Mark occupies [ax, ax + mark_w] × [ay - mark_h, ay].
         ax = _clamp(ix0 - gap, cell_l, cell_r - mark_w)
         ay = _clamp(iy1 + gap, cell_b + mark_h, cell_t)
         return otRound(ax), otRound(ay)
 
+    def _cl() -> Tuple[int, int]:
+        ax = _clamp(ix0 - gap, cell_l, cell_r - mark_w)
+        ay = _clamp(y_mid, cell_b + half_h, cell_t - half_h)
+        return otRound(ax), otRound(ay)
+
     def _bl() -> Tuple[int, int]:
-        # Mark occupies [ax, ax + mark_w] × [ay, ay + mark_h].
         ax = _clamp(ix0 - gap, cell_l, cell_r - mark_w)
         ay = _clamp(iy0 - gap, cell_b, cell_t - mark_h)
         return otRound(ax), otRound(ay)
 
-    return {"tr": _tr(), "br": _br(), "tl": _tl(), "bl": _bl()}
+    return {
+        "tr": _tr(),
+        "cr": _cr(),
+        "br": _br(),
+        "tm": _tm(),
+        "bm": _bm(),
+        "tl": _tl(),
+        "cl": _cl(),
+        "bl": _bl(),
+    }
 
 
 def collect_contour_dakuten_anchors(
@@ -899,8 +932,7 @@ def collect_contour_dakuten_anchors(
     target_upem: int,
     mark_scale: float = 1.0,
 ) -> Dict[str, Dict[int, Tuple[int, int]]]:
-    """Per-glyph TR/BR/TL/BL anchors: near ink, inside ideographic cell."""
-    slot_order = ("tr", "br", "tl", "bl")
+    """Per-glyph slot anchors: near ink, inside ideographic cell."""
     anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
     for name in base_names:
         g = glyphs.get(name)
@@ -920,7 +952,9 @@ def collect_contour_dakuten_anchors(
         corners = kana_dakuten_corner_anchors(
             (x0, y0, x1, y1), target_upem, mark_scale=mark_scale
         )
-        anchors[name] = {i: corners[slot] for i, slot in enumerate(slot_order)}
+        anchors[name] = {
+            i: corners[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)
+        }
     return anchors
 
 
@@ -947,8 +981,8 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 
 def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
-    css_path = os.path.join(out_dir, "pankana.css")
-    extra = {KANA_SLICE_H_CP, KANA_SLICE_V_CP}
+    css_path = os.path.join(out_dir, CSS_KANA)
+    extra = {KANA_SLICE_H_CP, KANA_SLICE_V_CP, CGJ_CP}
     urange = unicode_range_css(sorted(set(codepoints) | extra))
     lines = [
         "/* Auto-generated single kana font (PUA D4 + smalls + halfwidth + slices) */",
@@ -956,11 +990,11 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
         "@font-face {",
         f"  font-family: '{FAMILY_NAME}';",
         format_src_line(
-            dist_rel("kana", f"{FAMILY_NAME}.woff2"),
+            dist_rel("kana", f"{PS_NAME}.woff2"),
             fmt="woff2",
             local=(
-                (f"./{FAMILY_NAME}.woff2", "woff2"),
-                (f"./{FAMILY_NAME}.ttf", "truetype"),
+                (f"./{PS_NAME}.woff2", "woff2"),
+                (f"./{PS_NAME}.ttf", "truetype"),
             ),
             indent="  ",
         ),
@@ -975,11 +1009,11 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
-    fontlist_path = os.path.join(out_dir, "pankana-fontlist.css")
+    fontlist_path = os.path.join(out_dir, f"{PS_NAME}-fontlist.css")
     with open(fontlist_path, "w", encoding="utf-8") as f:
         f.write(
             "/* Kana font family */\n"
-            f":root {{\n  --font-pankana: '{FAMILY_NAME}';\n}}\n"
+            f":root {{\n  --font-edenia-kana: '{FAMILY_NAME}';\n}}\n"
         )
     print(f"Wrote {fontlist_path}")
 
@@ -997,7 +1031,7 @@ def build_pankana_font(
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
 
-    out_path = os.path.join(out_dir, f"{FAMILY_NAME}.ttf")
+    out_path = os.path.join(out_dir, f"{PS_NAME}.ttf")
     source_cps = chart_source_cps()
     if limit is not None:
         source_cps = source_cps[: max(0, limit)]
@@ -1334,7 +1368,7 @@ def build_pankana_font(
                 )
             )
             print(
-                f"  Dakuten: {len(mark_cps)} marks × 4 contour corners "
+                f"  Dakuten: {len(mark_cps)} marks × {len(DAKUTEN_SLOTS)} contour slots "
                 f"(near ink, clamped to ideo cell; .sm @ "
                 f"{SMALL_WIDTH_FACTOR:g}), "
                 f"{len(base_anchors)} bases",
@@ -1434,7 +1468,7 @@ def build_pankana_font(
                 variant="sm",
             )
             print(
-                "  Compiling GSUB (dakuten .sm slots TR→BR→TL→BL)...",
+                f"  Compiling GSUB (dakuten .sm slots {DAKUTEN_SLOT_CYCLE})...",
                 flush=True,
             )
             install_dakuten_slot_gsub(
@@ -1446,7 +1480,7 @@ def build_pankana_font(
                 variant="sm",
             )
             print(
-                "  Compiling GSUB (dakuten slots TR→BR→TL→BL)...",
+                f"  Compiling GSUB (dakuten slots {DAKUTEN_SLOT_CYCLE})...",
                 flush=True,
             )
             install_dakuten_slot_gsub(
@@ -1457,7 +1491,7 @@ def build_pankana_font(
                 base_names=full_forms_dak,
             )
             print(
-                "  Compiling GPOS (dakuten @ contour corners)...",
+                "  Compiling GPOS (dakuten @ contour slots)...",
                 flush=True,
             )
             install_dakuten_gpos(
@@ -1528,7 +1562,10 @@ def build_all(
         f"  Slice: U+{KANA_SLICE_H_CP:04X} (H) / U+{KANA_SLICE_V_CP:04X} (V) "
         f"(em + half-em; not VS)"
     )
-    print("  Dakuten: contour GPOS (near ink, inside ideo cell; TR→BR→TL→BL)")
+    print(
+        "  Dakuten: contour GPOS (near ink, inside ideo cell; "
+        f"{DAKUTEN_SLOT_CYCLE}; CGJ U+034F skips a slot)"
+    )
     print(f"  Output: single font '{FAMILY_NAME}'")
     fmt_note = (
         "ttf+woff2"
@@ -1555,7 +1592,7 @@ def build_all(
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build pankana (PUA D4 + smalls + halfwidth + FE00/FE01 slices + dakuten)"
+        description="Build edenia kana (PUA D4 + smalls + halfwidth + FE00/FE01 slices + dakuten)"
     )
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
     p.add_argument("--out", dest="out_dir", default=OUT_DIR)

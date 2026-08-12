@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build one Yi font (``panyi``) covering the whole inventory.
+Build one Yi font (``edenia yi``) covering the whole inventory.
 
 Contents
 --------
@@ -30,6 +30,9 @@ from fontTools.misc.roundTools import otRound
 from fontTools.ttLib import TTFont, woff2
 
 from shared_diacritics import (
+    CGJ_CP,
+    DAKUTEN_SLOT_CYCLE,
+    DAKUTEN_SLOT_COUNT,
     add_dakuten_mark_glyphs,
     collect_dakuten_base_anchors,
     dakuten_mark_stack_label,
@@ -66,6 +69,7 @@ from yi_slice import (
     inject_slice_marks,
     install_slice_gsub,
 )
+from edenia_names import CSS_YI, FAMILY_YI, PS_YI
 from sync_obsidian_panfonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
 
@@ -73,8 +77,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
 OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "yi")
 
-FAMILY_NAME = "panyi"
-PS_NAME = "panyi"
+FAMILY_NAME = FAMILY_YI
+PS_NAME = PS_YI
 
 
 def glyph_name_for_cp(cp: int) -> str:
@@ -191,11 +195,11 @@ def build_panyi_font(
     write_woff2: bool = True,
     hint: bool = True,
 ) -> Tuple[str, int, List[int]]:
-    """Build the single ``panyi`` font (standalones + D4 + FE08–FE09 slices)."""
+    """Build the single ``edenia yi`` font (standalones + D4 + FE08–FE09 slices)."""
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
 
-    out_path = os.path.join(out_dir, f"{FAMILY_NAME}.ttf")
+    out_path = os.path.join(out_dir, f"{PS_NAME}.ttf")
 
     print("  Recording source outlines...", flush=True)
     tt = TTFont(inv.source_path, fontNumber=0)
@@ -314,9 +318,9 @@ def build_panyi_font(
         )
         n_unique = len(mark_cps)
         print(
-            f"  Dakuten: {n_unique} marks × 4 corners, "
+            f"  Dakuten: {n_unique} marks × {DAKUTEN_SLOT_COUNT} slots, "
             f"{len(base_anchors)} bases "
-            f"(TR→BR→TL→BL; fixed H, L/R align)",
+            f"({DAKUTEN_SLOT_CYCLE}; fixed H, L/R/mid align)",
             flush=True,
         )
     except FileNotFoundError as exc:
@@ -363,7 +367,7 @@ def build_panyi_font(
     install_yi_gsub(fb.font, yi_names, glyphs, glyph_order)
 
     if mark_names and base_anchors:
-        print("  Compiling GSUB (dakuten corner slots TR→BR→TL→BL)...", flush=True)
+        print(f"  Compiling GSUB (dakuten slots {DAKUTEN_SLOT_CYCLE})...", flush=True)
         install_dakuten_slot_gsub(
             fb.font,
             mark_cps,
@@ -421,9 +425,9 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 
 def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
-    css_path = os.path.join(out_dir, "panyi.css")
-    # UVS FE00..FE07 + slice FE08..FE09. BMP PUA is pankana.
-    extra = set(range(0xFE00, SLICE_V_CP + 1))
+    css_path = os.path.join(out_dir, CSS_YI)
+    # UVS FE00..FE07 + slice FE08..FE09. BMP PUA is edenia kana.
+    extra = set(range(0xFE00, SLICE_V_CP + 1)) | {CGJ_CP}
     urange = unicode_range_css(sorted(set(codepoints) | extra))
     lines = [
         "/* Auto-generated single Yi font */",
@@ -431,11 +435,11 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
         "@font-face {",
         f"  font-family: '{FAMILY_NAME}';",
         format_src_line(
-            dist_rel("yi", f"{FAMILY_NAME}.woff2"),
+            dist_rel("yi", f"{PS_NAME}.woff2"),
             fmt="woff2",
             local=(
-                (f"./{FAMILY_NAME}.woff2", "woff2"),
-                (f"./{FAMILY_NAME}.ttf", "truetype"),
+                (f"./{PS_NAME}.woff2", "woff2"),
+                (f"./{PS_NAME}.ttf", "truetype"),
             ),
             indent="  ",
         ),
@@ -450,10 +454,11 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
-    fontlist_path = os.path.join(out_dir, "panyi-fontlist.css")
+    fontlist_path = os.path.join(out_dir, f"{PS_NAME}-fontlist.css")
     with open(fontlist_path, "w", encoding="utf-8") as f:
         f.write(
-            "/* Yi font family */\n" f":root {{\n  --font-panyi: '{FAMILY_NAME}';\n}}\n"
+            "/* Yi font family */\n"
+            f":root {{\n  --font-edenia-yi: '{FAMILY_NAME}';\n}}\n"
         )
     print(f"Wrote {fontlist_path}")
 
@@ -496,7 +501,8 @@ def build_all(
     print(
         "  Dakuten: mkanaplus + Nexsevka + JuliaMono + Constructium + "
         "Droid Sans + Arial Unicode MS + Gentium \\p{M} @ CJK corners "
-        "(TR→BR→TL→BL; fixed H, L/R align; all D4 incl. r90my + sliceAdv)"
+        f"({DAKUTEN_SLOT_CYCLE}; CGJ skips a slot; fixed H, L/R/mid align; "
+        "all D4 incl. r90my + sliceAdv)"
     )
     print(f"  Output: single font '{FAMILY_NAME}'")
     fmt_note = (
@@ -523,7 +529,7 @@ def build_all(
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build the single panyi Yi font (D4 + FE08–FE09 slice + dakuten)"
+        description="Build the single edenia yi font (D4 + FE08–FE09 slice + dakuten)"
     )
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
     p.add_argument("--out", dest="out_dir", default=OUT_DIR)

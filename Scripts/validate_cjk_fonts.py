@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fontTools.ttLib import TTFont
 
-ROOT = Path(__file__).resolve().parent / "dist" / "subfonts"
+ROOT = Path(__file__).resolve().parent / "dist" / "cjk"
 
 
 def check(path: Path) -> tuple[str, list[str], str]:

@@ -7,8 +7,8 @@ Jamo inventories (Unicode, excluding fillers / unassigned):
   Jongseong U+11A8..11FF, U+D7CB..D7FB
 
 Every L × {∅,FE01,FE02,FE03} × V × {∅,FE01,FE02,FE03} × (∅ | T × VS)
-is available, optionally followed by FE04 (batchim top-swap) and 0–4
-dakuten marks (TR→BR→TL→BL).
+is available, optionally followed by FE04 (batchim top-swap) and 0–8
+dakuten marks (TR→CR→BR→TM→BM→TL→CL→BL; CGJ skips a slot).
 
 See: https://en.wikipedia.org/wiki/List_of_Hangul_jamo
 
@@ -28,9 +28,16 @@ from typing import List, Tuple
 
 from fontTools.ttLib import TTFont
 
+from shared_diacritics import (
+    DAKUTEN_SLOT_COUNT,
+    DAKUTEN_SLOT_CYCLE,
+    dakuten_count_options_html,
+    dakuten_skip_options_html,
+)
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "hangul", "all-jamo-vs.html")
-HANGUL_FONT = os.path.join(SCRIPT_DIR, "dist", "hangul", "panhangul.woff2")
+HANGUL_FONT = os.path.join(SCRIPT_DIR, "dist", "hangul", "edenia-hangul.woff2")
 JULIAMONO = os.path.join(SCRIPT_DIR, "src", "JuliaMono-Regular.ttf")
 
 L_RANGES = ((0x1100, 0x115E), (0xA960, 0xA97C))
@@ -57,7 +64,7 @@ def assigned_cps(ranges: Tuple[Tuple[int, int], ...]) -> List[dict]:
 
 
 def dakuten_mark_entries(limit: int = 64) -> List[dict]:
-    """Marks installed in panhangul (``.mk`` cmap), else JuliaMono inventory."""
+    """Marks installed in edenia hangul (``.mk`` cmap), else JuliaMono inventory."""
     cps: List[int] = []
     if os.path.isfile(HANGUL_FONT):
         tt = TTFont(HANGUL_FONT)
@@ -79,14 +86,11 @@ def dakuten_mark_entries(limit: int = 64) -> List[dict]:
         except Exception:
             pass
 
+    from shared_diacritics import dakuten_mark_label, visible_dakuten_cps
+
     out: List[dict] = []
-    for cp in cps[: max(0, limit) or None]:
-        ch = chr(cp)
-        try:
-            name = unicodedata.name(ch)
-        except ValueError:
-            name = f"U+{cp:04X}"
-        short = name.split()[-1].replace("-", "") if name else f"{cp:04X}"
+    for cp in visible_dakuten_cps(cps)[: max(0, limit) or None]:
+        ch, name, short = dakuten_mark_label(cp)
         out.append({"cp": cp, "ch": ch, "name": name, "short": short})
     return out
 
@@ -109,6 +113,7 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
         "VS_MARK": VS_MARK,
         "SWAP": 0xFE04,
         "total": total,
+        "SLOT_COUNT": DAKUTEN_SLOT_COUNT,
     }
 
     # Bust CDN/browser cache so the gallery always loads the just-built local face.
@@ -122,14 +127,14 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
 <html lang="ko">
 <head>
 <meta charset="utf-8"/>
-<title>panhangul — all Unicode Hangul jamo × VS × dakuten</title>
-<link rel="stylesheet" href="./panhangul.css"/>
+<title>edenia hangul — all Unicode Hangul jamo × VS × dakuten</title>
+<link rel="stylesheet" href="./edenia-hangul.css"/>
 <style>
-/* Gallery uses a dedicated family so CDN faces in panhangul.css cannot win. */
+/* Gallery uses a dedicated family so CDN faces in edenia-hangul.css cannot win. */
 @font-face {{
-  font-family: 'panhangul-local';
-  src: url("./panhangul.woff2?v={font_bust}") format("woff2"),
-       url("./panhangul.ttf?v={font_bust}") format("truetype");
+  font-family: 'edenia-hangul-local';
+  src: url("./edenia-hangul.woff2?v={font_bust}") format("woff2"),
+       url("./edenia-hangul.ttf?v={font_bust}") format("truetype");
   font-weight: normal;
   font-style: normal;
   font-display: block;
@@ -138,7 +143,7 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
 * {{ box-sizing: border-box; }}
 body {{
   margin: 0; background: #111; color: #eee;
-  font-family: panhangul-local, panhangul, sans-serif;
+  font-family: edenia-hangul-local, 'edenia hangul', sans-serif;
   font-size: var(--fs);
   font-feature-settings: "ljmo" 1, "vjmo" 1, "tjmo" 1, "rclt" 1, "rlig" 1, "liga" 1, "ccmp" 1;
 }}
@@ -198,7 +203,8 @@ section h2 {{
     Syllable combos: <strong>{total:,}</strong>
     = L×VS×V×VS×(∅ | T×VS). Toggle FE04 after batchim to put the final on
     top (LV↓) — re-click Render after toggling. Toggle diacritics to append
-    1–4 marks (corners TR→BR→TL→BL). ¹ FE01 · ² FE02 · ³ FE03 · FE04 = top-swap.
+    1–{DAKUTEN_SLOT_COUNT} marks ({DAKUTEN_SLOT_CYCLE}). CGJ skips a slot.
+    ¹ FE01 · ² FE02 · ³ FE03 · FE04 = top-swap.
   </p>
   <div class="controls">
     <label>Choseong
@@ -216,10 +222,12 @@ section h2 {{
     </label>
     <label>Mark count
       <select id="markCount">
-        <option value="1">1 (TR)</option>
-        <option value="2">2 (+BR)</option>
-        <option value="3">3 (+TL)</option>
-        <option value="4">4 (+BL)</option>
+        {dakuten_count_options_html(indent="        ")}
+      </select>
+    </label>
+    <label>Skip (CGJ)
+      <select id="skipSlots">
+        {dakuten_skip_options_html(indent="        ")}
       </select>
     </label>
     <label><input type="checkbox" id="labels" checked/> labels</label>
@@ -232,6 +240,7 @@ section h2 {{
 <main id="main"><p class="empty">Choose a choseong + jungseong, then Render.</p></main>
 <script>
 let DATA = {json.dumps(payload, ensure_ascii=False, separators=(",", ":"))};
+const SLOT_N = DATA.SLOT_COUNT || 8;
 
 function cpChars(cps) {{
   return cps.map(c => String.fromCodePoint(c)).join("");
@@ -247,8 +256,9 @@ function markSuffix() {{
   let mi = +document.getElementById("pickMark").value;
   let m = DATA.MARKS[mi];
   if (!m) return [];
-  let n = Math.max(1, Math.min(4, +document.getElementById("markCount").value || 1));
-  return Array(n).fill(m.cp);
+  let skip = Math.max(0, Math.min(SLOT_N - 1, +document.getElementById("skipSlots").value || 0));
+  let n = Math.max(1, Math.min(SLOT_N, +document.getElementById("markCount").value || 1));
+  return Array(skip).fill(0x034F).concat(Array(n).fill(m.cp));
 }}
 
 function buildSeq(L, li, V, vi, T, ti, wantSwap) {{
