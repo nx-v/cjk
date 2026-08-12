@@ -9,7 +9,7 @@ copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
 D4 variants for bucket fonts are emitted **in the same TTF**:
 transformed outlines (2×2 rotates baked; axis mirrors as composites) plus
 GSUB ``ccmp``/``rlig``/``liga`` for ``unicode + VS01..VS08``
-(U+E000..U+E007 / UVS U+FE00..FE07) — the 8 unique square symmetries.
+(UVS U+FE00..FE07) — the 8 unique square symmetries.
 No FE08 overlay in panCJK (GlyphWiki keeps its own FE08 overlays).
 
 Vietnamese reading marks from Plangothic P2: ``U+16FF0``/``U+16FF1`` (ca/nhay)
@@ -501,16 +501,14 @@ def build_bucket_font(
         return out_path, 0, []
 
     # Inject VS marks so D4 ligatures stay in-font.
-    # PUA U+E000..E007 and Unicode VS U+FE00..FE07 share the same empty glyphs
-    # (FE00 = identity no-op liga). No cmap-14 UVS, so a following FE0B–FE0F
-    # is not dropped as a Default_Ignorable after UVS.
+    # Unicode VS U+FE00..FE07 only (FE00 = identity no-op liga). BMP PUA
+    # E000+ is pankana — do not cmap those aliases.
     for mode_i, (vs_cp, _rot, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
         vname = vs_glyph_name(vs_cp)
         if vname not in glyphs:
             glyph_order.append(vname)
             glyphs[vname] = empty_glyph()
             metrics[vname] = (0, 0)
-        cmap[vs_cp] = vname
         cmap[uvs_selector_for_mode(mode_i)] = vname
 
     # Reading marks: ca/nhay niche GPOS; FE0B–FE0F squish/overlay access.
@@ -703,23 +701,20 @@ def _build_bucket_task(
 def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
     """CSS unicode-range for this bucket's CJK + selectors + reading marks.
 
-    Per-bucket ``'pancjk XX'`` faces list FE00..FE0F and PUA E000..E00C so
-    digraph galleries can shape with non-ignorable PUA mirrors (Blink drops
-    Default_Ignorable VS that are not cmap-14 UVS). Pin each half to its
+    Per-bucket ``'pancjk XX'`` faces list FE00..FE0F. Pin each half to its
     bucket face; do not share a single ``pancjk`` family (overlapping
     unicode-range faces conflict). U+16FF0/16FF1 stay listed so marks load
-    from this face.
+    from this face. BMP PUA is pankana.
     """
     side_sels = set(SIDE_SELECTOR_CPS)
     # FE00..FE0F (D4 + squish/overlay / mark niches).
     fe0_sels = set(range(0xFE00, 0xFE10))
-    # PUA D4 (E000..E007) + squish/overlay mirrors (E008..E00C).
-    pua_sels = set(range(VS_BASE, VS_LAST + 1)) | set(SQUISH_PUA_CPS)
-    selector_cps = fe0_sels | pua_sels
+    selector_cps = fe0_sels
     bucket_cps = {
         cp
         for cp in codepoints
         if not (VS_BASE <= cp <= VS_LAST)
+        and cp not in SQUISH_PUA_CPS
         and cp not in side_sels
         and cp not in selector_cps
         and cp not in MARK_CPS
@@ -755,8 +750,8 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     lines: List[str] = [
         "/* Auto-generated Pan-CJK pigeonhole @font-face rules */",
         "/* One family per bucket ('pancjk XX'). Digraph / multi-bucket",
-        "   stacks list those families; FE00–FE0F + PUA E000–E00C are in",
-        "   each face's unicode-range for single-face GSUB liga. */",
+        "   stacks list those families; FE00–FE0F are in each face's",
+        "   unicode-range for single-face GSUB liga. */",
         "",
     ]
     family_names: List[str] = []

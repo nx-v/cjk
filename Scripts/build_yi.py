@@ -55,6 +55,7 @@ from shared_half_cells import (
     record_glyph,
     resolve_nuosu_path,
     variant_glyph_name,
+    uvs_selector_for_mode,
     vs_glyph_name,
 )
 from yi_slice import (
@@ -86,13 +87,13 @@ def _inject_vs(
     metrics: Dict,
     cmap: Dict[int, str],
 ) -> None:
-    for vs_cp, _rot, _fx, _fy, _suffix in YI_ORIENTATION_MODES:
+    for mode_i, (vs_cp, _rot, _fx, _fy, _suffix) in enumerate(YI_ORIENTATION_MODES):
         vname = vs_glyph_name(vs_cp)
         if vname not in glyphs:
             glyph_order.append(vname)
             glyphs[vname] = empty_glyph()
             metrics[vname] = (0, 0)
-        cmap[vs_cp] = vname
+        cmap[uvs_selector_for_mode(mode_i)] = vname
     inject_slice_marks(glyph_order, glyphs, metrics, cmap)
 
 
@@ -421,8 +422,8 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     css_path = os.path.join(out_dir, "panyi.css")
-    # UVS FE00..FE07 + slice FE08..FE09 + PUA VS mirrors.
-    extra = set(range(0xFE00, SLICE_V_CP + 1)) | set(range(0xE000, 0xE007 + 1))
+    # UVS FE00..FE07 + slice FE08..FE09. BMP PUA is pankana.
+    extra = set(range(0xFE00, SLICE_V_CP + 1))
     urange = unicode_range_css(sorted(set(codepoints) | extra))
     lines = [
         "/* Auto-generated single Yi font */",

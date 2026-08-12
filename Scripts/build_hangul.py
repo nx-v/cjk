@@ -14,17 +14,17 @@ advances are forced to ``upem``; composed V/T overlays stay zero-width.
 
 VS1..VS4 (axis mirrors)
 -----------------------
-======= ========== ========== ================================
-Name    PUA        Unicode    Transform
-======= ========== ========== ================================
-VS1     U+E000     U+FE00     identity (no subst)
-VS2     U+E001     U+FE01     mx — negate X about contour bbox center
-VS3     U+E002     U+FE02     my — negate Y about contour bbox center
-VS4     U+E003     U+FE03     mxy — both axes
-======= ========== ========== ================================
+======= ========== ================================
+Name    Unicode    Transform
+======= ========== ================================
+VS1     U+FE00     identity (no subst)
+VS2     U+FE01     mx — negate X about contour bbox center
+VS3     U+FE02     my — negate Y about contour bbox center
+VS4     U+FE03     mxy — both axes
+======= ========== ================================
 
 * **Jamo (``panhangul``):** VS may follow each jamo (``L+VS V+VS T+VS``).
-  ``U+FE0n`` uses cmap-14 UVS (and ``ccmp`` liga for PUA). Roles:
+  ``U+FE0n`` uses cmap-14 UVS (and ``ccmp`` liga). Roles:
 
   * **Choseong (initial) + VS** — bbox-flips that initial only (orientation).
   * **Jungseong (medial) + VS** — X/Y-flips about the **ideographic (typo)
@@ -122,7 +122,7 @@ MALGUN_Y_SHIFT = -40
 # Extra Y scale about the ideographic center after UPM fit (1.0 = none).
 # Malgun Hangul syllables are ~935 tall vs CJK median ~901 → ~0.96.
 MALGUN_Y_SCALE = 0.93
-# VS1..VS4 — axis mirrors (PUA U+E000..E003; Unicode VS U+FE00..FE03).
+# VS1..VS4 — axis mirrors (Unicode VS U+FE00..FE03). PUA E000+ is pankana.
 HANGUL_MIRROR_MODES: List[Tuple[int, bool, bool, Optional[str]]] = [
     (0xE000, False, False, None),
     (0xE001, True, False, "mx"),
@@ -1352,7 +1352,6 @@ def _inject_vs(
             glyph_order.append(vname)
             glyphs[vname] = empty_glyph()
             metrics[vname] = (0, 0)
-        cmap[pua_cp] = vname
         cmap[UVS_BASE + mode_i] = vname
 
 
@@ -2990,17 +2989,13 @@ def write_css(
     syll_cps: Sequence[int],
 ) -> None:
     css_path = os.path.join(out_dir, "panhangul.css")
-    # PUA VS + Unicode FE00..FE03 mirrors; FE04 top-swap (jamo GPOS).
-    vs_extra = (
-        set(range(VS_BASE, VS_LAST + 1))
-        | set(range(UVS_BASE, UVS_LAST + 1))
-        | {SWAP_CP}
-    )
+    # Unicode FE00..FE03 mirrors; FE04 top-swap (jamo GPOS). No BMP PUA (pankana).
+    vs_extra = set(range(UVS_BASE, UVS_LAST + 1)) | {SWAP_CP}
     lines = [
         "/* Auto-generated Hangul fonts from Malgun Gothic */",
         "/* panhangul = conjoining jamo; panhanguls = syllables + compat */",
         "/* Local src first; GitHub raw as fallback. */",
-        "/* VS: U+E000..E003 / U+FE00..FE03 mirrors; U+FE04 = batchim top-swap. */",
+        "/* VS: U+FE00..FE03 mirrors; U+FE04 = batchim top-swap. */",
         "",
     ]
     for family, cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
@@ -3057,7 +3052,7 @@ def build_all(
 ) -> None:
     print(f"Hangul source: {MALGUN_FILENAME}")
     print(
-        f"  VS U+{VS_BASE:04X}-U+{VS_LAST:04X} / U+{UVS_BASE:04X}-U+{UVS_LAST:04X}: "
+        f"  VS U+{UVS_BASE:04X}-U+{UVS_LAST:04X}: "
         "identity / mx / my / mxy"
     )
     print(

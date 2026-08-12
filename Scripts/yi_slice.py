@@ -71,15 +71,28 @@ def half_glyph_name(base_name: str, half: str) -> str:
     return f"{base_name}.{half}"
 
 
-def cjk_box(target_upem: int) -> Tuple[float, float, float, float]:
-    """``(x0, y0, x1, y1)`` of the CJK typo cell."""
+def cjk_box(
+    target_upem: int,
+    *,
+    cell_width: Optional[float] = None,
+    cell_x0: float = 0.0,
+) -> Tuple[float, float, float, float]:
+    """``(x0, y0, x1, y1)`` of the CJK typo cell (or a narrower halfwidth cell)."""
     y1 = target_upem * TYPO_ASCENDER_FRAC
     y0 = target_upem * TYPO_DESCENDER_FRAC
-    return 0.0, y0, float(target_upem), y1
+    w = float(target_upem if cell_width is None else cell_width)
+    return float(cell_x0), y0, float(cell_x0) + w, y1
 
 
-def cjk_mid(target_upem: int) -> Tuple[float, float]:
-    x0, y0, x1, y1 = cjk_box(target_upem)
+def cjk_mid(
+    target_upem: int,
+    *,
+    cell_width: Optional[float] = None,
+    cell_x0: float = 0.0,
+) -> Tuple[float, float]:
+    x0, y0, x1, y1 = cjk_box(
+        target_upem, cell_width=cell_width, cell_x0=cell_x0
+    )
     return (x0 + x1) / 2.0, (y0 + y1) / 2.0
 
 
@@ -123,12 +136,13 @@ def clip_glyph_to_half(
     target_upem: int,
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    cell_width: Optional[float] = None,
 ) -> TTGlyph:
     """Intersect ``glyph`` with one CJK-box half-plane (top/bot/left/right)."""
     import pathops
 
-    mx, my = cjk_mid(target_upem)
-    x0, y0, x1, y1 = cjk_box(target_upem)
+    x0, y0, x1, y1 = cjk_box(target_upem, cell_width=cell_width)
+    mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
     pad = target_upem * 0.05
     if half == "top":
         rx0, ry0, rx1, ry1 = x0 - pad, my, x1 + pad, y1 + pad
@@ -155,13 +169,16 @@ def ensure_slice_adv(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
+    *,
+    name: str = SLICE_ADV_NAME,
+    advance: Optional[int] = None,
 ) -> str:
-    """Shared empty glyph that carries the em advance after the second half."""
-    if SLICE_ADV_NAME not in glyphs:
-        glyph_order.append(SLICE_ADV_NAME)
-        glyphs[SLICE_ADV_NAME] = empty_glyph()
-        metrics[SLICE_ADV_NAME] = (int(target_upem), 0)
-    return SLICE_ADV_NAME
+    """Shared empty glyph that carries the cell advance after the second half."""
+    if name not in glyphs:
+        glyph_order.append(name)
+        glyphs[name] = empty_glyph()
+        metrics[name] = (int(target_upem if advance is None else advance), 0)
+    return name
 
 
 def _bake_halves_for_form(
@@ -171,6 +188,7 @@ def _bake_halves_for_form(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
+    cell_width: Optional[float] = None,
 ) -> None:
     """Clip ``form_name`` into four baked zero-advance half-plane glyphs."""
     for half in HALF_SUFFIXES:
@@ -178,7 +196,11 @@ def _bake_halves_for_form(
         if hname in glyphs:
             continue
         clipped = clip_glyph_to_half(
-            glyphs[form_name], half, target_upem, glyph_set=glyphs
+            glyphs[form_name],
+            half,
+            target_upem,
+            glyph_set=glyphs,
+            cell_width=cell_width,
         )
         try:
             clipped.recalcBounds(None)
@@ -239,13 +261,23 @@ def add_slice_halves(
     target_upem: int,
     modes: Optional[Sequence[TransformMode]] = None,
     limit: Optional[int] = None,
+    cell_width: Optional[float] = None,
+    slice_adv_name: str = SLICE_ADV_NAME,
 ) -> List[str]:
     """Install slice halves: bake id + r90; composite the other D4 forms.
 
     ``base_names`` are identity glyph names (not pre-expanded orientations).
     Returns every form name (id + variants) that received a full half set.
     """
-    ensure_slice_adv(glyph_order, glyphs, metrics, target_upem)
+    adv = int(target_upem if cell_width is None else cell_width)
+    ensure_slice_adv(
+        glyph_order,
+        glyphs,
+        metrics,
+        target_upem,
+        name=slice_adv_name,
+        advance=adv,
+    )
     use_modes = list(modes) if modes is not None else list(TRANSFORM_MODES)
     added: List[str] = []
 
@@ -262,6 +294,7 @@ def add_slice_halves(
             glyphs=glyphs,
             metrics=metrics,
             target_upem=target_upem,
+            cell_width=cell_width,
         )
         r90_name = variant_glyph_name(base, "r90")
         if r90_name in glyphs:
@@ -271,6 +304,7 @@ def add_slice_halves(
                 glyphs=glyphs,
                 metrics=metrics,
                 target_upem=target_upem,
+                cell_width=cell_width,
             )
 
         if all(half_glyph_name(base, h) in glyphs for h in HALF_SUFFIXES):
@@ -323,6 +357,7 @@ def add_slice_halves(
                     glyphs=glyphs,
                     metrics=metrics,
                     target_upem=target_upem,
+                    cell_width=cell_width,
                 )
             if all(half_glyph_name(form, h) in glyphs for h in HALF_SUFFIXES):
                 added.append(form)
@@ -359,6 +394,7 @@ def install_slice_gsub(
     glyphs: Dict[str, TTGlyph],
     glyph_order: Sequence[str],
     max_stack: int = 8,
+    slice_adv_name: str = SLICE_ADV_NAME,
 ) -> int:
     """Install FE08/FE09 slice lookups (single/multiple-subst + mark consume).
 
@@ -388,7 +424,7 @@ def install_slice_gsub(
         return sorted(set(names), key=lambda n: order_index.get(n, 10**9))
 
     forms = _gid_sort([n for n in full_forms if n in glyphs])
-    if not forms or SLICE_ADV_NAME not in glyphs:
+    if not forms or slice_adv_name not in glyphs:
         return 0
 
     forms = _gid_sort(
@@ -449,7 +485,7 @@ def install_slice_gsub(
     feature_lookup_idxs: List[int] = []
 
     consume_map = {
-        (SLICE_ADV_NAME, mname): SLICE_ADV_NAME
+        (slice_adv_name, mname): slice_adv_name
         for _cp, mname, _a, _b in SLICE_MODES
         if mname in glyphs
     }
@@ -466,7 +502,7 @@ def install_slice_gsub(
 
         first_map = {name: half_glyph_name(name, first_half) for name in forms}
         second_map = {
-            name: [half_glyph_name(name, second_half), SLICE_ADV_NAME] for name in forms
+            name: [half_glyph_name(name, second_half), slice_adv_name] for name in forms
         }
 
         first_lu = build_chunked_single_subst_lookup(first_map)

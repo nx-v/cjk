@@ -10,12 +10,9 @@ Logical encoding (matches ``cjk_diacritics`` / ``build_cjk``)::
     &#x660E;&#xFE00;&#xFE0B;&#xFE0C;&#x65E5;&#xFE02;&#xFE0D;
     (明 FE00 FE0B FE0C + 日 FE02 FE0D; each side picks its own D4)
 
-  Browser gallery text uses PUA mirrors (Blink drops Default_Ignorable VS
-  that are not cmap-14 UVS before GSUB)::
+  Gallery text uses the same FE0* selectors (BMP PUA is pankana).
 
-    A E000..E007 E008 E009–C   B E000..E007 E00A–C
-
-  * First kanji is zero-width overlay (``FE0B`` / PUA ``E008`` + niche)
+  * First kanji is zero-width overlay (``FE0B`` + niche)
   * Niches oppose: FE0C↔FE0D (L↔R), FE0E↔FE0F (T↔B)
   * D4 orients are independent per character (FE00..FE07); GSUB liga only
   * Prefer pairs from different pancjk buckets (``cp >> 8``); seed 明日
@@ -47,18 +44,12 @@ from cjk_diacritics_html import (
     parse_range_spec,
 )
 from cjk_diacritics import (
-    OV_PUA_CP,
     OV_SELECTOR_CP,
     SQUISH_BOT_CP,
-    SQUISH_BOT_PUA_CP,
     SQUISH_LEFT_CP,
-    SQUISH_LEFT_PUA_CP,
     SQUISH_RIGHT_CP,
-    SQUISH_RIGHT_PUA_CP,
     SQUISH_TOP_CP,
-    SQUISH_TOP_PUA_CP,
 )
-from shared_half_cells import VS_BASE
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "subfonts", "digraph-cjk.html")
@@ -92,18 +83,11 @@ def write_html(
         "CJK": cjk,
         "BASE_ORIENT_VS": BASE_ORIENT_VS,
         "BASE_ORIENT_LABEL": BASE_ORIENT_LABEL,
-        # Documented FE0* selectors (tags); PUA mirrors for browser textContent.
         "OV_SEL": OV_SELECTOR_CP,
         "SQUISH_R": SQUISH_RIGHT_CP,
         "SQUISH_L": SQUISH_LEFT_CP,
         "SQUISH_T": SQUISH_TOP_CP,
         "SQUISH_B": SQUISH_BOT_CP,
-        "OV_PUA": OV_PUA_CP,
-        "SQUISH_R_PUA": SQUISH_RIGHT_PUA_CP,
-        "SQUISH_L_PUA": SQUISH_LEFT_PUA_CP,
-        "SQUISH_T_PUA": SQUISH_TOP_PUA_CP,
-        "SQUISH_B_PUA": SQUISH_BOT_PUA_CP,
-        "D4_PUA_BASE": VS_BASE,
         "DIGRAPH_PAIRS": [{"a": a, "b": b, "cross": cross} for a, b, cross in pairs],
         "DIGRAPH_NICHES": [{"a": a, "b": b} for a, b in DIGRAPH_NICHE_PAIRS],
         "OPPOSING_ORIENT_OI": opposing_oi,
@@ -192,7 +176,7 @@ h2 {{
   <p class="meta">
     Range: {range_note}<br/>
     Encoding: <code>A FE00..FE07 FE0B FE0C–F</code> + <code>B FE00..FE07 FE0D–F</code>
-    (gallery text uses PUA <code>E000..E00C</code>; niches oppose)<br/>
+    (niches oppose)<br/>
     First half zero-width · niches FE0C↔FE0D / FE0E↔FE0F · D4 independent<br/>
     Pairs: {len(pairs)} ({n_cross} cross-bucket) · full A×B orient gallery ≈ {n_gallery:,}
   </p>
@@ -269,31 +253,28 @@ fillOrientSelect(orientB);
 }}
 
 function vsChar(vs) {{ return vs == null ? '' : String.fromCodePoint(vs); }}
-function d4Pua(oi) {{
-  // FE00..FE07 → E000..E007 (same empty vsNN glyphs; browsers keep PUA).
+function d4Sel(oi) {{
   let fe = DATA.BASE_ORIENT_VS[oi];
   if (fe == null) return '';
-  return String.fromCodePoint(DATA.D4_PUA_BASE + (fe - 0xFE00));
+  return String.fromCodePoint(fe);
 }}
 function cjkPiece(idx, oi) {{
-  return DATA.CJK[idx].ch + d4Pua(oi);
+  return DATA.CJK[idx].ch + d4Sel(oi);
 }}
 function squishPiece(side) {{
-  let sel = side === 'R' ? DATA.SQUISH_R_PUA
-    : side === 'L' ? DATA.SQUISH_L_PUA
-    : side === 'T' ? DATA.SQUISH_T_PUA
-    : side === 'B' ? DATA.SQUISH_B_PUA
+  let sel = side === 'R' ? DATA.SQUISH_R
+    : side === 'L' ? DATA.SQUISH_L
+    : side === 'T' ? DATA.SQUISH_T
+    : side === 'B' ? DATA.SQUISH_B
     : null;
   return sel != null ? String.fromCodePoint(sel) : '';
 }}
 function digraphFirst(idx, oi, side) {{
-  // A E000..E007 E008 E009–C — zero-width half overlay (PUA = FE0B FE0C–F)
   return cjkPiece(idx, oi)
-    + String.fromCodePoint(DATA.OV_PUA)
+    + String.fromCodePoint(DATA.OV_SEL)
     + squishPiece(side);
 }}
 function digraphSecond(idx, oi, side) {{
-  // B E000..E007 E00A–C — independent D4, opposing niche, keeps advance
   return cjkPiece(idx, oi) + squishPiece(side);
 }}
 function squishHex(side) {{

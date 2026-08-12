@@ -10,8 +10,7 @@ Encoding (matches ``cjk_diacritics`` / ``build_cjk``)::
       CJK (D4)? FE0E MARK → base ``.dkb`` (top)    + mark bottom
       CJK (D4)? FE0F MARK → base ``.dkt`` (bottom) + mark top
 
-    Gallery text uses PUA ``E009``–``E00C`` (FE0C–F mirrors) so browsers
-    keep the selectors for GSUB.
+    Gallery text uses the same FE0* selectors (BMP PUA is pankana).
 
     Squish = occupy one half of the ideographic area (same ``.dk*`` glyphs):
       FE0B       → zero-width ``.ov``
@@ -46,18 +45,13 @@ from collections import defaultdict
 from build_cjk import CHAR_RANGES, IN_DIR, OUT_DIR as SUBFONTS_OUT
 from cjk_diacritics import (
     CORE_MARK_CPS,
-    OV_PUA_CP,
     OV_SELECTOR_CP,
     SQUISH_BOT_CP,
-    SQUISH_BOT_PUA_CP,
     SQUISH_LEFT_CP,
-    SQUISH_LEFT_PUA_CP,
     SQUISH_RIGHT_CP,
-    SQUISH_RIGHT_PUA_CP,
     SQUISH_TOP_CP,
-    SQUISH_TOP_PUA_CP,
 )
-from shared_half_cells import TRANSFORM_MODES, VS_BASE, uvs_selector_for_mode
+from shared_half_cells import TRANSFORM_MODES, uvs_selector_for_mode
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "subfonts", "diac-cjk.html")
@@ -395,12 +389,6 @@ def write_html(
         "SQUISH_L": SQUISH_LEFT_CP,
         "SQUISH_T": SQUISH_TOP_CP,
         "SQUISH_B": SQUISH_BOT_CP,
-        "OV_PUA": OV_PUA_CP,
-        "SQUISH_R_PUA": SQUISH_RIGHT_PUA_CP,
-        "SQUISH_L_PUA": SQUISH_LEFT_PUA_CP,
-        "SQUISH_T_PUA": SQUISH_TOP_PUA_CP,
-        "SQUISH_B_PUA": SQUISH_BOT_PUA_CP,
-        "D4_PUA_BASE": VS_BASE,
         "DIGRAPH_PAIRS": [{"a": a, "b": b, "cross": cross} for a, b, cross in pairs],
         "DIGRAPH_NICHES": [{"a": a, "b": b} for a, b in DIGRAPH_NICHE_PAIRS],
         "OPPOSING_ORIENT_OI": opposing_oi,
@@ -586,27 +574,26 @@ function selectedNiche() {{
   const s = nicheSel.value;
   return (s === 'R' || s === 'L' || s === 'T' || s === 'B') ? s : 'R';
 }}
-function d4Pua(oi) {{
+function d4Sel(oi) {{
   const fe = DATA.BASE_ORIENT_VS[oi];
   if (fe == null) return '';
-  return String.fromCodePoint(DATA.D4_PUA_BASE + (fe - 0xFE00));
+  return String.fromCodePoint(fe);
 }}
 function cjkPiece(idx, baseOi) {{
   const c = DATA.CJK[idx];
-  return c.ch + d4Pua(baseOi);
+  return c.ch + d4Sel(baseOi);
 }}
 function markPiece(mi, markOi) {{
   const m = DATA.MARKS[mi];
   // No mark FE00 no-op liga — omit identity D4 so vs01 is not left hanging.
-  const d4 = (DATA.MARK_ORIENT_LABEL[markOi] || 'id') === 'id' ? '' : d4Pua(markOi);
+  const d4 = (DATA.MARK_ORIENT_LABEL[markOi] || 'id') === 'id' ? '' : d4Sel(markOi);
   return m.ch + d4;
 }}
 function squishPiece(side) {{
-  // PUA E009–E00C (FE0C–F mirrors) so browsers keep selectors for GSUB.
-  const sel = side === 'R' ? DATA.SQUISH_R_PUA
-    : side === 'L' ? DATA.SQUISH_L_PUA
-    : side === 'T' ? DATA.SQUISH_T_PUA
-    : side === 'B' ? DATA.SQUISH_B_PUA
+  const sel = side === 'R' ? DATA.SQUISH_R
+    : side === 'L' ? DATA.SQUISH_L
+    : side === 'T' ? DATA.SQUISH_T
+    : side === 'B' ? DATA.SQUISH_B
     : null;
   return sel != null ? String.fromCodePoint(sel) : '';
 }}
@@ -615,13 +602,11 @@ function markedCjk(idx, baseOi, mi, markOi, side) {{
   return cjkPiece(idx, baseOi) + squishPiece(side) + markPiece(mi, markOi);
 }}
 function digraphFirst(idx, oi, side) {{
-  // A (D4 PUA)? E008 E009–C — zero-width half overlay
   return cjkPiece(idx, oi)
-    + String.fromCodePoint(DATA.OV_PUA)
+    + String.fromCodePoint(DATA.OV_SEL)
     + squishPiece(side);
 }}
 function digraphSecond(idx, oi, side) {{
-  // B (D4 PUA)? E00A–C — opposing niche, keeps advance
   return cjkPiece(idx, oi) + squishPiece(side);
 }}
 function squishHex(side) {{

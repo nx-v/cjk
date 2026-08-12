@@ -10,7 +10,15 @@ BMP PUA ``U+E000``..``U+F8FF`` (6400 CPs)::
     small[i] = 0xE000 + 2 * i     # even — small: ideo-scale + Weight once, D4 @ ideo
     full[i]  = 0xE000 + 2 * i + 1 # odd  — full-size oriented form
 
-Initial fill: 14×6 hiragana then 14×6 katakana (no q-row) → ``L = 0..167``
+Halfwidth companions (same ``i``) in SPUA-A::
+
+    hw_small[i] = 0xF0000 + 2 * i
+    hw_full[i]  = 0xF0000 + 2 * i + 1
+
+CAPE Width ``0.5`` holds the pre-squeeze stem thicknesses (match full-width
+kana). Slices use the half-em cell + ``sliceAdvHw``.
+
+Initial fill: 16×6 hiragana then 16×6 katakana → ``L = 0..191``
 row-major. Sources: FlopDesignFONT, then mkanaplus (PUA/archaic + overrides).
 
 Umlaut orientations are real cmap entries (no VS). Ligatures follow Yi
@@ -27,11 +35,21 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
+from fontTools.pens.cu2quPen import Cu2QuPen
 from fontTools.pens.recordingPen import DecomposingRecordingPen, RecordingPen
+from fontTools.pens.transformPen import TransformPen
+from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont, woff2
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
-from cape_weightor import bolden_ttglyph
+from cape_weightor import (
+    bolden_ttglyph,
+    estimate_horizontal_stem,
+    estimate_vertical_stem,
+    heighten_ttglyph,
+    layer_from_ttglyph,
+    widen_ttglyph,
+)
 from shared_diacritics import (
     DAKUTEN_EDGE_PAD_FRAC,
     DAKUTEN_MARK_HEIGHT_FRAC,
@@ -57,6 +75,7 @@ from shared_half_cells import (
     ideographic_center,
     orientation_form_names,
     variant_glyph_name,
+    variant_transform,
 )
 from shared_half_cells import _bake_transformed_glyph  # composite → plain outlines
 from yi_slice import (
@@ -87,6 +106,12 @@ LOGICAL_CAPACITY = 400  # 400 * 8 * 2 = 6400
 SMALL_WIDTH_FACTOR = 0.75
 # After uniform scale, CAPE Weight restores stroke thickness to match full-size.
 SMALL_WEIGHT_FACTOR = 1.0 / SMALL_WIDTH_FACTOR
+# Halfwidth: CAPE Width 0.5, stems held at the pre-squeeze (fixed) values.
+HALF_WIDTH_FACTOR = 0.5
+HW_PUA_START = 0xF0000
+SLICE_ADV_HW_NAME = "sliceAdvHw"
+# FlopDesignFONT is CFF (cubics). TrueType glyf needs quads.
+CU2QU_MAX_ERR = 0.5
 
 FLOP_FILENAMES: Tuple[str, ...] = (
     "FlopDesignFONT.otf",
@@ -104,14 +129,11 @@ MKANA_OVERRIDE_CPS: frozenset[int] = frozenset(
         0x3078,  # へ
         0x3042,  # あ
         0x305D,  # そ
-        0x307E,  # ま
+        0x306A,  # な
         0x308A,  # り
-        0x308B,  # る
-        0x308F,  # わ
         0x30D8,  # ヘ
         0x30A2,  # ア
         0x30BD,  # ソ
-        0x30DE,  # マ
         0x30EA,  # リ
         0x30EB,  # ル
         0x30EF,  # ワ
@@ -122,10 +144,11 @@ MKANA_OVERRIDE_CPS: frozenset[int] = frozenset(
 CONSONANTS: Tuple[str, ...] = (
     "",
     "k",
+    "ng",
     "t",
-    "c",
-    "ĉ",
-    "ŝ",
+    "ts",
+    "ch",
+    "sh",
     "s",
     "m",
     "n",
@@ -134,17 +157,20 @@ CONSONANTS: Tuple[str, ...] = (
     "l",
     "r",
     "w",
+    "f",
+    "p",
 )
 VOWELS: Tuple[str, ...] = ("a", "i", "u", "e", "o", "ə")
 
-# 14×6 hiragana, then 14×6 katakana (row-major). Values = source CPs.
+# 17×6 hiragana, then 7×6 katakana (row-major). Values = source CPs.
 HIRAGANA_ROWS: Tuple[Tuple[int, ...], ...] = (
     (0x3042, 0x3044, 0x3046, 0x3048, 0x304A, 0xEBC0),  # ∅
     (0x304B, 0x304D, 0x304F, 0x3051, 0x3053, 0xEBC1),  # k
+    (0xE023, 0xE024, 0xE025, 0xE026, 0xE027, 0xE02A),  # ng
     (0x305F, 0xED10, 0x1B06D, 0x3066, 0x3068, 0xEBCA),  # t
-    (0xED1C, 0xED1E, 0x3064, 0xED20, 0xED22, 0xEBCE),  # c
-    (0xED14, 0x3061, 0xED16, 0xED18, 0xED1A, 0xEBCC),  # ĉ
-    (0x1B043, 0x3057, 0xED0A, 0xED0C, 0xED0E, 0xEBC8),  # ŝ
+    (0xED1C, 0xED1E, 0x3064, 0xED20, 0xED22, 0xEBCE),  # ts
+    (0xED14, 0x3061, 0xED16, 0xED18, 0xED1A, 0xEBCC),  # ch
+    (0x1B043, 0x3057, 0xED0A, 0xED0C, 0xED0E, 0xEBC8),  # sh
     (0x3055, 0xED01, 0x3059, 0x305B, 0x305D, 0xEBC4),  # s
     (0x307E, 0x307F, 0x3080, 0x3081, 0x3082, 0xEBD4),  # m
     (0x306A, 0x306B, 0x306C, 0x306D, 0x306E, 0xEBD0),  # n
@@ -153,15 +179,18 @@ HIRAGANA_ROWS: Tuple[Tuple[int, ...], ...] = (
     (0xE0E0, 0xE0E1, 0xE0E2, 0xE0E3, 0xE0E4, 0xECC1),  # l
     (0x3089, 0x308A, 0x308B, 0x308C, 0x308D, 0xEBD6),  # r
     (0x308F, 0x3090, 0x1B11F, 0x3091, 0x3092, 0xEBD8),  # w
+    (0xEE33, 0xEE34, 0x3075, 0xEE35, 0xEE36, 0xED3A),  # f
+    (0xE030, 0xE031, 0xE032, 0xE033, 0xE034, 0xECC2),  # p
 )
 
 KATAKANA_ROWS: Tuple[Tuple[int, ...], ...] = (
     (0x30A2, 0x30A4, 0x30A6, 0x30A8, 0x30AA, 0xEBE0),  # ∅
     (0x30AB, 0x30AD, 0x30AF, 0x30B1, 0x30B3, 0xEBE1),  # k
+    (0xEDD3, 0xEC69, 0xEDCA, 0xEDC6, 0xEDD7, 0xEDC2),  # ng
     (0x30BF, 0xED50, 0xED52, 0x30C6, 0x30C8, 0xEBEA),  # t
-    (0xED5C, 0xED5E, 0x30C4, 0xED60, 0xED62, 0xEBEE),  # c
-    (0xED54, 0x30C1, 0xED56, 0xED58, 0xED5A, 0xEBEC),  # ĉ
-    (0xED48, 0x30B7, 0xED4A, 0xED4C, 0xED4E, 0xEBE8),  # ŝ
+    (0xED5C, 0xED5E, 0x30C4, 0xED60, 0xED62, 0xEBEE),  # ts
+    (0xED54, 0x30C1, 0xED56, 0xED58, 0xED5A, 0xEBEC),  # ch
+    (0xED48, 0x30B7, 0xED4A, 0xED4C, 0xED4E, 0xEBE8),  # sh
     (0x30B5, 0xED41, 0x30B9, 0x30BB, 0x30BD, 0xEBE4),  # s
     (0x30DE, 0x30DF, 0x30E0, 0x30E1, 0x30E2, 0xEBF4),  # m
     (0x30CA, 0x30CB, 0x30CC, 0x30CD, 0x30CE, 0xEBF0),  # n
@@ -170,16 +199,17 @@ KATAKANA_ROWS: Tuple[Tuple[int, ...], ...] = (
     (0xEDC3, 0xEDC8, 0xEDC0, 0xEDC5, 0xEDC1, 0xEDD2),  # l
     (0x30E9, 0x30EA, 0x30EB, 0x30EC, 0x30ED, 0xEBF6),  # r
     (0x30EF, 0x30F0, 0x1B122, 0x30F1, 0x30F2, 0xEBF8),  # w
+    (0xEDCB, 0xEDCA, 0xEE69, 0xEDD0, 0xEDC4, 0xEDD5),  # P
 )
 
 # Hiragana first, katakana immediately after.
 CHART_ROWS: Tuple[Tuple[int, ...], ...] = HIRAGANA_ROWS + KATAKANA_ROWS
-HIRAGANA_COUNT = len(CONSONANTS) * len(VOWELS)  # 84
+HIRAGANA_COUNT = len(CONSONANTS) * len(VOWELS)  # 96
 KATAKANA_COUNT = HIRAGANA_COUNT
 
 
 def chart_source_cps() -> List[int]:
-    """Row-major source CPs: hiragana L=0..83, katakana L=84..167."""
+    """Row-major source CPs: hiragana then katakana."""
     out: List[int] = []
     for row in CHART_ROWS:
         out.extend(row)
@@ -198,6 +228,14 @@ def small_cp(i: int) -> int:
     return PUA_START + 2 * i
 
 
+def hw_full_cp(i: int) -> int:
+    return HW_PUA_START + 2 * i + 1
+
+
+def hw_small_cp(i: int) -> int:
+    return HW_PUA_START + 2 * i
+
+
 def glyph_name_for_cp(cp: int) -> str:
     return f"u{cp:04X}" if cp <= 0xFFFF else f"u{cp:05X}"
 
@@ -208,6 +246,14 @@ def logical_base_name(logical: int) -> str:
 
 def small_base_name(logical: int) -> str:
     return f"kL{logical:03d}.sm"
+
+
+def hw_base_name(logical: int) -> str:
+    return f"kL{logical:03d}.hw"
+
+
+def hw_small_base_name(logical: int) -> str:
+    return f"kL{logical:03d}.hw.sm"
 
 
 def _first_existing(paths: Sequence[str]) -> Optional[str]:
@@ -258,6 +304,17 @@ def font_cmap(tt: TTFont) -> Dict[int, str]:
     return cmap
 
 
+def _cff_program_empty(charstring) -> bool:
+    """CFF T2CharString.program is [] until decompile(); don't treat that as empty."""
+    if getattr(charstring, "needsDecompilation", False):
+        try:
+            charstring.decompile()
+        except Exception:
+            return True
+    program = getattr(charstring, "program", None) or []
+    return len(program) == 0
+
+
 def is_empty_outline(tt: TTFont, glyph_name: str) -> bool:
     if "glyf" in tt:
         if glyph_name not in tt["glyf"]:
@@ -268,17 +325,30 @@ def is_empty_outline(tt: TTFont, glyph_name: str) -> bool:
         return g.numberOfContours <= 0
     if "CFF " in tt:
         top = tt["CFF "].cff.topDictIndex[0]
-        return (
-            glyph_name not in top.CharStrings
-            or len(top.CharStrings[glyph_name].program) == 0
-        )
+        cs = top.CharStrings
+        return glyph_name not in cs or _cff_program_empty(cs[glyph_name])
     if "CFF2" in tt:
         top = tt["CFF2"].cff.topDictIndex[0]
-        return (
-            glyph_name not in top.CharStrings
-            or len(top.CharStrings[glyph_name].program) == 0
-        )
+        cs = top.CharStrings
+        return glyph_name not in cs or _cff_program_empty(cs[glyph_name])
     return True
+
+
+def _quadratic_glyph_from_recording(
+    rec: RecordingPen,
+    transform: Transform,
+    *,
+    max_err: float = CU2QU_MAX_ERR,
+) -> TTGlyph:
+    """Replay CFF cubics through Cu2Qu so the glyf table stays format 0."""
+    pen = TTGlyphPen(None)
+    rec.replay(TransformPen(Cu2QuPen(pen, max_err), transform))
+    glyph = pen.glyph()
+    try:
+        glyph.recalcBounds(None)
+    except Exception:
+        pass
+    return glyph
 
 
 class SourceFont:
@@ -314,7 +384,7 @@ class SourceFont:
             )
             return None
         t = Transform(upem_scale, 0, 0, upem_scale, 0, 0)
-        glyph = apply_transform(rec, t)
+        glyph = _quadratic_glyph_from_recording(rec, t)
         if glyph.numberOfContours == 0 and not glyph.isComposite():
             return None
         if advance <= 0:
@@ -541,6 +611,167 @@ def make_small_glyph(
     return small, out_adv, lsb
 
 
+def halfwidth_center(
+    target_upem: int,
+    size_factor: float = 1.0,
+) -> Tuple[float, float]:
+    """D4 pivot for halfwidth forms: center of the half-em (optionally small) box."""
+    half = float(target_upem) * HALF_WIDTH_FACTOR
+    bot, _top, height = ideographic_bounds(target_upem)
+    s = float(size_factor)
+    return half / 2.0, bot + s * height / 2.0
+
+
+def _fixed_vertical_stem(glyph: TTGlyph, advance: float) -> Optional[float]:
+    """Measured vertical stem — the fixed thickness CAPE Width must restore."""
+    try:
+        layer = layer_from_ttglyph(glyph, float(advance))
+        stem = estimate_vertical_stem(layer)
+    except Exception:
+        return None
+    return stem if stem and stem > 0 else None
+
+
+def _fixed_horizontal_stem(glyph: TTGlyph, advance: float) -> Optional[float]:
+    """Measured horizontal stem — the fixed thickness CAPE Height must restore."""
+    try:
+        layer = layer_from_ttglyph(glyph, float(advance))
+        stem = estimate_horizontal_stem(layer)
+    except Exception:
+        return None
+    return stem if stem and stem > 0 else None
+
+
+def make_halfwidth_r90_glyph(
+    src_glyph: TTGlyph,
+    advance: int,
+    target_upem: int,
+    *,
+    glyph_set: Dict[str, TTGlyph],
+    stem: Optional[float] = None,
+    size_factor: float = 1.0,
+) -> Tuple[TTGlyph, int, int]:
+    """Halfwidth r90/r270 source: CAPE Height 0.5, then rotate 90°.
+
+    Upright halfwidth is X-squeezed. Sideways forms must Y-squeeze the
+    unsqueezed outline first so after r90 they are wide-and-short (half
+    height → half width), not tall-and-narrow.
+    """
+    baked, adv, _ = _bake_simple(src_glyph, advance, glyph_set)
+    half_adv = otRound(target_upem * HALF_WIDTH_FACTOR)
+    hw_cx, cy = halfwidth_center(target_upem, size_factor)
+    full_cx = float(target_upem) / 2.0
+    work_adv = float(adv if adv > 0 else target_upem)
+    hstem = stem if stem is not None else _fixed_horizontal_stem(baked, work_adv)
+    try:
+        baked = _ensure_cape_expand_winding(baked)
+        baked, _, _ = heighten_ttglyph(
+            baked,
+            HALF_WIDTH_FACTOR,
+            advance=work_adv,
+            stem=hstem,
+            center_y=cy,
+        )
+    except Exception as exc:
+        print(f"  [!] CAPE Height halfwidth r90 failed: {exc}", file=sys.stderr)
+        try:
+            rec = RecordingPen()
+            baked.draw(rec, None)
+            s = HALF_WIDTH_FACTOR
+            baked = apply_transform(rec, Transform(1, 0, 0, s, 0, cy * (1.0 - s)))
+        except Exception:
+            pass
+    rec = RecordingPen()
+    baked.draw(rec, None)
+    t = variant_transform(
+        target_upem,
+        rot90_quarters=1,
+        flip_x=False,
+        flip_y=False,
+        center=(full_cx, cy),
+    )
+    det = t.xx * t.yy - t.xy * t.yx
+    baked = apply_transform(rec, t, reverse_winding=det < 0)
+    rec = RecordingPen()
+    baked.draw(rec, None)
+    baked = apply_transform(rec, Transform(1, 0, 0, 1, hw_cx - full_cx, 0))
+    try:
+        baked.recalcBounds(None)
+        lsb = int(baked.xMin)
+    except Exception:
+        lsb = 0
+    return baked, half_adv, lsb
+
+
+def replace_halfwidth_r90(
+    hw_name: str,
+    src_glyph: TTGlyph,
+    src_advance: int,
+    target_upem: int,
+    *,
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    glyph_set: Dict[str, TTGlyph],
+    size_factor: float = 1.0,
+) -> None:
+    """Overwrite ``.r90`` (r270 / r90mx / r90my stay composites of it)."""
+    r90 = variant_glyph_name(hw_name, "r90")
+    if r90 not in glyphs:
+        return
+    hstem = _fixed_horizontal_stem(src_glyph, float(src_advance))
+    g, adv, lsb = make_halfwidth_r90_glyph(
+        src_glyph,
+        src_advance,
+        target_upem,
+        glyph_set=glyph_set,
+        stem=hstem,
+        size_factor=size_factor,
+    )
+    glyphs[r90] = g
+    metrics[r90] = (adv, lsb)
+
+
+def make_halfwidth_kana_glyph(
+    src_glyph: TTGlyph,
+    advance: int,
+    target_upem: int,
+    *,
+    glyph_set: Dict[str, TTGlyph],
+    stem: Optional[float] = None,
+) -> Tuple[TTGlyph, int, int]:
+    """Condense to half-em via CAPE Width; keep the source's vertical stem."""
+    baked, adv, _ = _bake_simple(src_glyph, advance, glyph_set)
+    half_adv = otRound(target_upem * HALF_WIDTH_FACTOR)
+    cx = half_adv / 2.0
+    work_adv = float(adv if adv > 0 else target_upem)
+    vstem = stem if stem is not None else _fixed_vertical_stem(baked, work_adv)
+    try:
+        baked = _ensure_cape_expand_winding(baked)
+        baked, _, _ = widen_ttglyph(
+            baked,
+            HALF_WIDTH_FACTOR,
+            advance=work_adv,
+            stem=vstem,
+            center_x=cx,
+        )
+    except Exception as exc:
+        print(f"  [!] CAPE Width halfwidth failed: {exc}", file=sys.stderr)
+        try:
+            rec = RecordingPen()
+            baked.draw(rec, None)
+            s = HALF_WIDTH_FACTOR
+            full_cx = float(target_upem) / 2.0
+            baked = apply_transform(rec, Transform(s, 0, 0, 1, cx - s * full_cx, 0))
+        except Exception:
+            pass
+    try:
+        baked.recalcBounds(None)
+        lsb = int(baked.xMin)
+    except Exception:
+        lsb = 0
+    return baked, half_adv, lsb
+
+
 def add_small_slice_halves_from_full(
     small_bases: Sequence[str],
     full_bases: Sequence[str],
@@ -563,9 +794,7 @@ def add_small_slice_halves_from_full(
             full_form = (
                 full_base if suffix is None else variant_glyph_name(full_base, suffix)
             )
-            sm_form = (
-                sm_base if suffix is None else variant_glyph_name(sm_base, suffix)
-            )
+            sm_form = sm_base if suffix is None else variant_glyph_name(sm_base, suffix)
             if full_form not in glyphs or sm_form not in glyphs:
                 continue
             for half in HALF_SUFFIXES:
@@ -717,7 +946,7 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     extra = {SLICE_H_CP, SLICE_V_CP}
     urange = unicode_range_css(sorted(set(codepoints) | extra))
     lines = [
-        "/* Auto-generated single kana font (PUA D4 + smalls + slices) */",
+        "/* Auto-generated single kana font (PUA D4 + smalls + halfwidth + slices) */",
         "",
         "@font-face {",
         f"  font-family: '{FAMILY_NAME}';",
@@ -782,6 +1011,9 @@ def build_pankana_font(
     cmap: Dict[int, str] = {}
     full_bases: List[str] = []
     small_bases: List[str] = []
+    hw_full_bases: List[str] = []
+    hw_small_bases: List[str] = []
+    src_counts: Dict[str, int] = {}
 
     try:
         print(
@@ -797,6 +1029,8 @@ def build_pankana_font(
             except KeyError as exc:
                 print(f"  [!] skip L={logical}: {exc}", file=sys.stderr)
                 continue
+            tag = os.path.basename(src.path)
+            src_counts[tag] = src_counts.get(tag, 0) + 1
             copied = src.copy_fitted(gname, target_upem)
             if copied is None:
                 print(
@@ -862,6 +1096,93 @@ def build_pankana_font(
                 cmap[full_cp(i)] = fname
                 cmap[small_cp(i)] = sname
 
+            # Halfwidth: CAPE Width 0.5, stem locked to the full/small identity.
+            f_adv, _f_lsb = metrics[base]
+            hw_stem = _fixed_vertical_stem(glyphs[base], float(f_adv))
+            hw_base = hw_base_name(logical)
+            hw_g, hw_adv, hw_lsb = make_halfwidth_kana_glyph(
+                glyphs[base],
+                f_adv,
+                target_upem,
+                glyph_set=glyphs,
+                stem=hw_stem,
+            )
+            glyph_order.append(hw_base)
+            glyphs[hw_base] = hw_g
+            metrics[hw_base] = (hw_adv, hw_lsb)
+            hw_full_bases.append(hw_base)
+            add_d4_variant_glyphs(
+                hw_base,
+                advance=hw_adv,
+                lsb=hw_lsb,
+                target_upem=target_upem,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+                modes=YI_ORIENTATION_MODES,
+                anchor="cell",
+                pivot=halfwidth_center(target_upem),
+            )
+            replace_halfwidth_r90(
+                hw_base,
+                glyphs[base],
+                f_adv,
+                target_upem,
+                glyphs=glyphs,
+                metrics=metrics,
+                glyph_set=glyphs,
+            )
+
+            sm_adv, _sm_lsb = metrics[sm_base]
+            hw_sm_stem = _fixed_vertical_stem(glyphs[sm_base], float(sm_adv))
+            hw_sm = hw_small_base_name(logical)
+            hwsg, hws_adv, hws_lsb = make_halfwidth_kana_glyph(
+                glyphs[sm_base],
+                sm_adv,
+                target_upem,
+                glyph_set=glyphs,
+                stem=hw_sm_stem,
+            )
+            glyph_order.append(hw_sm)
+            glyphs[hw_sm] = hwsg
+            metrics[hw_sm] = (hws_adv, hws_lsb)
+            hw_small_bases.append(hw_sm)
+            add_d4_variant_glyphs(
+                hw_sm,
+                advance=hws_adv,
+                lsb=hws_lsb,
+                target_upem=target_upem,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+                modes=YI_ORIENTATION_MODES,
+                anchor="cell",
+                pivot=halfwidth_center(target_upem, SMALL_WIDTH_FACTOR),
+            )
+            replace_halfwidth_r90(
+                hw_sm,
+                glyphs[sm_base],
+                sm_adv,
+                target_upem,
+                glyphs=glyphs,
+                metrics=metrics,
+                glyph_set=glyphs,
+                size_factor=SMALL_WIDTH_FACTOR,
+            )
+            for orient in range(D4_COUNT):
+                hfname = form_name_for_orient(hw_base, orient)
+                hsname = form_name_for_orient(hw_sm, orient)
+                if hfname not in glyphs or hsname not in glyphs:
+                    continue
+                i = pair_index(logical, orient)
+                cmap[hw_full_cp(i)] = hfname
+                cmap[hw_small_cp(i)] = hsname
+
+        print(
+            "  Sources: "
+            + (", ".join(f"{name}={n}" for name, n in src_counts.items()) or "none"),
+            flush=True,
+        )
         print(
             "  Installing FE08–FE09 slice halves on full forms "
             "(bake id+r90; composite other D4)...",
@@ -889,6 +1210,38 @@ def build_pankana_font(
             modes=YI_ORIENTATION_MODES,
         )
         print(f"  Small slice halves: {n_sm_halves}", flush=True)
+
+        hw_cell = target_upem * HALF_WIDTH_FACTOR
+        print(
+            f"  Halfwidth slice halves (cell {hw_cell:g}, "
+            f"CAPE Width {HALF_WIDTH_FACTOR:g}, fixed stems)...",
+            flush=True,
+        )
+        add_slice_halves(
+            hw_full_bases,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+            modes=YI_ORIENTATION_MODES,
+            cell_width=hw_cell,
+            slice_adv_name=SLICE_ADV_HW_NAME,
+        )
+        add_slice_halves(
+            hw_small_bases,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+            modes=YI_ORIENTATION_MODES,
+            cell_width=hw_cell,
+            slice_adv_name=SLICE_ADV_HW_NAME,
+        )
+        print(
+            f"  Halfwidth: {len(hw_full_bases)} full + {len(hw_small_bases)} small "
+            f"@ U+{HW_PUA_START:05X}",
+            flush=True,
+        )
 
         # Floor-pin halves only (bodies already pinned before D4).
         sm_half_pin: List[str] = []
@@ -1024,6 +1377,20 @@ def build_pankana_font(
         for b in small_bases:
             full_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
         install_slice_gsub(fb.font, full_forms, glyphs=glyphs, glyph_order=glyph_order)
+        hw_forms: List[str] = []
+        for b in hw_full_bases:
+            hw_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
+        for b in hw_small_bases:
+            hw_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
+        if hw_forms:
+            print("  Compiling GSUB (FE08–FE09 halfwidth slice)...", flush=True)
+            install_slice_gsub(
+                fb.font,
+                hw_forms,
+                glyphs=glyphs,
+                glyph_order=glyph_order,
+                slice_adv_name=SLICE_ADV_HW_NAME,
+            )
 
         if mark_names and base_anchors:
             # Scaled marks after small bases, then sm / full slot cycles.
@@ -1132,6 +1499,10 @@ def build_all(
         f"  PUA: U+{PUA_START:04X}..U+{PUA_END:04X} "
         f"(odd=full, even=small; i=L*{D4_COUNT}+o)"
     )
+    print(
+        f"  Halfwidth SPUA: U+{HW_PUA_START:05X}+ "
+        f"(odd=full, even=small; CAPE Width {HALF_WIDTH_FACTOR:g}, fixed stems)"
+    )
     print("  D4: 8 orientations mapped to odd/even CPs (no VS umlaut)")
     print(
         f"  Small: ideo-scale {SMALL_WIDTH_FACTOR:g} + Weight {SMALL_WEIGHT_FACTOR:g} "
@@ -1139,7 +1510,7 @@ def build_all(
         f"{small_ideo_center(DEFAULT_UPEM)}; "
         f"slice full first; halves ideo-scale + floor-pin"
     )
-    print(f"  Slice: U+{SLICE_H_CP:04X}..U+{SLICE_V_CP:04X}")
+    print(f"  Slice: U+{SLICE_H_CP:04X}..U+{SLICE_V_CP:04X} (em + half-em)")
     print("  Dakuten: contour GPOS (near ink, inside ideo cell; TR→BR→TL→BL)")
     print(f"  Output: single font '{FAMILY_NAME}'")
     fmt_note = (
@@ -1167,7 +1538,7 @@ def build_all(
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build pankana (PUA D4 + smalls + Yi slices + contour dakuten)"
+        description="Build pankana (PUA D4 + smalls + halfwidth + Yi slices + dakuten)"
     )
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
     p.add_argument("--out", dest="out_dir", default=OUT_DIR)

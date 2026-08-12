@@ -6,6 +6,8 @@ Encoding (matches ``build_kana``)::
     i        = L * 8 + o
     small[i] = U+E000 + 2*i     # even
     full[i]  = U+E000 + 2*i + 1 # odd
+    hw_small[i] = U+F0000 + 2*i
+    hw_full[i]  = U+F0000 + 2*i + 1
 
 Orientations are real PUA codepoints (not VS). Slices use FE08 / FE09.
 
@@ -33,6 +35,8 @@ from build_kana import (
     VOWELS,
     chart_source_cps,
     full_cp,
+    hw_full_cp,
+    hw_small_cp,
     pair_index,
     small_cp,
 )
@@ -82,8 +86,7 @@ def kana_entries() -> List[dict]:
             src_name = unicodedata.name(src_ch, f"U+{src_cp:04X}")
         except ValueError:
             src_name = f"U+{src_cp:04X}"
-        fulls = [full_cp(pair_index(logical, o)) for o in range(D4_COUNT)]
-        smalls = [small_cp(pair_index(logical, o)) for o in range(D4_COUNT)]
+        ixs = [pair_index(logical, o) for o in range(D4_COUNT)]
         out.append(
             {
                 "L": logical,
@@ -94,8 +97,10 @@ def kana_entries() -> List[dict]:
                 "script": script,
                 "cons": cons or "∅",
                 "vow": vow,
-                "full": fulls,
-                "small": smalls,
+                "full": [full_cp(i) for i in ixs],
+                "small": [small_cp(i) for i in ixs],
+                "hwFull": [hw_full_cp(i) for i in ixs],
+                "hwSmall": [hw_small_cp(i) for i in ixs],
             }
         )
     return out
@@ -254,7 +259,7 @@ h2 {{
 <p class="meta">
   {n:,} logical ({HIRAGANA_COUNT} hiragana + {n - HIRAGANA_COUNT} katakana,
   {len(CONSONANTS)}×{n_cols} each) · {D4_COUNT} D4 orientations as PUA
-  (odd=full, even=small @ U+E000…) · slices FE08 / FE09 ·
+  (odd=full, even=small @ U+E000…; halfwidth @ U+F0000…) · slices FE08 / FE09 ·
   dakuten {len(marks)} (sample).<br/>
   Orientation gallery: {n_orient:,} · pairwise slices: {n_pair:,} each mode
   (on demand). Diacritics optional: 1–4 marks → TR→BR→TL→BL (contour anchors).
@@ -277,6 +282,8 @@ h2 {{
     <select id="sizeMode">
       <option value="full">full (odd)</option>
       <option value="small">small (even)</option>
+      <option value="hw">halfwidth (U+F0000 odd)</option>
+      <option value="hw-small">halfwidth small (U+F0000 even)</option>
     </select>
   </label>
   <label>Slice
@@ -370,9 +377,19 @@ sliceMode.value = '1';
 pickMark.value = '0';
 sizeMode.value = 'full';
 
-function useSmall() {{ return sizeMode.value === 'small'; }}
+function sizeKind() {{ return sizeMode.value; }}
+function useSmall() {{
+  let s = sizeKind();
+  return s === 'small' || s === 'hw-small';
+}}
+function useHw() {{
+  let s = sizeKind();
+  return s === 'hw' || s === 'hw-small';
+}}
 function cpFor(idx, orientIdx) {{
   let k = DATA.KANA[idx];
+  if (sizeKind() === 'hw-small') return k.hwSmall[orientIdx];
+  if (sizeKind() === 'hw') return k.hwFull[orientIdx];
   return useSmall() ? k.small[orientIdx] : k.full[orientIdx];
 }}
 function kanaChar(idx, orientIdx) {{
@@ -381,7 +398,7 @@ function kanaChar(idx, orientIdx) {{
 function tagFor(idx, orientIdx) {{
   let k = DATA.KANA[idx];
   let lab = DATA.ORIENT_LABEL[orientIdx] || ('o' + orientIdx);
-  let sz = useSmall() ? 'ₛ' : '';
+  let sz = (useHw() ? 'ₕ' : '') + (useSmall() ? 'ₛ' : '');
   return k.label + sz + '.' + lab;
 }}
 function markSuffix() {{
@@ -425,7 +442,7 @@ function setStatus(s) {{ status.textContent = s; }}
 
 function renderChart(orientIdx) {{
   clearOut();
-  let sz = useSmall() ? 'small' : 'full';
+  let sz = sizeKind();
   out.appendChild(heading('Chart · ' + DATA.ORIENT_LABEL[orientIdx] + ' · ' + sz
     + (document.getElementById('wantMarks').checked ? ' + dakuten' : '')));
   let grid = document.createElement('div');
@@ -454,7 +471,7 @@ function renderChart(orientIdx) {{
 
 function renderOrientations(indices) {{
   clearOut();
-  let sz = useSmall() ? 'small' : 'full';
+  let sz = sizeKind();
   out.appendChild(heading('Orientations (PUA D4) · ' + sz
     + (document.getElementById('wantMarks').checked ? ' + dakuten' : '')));
   let n = 0;
@@ -525,7 +542,7 @@ function renderEverything() {{
   renderChart(0);
   // renderChart clears; rebuild manually for everything path
   clearOut();
-  out.appendChild(heading('Chart · id · ' + (useSmall() ? 'small' : 'full')));
+  out.appendChild(heading('Chart · id · ' + sizeKind()));
   let grid = document.createElement('div');
   grid.className = 'chart';
   grid.appendChild(Object.assign(document.createElement('div'), {{className:'hdr', textContent:''}}));

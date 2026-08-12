@@ -2384,11 +2384,6 @@ def prepare_squish_vs_access(
             metrics=metrics,
             cmap=cmap,
         )
-    # PUA aliases so browsers keep VS-class sequences for GSUB (not DI-dropped).
-    for pua_cp, sel_name in SQUISH_PUA_SLOTS:
-        if sel_name in glyphs:
-            cmap[pua_cp] = sel_name
-
     squishable = squishable_forms(cjk_bases)
     add_squish_forms(
         squishable,
