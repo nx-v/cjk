@@ -505,7 +505,7 @@ def make_small_glyph(
     pivot) — do **not** run make_small on each orientation (that double-boldens
     and re-pins to contour bounds).
 
-    Slice halves: ``weight_factor=1``, ``pin_bottom=False``.
+    Slice halves: same Weight as bodies; ``pin_bottom=False`` (keep half-planes).
     """
     baked, adv, _ = _bake_simple(full_glyph, advance, glyph_set)
     small = baked
@@ -553,8 +553,8 @@ def add_small_slice_halves_from_full(
 ) -> int:
     """Downscale full-form slice halves in ideographic space (slice first).
 
-    Ideographic-center scale only — no per-half bottom-center (that was
-    stacking top+bot on the same floor) and no CAPE Weight.
+    Same ideo-scale + CAPE Weight as small bodies; no per-half bottom-center
+    so top/bot and left/right stay in their half-planes.
     """
     use_modes = list(modes) if modes is not None else list(YI_ORIENTATION_MODES)
     n = 0
@@ -578,7 +578,6 @@ def add_small_slice_halves_from_full(
                     0,
                     target_upem,
                     glyph_set=glyphs,
-                    weight_factor=1.0,
                     pin_bottom=False,
                     final_advance=0,
                 )
@@ -877,7 +876,7 @@ def build_pankana_font(
             modes=YI_ORIENTATION_MODES,
         )
         print(
-            "  Small slice halves: ideo-space scale + floor-pin (keep half-planes)...",
+            "  Small slice halves: ideo-scale + Weight (match bodies; keep half-planes)...",
             flush=True,
         )
         n_sm_halves = add_small_slice_halves_from_full(

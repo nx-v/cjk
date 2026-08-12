@@ -553,7 +553,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.bake:
         print(
             "Reload Obsidian; console should show "
-            f"[panfonts] ready: {3 + len(pancjk_families)} loaded."
+            f"[panfonts] ready: {4 + len(pancjk_families)} loaded."
         )
     return 0
 
