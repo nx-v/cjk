@@ -374,10 +374,12 @@ def inject_slice_marks(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     cmap: Dict[int, str],
+    *,
+    modes: Optional[Sequence[Tuple[int, str, str, str]]] = None,
 ) -> List[str]:
-    """Ensure FE08/FE09 zero-width mark glyphs exist and are cmap'd."""
+    """Ensure slice-mark glyphs exist and are cmap'd (default FE08/FE09)."""
     names: List[str] = []
-    for cp, gname, _a, _b in SLICE_MODES:
+    for cp, gname, _a, _b in (modes if modes is not None else SLICE_MODES):
         if gname not in glyphs:
             glyph_order.append(gname)
             glyphs[gname] = empty_glyph()
@@ -395,8 +397,9 @@ def install_slice_gsub(
     glyph_order: Sequence[str],
     max_stack: int = 8,
     slice_adv_name: str = SLICE_ADV_NAME,
+    modes: Optional[Sequence[Tuple[int, str, str, str]]] = None,
 ) -> int:
-    """Install FE08/FE09 slice lookups (single/multiple-subst + mark consume).
+    """Install slice lookups (default FE08/FE09).
 
     For each mark::
 
@@ -417,6 +420,8 @@ def install_slice_gsub(
         build_chunked_single_subst_lookup,
         build_ext_gsub_lookup,
     )
+
+    use_modes = list(modes) if modes is not None else list(SLICE_MODES)
 
     order_index = {n: i for i, n in enumerate(glyph_order)}
 
@@ -486,7 +491,7 @@ def install_slice_gsub(
 
     consume_map = {
         (slice_adv_name, mname): slice_adv_name
-        for _cp, mname, _a, _b in SLICE_MODES
+        for _cp, mname, _a, _b in use_modes
         if mname in glyphs
     }
     consume_sub = buildLigatureSubstSubtable(consume_map) if consume_map else None
@@ -496,7 +501,7 @@ def install_slice_gsub(
     # Shared class maps: forms=1; each mark gets its own lookahead class.
     form_cls = {n: 1 for n in forms}
 
-    for _cp, mark_name, first_half, second_half in SLICE_MODES:
+    for _cp, mark_name, first_half, second_half in use_modes:
         if mark_name not in glyphs:
             continue
 

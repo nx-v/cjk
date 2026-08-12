@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build the single ``pankana`` font (PUA D4 cmap + smalls + Yi slices + contour dakuten).
+Build the single ``pankana`` font (PUA D4 cmap + smalls + FE00/FE01 slices + dakuten).
 
 Encoding
 --------
@@ -21,8 +21,8 @@ kana). Slices use the half-em cell + ``sliceAdvHw``.
 Initial fill: 16×6 hiragana then 16×6 katakana → ``L = 0..191``
 row-major. Sources: FlopDesignFONT, then mkanaplus (PUA/archaic + overrides).
 
-Umlaut orientations are real cmap entries (no VS). Ligatures follow Yi
-FE08/FE09 half-plane slices. Dakuten GPOS anchors are per-glyph contour corners.
+Umlaut orientations are real cmap entries (no VS). Ligatures use FE00/FE01
+half-plane slices (Yi keeps FE08/FE09). Dakuten GPOS is contour-corner.
 """
 
 from __future__ import annotations
@@ -81,8 +81,6 @@ from shared_half_cells import _bake_transformed_glyph  # composite → plain out
 from yi_slice import (
     HALF_SUFFIXES,
     SLICE_ADV_NAME,
-    SLICE_H_CP,
-    SLICE_V_CP,
     add_slice_halves,
     half_glyph_name,
     inject_slice_marks,
@@ -110,6 +108,13 @@ SMALL_WEIGHT_FACTOR = 1.0 / SMALL_WIDTH_FACTOR
 HALF_WIDTH_FACTOR = 0.5
 HW_PUA_START = 0xF0000
 SLICE_ADV_HW_NAME = "sliceAdvHw"
+# Pankana slices: FE00 H (top+bot), FE01 V (left+right). Not VS — D4 is PUA.
+KANA_SLICE_H_CP = 0xFE00
+KANA_SLICE_V_CP = 0xFE01
+KANA_SLICE_MODES: Tuple[Tuple[int, str, str, str], ...] = (
+    (KANA_SLICE_H_CP, "vsSliceH", "top", "bot"),
+    (KANA_SLICE_V_CP, "vsSliceV", "left", "right"),
+)
 # FlopDesignFONT is CFF (cubics). TrueType glyf needs quads.
 CU2QU_MAX_ERR = 0.5
 
@@ -943,7 +948,7 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     css_path = os.path.join(out_dir, "pankana.css")
-    extra = {SLICE_H_CP, SLICE_V_CP}
+    extra = {KANA_SLICE_H_CP, KANA_SLICE_V_CP}
     urange = unicode_range_css(sorted(set(codepoints) | extra))
     lines = [
         "/* Auto-generated single kana font (PUA D4 + smalls + halfwidth + slices) */",
@@ -1184,7 +1189,7 @@ def build_pankana_font(
             flush=True,
         )
         print(
-            "  Installing FE08–FE09 slice halves on full forms "
+            "  Installing FE00–FE01 slice halves on full forms "
             "(bake id+r90; composite other D4)...",
             flush=True,
         )
@@ -1262,7 +1267,9 @@ def build_pankana_font(
             flush=True,
         )
 
-        inject_slice_marks(glyph_order, glyphs, metrics, cmap)
+        inject_slice_marks(
+            glyph_order, glyphs, metrics, cmap, modes=KANA_SLICE_MODES
+        )
 
         mark_names: List[str] = []
         mark_cps: List[int] = []
@@ -1370,26 +1377,33 @@ def build_pankana_font(
         )
         fb.setupPost()
 
-        print("  Compiling GSUB (FE08–FE09 slice)...", flush=True)
+        print("  Compiling GSUB (FE00–FE01 slice)...", flush=True)
         full_forms: List[str] = []
         for b in full_bases:
             full_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
         for b in small_bases:
             full_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
-        install_slice_gsub(fb.font, full_forms, glyphs=glyphs, glyph_order=glyph_order)
+        install_slice_gsub(
+            fb.font,
+            full_forms,
+            glyphs=glyphs,
+            glyph_order=glyph_order,
+            modes=KANA_SLICE_MODES,
+        )
         hw_forms: List[str] = []
         for b in hw_full_bases:
             hw_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
         for b in hw_small_bases:
             hw_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
         if hw_forms:
-            print("  Compiling GSUB (FE08–FE09 halfwidth slice)...", flush=True)
+            print("  Compiling GSUB (FE00–FE01 halfwidth slice)...", flush=True)
             install_slice_gsub(
                 fb.font,
                 hw_forms,
                 glyphs=glyphs,
                 glyph_order=glyph_order,
                 slice_adv_name=SLICE_ADV_HW_NAME,
+                modes=KANA_SLICE_MODES,
             )
 
         if mark_names and base_anchors:
@@ -1510,7 +1524,10 @@ def build_all(
         f"{small_ideo_center(DEFAULT_UPEM)}; "
         f"slice full first; halves ideo-scale + floor-pin"
     )
-    print(f"  Slice: U+{SLICE_H_CP:04X}..U+{SLICE_V_CP:04X} (em + half-em)")
+    print(
+        f"  Slice: U+{KANA_SLICE_H_CP:04X} (H) / U+{KANA_SLICE_V_CP:04X} (V) "
+        f"(em + half-em; not VS)"
+    )
     print("  Dakuten: contour GPOS (near ink, inside ideo cell; TR→BR→TL→BL)")
     print(f"  Output: single font '{FAMILY_NAME}'")
     fmt_note = (
@@ -1538,7 +1555,7 @@ def build_all(
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build pankana (PUA D4 + smalls + halfwidth + Yi slices + dakuten)"
+        description="Build pankana (PUA D4 + smalls + halfwidth + FE00/FE01 slices + dakuten)"
     )
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
     p.add_argument("--out", dest="out_dir", default=OUT_DIR)

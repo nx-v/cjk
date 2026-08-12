@@ -9,7 +9,7 @@ Encoding (matches ``build_kana``)::
     hw_small[i] = U+F0000 + 2*i
     hw_full[i]  = U+F0000 + 2*i + 1
 
-Orientations are real PUA codepoints (not VS). Slices use FE08 / FE09.
+Orientations are real PUA codepoints (not VS). Slices use FE00 / FE01.
 
 Usage
 -----
@@ -32,6 +32,8 @@ from build_kana import (
     CONSONANTS,
     D4_COUNT,
     HIRAGANA_COUNT,
+    KANA_SLICE_H_CP,
+    KANA_SLICE_V_CP,
     VOWELS,
     chart_source_cps,
     full_cp,
@@ -41,7 +43,6 @@ from build_kana import (
     small_cp,
 )
 from shared_half_cells import YI_ORIENTATION_MODES
-from yi_slice import SLICE_H_CP, SLICE_V_CP
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "kana", "all-kana.html")
@@ -55,8 +56,8 @@ ORIENT_LABEL = [
 
 SLICE_MODES = [
     {"id": "none", "cp": None, "label": "none"},
-    {"id": "H", "cp": SLICE_H_CP, "label": "H FE08 (top+bot)"},
-    {"id": "V", "cp": SLICE_V_CP, "label": "V FE09 (left+right)"},
+    {"id": "H", "cp": KANA_SLICE_H_CP, "label": "H FE00 (top+bot)"},
+    {"id": "V", "cp": KANA_SLICE_V_CP, "label": "V FE01 (left+right)"},
 ]
 
 
@@ -259,7 +260,7 @@ h2 {{
 <p class="meta">
   {n:,} logical ({HIRAGANA_COUNT} hiragana + {n - HIRAGANA_COUNT} katakana,
   {len(CONSONANTS)}×{n_cols} each) · {D4_COUNT} D4 orientations as PUA
-  (odd=full, even=small @ U+E000…; halfwidth @ U+F0000…) · slices FE08 / FE09 ·
+  (odd=full, even=small @ U+E000…; halfwidth @ U+F0000…) · slices FE00 / FE01 ·
   dakuten {len(marks)} (sample).<br/>
   Orientation gallery: {n_orient:,} · pairwise slices: {n_pair:,} each mode
   (on demand). Diacritics optional: 1–4 marks → TR→BR→TL→BL (contour anchors).
@@ -520,7 +521,7 @@ function renderSlicesForA(ai, ao) {{
   clearOut();
   let mode = currentSlice();
   if (mode.cp == null) {{
-    setStatus('Pick FE08 or FE09 slice mode first');
+    setStatus('Pick FE00 or FE01 slice mode first');
     return;
   }}
   out.appendChild(heading('A=' + tagFor(ai, ao) + ' × every B · ' + mode.label));
