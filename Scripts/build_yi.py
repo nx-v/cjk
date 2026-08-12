@@ -51,8 +51,6 @@ from shared_half_cells import (
     empty_glyph,
     load_inventory,
     make_standalone_glyph,
-    REFERENCE_HORIZONTAL_STEM,
-    REFERENCE_VERTICAL_STEM,
     orientation_form_names,
     record_glyph,
     resolve_nuosu_path,
@@ -227,20 +225,9 @@ def build_panyi_font(
         if sa is not None:
             standalones[idx] = sa
 
-    # Scale fixed stem targets if building at a non-default UPM.
-    stem_scale = float(target_upem) / float(DEFAULT_UPEM)
-    ref_v_stem = REFERENCE_VERTICAL_STEM * stem_scale
-    ref_h_stem = REFERENCE_HORIZONTAL_STEM * stem_scale
     print(
-        f"  Stem refs: V={ref_v_stem:.0f} / H={ref_h_stem:.0f} "
-        f"(measure after convert, adjust both axes)",
-        flush=True,
-    )
-
-    print(
-        "  Orientations: transform id+r90, then stem-normalize "
-        f"(V={ref_v_stem:.0f} / H={ref_h_stem:.0f}; "
-        "pseudorandom probes + binary search toward ref); other D4 = composites",
+        "  Orientations: transform id+r90 (no stem-normalize); "
+        "other D4 = composites",
         flush=True,
     )
 
@@ -271,8 +258,6 @@ def build_panyi_font(
             glyphs=glyphs,
             metrics=metrics,
             modes=YI_ORIENTATION_MODES,
-            reference_vertical_stem=ref_v_stem,
-            reference_horizontal_stem=ref_h_stem,
         )
         uvs_rows.extend(
             build_d4_uvs_entries(cp, sa_name, glyphs=glyphs, modes=YI_ORIENTATION_MODES)
@@ -501,8 +486,7 @@ def build_all(
 
     print(
         "  Orientations: VS01..VS08 / FE00..FE07 "
-        f"(transform→normalize id+r90 → V={REFERENCE_VERTICAL_STEM:g} "
-        f"H={REFERENCE_HORIZONTAL_STEM:g}; retry scales; other D4 = composites)"
+        "(transform id+r90, no stem-normalize; other D4 = composites)"
     )
     print(
         f"  Slice: U+{SLICE_H_CP:04X}..U+{SLICE_V_CP:04X} "

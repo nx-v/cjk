@@ -54,6 +54,7 @@ def main() -> int:
     )
     rewrite_dist_css(SCRIPT / "dist" / "hangul" / "panhangul.css", "hangul")
     rewrite_dist_css(SCRIPT / "dist" / "yi" / "panyi.css", "yi")
+    rewrite_dist_css(SCRIPT / "dist" / "kana" / "pankana.css", "kana")
     # pancjk already rewritten by --css-only
     subprocess.check_call([sys.executable, str(SCRIPT / "rewrite_theme_cdns.py")])
     sample = (SCRIPT / "dist" / "subfonts" / "pancjk.css").read_text(encoding="utf-8")

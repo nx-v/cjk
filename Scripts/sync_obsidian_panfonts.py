@@ -1,6 +1,6 @@
 """Sync Scripts/dist/<folder> into Scripts/obsidian-panfonts/panfonts/<folder>.
 
-Used by build_cjk / build_hangul / build_yi so the Obsidian plugin tree
+Used by build_cjk / build_hangul / build_yi / build_kana so the Obsidian plugin tree
 stays current after each build. Layout matches update_obsidian_theme_fonts
 ``sync_woff2(PLUGIN_DIR / "panfonts")``.
 """

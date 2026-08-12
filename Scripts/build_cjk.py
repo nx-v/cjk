@@ -803,11 +803,11 @@ body {{
   --font-editor-theme: '';
   --font-editor: var(--font-editor-theme), var(--font-text);
   --font-text-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, pankana, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2, monospace;
   --font-interface-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, pankana, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2, monospace;
   --font-monospace-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, pankana, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2, monospace;
 }}
 """
     with open(fontlist_path, "w", encoding="utf-8") as f:

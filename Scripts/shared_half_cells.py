@@ -1007,6 +1007,7 @@ def add_d4_variant_glyphs(
     reference_vertical_stem: Optional[float] = None,
     reference_horizontal_stem: Optional[float] = None,
     anchor: str = "floor",
+    pivot: Optional[Tuple[float, float]] = None,
 ) -> List[Tuple[int, str, str]]:
     """Create D4 forms from two outlines: id + ``r90`` (transform, then normalize).
 
@@ -1024,6 +1025,9 @@ def add_d4_variant_glyphs(
 
         id  →  r180 / mx / my
         r90 →  r270 / r90mx / r90my
+
+    ``pivot`` overrides the rotation/reflection center (e.g. post-scale small
+    ideographic center). Default: ideographic center when ``anchor="cell"``.
 
     ``sideways_target_width`` / ``sideways_center_x`` are unused (compat only).
 
@@ -1049,7 +1053,12 @@ def add_d4_variant_glyphs(
         for _vs, _r, _fx, _fy, suffix in use_modes
         if suffix is not None
     )
-    cell_mid = ideographic_center(target_upem) if anchor == "cell" else None
+    if pivot is not None:
+        cell_mid = (float(pivot[0]), float(pivot[1]))
+    elif anchor == "cell":
+        cell_mid = ideographic_center(target_upem)
+    else:
+        cell_mid = None
 
     def _install(name: str, glyph: TTGlyph, adv: int, glyph_lsb: int) -> None:
         if name in glyphs:

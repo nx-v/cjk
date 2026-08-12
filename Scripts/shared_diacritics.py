@@ -229,6 +229,19 @@ def dakuten_mark_slot_name(cp: int, slot_suffix: Optional[str]) -> str:
     return base if not slot_suffix else f"{base}.{slot_suffix}"
 
 
+def dakuten_mark_variant_name(cp: int, variant: str = "") -> str:
+    """``uXXXX.mk`` or ``uXXXX.mk.<variant>`` (e.g. ``.sm`` for small kana)."""
+    base = dakuten_mark_name(cp)
+    return f"{base}.{variant}" if variant else base
+
+
+def dakuten_mark_slot_variant_name(
+    cp: int, slot_suffix: Optional[str], variant: str = ""
+) -> str:
+    base = dakuten_mark_variant_name(cp, variant)
+    return base if not slot_suffix else f"{base}.{slot_suffix}"
+
+
 def dakuten_orientation_modes(
     modes: Optional[Sequence] = None,
 ) -> List:
@@ -411,6 +424,45 @@ def load_dakuten_marks_from_stack(
     return order, claimed
 
 
+def scale_dakuten_mark_glyph(
+    glyph: TTGlyph,
+    scale: float,
+    *,
+    weight_factor: float = 1.0,
+) -> Optional[TTGlyph]:
+    """Uniform scale about origin, optional CAPE Weight bolden, re-center at 0."""
+    if scale <= 0:
+        return None
+    try:
+        rec = RecordingPen()
+        glyph.draw(rec, None)
+    except Exception:
+        return None
+    if abs(scale - 1.0) > 1e-9:
+        out = apply_transform(rec, Transform(scale, 0, 0, scale, 0, 0))
+    else:
+        out = apply_transform(rec, Transform())
+    if abs(weight_factor - 1.0) > 1e-9:
+        try:
+            from cape_weightor import bolden_ttglyph
+
+            out, _, _ = bolden_ttglyph(out, weight_factor, advance=0.0)
+        except Exception:
+            pass
+    try:
+        out.recalcBounds(None)
+        cx = (float(out.xMin) + float(out.xMax)) / 2.0
+        cy = (float(out.yMin) + float(out.yMax)) / 2.0
+        if abs(cx) > 1e-6 or abs(cy) > 1e-6:
+            rec2 = RecordingPen()
+            out.draw(rec2, None)
+            out = apply_transform(rec2, Transform(1, 0, 0, 1, -cx, -cy))
+            out.recalcBounds(None)
+    except Exception:
+        pass
+    return out
+
+
 def add_dakuten_mark_glyphs(
     mark_cps: Sequence[int],
     mark_glyphs: Dict[int, TTGlyph],
@@ -445,6 +497,52 @@ def add_dakuten_mark_glyphs(
             if not suffix:
                 continue
             sname = dakuten_mark_slot_name(cp, suffix)
+            if sname in glyphs:
+                names.append(sname)
+                continue
+            glyph_order.append(sname)
+            glyphs[sname] = _mark_slot_composite(base)
+            metrics[sname] = (0, metrics[base][1])
+            names.append(sname)
+    return names
+
+
+def add_dakuten_mark_scale_variants(
+    mark_cps: Sequence[int],
+    *,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    scale: float,
+    weight_factor: float = 1.0,
+    variant: str = "sm",
+) -> List[str]:
+    """Install scaled ``.mk.<variant>`` outlines + slot composites (no cmap)."""
+    if not variant:
+        raise ValueError("variant must be non-empty (e.g. 'sm')")
+    names: List[str] = []
+    for cp in mark_cps:
+        src = glyphs.get(dakuten_mark_name(cp))
+        if src is None:
+            continue
+        scaled = scale_dakuten_mark_glyph(src, scale, weight_factor=weight_factor)
+        if scaled is None:
+            continue
+        base = dakuten_mark_variant_name(cp, variant)
+        if base not in glyphs:
+            glyph_order.append(base)
+            glyphs[base] = scaled
+            try:
+                scaled.recalcBounds(None)
+                lsb = int(scaled.xMin)
+            except Exception:
+                lsb = 0
+            metrics[base] = (0, lsb)
+        names.append(base)
+        for _slot, suffix in DAKUTEN_SLOTS:
+            if not suffix:
+                continue
+            sname = dakuten_mark_slot_variant_name(cp, suffix, variant)
             if sname in glyphs:
                 names.append(sname)
                 continue
@@ -542,6 +640,114 @@ def _ensure_gdef_classes(
             class_defs[name] = GDEF_CLASS_MARK
 
 
+def install_dakuten_mark_variant_gsub(
+    font,
+    mark_cps: Sequence[int],
+    *,
+    glyphs: Dict[str, TTGlyph],
+    glyph_order: Sequence[str],
+    base_names: Sequence[str],
+    variant: str = "sm",
+) -> int:
+    """After ``base_names`` (or prior ``.<variant>`` marks), ``.mk`` → ``.mk.<variant>``.
+
+    Lets successive marks after a small base all pick up the scaled outline
+    before slot cycling (``.mk.sm`` → ``.mk.sm.br`` → …).
+    """
+    from shared_half_cells import (
+        build_chain_context_format2,
+        build_chunked_single_subst_lookup,
+        build_ext_gsub_lookup,
+    )
+
+    if not variant:
+        return 0
+
+    order_index = {n: i for i, n in enumerate(glyph_order)}
+
+    def _gid_sort(names: Sequence[str]) -> List[str]:
+        return sorted(set(names), key=lambda n: order_index.get(n, 10**9))
+
+    mapping = {
+        dakuten_mark_name(cp): dakuten_mark_variant_name(cp, variant)
+        for cp in mark_cps
+        if dakuten_mark_name(cp) in glyphs
+        and dakuten_mark_variant_name(cp, variant) in glyphs
+    }
+    if not mapping:
+        return 0
+
+    inputs = _gid_sort(list(mapping))
+    bases = _gid_sort([n for n in base_names if n in glyphs])
+    prior_sm: List[str] = []
+    for cp in mark_cps:
+        for _slot, suf in DAKUTEN_SLOTS:
+            n = dakuten_mark_slot_variant_name(cp, suf, variant)
+            if n in glyphs:
+                prior_sm.append(n)
+    prior_sm = _gid_sort(prior_sm)
+    triggers = _gid_sort(bases + prior_sm)
+    if not inputs or not triggers:
+        return 0
+
+    if "GSUB" not in font:
+        return 0
+    gsub = font["GSUB"].table
+    if gsub.LookupList is None:
+        gsub.LookupList = ot.LookupList()
+        gsub.LookupList.Lookup = []
+        gsub.LookupList.LookupCount = 0
+
+    single_lu = build_chunked_single_subst_lookup(mapping)
+    bt_cls = {n: 1 for n in triggers}
+    st = build_chain_context_format2(
+        coverage_glyphs=inputs,
+        input_classes={n: 1 for n in inputs},
+        input_class=1,
+        backtrack_classes=bt_cls,
+        backtrack_seq=(1,),
+    )
+    chain_lu = build_ext_gsub_lookup([st])
+    base = gsub.LookupList.LookupCount
+    chain_i = base
+    single_i = base + 1
+    st.ChainSubClassSet[1].ChainSubClassRule[0].SubstLookupRecord[
+        0
+    ].LookupListIndex = single_i
+    gsub.LookupList.Lookup.extend([chain_lu, single_lu])
+    gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
+
+    tag_to_fr = {fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])}
+    for tag in COMPOSITION_FEATURE_TAGS:
+        fr = tag_to_fr.get(tag)
+        if fr is None:
+            fr = ot.FeatureRecord()
+            fr.FeatureTag = tag
+            fr.Feature = ot.Feature()
+            fr.Feature.FeatureParams = None
+            fr.Feature.LookupListIndex = []
+            fr.Feature.LookupCount = 0
+            gsub.FeatureList.FeatureRecord.append(fr)
+            gsub.FeatureList.FeatureCount = len(gsub.FeatureList.FeatureRecord)
+            tag_to_fr[tag] = fr
+            for sr in gsub.ScriptList.ScriptRecord:
+                ls = sr.Script.DefaultLangSys
+                if ls is None:
+                    continue
+                fi = list(ls.FeatureIndex or [])
+                new_i = gsub.FeatureList.FeatureCount - 1
+                if new_i not in fi:
+                    fi.append(new_i)
+                    ls.FeatureIndex = fi
+                    ls.FeatureCount = len(fi)
+        idxs = list(fr.Feature.LookupListIndex or [])
+        idxs.append(chain_i)
+        fr.Feature.LookupListIndex = idxs
+        fr.Feature.LookupCount = len(idxs)
+
+    return 1
+
+
 def install_dakuten_slot_gsub(
     font,
     mark_cps: Sequence[int],
@@ -549,17 +755,17 @@ def install_dakuten_slot_gsub(
     glyphs: Dict[str, TTGlyph],
     glyph_order: Sequence[str],
     base_names: Sequence[str],
+    variant: str = "",
 ) -> int:
-    """Cycle successive ``.mk`` marks into ``.br`` / ``.tl`` / ``.bl`` slots.
+    """Cycle successive marks into ``.br`` / ``.tl`` / ``.bl`` slots.
 
     Transitions::
 
-        (base, .mk) + .mk  →  .br     # needs base so a later TR-class mark
-                                      # (e.g. 3rd before TL rewrite) cannot
-                                      # falsely trigger TR→BR again
-        .br + .mk          →  .tl
-        .tl + .mk          →  .bl
+        (base, TR) + TR  →  .br
+        .br + TR         →  .tl
+        .tl + TR         →  .bl
 
+    ``variant`` (e.g. ``\"sm\"``) selects ``uXXXX.mk.sm`` / ``.sm.br`` names.
     Uses Format 2 ChainContext + Extension lookups (compact; no type-6 split).
     """
     from shared_half_cells import (
@@ -573,9 +779,15 @@ def install_dakuten_slot_gsub(
     def _gid_sort(names: Sequence[str]) -> List[str]:
         return sorted(set(names), key=lambda n: order_index.get(n, 10**9))
 
+    def _slot_name(cp: int, suf: Optional[str]) -> str:
+        return dakuten_mark_slot_variant_name(cp, suf, variant)
+
+    def _tr_name(cp: int) -> str:
+        return dakuten_mark_variant_name(cp, variant)
+
     slot_lists: List[List[str]] = [[] for _ in DAKUTEN_SLOTS]
     for cp in mark_cps:
-        names = [dakuten_mark_slot_name(cp, suf) for _slot, suf in DAKUTEN_SLOTS]
+        names = [_slot_name(cp, suf) for _slot, suf in DAKUTEN_SLOTS]
         if not all(n in glyphs for n in names):
             continue
         for i, n in enumerate(names):
@@ -599,10 +811,9 @@ def install_dakuten_slot_gsub(
     for i in range(len(DAKUTEN_SLOTS) - 1):
         _slot, next_suf = DAKUTEN_SLOTS[i + 1]
         mapping = {
-            dakuten_mark_name(cp): dakuten_mark_slot_name(cp, next_suf)
+            _tr_name(cp): _slot_name(cp, next_suf)
             for cp in mark_cps
-            if dakuten_mark_name(cp) in glyphs
-            and dakuten_mark_slot_name(cp, next_suf) in glyphs
+            if _tr_name(cp) in glyphs and _slot_name(cp, next_suf) in glyphs
         }
         if not mapping or not slot_lists[i]:
             continue
@@ -741,17 +952,30 @@ def install_dakuten_gpos(
 
     glyph_map = {n: i for i, n in enumerate(glyph_order)}
     marks: Dict[str, Tuple[int, object]] = {}
+    # Full marks (``""``) plus scaled variants already installed (e.g. ``sm``).
+    seen_vars = {""}
     for cp in mark_cps:
-        base_name = dakuten_mark_name(cp)
-        base_glyph = glyphs.get(base_name)
-        if base_glyph is None:
-            continue
-        for class_id, (slot, suf) in enumerate(DAKUTEN_SLOTS):
-            name = dakuten_mark_slot_name(cp, suf)
-            if name not in order_index:
+        prefix = dakuten_mark_name(cp) + "."
+        for n in glyphs:
+            if not n.startswith(prefix):
                 continue
-            ax, ay = mark_corner_anchor(base_glyph, slot, glyph_set=glyphs)
-            marks[name] = (class_id, buildAnchor(ax, ay))
+            tok = n[len(prefix) :].split(".", 1)[0]
+            if tok and tok not in ("br", "tl", "bl"):
+                seen_vars.add(tok)
+    variants = sorted(seen_vars, key=lambda v: (v != "", v))
+
+    for variant in variants:
+        for cp in mark_cps:
+            base_name = dakuten_mark_variant_name(cp, variant)
+            base_glyph = glyphs.get(base_name)
+            if base_glyph is None:
+                continue
+            for class_id, (slot, suf) in enumerate(DAKUTEN_SLOTS):
+                name = dakuten_mark_slot_variant_name(cp, suf, variant)
+                if name not in order_index:
+                    continue
+                ax, ay = mark_corner_anchor(base_glyph, slot, glyph_set=glyphs)
+                marks[name] = (class_id, buildAnchor(ax, ay))
     if not marks:
         return 0
 

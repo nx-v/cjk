@@ -43,7 +43,7 @@ from cdn_fonts import dist_rel, format_src_line, remote_urls
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 DIST_DIR = SCRIPT_DIR / "dist"
-BAKE_FOLDERS = ("hangul", "yi", "subfonts")
+BAKE_FOLDERS = ("hangul", "yi", "kana", "subfonts")
 PLUGIN_ID = "panfonts"
 PLUGIN_DIR = SCRIPT_DIR / "obsidian-panfonts"
 
@@ -51,6 +51,7 @@ PLUGIN_DIR = SCRIPT_DIR / "obsidian-panfonts"
 _CSS_REL = {
     "hangul": "Scripts/dist/hangul/panhangul.css",
     "yi": "Scripts/dist/yi/panyi.css",
+    "kana": "Scripts/dist/kana/pankana.css",
     "cjk": "Scripts/dist/subfonts/pancjk.css",
 }
 CSS_URLS = {k: remote_urls(rel)[0] for k, rel in _CSS_REL.items()}
@@ -58,6 +59,7 @@ CSS_URLS_FALLBACK = {k: remote_urls(rel)[1:] for k, rel in _CSS_REL.items()}
 LOCAL_CSS = {
     "hangul": DIST_DIR / "hangul" / "panhangul.css",
     "yi": DIST_DIR / "yi" / "panyi.css",
+    "kana": DIST_DIR / "kana" / "pankana.css",
     "cjk": DIST_DIR / "subfonts" / "pancjk.css",
 }
 
@@ -83,7 +85,7 @@ STACK_LATIN = (
     "Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "
     "FlopDesignFont, MKanaPlus"
 )
-STACK_CJK_TAIL = "panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2"
+STACK_CJK_TAIL = "pankana, panyi, panhangul, panhanguls, Plangothic P1, Plangothic P2"
 STACK_TAIL = "monospace"
 
 
@@ -194,7 +196,7 @@ def write_plugin(faces: list[dict]) -> None:
         "name": "Pan Fonts",
         "version": "1.2.0",
         "minAppVersion": "1.5.0",
-        "description": "Loads baked pancjk XX / panyi / panhangul via FontFace + readBinary.",
+        "description": "Loads baked pancjk XX / panyi / pankana / panhangul via FontFace + readBinary.",
         "author": "nexovolta",
         "isDesktopOnly": False,
     }
@@ -330,12 +332,14 @@ def transform_face_css(css: str, *, folder: str) -> str:
     return out.strip() + "\n"
 
 
-def build_faces_block(hangul: str, yi: str, cjk: str, *, bake: bool) -> str:
+def build_faces_block(
+    hangul: str, yi: str, kana: str, cjk: str, *, bake: bool
+) -> str:
     if bake:
         return "\n".join(
             [
                 MARK_FACES_BEGIN,
-                "/* Hangul + Yi + Pan-CJK: loaded by the panfonts Obsidian plugin",
+                "/* Hangul + Yi + Kana + Pan-CJK: loaded by the panfonts Obsidian plugin",
                 "   (Scripts/obsidian-panfonts). Relative/data URLs do not work. */",
                 MARK_FACES_END,
                 "",
@@ -343,11 +347,13 @@ def build_faces_block(hangul: str, yi: str, cjk: str, *, bake: bool) -> str:
         )
     parts = [
         MARK_FACES_BEGIN,
-        "/* Hangul + Yi + Pan-CJK via CDN chain (raw → statically → jsDelivr). */",
+        "/* Hangul + Yi + Kana + Pan-CJK via CDN chain (raw → statically → jsDelivr). */",
         "",
         transform_face_css(hangul, folder="hangul").rstrip(),
         "",
         transform_face_css(yi, folder="yi").rstrip(),
+        "",
+        transform_face_css(kana, folder="kana").rstrip(),
         "",
         transform_face_css(cjk, folder="subfonts").rstrip(),
         "",
@@ -500,6 +506,7 @@ def main(argv: list[str] | None = None) -> int:
     print("Loading pan font CSS…")
     hangul = load_css("hangul", local=args.local)
     yi = load_css("yi", local=args.local)
+    kana = load_css("kana", local=args.local)
     cjk = load_css("cjk", local=args.local)
 
     if args.bake:
@@ -508,6 +515,7 @@ def main(argv: list[str] | None = None) -> int:
         faces_meta = (
             collect_faces(hangul, folder="hangul")
             + collect_faces(yi, folder="yi")
+            + collect_faces(kana, folder="kana")
             + collect_faces(cjk, folder="subfonts")
         )
         write_plugin(faces_meta)
@@ -520,7 +528,7 @@ def main(argv: list[str] | None = None) -> int:
 
     pancjk_families = pancjk_families_from_css(cjk)
     print(f"  pancjk families: {len(pancjk_families)}")
-    faces = build_faces_block(hangul, yi, cjk, bake=args.bake)
+    faces = build_faces_block(hangul, yi, kana, cjk, bake=args.bake)
     stack = build_stack_block(pancjk_families=pancjk_families)
     if not args.bake:
         n = len(re.findall(r"@font-face", faces))

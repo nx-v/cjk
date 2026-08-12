@@ -755,6 +755,26 @@ def widen_ttglyph(
     return ttglyph_from_layer(layer)
 
 
+def heighten_ttglyph(
+    glyph: TTGlyph,
+    factor: float,
+    *,
+    advance: Optional[float] = None,
+    stem: Optional[float] = None,
+    center_y: Optional[float] = None,
+) -> Tuple[TTGlyph, int, int]:
+    """Height-mode stretch a TT glyph; returns ``(glyph, advance, lsb)``."""
+    if advance is None:
+        try:
+            glyph.recalcBounds(None)
+            advance = float(glyph.xMax) if glyph.xMax > 0 else 1000.0
+        except Exception:
+            advance = 1000.0
+    layer = layer_from_ttglyph(glyph, advance)
+    apply_height(layer, factor, stem=stem, center_y=center_y)
+    return ttglyph_from_layer(layer)
+
+
 def bolden_ttglyph(
     glyph: TTGlyph,
     factor: float,
