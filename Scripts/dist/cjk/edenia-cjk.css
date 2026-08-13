@@ -3,6 +3,34 @@
    stacks list those families. No unicode-range (cmap decides). */
 
 @font-face {
+  font-family: 'edenia cjk 2E';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/cjk/2E.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/cjk/2E.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/cjk/2E.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/cjk/2E.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/cjk/2E.woff2") format("woff2"),
+       url("./2E.woff2") format("woff2"),
+       url("./2E.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'edenia cjk 2F';
+  src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/cjk/2F.woff2") format("woff2"),
+       url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/cjk/2F.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/cjk/2F.woff2") format("woff2"),
+       url("https://fastly.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/cjk/2F.woff2") format("woff2"),
+       url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Scripts/dist/cjk/2F.woff2") format("woff2"),
+       url("./2F.woff2") format("woff2"),
+       url("./2F.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
   font-family: 'edenia cjk 34';
   src: url("https://raw.githubusercontent.com/nexovolta/fonts/main/Scripts/dist/cjk/34.woff2") format("woff2"),
        url("https://cdn.statically.io/gh/nexovolta/fonts@main/Scripts/dist/cjk/34.woff2") format("woff2"),

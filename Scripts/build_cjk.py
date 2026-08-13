@@ -94,21 +94,13 @@ CSS_FAMILY = "edenia cjk"
 # Harmony target @ 1000 UPM (median of these sources): ink ≈ 874, stem ≈ 73.
 # local_scale = target_ink / native_ink; weightor = target_stem / (stem * scale).
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("NGULIM.TTF", 1.02, 1.25),
-    ("malgun.ttf", 1.01, 1.15),
-    ("msyh.ttc", 0.93, 1.00),
-    ("Han-Nom Gothic 1.32.otf", 0.95, 1.05),
-    ("LXGWClearGothic-Regular.ttf", 1.01, 1.0),
-    ("LXGWXiHeiMN.ttf", 1.01, 1.0),
-    ("LXGWXiHeiCL.ttf", 1.01, 1.0),
-    ("LXGWNeoXiHeiPlus.ttf", 1.01, 1.0),
-    ("ChironHeiHK-R.ttf", 0.97, 1.05),
-    ("Gothic Nguyen Regular.ttf", 0.97, 1.05),
-    ("YshiYuanGothicCleaned.ttf", 0.97, 1.05),
-    ("ChocolateClassicalSans-Regular.ttf", 0.97, 1.05),
-    ("SukimaGothic.ttf", 0.97, 1.05),
-    ("PlangothicP1-Regular.ttf", 0.97, 1.05),
-    ("PlangothicP2-Regular.ttf", 0.97, 1.05),
+    ("YshiYuanGothicCleaned.ttf", 1.0, 1.0),
+    ("ChocolateClassicalSans-Regular.ttf", 1.0, 1.0),
+    ("Gothic Nguyen Regular.ttf", 1.0, 1.0),
+    ("SukimaGothic.ttf", 1.0, 1.0),
+    ("ChironHeiHK-R.ttf", 1.0, 1.0),
+    ("PlangothicP1-Regular.ttf", 1.0, 1.0),
+    ("PlangothicP2-Regular.ttf", 1.0, 1.0),
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
@@ -118,6 +110,8 @@ FONT_WEIGHTOR: Dict[str, float] = {name: w for name, _scale, w in PRIORITY_FONTS
 # ---------- Unicode ranges (inclusive) ----------
 
 CHAR_RANGES: List[Tuple[int, int, str]] = [
+    (0x2E80, 0x2EFF, "CJK Radicals Supplement"),
+    (0x2F00, 0x2FDF, "Kangxi Radicals"),
     (0x04E00, 0x09FFF, "CJK URO"),
     (0x03400, 0x04DBF, "CJK Ext A"),
     (0x20000, 0x2A6DF, "CJK Ext B"),
