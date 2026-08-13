@@ -1247,7 +1247,7 @@ SOFTWARE.
     url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Kana/mkanaplus.ttf")
       format("truetype");
   font-weight: normal;
-  unicode-range: U+0-2189, U+2190-309F, U+30A1-31FF, U+E000-3FFFF;
+  unicode-range: U+0-2189, U+2190-309F, U+30A1-31FF, U+F900-3FFFF;
 }
 
 @font-face {
@@ -1264,7 +1264,7 @@ SOFTWARE.
     url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Kana/mgenkanaplus.ttf")
       format("truetype");
   font-weight: normal;
-  unicode-range: U+0-2189, U+2190-309F, U+30A1-31FF, U+E000-3FFFF;
+  unicode-range: U+0-2189, U+2190-309F, U+30A1-31FF, U+F900-3FFFF;
 }
 
 @font-face {
@@ -1281,7 +1281,7 @@ SOFTWARE.
     url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Kana/RictyShinKana.woff2")
       format("woff2");
   font-weight: normal;
-  unicode-range: U+0-2189, U+2190-309F, U+30A1-31FF, U+E000-3FFFF;
+  unicode-range: U+0-2189, U+2190-309F, U+30A1-31FF, U+F900-3FFFF;
 }
 
 @font-face {
@@ -1298,7 +1298,7 @@ SOFTWARE.
     url("https://gcore.jsdelivr.net/gh/nexovolta/fonts@main/Kana/RictyKana.woff2")
       format("woff2");
   font-weight: normal;
-  unicode-range: U+0-2189, U+2190-309F, U+30A1-31FF, U+E000-3FFFF;
+  unicode-range: U+0-2189, U+2190-309F, U+30A1-31FF, U+F900-3FFFF;
 }
 
 /* == Junicode == */

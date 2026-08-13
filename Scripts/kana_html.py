@@ -6,8 +6,8 @@ Encoding (matches ``build_kana``)::
     i        = L * 8 + o
     small[i] = U+E000 + 2*i     # even
     full[i]  = U+E000 + 2*i + 1 # odd
-    hw_small[i] = U+F0000 + 2*i
-    hw_full[i]  = U+F0000 + 2*i + 1
+    hw_small[i] = U+ED00 + 2*i
+    hw_full[i]  = U+ED00 + 2*i + 1
 
 Orientations are real PUA codepoints (not VS). Slices use FE00 / FE01.
 
@@ -264,7 +264,7 @@ h2 {{
 <p class="meta">
   {n:,} logical ({HIRAGANA_COUNT} hiragana + {n - HIRAGANA_COUNT} katakana,
   {len(CONSONANTS)}×{n_cols} each) · {D4_COUNT} D4 orientations as PUA
-  (odd=full, even=small @ U+E000…; halfwidth @ U+F0000…) · slices FE00 / FE01 ·
+  (odd=full, even=small @ U+E000…; halfwidth @ U+ED00…) · slices FE00 / FE01 ·
   dakuten {len(marks)} (sample).<br/>
   Orientation gallery: {n_orient:,} · pairwise slices: {n_pair:,} each mode
   (on demand). Diacritics optional: 1–{DAKUTEN_SLOT_COUNT} marks →
@@ -288,8 +288,8 @@ h2 {{
     <select id="sizeMode">
       <option value="full">full (odd)</option>
       <option value="small">small (even)</option>
-      <option value="hw">halfwidth (U+F0000 odd)</option>
-      <option value="hw-small">halfwidth small (U+F0000 even)</option>
+      <option value="hw">halfwidth (U+ED00 odd)</option>
+      <option value="hw-small">halfwidth small (U+ED00 even)</option>
     </select>
   </label>
   <label>Slice

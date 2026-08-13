@@ -12,14 +12,15 @@ BMP PUA ``U+E000``..``U+F8FF`` (6400 CPs)::
 
 Halfwidth companions (same ``i``) in SPUA-A::
 
-    hw_small[i] = 0xF0000 + 2 * i
-    hw_full[i]  = 0xF0000 + 2 * i + 1
+    hw_small[i] = 0xED00 + 2 * i
+    hw_full[i]  = 0xED00 + 2 * i + 1
 
 CAPE Width ``0.5`` holds the pre-squeeze stem thicknesses (match full-width
 kana). Slices use the half-em cell + ``sliceAdvHw``.
 
 Initial fill: 16×6 hiragana then 16×6 katakana → ``L = 0..191``
-row-major. Sources: FlopDesignFONT, then mkanaplus (PUA/archaic + overrides).
+row-major. Sources: FlopDesignFONT, then mkanaplus (PUA/archaic + overrides),
+then GenSeki Hentaigana, then LXGW (Clear Gothic / XiHei).
 
 Umlaut orientations are real cmap entries (no VS). Ligatures use FE00/FE01
 half-plane slices (Yi keeps FE08/FE09). Dakuten GPOS is contour-corner.
@@ -110,7 +111,7 @@ SMALL_WIDTH_FACTOR = 0.75
 SMALL_WEIGHT_FACTOR = 1.0 / SMALL_WIDTH_FACTOR
 # Halfwidth: CAPE Width 0.5, stems held at the pre-squeeze (fixed) values.
 HALF_WIDTH_FACTOR = 0.5
-HW_PUA_START = 0xF0000
+HW_PUA_START = 0xED00
 SLICE_ADV_HW_NAME = "sliceAdvHw"
 # Pankana slices: FE00 H (top+bot), FE01 V (left+right). Not VS — D4 is PUA.
 KANA_SLICE_H_CP = 0xFE00
@@ -130,6 +131,18 @@ FLOP_FILENAMES: Tuple[str, ...] = (
 MKANA_FILENAMES: Tuple[str, ...] = (
     "mkanaplus.ttf",
     "mkanaplus-regular.ttf",
+)
+GENSEKI_FILENAMES: Tuple[str, ...] = (
+    "GenSekiHentaiganaGothic.ttf",
+    "GensekiHentaiganaGothic.ttf",
+    "GenSekiHentaigana.ttf",
+)
+# One LXGW family: Clear Gothic and XiHei are the same design, extra faces.
+LXGW_FAMILY_FILENAMES: Tuple[str, ...] = (
+    "LXGWClearGothic-Regular.ttf",
+    "LXGWClearGothic-Book.ttf",
+    "LXGWXiHeiMN.ttf",
+    "LXGWXiHeiCL.ttf",
 )
 
 # Source-shape overrides: always claim from mkanaplus when present.
@@ -173,42 +186,42 @@ VOWELS: Tuple[str, ...] = ("a", "i", "u", "e", "o", "ə")
 
 # 17×6 hiragana, then 7×6 katakana (row-major). Values = source CPs.
 HIRAGANA_ROWS: Tuple[Tuple[int, ...], ...] = (
-    (0x3042, 0x3044, 0x3046, 0x3048, 0x304A, 0xEBC0),  # ∅
-    (0x304B, 0x304D, 0x304F, 0x3051, 0x3053, 0xEBC1),  # k
-    (0xE023, 0xE024, 0xE025, 0xE026, 0xE027, 0xE02A),  # ng
-    (0x305F, 0xED10, 0x1B06D, 0x3066, 0x3068, 0xEBCA),  # t
-    (0xED1C, 0xED1E, 0x3064, 0xED20, 0xED22, 0xEBCE),  # ts
-    (0xED14, 0x3061, 0xED16, 0xED18, 0xED1A, 0xEBCC),  # ch
-    (0x1B043, 0x3057, 0xED0A, 0xED0C, 0xED0E, 0xEBC8),  # sh
-    (0x3055, 0xED01, 0x3059, 0x305B, 0x305D, 0xEBC4),  # s
-    (0x307E, 0x307F, 0x3080, 0x3081, 0x3082, 0xEBD4),  # m
-    (0x306A, 0x306B, 0x306C, 0x306D, 0x306E, 0xEBD0),  # n
-    (0x306F, 0x3072, 0x1B039, 0x3078, 0x307B, 0xEBD1),  # h
-    (0x3084, 0x1B006, 0x3086, 0x1B001, 0x3088, 0xEBD5),  # y
-    (0xE0E0, 0xE0E1, 0xE0E2, 0xE0E3, 0xE0E4, 0xECC1),  # l
-    (0x3089, 0x308A, 0x308B, 0x308C, 0x308D, 0xEBD6),  # r
-    (0x308F, 0x3090, 0x1B11F, 0x3091, 0x3092, 0xEBD8),  # w
-    (0xEE33, 0xEE34, 0x3075, 0xEE35, 0xEE36, 0xED3A),  # f
-    (0xE030, 0xE031, 0xE032, 0xE033, 0xE034, 0xECC2),  # p
+    (0x3042, 0x3044, 0x3046, 0x3048, 0x304A, 0x1B015),  # ∅
+    (0x304B, 0x304D, 0x304F, 0x3051, 0x3053, 0x1B02B),  # k
+    (0xE020, 0xE021, 0xE022, 0xE023, 0xE024, 0x1B033),  # ng
+    (0x305F, 0xED10, 0x1B06D, 0x3066, 0x3068, 0x1B077),  # t
+    (0xED1C, 0xED1E, 0x3064, 0xED20, 0xED22, 0x1B06A),  # ts
+    (0xED14, 0x3061, 0xED16, 0xED18, 0xED1A, 0x1B063),  # ch
+    (0x1B043, 0x3057, 0xED0A, 0xED0C, 0xED0E, 0x1B044),  # sh
+    (0x3055, 0xED01, 0x3059, 0x305B, 0x305D, 0x1B053),  # s
+    (0x307E, 0x307F, 0x3080, 0x3081, 0x3082, 0x1B0DA),  # m
+    (0x306A, 0x306B, 0x306C, 0x306D, 0x306E, 0x3093),  # n
+    (0x306F, 0x3072, 0x1B039, 0x3078, 0x307B, 0x1B0C0),  # h
+    (0x3084, 0x1B006, 0x3086, 0x1B001, 0x3088, 0x1B0E5),  # y
+    (0xE0E0, 0xE0E1, 0xE0E2, 0xE0E3, 0xE0E4, 0x1B102),  # l
+    (0x3089, 0x308A, 0x308B, 0x308C, 0x308D, 0x1B0EF),  # r
+    (0x308F, 0x3090, 0x1B11F, 0x3091, 0x3092, 0x1B10C),  # w
+    (0x1B09F, 0x1B0AB, 0x1B0B0, 0x1B0B8, 0x1B0BF, 0xECC1),  # f
+    (0xE030, 0xE031, 0xE032, 0xE02A, 0xE034, 0x1B0AF),  # p
 )
 
 KATAKANA_ROWS: Tuple[Tuple[int, ...], ...] = (
-    (0x30A2, 0x30A4, 0x30A6, 0x30A8, 0x30AA, 0xEBE0),  # ∅
-    (0x30AB, 0x30AD, 0x30AF, 0x30B1, 0x30B3, 0xEBE1),  # k
-    (0xEDD3, 0xEC69, 0xEDCA, 0xEDC6, 0xEDD7, 0xEDC2),  # ng
-    (0x30BF, 0xED50, 0xED52, 0x30C6, 0x30C8, 0xEBEA),  # t
-    (0xED5C, 0xED5E, 0x30C4, 0xED60, 0xED62, 0xEBEE),  # ts
-    (0xED54, 0x30C1, 0xED56, 0xED58, 0xED5A, 0xEBEC),  # ch
-    (0xED48, 0x30B7, 0xED4A, 0xED4C, 0xED4E, 0xEBE8),  # sh
-    (0x30B5, 0xED41, 0x30B9, 0x30BB, 0x30BD, 0xEBE4),  # s
-    (0x30DE, 0x30DF, 0x30E0, 0x30E1, 0x30E2, 0xEBF4),  # m
-    (0x30CA, 0x30CB, 0x30CC, 0x30CD, 0x30CE, 0xEBF0),  # n
-    (0x30CF, 0x30D2, 0xED64, 0x30D8, 0x30DB, 0xEBF1),  # h
-    (0x30E4, 0x1B120, 0x30E6, 0x1B121, 0x30E8, 0xEBF5),  # y
-    (0xEDC3, 0xEDC8, 0xEDC0, 0xEDC5, 0xEDC1, 0xEDD2),  # l
-    (0x30E9, 0x30EA, 0x30EB, 0x30EC, 0x30ED, 0xEBF6),  # r
-    (0x30EF, 0x30F0, 0x1B122, 0x30F1, 0x30F2, 0xEBF8),  # w
-    (0xEDCB, 0xEDCA, 0xEE69, 0xEDD0, 0xEDC4, 0xEDD5),  # P
+    (0x30A2, 0x30A4, 0x30A6, 0x30A8, 0x30AA, 0x31A6),  # ∅
+    (0x30AB, 0x30AD, 0x30AF, 0x30B1, 0x30B3, 0x310E),  # k
+    (0xEDD3, 0xEC69, 0xEDCA, 0xEDC6, 0xEDD7, 0x312B),  # ng
+    (0x30BF, 0xED50, 0xED52, 0x30C6, 0x30C8, 0x3109),  # t
+    (0xED5C, 0xED5E, 0x30C4, 0xED60, 0xED62, 0x3118),  # ts
+    (0xED54, 0x30C1, 0xED56, 0xED58, 0xED5A, 0x3114),  # ch
+    (0xED48, 0x30B7, 0xED4A, 0xED4C, 0xED4E, 0x3115),  # sh
+    (0x30B5, 0xED41, 0x30B9, 0x30BB, 0x30BD, 0x3112),  # s
+    (0x30DE, 0x30DF, 0x30E0, 0x30E1, 0x30E2, 0x3107),  # m
+    (0x30CA, 0x30CB, 0x30CC, 0x30CD, 0x30CE, 0x30F3),  # n
+    (0x30CF, 0x30D2, 0xEE45, 0x30D8, 0x30DB, 0x310F),  # h
+    (0x30E4, 0x1B120, 0x30E6, 0x1B121, 0x30E8, 0xEDCF),  # y
+    (0xEDC3, 0xEDC8, 0xEDC0, 0xEDC5, 0xEDC1, 0x310C),  # l
+    (0x30E9, 0x30EA, 0x30EB, 0x30EC, 0x30ED, 0xEDD7),  # r
+    (0x30EF, 0x30F0, 0x1B122, 0x30F1, 0x30F2, 0x3129),  # w
+    (0xEDCB, 0xEDCA, 0xEE69, 0xEDD0, 0xEDC4, 0x3105),  # p
 )
 
 # Hiragana first, katakana immediately after.
@@ -301,6 +314,52 @@ def resolve_mkana_path(in_dir: str) -> str:
     if found is None:
         raise FileNotFoundError(
             f"mkanaplus not found under Scripts/src / {in_dir!r} / Kana / repo root"
+        )
+    return found
+
+
+def resolve_genseki_path(in_dir: str) -> str:
+    """Prefer Scripts/src, then in_dir / repo root."""
+    src_dir = os.path.join(SCRIPT_DIR, "src")
+    candidates: List[str] = []
+    for name in GENSEKI_FILENAMES:
+        candidates.append(os.path.join(src_dir, name))
+    for name in GENSEKI_FILENAMES:
+        candidates.append(os.path.join(in_dir, name))
+        candidates.append(os.path.join(REPO_ROOT, name))
+    found = _first_existing(candidates)
+    if found is None:
+        raise FileNotFoundError(
+            f"GenSeki Hentaigana not found under Scripts/src / {in_dir!r} / repo root"
+        )
+    return found
+
+
+def resolve_lxgw_family_paths(in_dir: str) -> List[str]:
+    """All LXGW Clear Gothic / XiHei faces. Prefer Scripts/src per name."""
+    src_dir = os.path.join(SCRIPT_DIR, "src")
+    found: List[str] = []
+    seen: set[str] = set()
+    for name in LXGW_FAMILY_FILENAMES:
+        path = _first_existing(
+            (
+                os.path.join(src_dir, name),
+                os.path.join(in_dir, name),
+                os.path.join(REPO_ROOT, "LXGW", name),
+                os.path.join(REPO_ROOT, name),
+            )
+        )
+        if path is None:
+            continue
+        key = os.path.normcase(os.path.basename(path))
+        if key in seen:
+            continue
+        seen.add(key)
+        found.append(path)
+    if not found:
+        raise FileNotFoundError(
+            f"LXGW family (Clear Gothic / XiHei) not found under "
+            f"Scripts/src / {in_dir!r} / LXGW / repo root"
         )
     return found
 
@@ -405,18 +464,22 @@ def claim_source_cp(
     src_cp: int,
     flop: SourceFont,
     mkana: SourceFont,
+    genseki: SourceFont,
+    lxgw: Sequence[SourceFont],
 ) -> Tuple[SourceFont, str]:
     """Return (source, glyph_name) for a chart source CP."""
     prefer_mkana = src_cp in MKANA_OVERRIDE_CPS
-    order = (mkana, flop) if prefer_mkana else (flop, mkana)
-    for src in order:
+    head: Tuple[SourceFont, ...] = (
+        (mkana, flop, genseki) if prefer_mkana else (flop, mkana, genseki)
+    )
+    for src in (*head, *lxgw):
         gname = src.cmap.get(src_cp)
         if gname is None:
             continue
         if is_empty_outline(src.tt, gname):
             continue
         return src, gname
-    raise KeyError(f"No outline for U+{src_cp:04X} in Flop/mkanaplus")
+    raise KeyError(f"No outline for U+{src_cp:04X} in Flop/mkanaplus/genseki/lxgw")
 
 
 def _bake_simple(
@@ -1038,11 +1101,20 @@ def build_pankana_font(
 
     flop_path = resolve_flop_path(in_dir)
     mkana_path = resolve_mkana_path(in_dir)
+    genseki_path = resolve_genseki_path(in_dir)
+    lxgw_paths = resolve_lxgw_family_paths(in_dir)
     print(f"  Flop: {flop_path}", flush=True)
     print(f"  mkanaplus: {mkana_path}", flush=True)
+    print(f"  genseki: {genseki_path}", flush=True)
+    print(
+        "  lxgw: " + ", ".join(os.path.basename(p) for p in lxgw_paths),
+        flush=True,
+    )
 
     flop = SourceFont(flop_path)
     mkana = SourceFont(mkana_path)
+    genseki = SourceFont(genseki_path)
+    lxgw = [SourceFont(path) for path in lxgw_paths]
 
     glyph_order = [".notdef"]
     glyphs: Dict[str, TTGlyph] = {".notdef": empty_glyph()}
@@ -1064,7 +1136,7 @@ def build_pankana_font(
         )
         for logical, src_cp in enumerate(source_cps):
             try:
-                src, gname = claim_source_cp(src_cp, flop, mkana)
+                src, gname = claim_source_cp(src_cp, flop, mkana, genseki, lxgw)
             except KeyError as exc:
                 print(f"  [!] skip L={logical}: {exc}", file=sys.stderr)
                 continue
@@ -1301,9 +1373,7 @@ def build_pankana_font(
             flush=True,
         )
 
-        inject_slice_marks(
-            glyph_order, glyphs, metrics, cmap, modes=KANA_SLICE_MODES
-        )
+        inject_slice_marks(glyph_order, glyphs, metrics, cmap, modes=KANA_SLICE_MODES)
 
         mark_names: List[str] = []
         mark_cps: List[int] = []
@@ -1521,6 +1591,9 @@ def build_pankana_font(
     finally:
         flop.close()
         mkana.close()
+        genseki.close()
+        for src in lxgw:
+            src.close()
 
 
 def build_all(
