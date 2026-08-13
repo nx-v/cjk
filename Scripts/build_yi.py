@@ -426,9 +426,6 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     css_path = os.path.join(out_dir, CSS_YI)
-    # UVS FE00..FE07 + slice FE08..FE09. BMP PUA is edenia kana.
-    extra = set(range(0xFE00, SLICE_V_CP + 1)) | {CGJ_CP}
-    urange = unicode_range_css(sorted(set(codepoints) | extra))
     lines = [
         "/* Auto-generated single Yi font */",
         "",
@@ -446,10 +443,9 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
         "  font-weight: normal;",
         "  font-style: normal;",
         "  font-display: swap;",
+        "}",
+        "",
     ]
-    if urange:
-        lines.append(f"  unicode-range: {urange};")
-    lines += ["}", ""]
     with open(css_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")

@@ -758,7 +758,7 @@ def load_shared_marks(
                 if sized is None:
                     continue
                 w, h = sized
-                if max(w, h) > max_ext + 1e-6:
+                if w > max_ext + 1e-6 and h > max_ext + 1e-6:
                     continue
                 rec = DecomposingRecordingPen(glyph_set)
                 try:

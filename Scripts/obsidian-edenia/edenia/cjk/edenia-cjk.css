@@ -1,7 +1,6 @@
 /* Auto-generated Edenia CJK pigeonhole @font-face rules */
 /* One family per bucket ('edenia cjk XX'). Digraph / multi-bucket
-   stacks list those families; FE00–FE0F are in each face's
-   unicode-range for single-face GSUB liga. */
+   stacks list those families. No unicode-range (cmap decides). */
 
 @font-face {
   font-family: 'edenia cjk 34';
@@ -15,7 +14,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3400-34FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -30,7 +28,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3500-35FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -45,7 +42,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3600-36FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -60,7 +56,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3700-37FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -75,7 +70,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3800-38FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -90,7 +84,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3900-39FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -105,7 +98,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3A00-3AFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -120,7 +112,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3B00-3BFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -135,7 +126,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3C00-3CFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -150,7 +140,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3D00-3DFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -165,7 +154,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3E00-3EFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -180,7 +168,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+3F00-3FFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -195,7 +182,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4000-40FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -210,7 +196,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4100-41FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -225,7 +210,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4200-42FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -240,7 +224,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4300-43FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -255,7 +238,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4400-44FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -270,7 +252,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4500-45FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -285,7 +266,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4600-46FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -300,7 +280,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4700-47FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -315,7 +294,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4800-48FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -330,7 +308,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4900-49FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -345,7 +322,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4A00-4AFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -360,7 +336,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4B00-4BFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -375,7 +350,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4C00-4CFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -390,7 +364,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4D00-4DBF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -405,7 +378,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4E00-4EFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -420,7 +392,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+4F00-4FFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -435,7 +406,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5000-50FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -450,7 +420,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5100-51FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -465,7 +434,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5200-52FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -480,7 +448,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5300-53FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -495,7 +462,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5400-54FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -510,7 +476,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5500-55FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -525,7 +490,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5600-56FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -540,7 +504,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5700-57FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -555,7 +518,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5800-58FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -570,7 +532,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5900-59FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -585,7 +546,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5A00-5AFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -600,7 +560,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5B00-5BFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -615,7 +574,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5C00-5CFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -630,7 +588,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5D00-5DFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -645,7 +602,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5E00-5EFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -660,7 +616,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+5F00-5FFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -675,7 +630,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6000-60FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -690,7 +644,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6100-61FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -705,7 +658,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6200-62FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -720,7 +672,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6300-63FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -735,7 +686,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6400-64FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -750,7 +700,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6500-65FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -765,7 +714,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6600-66FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -780,7 +728,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6700-67FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -795,7 +742,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6800-68FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -810,7 +756,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6900-69FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -825,7 +770,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6A00-6AFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -840,7 +784,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6B00-6BFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -855,7 +798,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6C00-6CFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -870,7 +812,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6D00-6DFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -885,7 +826,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6E00-6EFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -900,7 +840,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+6F00-6FFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -915,7 +854,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7000-70FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -930,7 +868,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7100-71FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -945,7 +882,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7200-72FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -960,7 +896,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7300-73FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -975,7 +910,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7400-74FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -990,7 +924,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7500-75FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1005,7 +938,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7600-76FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1020,7 +952,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7700-77FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1035,7 +966,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7800-78FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1050,7 +980,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7900-79FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1065,7 +994,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7A00-7AFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1080,7 +1008,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7B00-7BFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1095,7 +1022,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7C00-7CFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1110,7 +1036,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7D00-7DFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1125,7 +1050,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7E00-7EFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1140,7 +1064,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+7F00-7FFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1155,7 +1078,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8000-80FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1170,7 +1092,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8100-81FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1185,7 +1106,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8200-82FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1200,7 +1120,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8300-83FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1215,7 +1134,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8400-84FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1230,7 +1148,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8500-85FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1245,7 +1162,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8600-86FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1260,7 +1176,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8700-87FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1275,7 +1190,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8800-88FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1290,7 +1204,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8900-89FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1305,7 +1218,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8A00-8AFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1320,7 +1232,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8B00-8BFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1335,7 +1246,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8C00-8CFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1350,7 +1260,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8D00-8DFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1365,7 +1274,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8E00-8EFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1380,7 +1288,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+8F00-8FFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1395,7 +1302,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9000-90FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1410,7 +1316,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9100-91FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1425,7 +1330,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9200-92FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1440,7 +1344,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9300-93FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1455,7 +1358,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9400-94FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1470,7 +1372,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9500-95FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1485,7 +1386,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9600-96FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1500,7 +1400,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9700-97FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1515,7 +1414,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9800-98FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1530,7 +1428,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9900-99FF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1545,7 +1442,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9A00-9AFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1560,7 +1456,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9B00-9BFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1575,7 +1470,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9C00-9CFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1590,7 +1484,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9D00-9DFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1605,7 +1498,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9E00-9EFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1620,7 +1512,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+9F00-9FFF, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1635,7 +1526,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FA00-FA6D, U+FA70-FAD9, U+FE00-FE0F, U+16FF0-16FF1;
 }
 
 @font-face {
@@ -1650,7 +1540,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17000-170FF;
 }
 
 @font-face {
@@ -1665,7 +1554,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17100-171FF;
 }
 
 @font-face {
@@ -1680,7 +1568,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17200-172FF;
 }
 
 @font-face {
@@ -1695,7 +1582,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17300-173FF;
 }
 
 @font-face {
@@ -1710,7 +1596,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17400-174FF;
 }
 
 @font-face {
@@ -1725,7 +1610,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17500-175FF;
 }
 
 @font-face {
@@ -1740,7 +1624,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17600-176FF;
 }
 
 @font-face {
@@ -1755,7 +1638,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17700-177FF;
 }
 
 @font-face {
@@ -1770,7 +1652,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17800-178FF;
 }
 
 @font-face {
@@ -1785,7 +1666,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17900-179FF;
 }
 
 @font-face {
@@ -1800,7 +1680,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17A00-17AFF;
 }
 
 @font-face {
@@ -1815,7 +1694,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17B00-17BFF;
 }
 
 @font-face {
@@ -1830,7 +1708,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17C00-17CFF;
 }
 
 @font-face {
@@ -1845,7 +1722,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17D00-17DFF;
 }
 
 @font-face {
@@ -1860,7 +1736,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17E00-17EFF;
 }
 
 @font-face {
@@ -1875,7 +1750,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+17F00-17FFF;
 }
 
 @font-face {
@@ -1890,7 +1764,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18000-180FF;
 }
 
 @font-face {
@@ -1905,7 +1778,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18100-181FF;
 }
 
 @font-face {
@@ -1920,7 +1792,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18200-182FF;
 }
 
 @font-face {
@@ -1935,7 +1806,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18300-183FF;
 }
 
 @font-face {
@@ -1950,7 +1820,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18400-184FF;
 }
 
 @font-face {
@@ -1965,7 +1834,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18500-185FF;
 }
 
 @font-face {
@@ -1980,7 +1848,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18600-186FF;
 }
 
 @font-face {
@@ -1995,7 +1862,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18700-187FF;
 }
 
 @font-face {
@@ -2010,7 +1876,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18800-18801, U+18803-188FF;
 }
 
 @font-face {
@@ -2025,7 +1890,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18900-189FF;
 }
 
 @font-face {
@@ -2040,7 +1904,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18A00-18AFF;
 }
 
 @font-face {
@@ -2055,7 +1918,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18B00-18BFF;
 }
 
 @font-face {
@@ -2070,7 +1932,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18C00-18CD5, U+18CFF;
 }
 
 @font-face {
@@ -2085,7 +1946,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+18D00-18D20, U+18D80-18DF2;
 }
 
 @font-face {
@@ -2100,7 +1960,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20000-200FF;
 }
 
 @font-face {
@@ -2115,7 +1974,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20100-201FF;
 }
 
 @font-face {
@@ -2130,7 +1988,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20200-202FF;
 }
 
 @font-face {
@@ -2145,7 +2002,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20300-203FF;
 }
 
 @font-face {
@@ -2160,7 +2016,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20400-204FF;
 }
 
 @font-face {
@@ -2175,7 +2030,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20500-205FF;
 }
 
 @font-face {
@@ -2190,7 +2044,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20600-206FF;
 }
 
 @font-face {
@@ -2205,7 +2058,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20700-207FF;
 }
 
 @font-face {
@@ -2220,7 +2072,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20800-208FF;
 }
 
 @font-face {
@@ -2235,7 +2086,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20900-209FF;
 }
 
 @font-face {
@@ -2250,7 +2100,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20A00-20AFF;
 }
 
 @font-face {
@@ -2265,7 +2114,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20B00-20BFF;
 }
 
 @font-face {
@@ -2280,7 +2128,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20C00-20CFF;
 }
 
 @font-face {
@@ -2295,7 +2142,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20D00-20DFF;
 }
 
 @font-face {
@@ -2310,7 +2156,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20E00-20EFF;
 }
 
 @font-face {
@@ -2325,7 +2170,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+20F00-20FFF;
 }
 
 @font-face {
@@ -2340,7 +2184,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21000-210FF;
 }
 
 @font-face {
@@ -2355,7 +2198,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21100-211FF;
 }
 
 @font-face {
@@ -2370,7 +2212,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21200-212FF;
 }
 
 @font-face {
@@ -2385,7 +2226,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21300-213FF;
 }
 
 @font-face {
@@ -2400,7 +2240,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21400-214FF;
 }
 
 @font-face {
@@ -2415,7 +2254,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21500-215FF;
 }
 
 @font-face {
@@ -2430,7 +2268,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21600-216FF;
 }
 
 @font-face {
@@ -2445,7 +2282,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21700-217FF;
 }
 
 @font-face {
@@ -2460,7 +2296,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21800-218FF;
 }
 
 @font-face {
@@ -2475,7 +2310,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21900-219FF;
 }
 
 @font-face {
@@ -2490,7 +2324,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21A00-21AFF;
 }
 
 @font-face {
@@ -2505,7 +2338,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21B00-21BFF;
 }
 
 @font-face {
@@ -2520,7 +2352,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21C00-21CFF;
 }
 
 @font-face {
@@ -2535,7 +2366,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21D00-21DFF;
 }
 
 @font-face {
@@ -2550,7 +2380,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21E00-21EFF;
 }
 
 @font-face {
@@ -2565,7 +2394,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+21F00-21FFF;
 }
 
 @font-face {
@@ -2580,7 +2408,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22000-220FF;
 }
 
 @font-face {
@@ -2595,7 +2422,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22100-221FF;
 }
 
 @font-face {
@@ -2610,7 +2436,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22200-222FF;
 }
 
 @font-face {
@@ -2625,7 +2450,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22300-223FF;
 }
 
 @font-face {
@@ -2640,7 +2464,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22400-224FF;
 }
 
 @font-face {
@@ -2655,7 +2478,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22500-225FF;
 }
 
 @font-face {
@@ -2670,7 +2492,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22600-226FF;
 }
 
 @font-face {
@@ -2685,7 +2506,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22700-227FF;
 }
 
 @font-face {
@@ -2700,7 +2520,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22800-228FF;
 }
 
 @font-face {
@@ -2715,7 +2534,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22900-229FF;
 }
 
 @font-face {
@@ -2730,7 +2548,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22A00-22AFF;
 }
 
 @font-face {
@@ -2745,7 +2562,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22B00-22BFF;
 }
 
 @font-face {
@@ -2760,7 +2576,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22C00-22CFF;
 }
 
 @font-face {
@@ -2775,7 +2590,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22D00-22DFF;
 }
 
 @font-face {
@@ -2790,7 +2604,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22E00-22EFF;
 }
 
 @font-face {
@@ -2805,7 +2618,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+22F00-22FFF;
 }
 
 @font-face {
@@ -2820,7 +2632,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23000-230FF;
 }
 
 @font-face {
@@ -2835,7 +2646,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23100-231FF;
 }
 
 @font-face {
@@ -2850,7 +2660,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23200-232FF;
 }
 
 @font-face {
@@ -2865,7 +2674,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23300-233FF;
 }
 
 @font-face {
@@ -2880,7 +2688,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23400-234FF;
 }
 
 @font-face {
@@ -2895,7 +2702,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23500-235FF;
 }
 
 @font-face {
@@ -2910,7 +2716,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23600-236FF;
 }
 
 @font-face {
@@ -2925,7 +2730,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23700-237FF;
 }
 
 @font-face {
@@ -2940,7 +2744,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23800-238FF;
 }
 
 @font-face {
@@ -2955,7 +2758,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23900-239FF;
 }
 
 @font-face {
@@ -2970,7 +2772,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23A00-23AFF;
 }
 
 @font-face {
@@ -2985,7 +2786,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23B00-23BFF;
 }
 
 @font-face {
@@ -3000,7 +2800,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23C00-23CFF;
 }
 
 @font-face {
@@ -3015,7 +2814,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23D00-23DFF;
 }
 
 @font-face {
@@ -3030,7 +2828,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23E00-23EFF;
 }
 
 @font-face {
@@ -3045,7 +2842,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+23F00-23FFF;
 }
 
 @font-face {
@@ -3060,7 +2856,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24000-240FF;
 }
 
 @font-face {
@@ -3075,7 +2870,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24100-241FF;
 }
 
 @font-face {
@@ -3090,7 +2884,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24200-242FF;
 }
 
 @font-face {
@@ -3105,7 +2898,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24300-243FF;
 }
 
 @font-face {
@@ -3120,7 +2912,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24400-244FF;
 }
 
 @font-face {
@@ -3135,7 +2926,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24500-245FF;
 }
 
 @font-face {
@@ -3150,7 +2940,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24600-246FF;
 }
 
 @font-face {
@@ -3165,7 +2954,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24700-247FF;
 }
 
 @font-face {
@@ -3180,7 +2968,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24800-248FF;
 }
 
 @font-face {
@@ -3195,7 +2982,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24900-249FF;
 }
 
 @font-face {
@@ -3210,7 +2996,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24A00-24AFF;
 }
 
 @font-face {
@@ -3225,7 +3010,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24B00-24BFF;
 }
 
 @font-face {
@@ -3240,7 +3024,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24C00-24CFF;
 }
 
 @font-face {
@@ -3255,7 +3038,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24D00-24DFF;
 }
 
 @font-face {
@@ -3270,7 +3052,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24E00-24EFF;
 }
 
 @font-face {
@@ -3285,7 +3066,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+24F00-24FFF;
 }
 
 @font-face {
@@ -3300,7 +3080,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25000-250FF;
 }
 
 @font-face {
@@ -3315,7 +3094,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25100-251FF;
 }
 
 @font-face {
@@ -3330,7 +3108,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25200-252FF;
 }
 
 @font-face {
@@ -3345,7 +3122,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25300-253FF;
 }
 
 @font-face {
@@ -3360,7 +3136,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25400-254FF;
 }
 
 @font-face {
@@ -3375,7 +3150,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25500-255FF;
 }
 
 @font-face {
@@ -3390,7 +3164,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25600-256FF;
 }
 
 @font-face {
@@ -3405,7 +3178,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25700-257FF;
 }
 
 @font-face {
@@ -3420,7 +3192,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25800-258FF;
 }
 
 @font-face {
@@ -3435,7 +3206,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25900-259FF;
 }
 
 @font-face {
@@ -3450,7 +3220,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25A00-25AFF;
 }
 
 @font-face {
@@ -3465,7 +3234,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25B00-25BFF;
 }
 
 @font-face {
@@ -3480,7 +3248,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25C00-25CFF;
 }
 
 @font-face {
@@ -3495,7 +3262,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25D00-25DFF;
 }
 
 @font-face {
@@ -3510,7 +3276,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25E00-25EFF;
 }
 
 @font-face {
@@ -3525,7 +3290,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+25F00-25FFF;
 }
 
 @font-face {
@@ -3540,7 +3304,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26000-260FF;
 }
 
 @font-face {
@@ -3555,7 +3318,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26100-261FF;
 }
 
 @font-face {
@@ -3570,7 +3332,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26200-262FF;
 }
 
 @font-face {
@@ -3585,7 +3346,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26300-263FF;
 }
 
 @font-face {
@@ -3600,7 +3360,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26400-264FF;
 }
 
 @font-face {
@@ -3615,7 +3374,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26500-265FF;
 }
 
 @font-face {
@@ -3630,7 +3388,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26600-266FF;
 }
 
 @font-face {
@@ -3645,7 +3402,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26700-267FF;
 }
 
 @font-face {
@@ -3660,7 +3416,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26800-268FF;
 }
 
 @font-face {
@@ -3675,7 +3430,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26900-269FF;
 }
 
 @font-face {
@@ -3690,7 +3444,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26A00-26AFF;
 }
 
 @font-face {
@@ -3705,7 +3458,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26B00-26BFF;
 }
 
 @font-face {
@@ -3720,7 +3472,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26C00-26CFF;
 }
 
 @font-face {
@@ -3735,7 +3486,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26D00-26DFF;
 }
 
 @font-face {
@@ -3750,7 +3500,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26E00-26EFF;
 }
 
 @font-face {
@@ -3765,7 +3514,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+26F00-26FFF;
 }
 
 @font-face {
@@ -3780,7 +3528,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27000-270FF;
 }
 
 @font-face {
@@ -3795,7 +3542,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27100-271FF;
 }
 
 @font-face {
@@ -3810,7 +3556,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27200-272FF;
 }
 
 @font-face {
@@ -3825,7 +3570,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27300-273FF;
 }
 
 @font-face {
@@ -3840,7 +3584,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27400-274FF;
 }
 
 @font-face {
@@ -3855,7 +3598,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27500-275FF;
 }
 
 @font-face {
@@ -3870,7 +3612,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27600-276FF;
 }
 
 @font-face {
@@ -3885,7 +3626,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27700-277FF;
 }
 
 @font-face {
@@ -3900,7 +3640,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27800-278FF;
 }
 
 @font-face {
@@ -3915,7 +3654,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27900-279FF;
 }
 
 @font-face {
@@ -3930,7 +3668,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27A00-27AFF;
 }
 
 @font-face {
@@ -3945,7 +3682,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27B00-27BFF;
 }
 
 @font-face {
@@ -3960,7 +3696,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27C00-27CFF;
 }
 
 @font-face {
@@ -3975,7 +3710,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27D00-27DFF;
 }
 
 @font-face {
@@ -3990,7 +3724,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27E00-27EFF;
 }
 
 @font-face {
@@ -4005,7 +3738,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+27F00-27FFF;
 }
 
 @font-face {
@@ -4020,7 +3752,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28000-280FF;
 }
 
 @font-face {
@@ -4035,7 +3766,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28100-281FF;
 }
 
 @font-face {
@@ -4050,7 +3780,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28200-282FF;
 }
 
 @font-face {
@@ -4065,7 +3794,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28300-283FF;
 }
 
 @font-face {
@@ -4080,7 +3808,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28400-284FF;
 }
 
 @font-face {
@@ -4095,7 +3822,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28500-285FF;
 }
 
 @font-face {
@@ -4110,7 +3836,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28600-286FF;
 }
 
 @font-face {
@@ -4125,7 +3850,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28700-287FF;
 }
 
 @font-face {
@@ -4140,7 +3864,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28800-288FF;
 }
 
 @font-face {
@@ -4155,7 +3878,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28900-289FF;
 }
 
 @font-face {
@@ -4170,7 +3892,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28A00-28AFF;
 }
 
 @font-face {
@@ -4185,7 +3906,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28B00-28BFF;
 }
 
 @font-face {
@@ -4200,7 +3920,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28C00-28CFF;
 }
 
 @font-face {
@@ -4215,7 +3934,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28D00-28DFF;
 }
 
 @font-face {
@@ -4230,7 +3948,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28E00-28EFF;
 }
 
 @font-face {
@@ -4245,7 +3962,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+28F00-28FFF;
 }
 
 @font-face {
@@ -4260,7 +3976,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29000-290FF;
 }
 
 @font-face {
@@ -4275,7 +3990,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29100-291FF;
 }
 
 @font-face {
@@ -4290,7 +4004,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29200-292FF;
 }
 
 @font-face {
@@ -4305,7 +4018,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29300-293FF;
 }
 
 @font-face {
@@ -4320,7 +4032,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29400-294FF;
 }
 
 @font-face {
@@ -4335,7 +4046,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29500-295FF;
 }
 
 @font-face {
@@ -4350,7 +4060,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29600-296FF;
 }
 
 @font-face {
@@ -4365,7 +4074,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29700-297FF;
 }
 
 @font-face {
@@ -4380,7 +4088,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29800-298FF;
 }
 
 @font-face {
@@ -4395,7 +4102,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29900-299FF;
 }
 
 @font-face {
@@ -4410,7 +4116,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29A00-29AFF;
 }
 
 @font-face {
@@ -4425,7 +4130,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29B00-29BFF;
 }
 
 @font-face {
@@ -4440,7 +4144,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29C00-29CFF;
 }
 
 @font-face {
@@ -4455,7 +4158,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29D00-29DFF;
 }
 
 @font-face {
@@ -4470,7 +4172,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29E00-29EFF;
 }
 
 @font-face {
@@ -4485,7 +4186,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+29F00-29FFF;
 }
 
 @font-face {
@@ -4500,7 +4200,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2A000-2A0FF;
 }
 
 @font-face {
@@ -4515,7 +4214,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2A100-2A1FF;
 }
 
 @font-face {
@@ -4530,7 +4228,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2A200-2A2FF;
 }
 
 @font-face {
@@ -4545,7 +4242,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2A300-2A3FF;
 }
 
 @font-face {
@@ -4560,7 +4256,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2A400-2A4FF;
 }
 
 @font-face {
@@ -4575,7 +4270,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2A500-2A5FF;
 }
 
 @font-face {
@@ -4590,7 +4284,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2A600-2A6DF;
 }
 
 @font-face {
@@ -4605,7 +4298,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2A700-2A7FF;
 }
 
 @font-face {
@@ -4620,7 +4312,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2A800-2A8FF;
 }
 
 @font-face {
@@ -4635,7 +4326,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2A900-2A9FF;
 }
 
 @font-face {
@@ -4650,7 +4340,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2AA00-2AAFF;
 }
 
 @font-face {
@@ -4665,7 +4354,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2AB00-2ABFF;
 }
 
 @font-face {
@@ -4680,7 +4368,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2AC00-2ACFF;
 }
 
 @font-face {
@@ -4695,7 +4382,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2AD00-2ADFF;
 }
 
 @font-face {
@@ -4710,7 +4396,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2AE00-2AEFF;
 }
 
 @font-face {
@@ -4725,7 +4410,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2AF00-2AFFF;
 }
 
 @font-face {
@@ -4740,7 +4424,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2B000-2B0FF;
 }
 
 @font-face {
@@ -4755,7 +4438,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2B100-2B1FF;
 }
 
 @font-face {
@@ -4770,7 +4452,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2B200-2B2FF;
 }
 
 @font-face {
@@ -4785,7 +4466,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2B300-2B3FF;
 }
 
 @font-face {
@@ -4800,7 +4480,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2B400-2B4FF;
 }
 
 @font-face {
@@ -4815,7 +4494,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2B500-2B5FF;
 }
 
 @font-face {
@@ -4830,7 +4508,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2B600-2B6FF;
 }
 
 @font-face {
@@ -4845,7 +4522,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2B700-2B7FF;
 }
 
 @font-face {
@@ -4860,7 +4536,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2B800-2B81E, U+2B820-2B8FF;
 }
 
 @font-face {
@@ -4875,7 +4550,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2B900-2B9FF;
 }
 
 @font-face {
@@ -4890,7 +4564,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2BA00-2BAFF;
 }
 
 @font-face {
@@ -4905,7 +4578,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2BB00-2BBFF;
 }
 
 @font-face {
@@ -4920,7 +4592,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2BC00-2BCFF;
 }
 
 @font-face {
@@ -4935,7 +4606,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2BD00-2BDFF;
 }
 
 @font-face {
@@ -4950,7 +4620,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2BE00-2BEFF;
 }
 
 @font-face {
@@ -4965,7 +4634,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2BF00-2BFFF;
 }
 
 @font-face {
@@ -4980,7 +4648,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2C000-2C0FF;
 }
 
 @font-face {
@@ -4995,7 +4662,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2C100-2C1FF;
 }
 
 @font-face {
@@ -5010,7 +4676,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2C200-2C2FF;
 }
 
 @font-face {
@@ -5025,7 +4690,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2C300-2C3FF;
 }
 
 @font-face {
@@ -5040,7 +4704,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2C400-2C4FF;
 }
 
 @font-face {
@@ -5055,7 +4718,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2C500-2C5FF;
 }
 
 @font-face {
@@ -5070,7 +4732,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2C600-2C6FF;
 }
 
 @font-face {
@@ -5085,7 +4746,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2C700-2C7FF;
 }
 
 @font-face {
@@ -5100,7 +4760,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2C800-2C8FF;
 }
 
 @font-face {
@@ -5115,7 +4774,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2C900-2C9FF;
 }
 
 @font-face {
@@ -5130,7 +4788,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2CA00-2CAFF;
 }
 
 @font-face {
@@ -5145,7 +4802,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2CB00-2CBFF;
 }
 
 @font-face {
@@ -5160,7 +4816,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2CC00-2CCFF;
 }
 
 @font-face {
@@ -5175,7 +4830,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2CD00-2CDFF;
 }
 
 @font-face {
@@ -5190,7 +4844,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2CE00-2CEAD, U+2CEB0-2CEFF;
 }
 
 @font-face {
@@ -5205,7 +4858,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2CF00-2CFFF;
 }
 
 @font-face {
@@ -5220,7 +4872,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2D000-2D0FF;
 }
 
 @font-face {
@@ -5235,7 +4886,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2D100-2D1FF;
 }
 
 @font-face {
@@ -5250,7 +4900,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2D200-2D2FF;
 }
 
 @font-face {
@@ -5265,7 +4914,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2D300-2D3FF;
 }
 
 @font-face {
@@ -5280,7 +4928,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2D400-2D4FF;
 }
 
 @font-face {
@@ -5295,7 +4942,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2D500-2D5FF;
 }
 
 @font-face {
@@ -5310,7 +4956,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2D600-2D6FF;
 }
 
 @font-face {
@@ -5325,7 +4970,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2D700-2D7FF;
 }
 
 @font-face {
@@ -5340,7 +4984,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2D800-2D8FF;
 }
 
 @font-face {
@@ -5355,7 +4998,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2D900-2D9FF;
 }
 
 @font-face {
@@ -5370,7 +5012,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2DA00-2DAFF;
 }
 
 @font-face {
@@ -5385,7 +5026,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2DB00-2DBFF;
 }
 
 @font-face {
@@ -5400,7 +5040,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2DC00-2DCFF;
 }
 
 @font-face {
@@ -5415,7 +5054,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2DD00-2DDFF;
 }
 
 @font-face {
@@ -5430,7 +5068,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2DE00-2DEFF;
 }
 
 @font-face {
@@ -5445,7 +5082,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2DF00-2DFFF;
 }
 
 @font-face {
@@ -5460,7 +5096,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2E000-2E0FF;
 }
 
 @font-face {
@@ -5475,7 +5110,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2E100-2E1FF;
 }
 
 @font-face {
@@ -5490,7 +5124,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2E200-2E2FF;
 }
 
 @font-face {
@@ -5505,7 +5138,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2E300-2E3FF;
 }
 
 @font-face {
@@ -5520,7 +5152,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2E400-2E4FF;
 }
 
 @font-face {
@@ -5535,7 +5166,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2E500-2E5FF;
 }
 
 @font-face {
@@ -5550,7 +5180,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2E600-2E6FF;
 }
 
 @font-face {
@@ -5565,7 +5194,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2E700-2E7FF;
 }
 
 @font-face {
@@ -5580,7 +5208,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2E800-2E8FF;
 }
 
 @font-face {
@@ -5595,7 +5222,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2E900-2E9FF;
 }
 
 @font-face {
@@ -5610,7 +5236,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2EA00-2EAFF;
 }
 
 @font-face {
@@ -5625,7 +5250,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2EB00-2EBE0, U+2EBF0-2EBFF;
 }
 
 @font-face {
@@ -5640,7 +5264,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2EC00-2ECFF;
 }
 
 @font-face {
@@ -5655,7 +5278,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2ED00-2EDFF;
 }
 
 @font-face {
@@ -5670,7 +5292,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2EE00-2EE5D;
 }
 
 @font-face {
@@ -5685,7 +5306,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2F800-2F8FF;
 }
 
 @font-face {
@@ -5700,7 +5320,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2F900-2F9FF;
 }
 
 @font-face {
@@ -5715,7 +5334,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+2FA00-2FA1D;
 }
 
 @font-face {
@@ -5730,7 +5348,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30000-300FF;
 }
 
 @font-face {
@@ -5745,7 +5362,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30100-301FF;
 }
 
 @font-face {
@@ -5760,7 +5376,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30200-302FF;
 }
 
 @font-face {
@@ -5775,7 +5390,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30300-303FF;
 }
 
 @font-face {
@@ -5790,7 +5404,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30400-304FF;
 }
 
 @font-face {
@@ -5805,7 +5418,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30500-305FF;
 }
 
 @font-face {
@@ -5820,7 +5432,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30600-306FF;
 }
 
 @font-face {
@@ -5835,7 +5446,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30700-307FF;
 }
 
 @font-face {
@@ -5850,7 +5460,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30800-308FF;
 }
 
 @font-face {
@@ -5865,7 +5474,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30900-309FF;
 }
 
 @font-face {
@@ -5880,7 +5488,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30A00-30AFF;
 }
 
 @font-face {
@@ -5895,7 +5502,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30B00-30BFF;
 }
 
 @font-face {
@@ -5910,7 +5516,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30C00-30CFF;
 }
 
 @font-face {
@@ -5925,7 +5530,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30D00-30DFF;
 }
 
 @font-face {
@@ -5940,7 +5544,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30E00-30EFF;
 }
 
 @font-face {
@@ -5955,7 +5558,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+30F00-30FFF;
 }
 
 @font-face {
@@ -5970,7 +5572,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31000-310FF;
 }
 
 @font-face {
@@ -5985,7 +5586,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31100-311FF;
 }
 
 @font-face {
@@ -6000,7 +5600,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31200-312FF;
 }
 
 @font-face {
@@ -6015,7 +5614,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31300-3134A, U+31350-313FF;
 }
 
 @font-face {
@@ -6030,7 +5628,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31400-314FF;
 }
 
 @font-face {
@@ -6045,7 +5642,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31500-315FF;
 }
 
 @font-face {
@@ -6060,7 +5656,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31600-316FF;
 }
 
 @font-face {
@@ -6075,7 +5670,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31700-317FF;
 }
 
 @font-face {
@@ -6090,7 +5684,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31800-318FF;
 }
 
 @font-face {
@@ -6105,7 +5698,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31900-319FF;
 }
 
 @font-face {
@@ -6120,7 +5712,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31A00-31AFF;
 }
 
 @font-face {
@@ -6135,7 +5726,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31B00-31BFF;
 }
 
 @font-face {
@@ -6150,7 +5740,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31C00-31CFF;
 }
 
 @font-face {
@@ -6165,7 +5754,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31D00-31DFF;
 }
 
 @font-face {
@@ -6180,7 +5768,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31E00-31EFF;
 }
 
 @font-face {
@@ -6195,7 +5782,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+31F00-31FFF;
 }
 
 @font-face {
@@ -6210,7 +5796,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32000-320FF;
 }
 
 @font-face {
@@ -6225,7 +5810,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32100-321FF;
 }
 
 @font-face {
@@ -6240,7 +5824,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32200-322FF;
 }
 
 @font-face {
@@ -6255,7 +5838,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32300-323FF;
 }
 
 @font-face {
@@ -6270,7 +5852,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32400-324FF;
 }
 
 @font-face {
@@ -6285,7 +5866,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32500-325FF;
 }
 
 @font-face {
@@ -6300,7 +5880,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32600-326FF;
 }
 
 @font-face {
@@ -6315,7 +5894,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32700-327FF;
 }
 
 @font-face {
@@ -6330,7 +5908,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32800-328FF;
 }
 
 @font-face {
@@ -6345,7 +5922,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32900-329FF;
 }
 
 @font-face {
@@ -6360,7 +5936,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32A00-32AFF;
 }
 
 @font-face {
@@ -6375,7 +5950,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32B00-32BFF;
 }
 
 @font-face {
@@ -6390,7 +5964,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32C00-32CFF;
 }
 
 @font-face {
@@ -6405,7 +5978,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32D00-32DFF;
 }
 
 @font-face {
@@ -6420,7 +5992,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32E00-32EFF;
 }
 
 @font-face {
@@ -6435,7 +6006,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+32F00-32FFF;
 }
 
 @font-face {
@@ -6450,7 +6020,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+33000-330FF;
 }
 
 @font-face {
@@ -6465,7 +6034,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+33100-331FF;
 }
 
 @font-face {
@@ -6480,7 +6048,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+33200-332FF;
 }
 
 @font-face {
@@ -6495,7 +6062,6 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+33300-333FF;
 }
 
 @font-face {
@@ -6510,5 +6076,4 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+FE00-FE0F, U+16FF0-16FF1, U+33400-33479;
 }

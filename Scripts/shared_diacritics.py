@@ -1,15 +1,16 @@
 """Shared corner diacritics (Yi / Hangul) from a multi-font mark stack.
 
 Inventory: ``(\\p{M} ∩ stack) ∖ variation selectors`` (VS1–16, IVS,
-Mongolian FVS). Oversized source outlines are still dropped. First font
-in the stack wins per codepoint.
+Mongolian FVS). First font in the stack wins per codepoint. Wide thin
+marks (macron, overline) are box-fitted, not dropped.
 
 Stack (priority order)::
 
     mkanaplus → Nexsevka-Regular → JuliaMono-Regular → Constructium
     → Droid Sans → Arial Unicode MS → Gentium-Regular
 
-Marks are normalized to a **fixed ink height**, then attach via GPOS
+Marks are normalized to a **fixed ink height** (and shrunk to a max
+width if needed), then attach via GPOS
 ``mark`` / ``abvm`` at fixed CJK cell corners. Each mark’s matching ink
 corner is the mark anchor so TR/BR are **right-aligned** and TL/BL
 **left-aligned** (flush inside the ideograph, not centered past the edge).
@@ -369,10 +370,12 @@ def make_dakuten_mark_glyph(
     rec: RecordingPen,
     *,
     target_height: float,
+    max_width: Optional[float] = None,
 ) -> Optional[TTGlyph]:
-    """Scale mark to ``target_height`` and pin ink center to ``(0, 0)``.
+    """Scale mark to ``target_height``, shrink to ``max_width``, pin center.
 
-    GPOS uses per-slot corner anchors on this outline (not the center).
+    Wide bars (macron / overline) stay in the inventory instead of being
+    dropped after height-only scale. GPOS uses per-slot corner anchors.
     """
     bounds = recording_bounds(rec)
     if bounds is None:
@@ -382,6 +385,8 @@ def make_dakuten_mark_glyph(
     if w <= 0 or h <= 0 or target_height <= 0:
         return None
     scale = float(target_height) / h
+    if max_width is not None and max_width > 0 and w * scale > max_width:
+        scale = float(max_width) / w
     cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
     t = Transform(scale, 0, 0, scale, -scale * cx, -scale * cy)
     glyph = apply_transform(rec, t)
@@ -470,22 +475,19 @@ def load_dakuten_marks(
             if sized is None:
                 continue
             w, h = sized
-            if max(w, h) > max_ext + 1e-6:
+            # Drop full-size letters; keep wide-thin bars (macron, overline).
+            if w > max_ext + 1e-6 and h > max_ext + 1e-6:
                 continue
             rec = DecomposingRecordingPen(glyph_set)
             try:
                 glyph_set[gname].draw(rec)
             except Exception:
                 continue
-            mark = make_dakuten_mark_glyph(rec, target_height=target_h)
+            mark = make_dakuten_mark_glyph(
+                rec, target_height=target_h, max_width=max_w
+            )
             if mark is None:
                 continue
-            try:
-                mark.recalcBounds(None)
-                if float(mark.xMax) - float(mark.xMin) > max_w + 1e-6:
-                    continue
-            except Exception:
-                pass
             cps.append(cp)
             glyphs[cp] = mark
         return cps, glyphs

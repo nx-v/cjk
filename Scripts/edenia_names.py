@@ -36,7 +36,7 @@ def ps_cjk(hex_id: str) -> str:
 # Stack tail after per-bucket CJK faces.
 STACK_CJK_TAIL = (
     f'"{FAMILY_KANA}", "{FAMILY_YI}", "{FAMILY_HANGUL}", "{FAMILY_HANGULS}", '
-    "Plangothic P1, Plangothic P2"
+    "FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2"
 )
 
 PLUGIN_ID = "edenia"

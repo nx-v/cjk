@@ -754,13 +754,12 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     lines: List[str] = [
         "/* Auto-generated Edenia CJK pigeonhole @font-face rules */",
         "/* One family per bucket ('edenia cjk XX'). Digraph / multi-bucket",
-        "   stacks list those families; FE00–FE0F are in each face's",
-        "   unicode-range for single-face GSUB liga. */",
+        "   stacks list those families. No unicode-range (cmap decides). */",
         "",
     ]
     family_names: List[str] = []
 
-    def _face(family: str, hex_id: str, urange: str) -> None:
+    def _face(family: str, hex_id: str) -> None:
         # Remote CDNs first (raw → statically → jsDelivr mirrors); local last.
         # Obsidian themes resolve ./ relative to theme.css (no cjk beside it).
         lines.append("@font-face {")
@@ -779,16 +778,13 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
         lines.append("  font-weight: normal;")
         lines.append("  font-style: normal;")
         lines.append("  font-display: swap;")
-        lines.append(f"  unicode-range: {urange};")
         lines.append("}")
         lines.append("")
 
-    for hex_id, _count, codepoints in built:
-        bucket_id = int(hex_id, 16)
+    for hex_id, _count, _codepoints in built:
         family = family_cjk(hex_id)
         family_names.append(family)
-        urange = unicode_range_for_bucket(bucket_id, codepoints)
-        _face(family, hex_id, urange)
+        _face(family, hex_id)
 
     with open(css_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
@@ -802,11 +798,11 @@ body {{
   --font-editor-theme: '';
   --font-editor: var(--font-editor-theme), var(--font-text);
   --font-text-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, {STACK_CJK_TAIL}, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, {quoted}, {STACK_CJK_TAIL}, monospace;
   --font-interface-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, {STACK_CJK_TAIL}, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, {quoted}, {STACK_CJK_TAIL}, monospace;
   --font-monospace-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, FlopDesignFont, MKanaPlus, {quoted}, {STACK_CJK_TAIL}, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, {quoted}, {STACK_CJK_TAIL}, monospace;
 }}
 """
     with open(fontlist_path, "w", encoding="utf-8") as f:
@@ -829,7 +825,7 @@ def regenerate_css_from_dist(out_dir: str) -> None:
         except ValueError:
             continue
         seen[hex_id] = None
-        # Bucket-range unicode-range is enough for CSS (no need to open fonts).
+        # Family name is the bucket id; cmap decides coverage.
         built.append((hex_id, 0, []))
         _ = bucket_id
     if not built:

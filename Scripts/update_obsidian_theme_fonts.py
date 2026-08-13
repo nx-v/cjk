@@ -184,18 +184,16 @@ def collect_faces(css: str, *, folder: str) -> list[dict]:
     for m in re.finditer(r"@font-face\s*\{([^{}]*)\}", css, flags=re.S):
         block = m.group(1)
         fam_m = re.search(r"font-family:\s*['\"]([^'\"]+)['\"]", block)
-        ur_m = re.search(r"unicode-range:\s*([^;]+);", block, flags=re.I)
         name_m = re.search(
             r"url\((['\"])(?:https:[^'\"]+/|\./)?([^'\"/]+\.woff2)\1\)",
             block,
         )
-        if not (fam_m and ur_m and name_m):
+        if not (fam_m and name_m):
             continue
         out.append(
             {
                 "family": fam_m.group(1),
                 "file": f"{PLUGIN_ASSET}/{folder}/{name_m.group(2)}",
-                "unicodeRange": ur_m.group(1).strip(),
             }
         )
     return out
@@ -258,7 +256,6 @@ module.exports = class {PLUGIN_CLASS} extends Plugin {{
           style: "normal",
           weight: "normal",
           display: "swap",
-          unicodeRange: f.unicodeRange,
         }});
         await face.load();
         document.fonts.add(face);

@@ -2997,8 +2997,6 @@ def write_css(
     syll_cps: Sequence[int],
 ) -> None:
     css_path = os.path.join(out_dir, CSS_HANGUL)
-    # Unicode FE00..FE03 mirrors; FE04 top-swap (jamo GPOS). No BMP PUA (edenia kana).
-    vs_extra = set(range(UVS_BASE, UVS_LAST + 1)) | {SWAP_CP, CGJ_CP}
     lines = [
         "/* Auto-generated Hangul fonts from Malgun Gothic */",
         "/* edenia hangul = conjoining jamo; edenia hanguls = syllables + compat */",
@@ -3006,9 +3004,8 @@ def write_css(
         "/* VS: U+FE00..FE03 mirrors; U+FE04 = batchim top-swap. */",
         "",
     ]
-    for family, cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
+    for family, _cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
         file_stem = stem(family)
-        urange = unicode_range_css(sorted(set(cps) | vs_extra))
         lines += [
             "@font-face {",
             f"  font-family: '{family}';",
@@ -3024,10 +3021,9 @@ def write_css(
             "  font-weight: normal;",
             "  font-style: normal;",
             "  font-display: swap;",
+            "}",
+            "",
         ]
-        if urange:
-            lines.append(f"  unicode-range: {urange};")
-        lines += ["}", ""]
 
     with open(css_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))

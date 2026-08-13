@@ -1045,8 +1045,6 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     css_path = os.path.join(out_dir, CSS_KANA)
-    extra = {KANA_SLICE_H_CP, KANA_SLICE_V_CP, CGJ_CP}
-    urange = unicode_range_css(sorted(set(codepoints) | extra))
     lines = [
         "/* Auto-generated single kana font (PUA D4 + smalls + halfwidth + slices) */",
         "",
@@ -1064,10 +1062,9 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
         "  font-weight: normal;",
         "  font-style: normal;",
         "  font-display: swap;",
+        "}",
+        "",
     ]
-    if urange:
-        lines.append(f"  unicode-range: {urange};")
-    lines += ["}", ""]
     with open(css_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
