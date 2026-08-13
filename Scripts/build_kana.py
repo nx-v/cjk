@@ -148,6 +148,7 @@ LXGW_FAMILY_FILENAMES: Tuple[str, ...] = (
 # Source-shape overrides: always claim from mkanaplus when present.
 MKANA_OVERRIDE_CPS: frozenset[int] = frozenset(
     {
+        0x304F,  # く
         0x3078,  # へ
         0x3042,  # あ
         0x305D,  # そ
