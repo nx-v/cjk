@@ -95,9 +95,9 @@ CSS_FAMILY = "edenia cjk"
 # local_scale = target_ink / native_ink; weightor = target_stem / (stem * scale).
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("YshiYuanGothicCleaned.ttf", 1.0, 1.0),
+    ("SukimaGothic.ttf", 1.0, 1.0),
     ("ChocolateClassicalSans-Regular.ttf", 1.0, 1.0),
     ("Gothic Nguyen Regular.ttf", 1.0, 1.0),
-    ("SukimaGothic.ttf", 1.0, 1.0),
     ("ChironHeiHK-R.ttf", 1.0, 1.0),
     ("PlangothicP1-Regular.ttf", 1.0, 1.0),
     ("PlangothicP2-Regular.ttf", 1.0, 1.0),
