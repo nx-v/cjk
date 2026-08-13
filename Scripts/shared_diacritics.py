@@ -483,9 +483,7 @@ def load_dakuten_marks(
                 glyph_set[gname].draw(rec)
             except Exception:
                 continue
-            mark = make_dakuten_mark_glyph(
-                rec, target_height=target_h, max_width=max_w
-            )
+            mark = make_dakuten_mark_glyph(rec, target_height=target_h, max_width=max_w)
             if mark is None:
                 continue
             cps.append(cp)

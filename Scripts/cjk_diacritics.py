@@ -28,6 +28,7 @@ Squish / overlay access (same ``.dk*`` glyphs; GSUB liga, not cmap-14 UVS)::
     (either order FE0B↔FE0C–F; UVS would eat FE0B and drop the niche VS)
     marked composites also get ``.ov`` for digraph first halves
 """
+
 from __future__ import annotations
 
 import os
@@ -302,9 +303,7 @@ def fit_mark_to_ref(glyph: TTGlyph, ref: MarkRef) -> TTGlyph:
         sy = (ref.height / bh) if bh > 1.0 and ref.height > 1.0 else 1.0
         if abs(sx - 1.0) < 1e-4 and abs(sy - 1.0) < 1e-4:
             return
-        layer.applyTransform(
-            (sx, 0, 0, sy, cx - sx * cx, cy - sy * cy)
-        )
+        layer.applyTransform((sx, 0, 0, sy, cx - sx * cx, cy - sy * cy))
 
     _size_to_ref()
 
@@ -392,9 +391,7 @@ def _d4_niche_forward(rot: int, fx: bool, fy: bool) -> Dict[str, str]:
     """Upright niche → niche after D4 (about origin)."""
     from shared_half_cells import variant_matrix
 
-    (xx, xy), (yx, yy) = variant_matrix(
-        rot90_quarters=rot, flip_x=fx, flip_y=fy
-    )
+    (xx, xy), (yx, yy) = variant_matrix(rot90_quarters=rot, flip_x=fx, flip_y=fy)
     pts = {
         "right": [(1.0, y) for y in (-1.0, 0.0, 1.0)],
         "left": [(-1.0, y) for y in (-1.0, 0.0, 1.0)],
@@ -532,8 +529,6 @@ def add_mark_d4_composites(
     return installed
 
 
-
-
 def base_orientation_modes(
     modes: Optional[Sequence] = None,
 ) -> List:
@@ -549,9 +544,7 @@ def squishable_forms(
     """Identity + all D4 forms (VS01..VS08) that may take a reading mark."""
     names: List[str] = []
     for base in cjk_bases:
-        names.extend(
-            orientation_form_names(base, modes=base_orientation_modes(modes))
-        )
+        names.extend(orientation_form_names(base, modes=base_orientation_modes(modes)))
     return names
 
 
@@ -1239,7 +1232,9 @@ def make_squished_glyph(
     Height-condense (horizontal stems kept). CAPE already halves the outer
     size — do **not** also map cell→slot (that was double-scaling to ~¼).
     """
-    upem = int(target_upem if target_upem is not None else (advance if advance > 0 else 1000))
+    upem = int(
+        target_upem if target_upem is not None else (advance if advance > 0 else 1000)
+    )
     use = float(min(SQUISH_FACTOR_MAX, max(SQUISH_FACTOR_MIN, factor)))
     simple = _normalize_winding(_bake_simple_glyph(glyph, glyph_set), glyph_set)
     layer = layer_from_ttglyph(simple, float(advance if advance > 0 else upem))
@@ -1272,9 +1267,7 @@ def make_squished_glyph(
         )
 
     out, _adv, _lsb = ttglyph_from_layer(layer)
-    return _translate_ink_to_half_center(
-        out, pin=pin, axis=axis, target_upem=upem
-    )
+    return _translate_ink_to_half_center(out, pin=pin, axis=axis, target_upem=upem)
 
 
 def add_squish_forms(
@@ -1303,10 +1296,10 @@ def add_squish_forms(
     added: List[str] = []
     # (name_fn, pin, axis, factor)
     upright_slots = (
-        (squish_name, "left", "x", width_factor),       # .dk  — left ink, right niche
+        (squish_name, "left", "x", width_factor),  # .dk  — left ink, right niche
         (squish_left_name, "right", "x", width_factor),  # .dkl — right ink, left niche
-        (squish_top_name, "bottom", "y", height_factor), # .dkt — bottom ink, top niche
-        (squish_bot_name, "top", "y", height_factor),    # .dkb — top ink, bottom niche
+        (squish_top_name, "bottom", "y", height_factor),  # .dkt — bottom ink, top niche
+        (squish_bot_name, "top", "y", height_factor),  # .dkb — top ink, bottom niche
     )
     for name in identities:
         adv, _lsb = metrics.get(name, (target_upem, 0))
@@ -1420,6 +1413,7 @@ def cjk_bottom_anchor(
     mid_y = (bot + top) / 2.0
     right = float(advance) if advance > 0 else float(target_upem)
     return otRound(right * 0.5), otRound((bot + mid_y) / 2.0)
+
 
 def collect_niche_base_anchors(
     squishable_bases: Sequence[str],
@@ -1548,9 +1542,7 @@ def add_marked_composites(
                 mark_comp = _niche_mark_component(upright, niche_suf)
                 if mark_comp not in glyphs:
                     continue
-                mx, my = mark_attach_anchor(
-                    glyphs[mark_comp], glyph_set=glyphs
-                )
+                mx, my = mark_attach_anchor(glyphs[mark_comp], glyph_set=glyphs)
                 out_name = marked_form_name(sq, upright)
                 if out_name in glyphs:
                     added.append(out_name)
@@ -1838,13 +1830,25 @@ def install_mark_side_from_niche_gsub(
 
     niche_forms = {
         "left": _gid_sort(
-            [squish_left_name(n) for n in squishable_bases if squish_left_name(n) in glyphs]
+            [
+                squish_left_name(n)
+                for n in squishable_bases
+                if squish_left_name(n) in glyphs
+            ]
         ),
         "top": _gid_sort(
-            [squish_top_name(n) for n in squishable_bases if squish_top_name(n) in glyphs]
+            [
+                squish_top_name(n)
+                for n in squishable_bases
+                if squish_top_name(n) in glyphs
+            ]
         ),
         "bottom": _gid_sort(
-            [squish_bot_name(n) for n in squishable_bases if squish_bot_name(n) in glyphs]
+            [
+                squish_bot_name(n)
+                for n in squishable_bases
+                if squish_bot_name(n) in glyphs
+            ]
         ),
     }
     mark_maps = {
@@ -2256,9 +2260,7 @@ def install_cjk_composition_gsub(
     for comps, out in squish_vs_liga_map(forms, glyphs=glyphs).items():
         by_len.setdefault(len(comps), {})[comps] = out
     if mark_cps:
-        for comps, out in marked_liga_map(
-            forms, mark_cps, glyphs=glyphs
-        ).items():
+        for comps, out in marked_liga_map(forms, mark_cps, glyphs=glyphs).items():
             by_len.setdefault(len(comps), {})[comps] = out
         # Mark D4 / FE08–A side slots stay in the 2-glyph lookup.
         by_len.setdefault(2, {}).update(mark_liga_map(mark_cps, glyphs))
@@ -2417,9 +2419,7 @@ def prepare_squish_vs_access(
             cp = cp_by_name.get(base)
             if cp is None:
                 continue
-            uvs_rows.extend(
-                build_squish_vs_uvs_entries(cp, base, glyphs=glyphs)
-            )
+            uvs_rows.extend(build_squish_vs_uvs_entries(cp, base, glyphs=glyphs))
     return squishable
 
 

@@ -100,8 +100,7 @@ def write_html(
 
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(
-            f"""<!doctype html>
+        f.write(f"""<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8"/>
@@ -443,8 +442,7 @@ renderDigraphs();
 </script>
 </body>
 </html>
-"""
-        )
+""")
     print(f"Wrote {path}")
     print(f"  characters: {n}")
     print(f"  digraph pairs: {len(pairs)} ({n_cross} cross-bucket)")

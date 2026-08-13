@@ -123,7 +123,8 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
 
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(f"""<!doctype html>
+        f.write(
+            f"""<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8"/>
@@ -452,7 +453,8 @@ document.getElementById("btnOne").click();
 </script>
 </body>
 </html>
-""")
+"""
+        )
     print(
         f"Jamo: L={len(L)} V={len(V)} T={len(T)} marks={len(marks)}  "
         f"combinations={total:,}  -> {path}"

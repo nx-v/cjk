@@ -107,7 +107,14 @@ from shared_diacritics import (
     load_dakuten_marks_from_stack,
     resolve_dakuten_mark_font_stack,
 )
-from edenia_names import CSS_HANGUL, FAMILY_HANGUL, FAMILY_HANGULS, PS_HANGUL, PS_HANGULS, stem
+from edenia_names import (
+    CSS_HANGUL,
+    FAMILY_HANGUL,
+    FAMILY_HANGULS,
+    PS_HANGUL,
+    PS_HANGULS,
+    stem,
+)
 from sync_obsidian_panfonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
 
@@ -1115,11 +1122,7 @@ def install_medial_batchim_squish_gsub(
     for T in t_forms:
         t_ctx.extend(hangul_orientation_forms(T, glyphs))
     t_ctx = sorted(
-        set(
-            t
-            for t in t_ctx
-            if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")
-        ),
+        set(t for t in t_ctx if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")),
         key=lambda n: glyph_map.get(n, 0),
     )
     if not t_ctx:
@@ -2080,18 +2083,12 @@ def install_fe04_gpos(
 
     v_x = [V for V in v_all if _axis_of(V) == "x"]
     v_up_y = [
-        V
-        for V in v_all
-        if _axis_of(V) == "y" and not fe04_medial_is_y_flipped(V)
+        V for V in v_all if _axis_of(V) == "y" and not fe04_medial_is_y_flipped(V)
     ]
     v_up_xy = [
-        V
-        for V in v_all
-        if _axis_of(V) == "xy" and not fe04_medial_is_y_flipped(V)
+        V for V in v_all if _axis_of(V) == "xy" and not fe04_medial_is_y_flipped(V)
     ]
-    v_flip_y = [
-        V for V in v_all if _axis_of(V) == "y" and fe04_medial_is_y_flipped(V)
-    ]
+    v_flip_y = [V for V in v_all if _axis_of(V) == "y" and fe04_medial_is_y_flipped(V)]
     v_flip_xy = [
         V for V in v_all if _axis_of(V) == "xy" and fe04_medial_is_y_flipped(V)
     ]
@@ -2112,9 +2109,7 @@ def install_fe04_gpos(
         # Upright Y/XY: L stays just under raised batchim.
         out: Dict[str, object] = {}
         for L in l_all:
-            dy = fe04_unflipped_l_y_placement(
-                L, glyphs=glyphs, target_upem=target_upem
-            )
+            dy = fe04_unflipped_l_y_placement(L, glyphs=glyphs, target_upem=target_upem)
             out[L] = buildValue({"YPlacement": dy})
         return out
 
@@ -2143,9 +2138,7 @@ def install_fe04_gpos(
             dy_v = dy_lv_x
         elif axis == "y" and not fe04_medial_is_y_flipped(V):
             # Y upright + FE04: medial to the floor under high L.
-            dy_v = fe04_y_floor_y_placement(
-                V, glyphs=glyphs, target_upem=target_upem
-            )
+            dy_v = fe04_y_floor_y_placement(V, glyphs=glyphs, target_upem=target_upem)
         else:
             dy_v = dy_lv_i + fe04_medial_extra_dy(axis, V, target_upem)
         v_y_values[V] = buildValue({"YPlacement": dy_v})
@@ -2184,9 +2177,7 @@ def install_fe04_gpos(
         return idx
 
     idx_l_x = _add_single_pos(l_values_x) if v_x else None
-    idx_l_up = (
-        _add_single_pos(l_values_up) if (v_up_y or v_up_xy) else None
-    )
+    idx_l_up = _add_single_pos(l_values_up) if (v_up_y or v_up_xy) else None
     idx_l_flip_y = _add_single_pos(l_values_flip_y) if v_flip_y else None
     idx_l_flip_xy = _add_single_pos(l_values_flip_xy) if v_flip_xy else None
     idx_v = _add_single_pos(v_y_values)
@@ -2335,11 +2326,7 @@ def install_yflip_batchim_gpos(
     # Any batchim orientation — L lift must not depend on T flip. Skip
     # ``T.sw`` (FE04 owns that path).
     t_ctx = sorted(
-        set(
-            t
-            for t in t_all
-            if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")
-        ),
+        set(t for t in t_all if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")),
         key=lambda n: glyph_map.get(n, 0),
     )
 
@@ -3056,10 +3043,7 @@ def build_all(
     hint: bool = True,
 ) -> None:
     print(f"Hangul source: {MALGUN_FILENAME}")
-    print(
-        f"  VS U+{UVS_BASE:04X}-U+{UVS_LAST:04X}: "
-        "identity / mx / my / mxy"
-    )
+    print(f"  VS U+{UVS_BASE:04X}-U+{UVS_LAST:04X}: " "identity / mx / my / mxy")
     print(
         f"  Jamo ({FAMILY_JAMO}): L VS=orientation; V VS=ideo-flip + per-jamo L shift; "
         f"T present=Malgun ljmo/vjmo/tjmo; FE04 after T=GPOS yPlacement; "

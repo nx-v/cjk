@@ -90,9 +90,7 @@ def cjk_mid(
     cell_width: Optional[float] = None,
     cell_x0: float = 0.0,
 ) -> Tuple[float, float]:
-    x0, y0, x1, y1 = cjk_box(
-        target_upem, cell_width=cell_width, cell_x0=cell_x0
-    )
+    x0, y0, x1, y1 = cjk_box(target_upem, cell_width=cell_width, cell_x0=cell_x0)
     return (x0 + x1) / 2.0, (y0 + y1) / 2.0
 
 
@@ -379,7 +377,7 @@ def inject_slice_marks(
 ) -> List[str]:
     """Ensure slice-mark glyphs exist and are cmap'd (default FE08/FE09)."""
     names: List[str] = []
-    for cp, gname, _a, _b in (modes if modes is not None else SLICE_MODES):
+    for cp, gname, _a, _b in modes if modes is not None else SLICE_MODES:
         if gname not in glyphs:
             glyph_order.append(gname)
             glyphs[gname] = empty_glyph()

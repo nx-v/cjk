@@ -2005,12 +2005,18 @@ def fit_glyph_to_ideographic_cell(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     pad: float = STANDALONE_VERT_PAD,
     grow: bool = False,
+    align_y: str = "center",
 ) -> GlyphMetrics:
     """Proportionally fit contour ink inside the padded ideo cell.
 
     Uniform ``s = min(cell_w / ink_w, cell_h / ink_h)`` about the ink center,
-    then translate so the scaled bbox sits at the cell center. Overflowing
-    glyphs shrink; aspect ratio is preserved. Composites bake once.
+    then place horizontally at the cell mid-X. Overflowing glyphs shrink;
+    aspect ratio is preserved. Composites bake once.
+
+    ``align_y``::
+
+        ``"center"`` — move ink mid-Y to the cell mid (kana / D4 re-fit).
+        ``"source"`` — keep mid-Y (CJK optical seat: 日/月 stay lower than 木).
 
     By default ``grow=False`` so under-full ideographs (dots, ticks, sparse
     radicals) keep their designed stem weight — upscaling them to fill the
@@ -2051,10 +2057,30 @@ def fit_glyph_to_ideographic_cell(
     src_cx = (sx0 + sx1) / 2.0
     src_cy = (sy0 + sy1) / 2.0
     dst_cx = (x0 + x1) / 2.0
-    dst_cy = (y0 + y1) / 2.0
+    if align_y == "source":
+        dst_cy = src_cy
+    else:
+        dst_cy = (y0 + y1) / 2.0
     t = Transform(s, 0, 0, s, dst_cx - s * src_cx, dst_cy - s * src_cy)
     rec = _recording_from_glyph(src, None)
     out = apply_transform(rec, t)
+
+    # Source-Y shrink can still clip a low/high glyph; nudge into the cell.
+    if align_y == "source":
+        try:
+            out.recalcBounds(None)
+            oy0, oy1 = float(out.yMin), float(out.yMax)
+            dy = 0.0
+            if oy0 < y0:
+                dy = y0 - oy0
+            if oy1 + dy > y1:
+                dy = y1 - oy1
+            if abs(dy) > 1e-6:
+                rec2 = _recording_from_glyph(out, None)
+                out = apply_transform(rec2, Transform(1, 0, 0, 1, 0, dy))
+        except Exception:
+            pass
+
     try:
         out.recalcBounds(None)
         lsb = int(out.xMin)

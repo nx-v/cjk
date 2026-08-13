@@ -95,17 +95,18 @@ CSS_FAMILY = "edenia cjk"
 # local_scale = target_ink / native_ink; weightor = target_stem / (stem * scale).
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("LXGWXinXiHei-Regular.ttf", 1.10, 1.0),
+    ("NGULIM.ttf", 1.10, 1.2),
     ("LXGWClearGothic-Regular.ttf", 1.10, 1.0),
     ("LXGWXiHeiMN.ttf", 1.10, 1.0),
     ("LXGWXiHeiCL.ttf", 1.10, 1.0),
     ("Han-Nom Gothic 1.32.otf", 0.95, 1.10),
     ("LXGWNeoXiHeiPlus.ttf", 1.10, 1.0),
     ("LXGWNeoXiHeiScreenFull.ttf", 1.10, 1.0),
+    ("ChironHeiHK-R.ttf", 1.0, 1.05),
     ("SukimaGothic.ttf", 1.0, 1.05),
     ("YshiYuanGothicCleaned.ttf", 1.05, 1.05),
     ("ChocolateClassicalSans-Regular.ttf", 1.0, 1.05),
     ("Gothic Nguyen Regular.ttf", 1.0, 1.05),
-    ("ChironHeiHK-R.ttf", 1.0, 1.05),
     ("PlangothicP1-Regular.ttf", 1.0, 1.05),
     ("PlangothicP2-Regular.ttf", 1.0, 1.05),
 ]
@@ -340,9 +341,13 @@ class SourceFont:
                     file=sys.stderr,
                 )
 
-        # Uniform scale + center contour ink into the padded ideographic cell.
+        # Uniform shrink-to-fit + X-center; keep source optical Y (日/月 sit
+        # lower than 木 — bbox-centering made short glyphs float).
         glyph, advance, lsb = fit_glyph_to_ideographic_cell(
-            glyph, advance if advance > 0 else target_upem, target_upem
+            glyph,
+            advance if advance > 0 else target_upem,
+            target_upem,
+            align_y="source",
         )
         return glyph, advance, lsb
 
