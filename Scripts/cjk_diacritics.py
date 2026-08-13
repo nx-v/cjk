@@ -31,7 +31,6 @@ Squish / overlay access (same ``.dk*`` glyphs; GSUB liga, not cmap-14 UVS)::
 from __future__ import annotations
 
 import os
-import unicodedata
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -62,7 +61,6 @@ from shared_diacritics import (
     CGJ_CP,
     MAX_DIACRITIC_FRAC,
     _glyph_ink_size,
-    _is_superimposed_mark,
     add_dakuten_mark_glyphs,
     collect_dakuten_base_anchors,
     dakuten_mark_name,
@@ -712,8 +710,9 @@ def load_shared_marks(
 ) -> Tuple[List[int], Dict[int, TTGlyph]]:
     """Load stack ``\\p{M}`` marks; fit each to ca/nhay W/H/stems.
 
-    Same inventory filters as ``shared_diacritics`` (no letter / enclosing /
-    overlay / oversized). Earlier fonts in ``font_paths`` win per codepoint.
+    Same inventory as ``shared_diacritics`` (all ``\\p{M}`` except variation
+    selectors; oversized outlines dropped). Earlier fonts in ``font_paths``
+    win per codepoint.
     """
     from copy import deepcopy
 
@@ -750,11 +749,6 @@ def load_shared_marks(
 
             for cp in iter_dakuten_codepoints(cmap):
                 if cp == CGJ_CP or cp in claimed:
-                    continue
-                ch = chr(cp)
-                cat = unicodedata.category(ch)
-                uname = unicodedata.name(ch, "")
-                if _is_superimposed_mark(uname, cat):
                     continue
                 gname = cmap[cp]
                 try:
@@ -810,11 +804,6 @@ def inventory_shared_mark_cps(in_dir: str) -> List[int]:
                     cmap.update(table.cmap)
             for cp in iter_dakuten_codepoints(cmap):
                 if cp == CGJ_CP or cp in seen or cp in CORE_MARK_CPS:
-                    continue
-                ch = chr(cp)
-                cat = unicodedata.category(ch)
-                uname = unicodedata.name(ch, "")
-                if _is_superimposed_mark(uname, cat):
                     continue
                 seen.add(cp)
                 out.append(cp)

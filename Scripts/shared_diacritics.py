@@ -1,8 +1,8 @@
 """Shared corner diacritics (Yi / Hangul) from a multi-font mark stack.
 
-Inventory: ``(\\p{M} ∩ stack) ∖ {names containing \"letter\"}``, then drop
-enclosing / overlay marks and oversized outlines. First font in the stack
-wins per codepoint.
+Inventory: ``(\\p{M} ∩ stack) ∖ variation selectors`` (VS1–16, IVS,
+Mongolian FVS). Oversized source outlines are still dropped. First font
+in the stack wins per codepoint.
 
 Stack (priority order)::
 
@@ -87,6 +87,14 @@ GENTIUM_FILENAME = "Gentium-Regular.ttf"
 
 # Unicode Mark = Mn | Mc | Me  (regex \p{M}).
 MARK_CATS = frozenset({"Mn", "Mc", "Me"})
+
+# Variation_Selector — Mn, but they drive GSUB slices / IVS, not dakuten.
+VS_RANGES: Tuple[Tuple[int, int], ...] = (
+    (0x180B, 0x180D),  # Mongolian FVS 1–3
+    (0x180F, 0x180F),  # Mongolian FVS 4
+    (0xFE00, 0xFE0F),  # VS1–16
+    (0xE0100, 0xE01EF),  # VS17–256
+)
 
 # Drop source outlines larger than this fraction of source UPM (either axis).
 MAX_DIACRITIC_FRAC = 0.48
@@ -201,15 +209,8 @@ def resolve_juliamono_path(in_dir: str) -> str:
     raise FileNotFoundError(f"Missing JuliaMono source font under {in_dir!r}")
 
 
-def _name_has_letter(name: str) -> bool:
-    return "letter" in name.lower()
-
-
-def _is_superimposed_mark(name: str, cat: str) -> bool:
-    if cat == "Me":
-        return True
-    u = name.upper()
-    return "OVERLAY" in u or "ENCLOSING" in u
+def is_variation_selector(cp: int) -> bool:
+    return any(lo <= cp <= hi for lo, hi in VS_RANGES)
 
 
 def _glyph_ink_size(glyph_set, glyph_name: str) -> Optional[Tuple[float, float]]:
@@ -225,15 +226,12 @@ def _glyph_ink_size(glyph_set, glyph_name: str) -> Optional[Tuple[float, float]]
 
 
 def iter_dakuten_codepoints(cmap: Dict[int, str]) -> List[int]:
-    """``(\\p{M} ∩ cmap) − {names containing letter}``."""
+    """All ``\\p{M}`` in ``cmap`` except variation selectors."""
     out: List[int] = []
     for cp in sorted(cmap):
-        ch = chr(cp)
-        cat = unicodedata.category(ch)
-        if cat not in MARK_CATS:
+        if is_variation_selector(cp):
             continue
-        name = unicodedata.name(ch, "")
-        if _name_has_letter(name):
+        if unicodedata.category(chr(cp)) not in MARK_CATS:
             continue
         out.append(cp)
     return out
@@ -449,7 +447,7 @@ def load_dakuten_marks(
     font_path: str,
     target_upem: int,
 ) -> Tuple[List[int], Dict[int, TTGlyph]]:
-    """Load qualifying ``\\p{M}`` marks from one font, fixed ink height."""
+    """Load all ``\\p{M}`` marks except variation selectors; fixed ink height."""
     tt = TTFont(font_path, fontNumber=0)
     try:
         cmap: Dict[int, str] = {}
@@ -466,11 +464,6 @@ def load_dakuten_marks(
         glyphs: Dict[int, TTGlyph] = {}
         for cp in iter_dakuten_codepoints(cmap):
             if cp == CGJ_CP:
-                continue
-            ch = chr(cp)
-            cat = unicodedata.category(ch)
-            name = unicodedata.name(ch, "")
-            if _is_superimposed_mark(name, cat):
                 continue
             gname = cmap[cp]
             sized = _glyph_ink_size(glyph_set, gname)
