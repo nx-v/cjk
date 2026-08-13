@@ -7,13 +7,13 @@ Encoding
 BMP PUA ``U+E000``..``U+F8FF`` (6400 CPs)::
 
     i        = L * 8 + o          # L = 0..399, o = 0..7 (D4_MODES order)
-    small[i] = 0xE000 + 2 * i     # even — small: ideo-scale + Weight once, D4 @ ideo
-    full[i]  = 0xE000 + 2 * i + 1 # odd  — full-size oriented form
+    full[i]  = 0xE000 + 2 * i     # even — full-size oriented form
+    small[i] = 0xE000 + 2 * i + 1 # odd  — small: ideo-scale + Weight once, D4 @ ideo
 
 Halfwidth companions (same ``i``) in SPUA-A::
 
-    hw_small[i] = 0xED00 + 2 * i
-    hw_full[i]  = 0xED00 + 2 * i + 1
+    hw_full[i]  = 0xED00 + 2 * i
+    hw_small[i] = 0xED00 + 2 * i + 1
 
 CAPE Width ``0.5`` holds the pre-squeeze stem thicknesses (match full-width
 kana). Slices use the half-em cell + ``sliceAdvHw``.
@@ -244,19 +244,19 @@ def pair_index(logical: int, orient: int) -> int:
 
 
 def full_cp(i: int) -> int:
-    return PUA_START + 2 * i + 1
-
-
-def small_cp(i: int) -> int:
     return PUA_START + 2 * i
 
 
+def small_cp(i: int) -> int:
+    return PUA_START + 2 * i + 1
+
+
 def hw_full_cp(i: int) -> int:
-    return HW_PUA_START + 2 * i + 1
+    return HW_PUA_START + 2 * i
 
 
 def hw_small_cp(i: int) -> int:
-    return HW_PUA_START + 2 * i
+    return HW_PUA_START + 2 * i + 1
 
 
 def glyph_name_for_cp(cp: int) -> str:
@@ -1619,11 +1619,11 @@ def build_all(
     )
     print(
         f"  PUA: U+{PUA_START:04X}..U+{PUA_END:04X} "
-        f"(odd=full, even=small; i=L*{D4_COUNT}+o)"
+        f"(even=full, odd=small; i=L*{D4_COUNT}+o)"
     )
     print(
         f"  Halfwidth SPUA: U+{HW_PUA_START:05X}+ "
-        f"(odd=full, even=small; CAPE Width {HALF_WIDTH_FACTOR:g}, fixed stems)"
+        f"(even=full, odd=small; CAPE Width {HALF_WIDTH_FACTOR:g}, fixed stems)"
     )
     print("  D4: 8 orientations mapped to odd/even CPs (no VS umlaut)")
     print(
