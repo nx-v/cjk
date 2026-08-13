@@ -151,7 +151,6 @@ MKANA_OVERRIDE_CPS: frozenset[int] = frozenset(
         0x304F,  # く
         0x3078,  # へ
         0x3042,  # あ
-        0x305D,  # そ
         0x306A,  # な
         0x308A,  # り
         0x30D8,  # ヘ
