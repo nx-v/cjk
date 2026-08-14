@@ -18,9 +18,15 @@ Halfwidth companions (same ``i``) in SPUA-A::
 CAPE Width ``0.5`` holds the pre-squeeze stem thicknesses (match full-width
 kana). Slices use the half-em cell + ``sliceAdvHw``.
 
-Initial fill: 16×6 hiragana then 16×6 katakana → ``L = 0..191``
-row-major. Sources: FlopDesignFONT, then mkanaplus (PUA/archaic + overrides),
-then GenSeki Hentaigana, then LXGW (Clear Gothic / XiHei).
+Initial fill: hiragana rows then length/gemination, then katakana rows
+then length/gemination — row-major into ``L``. Sources: FlopDesignFONT,
+then mkanaplus (PUA/archaic + overrides), then GenSeki Hentaigana, then
+LXGW (Clear Gothic / XiHei).
+
+Trailing marks (all D4)::
+
+    hiragana  length U+301C 〜 · gemination U+309D ゝ
+    katakana  length U+30FC ー · gemination U+30FD ヽ
 
 Umlaut orientations are real cmap entries (no VS). Ligatures use FE00/FE01
 half-plane slices (Yi keeps FE08/FE09). Dakuten GPOS is contour-corner.
@@ -201,7 +207,7 @@ HIRAGANA_ROWS: Tuple[Tuple[int, ...], ...] = (
     (0xE0E0, 0xE0E1, 0xE0E2, 0xE0E3, 0xE0E4, 0x1B102),  # l
     (0x3089, 0x308A, 0x308B, 0x308C, 0x308D, 0x1B0EF),  # r
     (0x308F, 0x3090, 0x1B11F, 0x3091, 0x3092, 0x1B10C),  # w
-    (0x1B09F, 0x1B0AB, 0x1B0B0, 0x1B0B8, 0x1B0BF, 0xECC1),  # f
+    (0x1B0A6, 0x1B0AB, 0x3075, 0x1B0B8, 0x1B0BF, 0xECC1),  # f
     (0xE030, 0xE031, 0xE032, 0xE02A, 0xE034, 0x1B0AF),  # p
 )
 
@@ -221,21 +227,53 @@ KATAKANA_ROWS: Tuple[Tuple[int, ...], ...] = (
     (0xEDC3, 0xEDC8, 0xEDC0, 0xEDC5, 0xEDC1, 0x310C),  # l
     (0x30E9, 0x30EA, 0x30EB, 0x30EC, 0x30ED, 0xEDD7),  # r
     (0x30EF, 0x30F0, 0x1B122, 0x30F1, 0x30F2, 0x3129),  # w
+    (0xEDCC, 0xEDCD, 0x30D5, 0xEDD8, 0xEDD4, 0x3108),  # f
     (0xEDCB, 0xEDCA, 0xEE69, 0xEDD0, 0xEDC4, 0x3105),  # p
 )
 
-# Hiragana first, katakana immediately after.
+# After each script's last phonetic cell: length, then gemination.
+HIRAGANA_LENGTH_CP = 0x301C  # 〜 WAVE DASH
+HIRAGANA_GEMINATION_CP = 0x309D  # ゝ HIRAGANA ITERATION MARK
+KATAKANA_LENGTH_CP = 0x30FC  # ー KATAKANA-HIRAGANA PROLONGED SOUND MARK
+KATAKANA_GEMINATION_CP = 0x30FD  # ヽ KATAKANA ITERATION MARK
+SCRIPT_TRAILING_CPS: Tuple[Tuple[str, int], ...] = (
+    ("length", HIRAGANA_LENGTH_CP),
+    ("gemination", HIRAGANA_GEMINATION_CP),
+)
+KATAKANA_TRAILING_CPS: Tuple[Tuple[str, int], ...] = (
+    ("length", KATAKANA_LENGTH_CP),
+    ("gemination", KATAKANA_GEMINATION_CP),
+)
+SCRIPT_TRAILING_COUNT = len(SCRIPT_TRAILING_CPS)
+
+# Phonetic chart only (no trailing marks).
 CHART_ROWS: Tuple[Tuple[int, ...], ...] = HIRAGANA_ROWS + KATAKANA_ROWS
-HIRAGANA_COUNT = len(CONSONANTS) * len(VOWELS)  # 96
-KATAKANA_COUNT = HIRAGANA_COUNT
+HIRAGANA_PHONETIC_COUNT = sum(len(r) for r in HIRAGANA_ROWS)
+KATAKANA_PHONETIC_COUNT = sum(len(r) for r in KATAKANA_ROWS)
+HIRAGANA_COUNT = HIRAGANA_PHONETIC_COUNT + SCRIPT_TRAILING_COUNT
+KATAKANA_COUNT = KATAKANA_PHONETIC_COUNT + SCRIPT_TRAILING_COUNT
 
 
 def chart_source_cps() -> List[int]:
-    """Row-major source CPs: hiragana then katakana."""
+    """Row-major source CPs: hiragana (+marks) then katakana (+marks)."""
     out: List[int] = []
-    for row in CHART_ROWS:
+    for row in HIRAGANA_ROWS:
         out.extend(row)
+    out.extend(cp for _lab, cp in SCRIPT_TRAILING_CPS)
+    for row in KATAKANA_ROWS:
+        out.extend(row)
+    out.extend(cp for _lab, cp in KATAKANA_TRAILING_CPS)
     return out
+
+
+def trailing_mark_label(logical: int) -> Optional[str]:
+    """``length`` / ``gemination`` if ``logical`` is a script trailer, else None."""
+    if HIRAGANA_PHONETIC_COUNT <= logical < HIRAGANA_COUNT:
+        return SCRIPT_TRAILING_CPS[logical - HIRAGANA_PHONETIC_COUNT][0]
+    kata0 = HIRAGANA_COUNT
+    if kata0 + KATAKANA_PHONETIC_COUNT <= logical < kata0 + KATAKANA_COUNT:
+        return KATAKANA_TRAILING_CPS[logical - kata0 - KATAKANA_PHONETIC_COUNT][0]
+    return None
 
 
 def pair_index(logical: int, orient: int) -> int:

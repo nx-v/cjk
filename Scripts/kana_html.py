@@ -10,6 +10,8 @@ Encoding (matches ``build_kana``)::
     hw_small[i] = U+ED00 + 2*i + 1
 
 Orientations are real PUA codepoints (not VS). Slices use FE00 / FE01.
+After each script block: length (h U+301C / k U+30FC) and gemination
+(h U+309D / k U+30FD), all D4.
 
 Usage
 -----
@@ -32,8 +34,11 @@ from build_kana import (
     CONSONANTS,
     D4_COUNT,
     HIRAGANA_COUNT,
+    HIRAGANA_PHONETIC_COUNT,
+    HIRAGANA_ROWS,
     KANA_SLICE_H_CP,
     KANA_SLICE_V_CP,
+    KATAKANA_ROWS,
     VOWELS,
     chart_source_cps,
     full_cp,
@@ -41,6 +46,7 @@ from build_kana import (
     hw_small_cp,
     pair_index,
     small_cp,
+    trailing_mark_label,
 )
 from shared_diacritics import (
     DAKUTEN_SLOT_COUNT,
@@ -80,11 +86,17 @@ def kana_entries() -> List[dict]:
         else:
             script = "k"
             local = logical - HIRAGANA_COUNT
-        row = local // n_vow
-        col = local % n_vow
-        cons = CONSONANTS[row] if row < n_cons else "?"
-        vow = VOWELS[col] if col < n_vow else "?"
-        label = f"{script}.{cons or '∅'}{vow}"
+        trail = trailing_mark_label(logical)
+        if trail is not None:
+            cons = trail
+            vow = ""
+            label = f"{script}.{trail}"
+        else:
+            row = local // n_vow
+            col = local % n_vow
+            cons = CONSONANTS[row] if row < n_cons else "?"
+            vow = VOWELS[col] if col < n_vow else "?"
+            label = f"{script}.{cons or '∅'}{vow}"
         try:
             src_ch = chr(src_cp)
         except ValueError:
@@ -104,6 +116,7 @@ def kana_entries() -> List[dict]:
                 "script": script,
                 "cons": cons or "∅",
                 "vow": vow,
+                "trail": trail,
                 "full": [full_cp(i) for i in ixs],
                 "small": [small_cp(i) for i in ixs],
                 "hwFull": [hw_full_cp(i) for i in ixs],
@@ -152,8 +165,9 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
     n_pair = n * n * D4_COUNT * D4_COUNT
     n_rows = len(CHART_ROWS)
     n_cols = len(VOWELS)
-    row_labels = [f"h.{c or '∅'}" for c in CONSONANTS] + [
-        f"k.{c or '∅'}" for c in CONSONANTS
+    h_rows = len(HIRAGANA_ROWS)
+    row_labels = [f"h.{c or '∅'}" for c in CONSONANTS[:h_rows]] + [
+        f"k.{c or '∅'}" for c in CONSONANTS[: len(KATAKANA_ROWS)]
     ]
 
     payload = {
@@ -165,6 +179,8 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
         "ROW_LABELS": row_labels,
         "VOWELS": list(VOWELS),
         "HIRAGANA_COUNT": HIRAGANA_COUNT,
+        "HIRAGANA_PHONETIC_COUNT": HIRAGANA_PHONETIC_COUNT,
+        "h_rows": h_rows,
         "n": n,
         "n_orient": n_orient,
         "n_pair": n_pair,
@@ -262,7 +278,7 @@ h2 {{
 <h1>edenia kana — chart × D4 × smalls × slices × dakuten</h1>
 <p class="meta">
   {n:,} logical ({HIRAGANA_COUNT} hiragana + {n - HIRAGANA_COUNT} katakana,
-  {len(CONSONANTS)}×{n_cols} each) · {D4_COUNT} D4 orientations as PUA
+  phonetic rows + length/gemination each) · {D4_COUNT} D4 orientations as PUA
   (even=full, odd=small @ U+E000…; halfwidth @ U+ED00…) · slices FE00 / FE01 ·
   dakuten {len(marks)} (sample).<br/>
   Orientation gallery: {n_orient:,} · pairwise slices: {n_pair:,} each mode
@@ -454,6 +470,12 @@ function heading(s) {{
 function clearOut() {{ out.replaceChildren(); }}
 function setStatus(s) {{ status.textContent = s; }}
 
+function chartIdx(r, c) {{
+  // Trailing length/gemination sit after each script block; skip them in the grid.
+  if (r < DATA.h_rows) return r * DATA.n_cols + c;
+  return DATA.HIRAGANA_COUNT + (r - DATA.h_rows) * DATA.n_cols + c;
+}}
+
 function renderChart(orientIdx) {{
   clearOut();
   let sz = sizeKind();
@@ -471,7 +493,7 @@ function renderChart(orientIdx) {{
       className:'rowlab', textContent: DATA.ROW_LABELS[r]
     }}));
     for (let c = 0; c < DATA.n_cols; c++) {{
-      let idx = r * DATA.n_cols + c;
+      let idx = chartIdx(r, c);
       let g = document.createElement('div');
       g.className = 'g';
       g.textContent = kanaChar(idx, orientIdx) + ms;
@@ -568,7 +590,7 @@ function renderEverything() {{
       className:'rowlab', textContent: DATA.ROW_LABELS[r]
     }}));
     for (let c = 0; c < DATA.n_cols; c++) {{
-      let idx = r * DATA.n_cols + c;
+      let idx = chartIdx(r, c);
       let g = document.createElement('div');
       g.className = 'g';
       g.textContent = kanaChar(idx, 0) + ms;
