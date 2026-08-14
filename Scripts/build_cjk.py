@@ -94,14 +94,14 @@ CSS_FAMILY = "edenia cjk"
 # Harmony target @ 1000 UPM (median of these sources): ink ≈ 874, stem ≈ 73.
 # local_scale = target_ink / native_ink; weightor = target_stem / (stem * scale).
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("LXGWXinXiHei-Regular.ttf", 1.10, 1.0),
-    ("NGULIM.ttf", 1.05, 1.2),
-    ("LXGWClearGothic-Regular.ttf", 1.10, 1.0),
-    ("LXGWXiHeiMN.ttf", 1.10, 1.0),
-    ("LXGWXiHeiCL.ttf", 1.10, 1.0),
+    ("LXGWXinXiHei-Regular.ttf", 1.05, 1.0),
+    ("NGULIM.ttf", 1.15, 1.25),
+    ("LXGWClearGothic-Regular.ttf", 1.05, 1.0),
+    ("LXGWXiHeiMN.ttf", 1.05, 1.0),
+    ("LXGWXiHeiCL.ttf", 1.05, 1.0),
     ("Han-Nom Gothic 1.32.otf", 0.95, 1.10),
-    ("LXGWNeoXiHeiPlus.ttf", 1.10, 1.0),
-    ("LXGWNeoXiHeiScreenFull.ttf", 1.10, 1.0),
+    ("LXGWNeoXiHeiPlus.ttf", 1.05, 1.0),
+    ("LXGWNeoXiHeiScreenFull.ttf", 1.05, 1.0),
     ("ChironHeiHK-R.ttf", 1.0, 1.05),
     ("SukimaGothic.ttf", 1.0, 1.05),
     ("YshiYuanGothicCleaned.ttf", 1.05, 1.05),
