@@ -94,22 +94,21 @@ CSS_FAMILY = "edenia cjk"
 # Harmony target @ 1000 UPM (median of these sources): ink ≈ 874, stem ≈ 73.
 # local_scale = target_ink / native_ink; weightor = target_stem / (stem * scale).
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("LXGWXinXiHei-Regular.ttf", 1.0, 1.0),
     ("NGULIM.ttf", 1.10, 1.2),
+    ("Han-Nom Gothic 1.32.otf", 0.95, 1.05),
+    ("msyh.ttc", 0.95, 1.05),
     ("LXGWClearGothic-Regular.ttf", 1.0, 1.0),
     ("LXGWXiHeiMN.ttf", 1.0, 1.0),
     ("LXGWXiHeiCL.ttf", 1.0, 1.0),
-    ("Han-Nom Gothic 1.32.otf", 0.95, 1.0),
-    ("msyh.ttc", 0.95, 1.0),
     ("LXGWNeoXiHeiPlus.ttf", 1.0, 1.0),
     ("LXGWNeoXiHeiScreenFull.ttf", 1.0, 1.0),
-    ("ChironHeiHK-R.ttf", 0.95, 1.0),
-    ("SukimaGothic.ttf", 0.95, 1.0),
-    ("YshiYuanGothicCleaned.ttf", 0.95, 1.0),
-    ("ChocolateClassicalSans-Regular.ttf", 0.95, 1.0),
-    ("Gothic Nguyen Regular.ttf", 0.95, 1.0),
-    ("PlangothicP1-Regular.ttf", 0.95, 1.0),
-    ("PlangothicP2-Regular.ttf", 0.95, 1.0),
+    ("ChironHeiHK-R.ttf", 0.95, 1.05),
+    ("SukimaGothic.ttf", 0.95, 1.05),
+    ("YshiYuanGothicCleaned.ttf", 0.95, 1.05),
+    ("ChocolateClassicalSans-Regular.ttf", 0.95, 1.05),
+    ("Gothic Nguyen Regular.ttf", 0.95, 1.05),
+    ("PlangothicP1-Regular.ttf", 0.95, 1.05),
+    ("PlangothicP2-Regular.ttf", 0.95, 1.05),
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
