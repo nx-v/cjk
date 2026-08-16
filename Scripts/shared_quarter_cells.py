@@ -48,12 +48,6 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from fontTools.misc.transform import Transform
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
-from cape_weightor import (
-    apply_height,
-    apply_width,
-    layer_from_ttglyph,
-    ttglyph_from_layer,
-)
 from shared_half_cells import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
@@ -65,7 +59,6 @@ from shared_half_cells import (
     contour_center,
     empty_glyph,
     ideographic_bounds,
-    ideographic_center,
     make_composite_variant,
     overlay_glyph_name,
     variant_glyph_name,
@@ -287,7 +280,7 @@ def place_glyph_in_quarter(
 
 
 def make_quarter_glyph(
-    glyph: TTGlyph,
+    base_name: str,
     advance: int,
     *,
     axis: str,
@@ -297,36 +290,25 @@ def make_quarter_glyph(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     factor: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Uniform CAPE Width/Height into a quarter niche, then translate."""
-    from cjk_diacritics import _normalize_winding
+    """Upright quarter niche as a scaled composite of ``base_name``."""
+    from shared_half_cells import make_axis_niche_composite
 
     upem = int(
         target_upem if target_upem is not None else (advance if advance > 0 else 1000)
     )
     use = float(factor if factor is not None else _factor_for_bands(band0, band1))
-    simple = _normalize_winding(_bake_simple_glyph(glyph, glyph_set), glyph_set)
-    layer = layer_from_ttglyph(simple, float(advance if advance > 0 else upem))
-    if not layer.paths:
-        return place_glyph_in_quarter(
-            simple,
-            advance if advance > 0 else upem,
-            axis=axis,
-            band0=band0,
-            band1=band1,
-            target_upem=upem,
-            glyph_set=None,
-        )
-
-    # CJK niches: uniform scale only (no stem compensation / outline offset).
-    cell_cx, cell_cy = ideographic_center(upem)
-    if axis == "y":
-        apply_height(layer, use, stem=0.0, center_y=cell_cy)
-    else:
-        apply_width(layer, use, stem=0.0, center_x=cell_cx)
-
-    out, _adv, _lsb = ttglyph_from_layer(layer)
-    return _translate_ink_to_quarter_center(
-        out, axis=axis, band0=band0, band1=band1, target_upem=upem
+    x0, y0, x1, y1 = _quarter_slot_rect(
+        float(upem), axis=axis, band0=band0, band1=band1
+    )
+    return make_axis_niche_composite(
+        base_name,
+        advance=int(advance if advance > 0 else upem),
+        axis=axis,
+        factor=use,
+        dest_x=(x0 + x1) / 2.0,
+        dest_y=(y0 + y1) / 2.0,
+        target_upem=upem,
+        glyph_set=glyph_set,
     )
 
 
@@ -377,7 +359,7 @@ def add_quarter_forms(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int = 1000,
 ) -> List[str]:
-    """Bake upright quarter niches for ``face``; D4 via composites."""
+    """Upright quarter niches as composites of the identity; D4 via composites."""
     slots = quarter_slots_for_face(face)
     axis = quarter_axis_for_face(face)
     identities = [n for n in base_names if _d4_suffix_of(n) is None and n in glyphs]
@@ -386,13 +368,12 @@ def add_quarter_forms(
     added: List[str] = []
     for name in identities:
         adv, _lsb = metrics.get(name, (target_upem, 0))
-        src = glyphs[name]
         for _cp, _sel, suf, b0, b1 in slots:
             out_name = quarter_form_name(name, suf)
             if out_name in glyphs:
                 continue
             g, a, l = make_quarter_glyph(
-                src,
+                name,
                 adv,
                 axis=axis,
                 band0=b0,

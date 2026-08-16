@@ -112,8 +112,9 @@ CSS_FAMILY = "edenia cjk"
 # Each entry: (filename, local_scale, weightor)
 # * local_scale — isotropic scale about contour bbox center after UPM fit
 #   (advance width unchanged).
-# * weightor — CAPE Weightor Weight-mode factor after fit (>1 bolden, <1 lighten,
-#   1.0 = none). Outer width/height are preserved.
+# * weightor — CAPE Weightor **Weight** mode only after fit (>1 bolden,
+#   <1 lighten, 1.0 = none). Outer width/height are preserved. Do **not** use
+#   Width-mode / niche CAPE here (CJK niches are composites; Width is kana).
 
 # Harmony target @ 1000 UPM (median of these sources): ink ≈ 874, stem ≈ 73.
 # local_scale = target_ink / native_ink; weightor = target_stem / (stem * scale).
@@ -281,7 +282,8 @@ class SourceFont:
 
         ``local_scale`` (per source font) scales outlines about the contour
         bounding-box center; advance width stays the UPM-scaled source advance.
-        ``weightor`` then boldens/lightens via CAPE Weightor (bounds preserved).
+        ``weightor`` then boldens/lightens via CAPE Weightor Weight mode only
+        (bounds preserved). Width-mode CAPE is not used for CJK.
         Mirrors also flip about that same contour center.
         """
         if is_empty_outline(self.tt, src_name):
@@ -504,6 +506,7 @@ def build_bucket_font(
                 source_advance=src_adv,
                 source_center_y=src_cy,
                 source_max_height=src_max_h,
+                widen=0.0,  # no CAPE Width; Weight bolden below if needed
             )
             if copied is None:
                 continue
@@ -511,7 +514,9 @@ def build_bucket_font(
             if abs(src.local_scale - 1.0) > 1e-9:
                 g = _scale_glyph_about_bounds_center(g, src.local_scale)
             if abs(src.weightor - 1.0) > 1e-9:
-                g, adv, _lsb = bolden_ttglyph(g, src.weightor, advance=float(adv))
+                g, adv, _lsb = bolden_ttglyph(
+                    g, src.weightor, advance=float(adv)
+                )
             try:
                 g.recalcBounds(None)
                 copied = (g, adv, int(g.xMin))

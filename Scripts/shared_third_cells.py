@@ -24,9 +24,9 @@ VS25    U+E0108    center + right third             ``t3cr``
 VS26    U+E0109    right third                      ``t3r``
 ======= ========== ================================ ========
 
-Upright bases get CAPE Width/Height squish into the niche, then a translate
-into the matching third (or two-thirds) slot. Oriented (D4) bases reuse the
-upright niche via TrueType composites (same pattern as half-cell ``.dk*``).
+Upright bases are TrueType composites of the identity (uniform scale on one
+axis into the niche). Oriented (D4) bases reuse the upright niche via further
+composites (same pattern as half-cell ``.dk*``).
 """
 
 from __future__ import annotations
@@ -36,12 +36,6 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from fontTools.misc.transform import Transform
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
-from cape_weightor import (
-    apply_height,
-    apply_width,
-    layer_from_ttglyph,
-    ttglyph_from_layer,
-)
 from shared_half_cells import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
@@ -53,7 +47,6 @@ from shared_half_cells import (
     contour_center,
     empty_glyph,
     ideographic_bounds,
-    ideographic_center,
     make_composite_variant,
     overlay_glyph_name,
     variant_glyph_name,
@@ -74,7 +67,7 @@ THIRD_VS_BASE = VS17_CP
 THIRD_VS_COUNT = 10
 THIRD_VS_LAST = VS26_CP
 
-# Single-third ≈ 1/3; double-third ≈ 2/3 (CAPE outer-size factor).
+# Single-third ≈ 1/3; double-third ≈ 2/3 (composite scale factor).
 THIRD_FACTOR = 1.0 / 3.0
 TWO_THIRD_FACTOR = 2.0 / 3.0
 THIRD_PAD_FRAC = 0.02
@@ -266,7 +259,7 @@ def place_glyph_in_third(
 
 
 def make_third_glyph(
-    glyph: TTGlyph,
+    base_name: str,
     advance: int,
     *,
     axis: str,
@@ -276,36 +269,25 @@ def make_third_glyph(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     factor: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Uniform CAPE Width/Height into a third niche, then translate."""
-    from cjk_diacritics import _normalize_winding
+    """Upright third niche as a scaled composite of ``base_name``."""
+    from shared_half_cells import make_axis_niche_composite
 
     upem = int(
         target_upem if target_upem is not None else (advance if advance > 0 else 1000)
     )
     use = float(factor if factor is not None else _factor_for_bands(band0, band1))
-    simple = _normalize_winding(_bake_simple_glyph(glyph, glyph_set), glyph_set)
-    layer = layer_from_ttglyph(simple, float(advance if advance > 0 else upem))
-    if not layer.paths:
-        return place_glyph_in_third(
-            simple,
-            advance if advance > 0 else upem,
-            axis=axis,
-            band0=band0,
-            band1=band1,
-            target_upem=upem,
-            glyph_set=None,
-        )
-
-    # CJK niches: uniform scale only (no stem compensation / outline offset).
-    cell_cx, cell_cy = ideographic_center(upem)
-    if axis == "y":
-        apply_height(layer, use, stem=0.0, center_y=cell_cy)
-    else:
-        apply_width(layer, use, stem=0.0, center_x=cell_cx)
-
-    out, _adv, _lsb = ttglyph_from_layer(layer)
-    return _translate_ink_to_third_center(
-        out, axis=axis, band0=band0, band1=band1, target_upem=upem
+    x0, y0, x1, y1 = _third_slot_rect(
+        float(upem), axis=axis, band0=band0, band1=band1
+    )
+    return make_axis_niche_composite(
+        base_name,
+        advance=int(advance if advance > 0 else upem),
+        axis=axis,
+        factor=use,
+        dest_x=(x0 + x1) / 2.0,
+        dest_y=(y0 + y1) / 2.0,
+        target_upem=upem,
+        glyph_set=glyph_set,
     )
 
 
@@ -356,20 +338,19 @@ def add_third_forms(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int = 1000,
 ) -> List[str]:
-    """Bake upright third niches; oriented bases composite from upright parents."""
+    """Upright third niches as composites of the identity; oriented via D4."""
     identities = [n for n in base_names if _d4_suffix_of(n) is None and n in glyphs]
     oriented = [n for n in base_names if _d4_suffix_of(n) is not None and n in glyphs]
 
     added: List[str] = []
     for name in identities:
         adv, _lsb = metrics.get(name, (target_upem, 0))
-        src = glyphs[name]
         for _cp, _sel, suf, axis, b0, b1 in THIRD_VS_SLOTS:
             out_name = third_form_name(name, suf)
             if out_name in glyphs:
                 continue
             g, a, l = make_third_glyph(
-                src,
+                name,
                 adv,
                 axis=axis,
                 band0=b0,

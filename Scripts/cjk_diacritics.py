@@ -1138,8 +1138,8 @@ def place_glyph_in_half(
     ``fit_glyph_to_ideographic_cell`` centers ink into (not a second contour
     fit). ``sx = slot_w/cell_w``, ``sy = slot_h/cell_h``. Composites bake once.
 
-    Prefer ``make_squished_glyph`` for upright H/V bakes (CAPE then translate);
-    this affine map is the empty-outline / no-CAPE fallback.
+    Prefer ``make_squished_glyph`` for upright H/V niches (scaled composite);
+    this affine map is the empty-outline / no-composite fallback.
     """
     from shared_half_cells import (
         STANDALONE_VERT_PAD,
@@ -1229,52 +1229,42 @@ def _translate_ink_to_half_center(
 
 
 def make_squished_glyph(
-    glyph: TTGlyph,
+    base_name: str,
     advance: int,
     *,
-    glyph_set: Optional[Dict[str, TTGlyph]] = None,
     factor: float = SQUISH_FACTOR,
     pin: str = "left",
     axis: str = "x",
     target_upem: Optional[int] = None,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
     slot_frac: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Niche via CAPE Width/Height, then translate into the slot.
+    """Upright niche as a scaled composite of ``base_name`` (no outline bake).
 
-    ``axis="x"`` → uniform Width-condense; ``axis="y"`` → uniform
-    Height-condense. CAPE already sizes the outer box — do **not** also map
-    cell→slot (that was double-scaling to ~¼). ``slot_frac`` defaults to
-    ``0.5`` (half-cell) or matches ``factor`` when the caller is baking a
-    mark-base 3/4 niche.
+    ``axis="x"`` → Width-condense about cell mid, then pin to LR niche center.
+    ``axis="y"`` → Height-condense, then pin to TB niche center.
+    ``slot_frac`` defaults to ``0.5`` (half-cell) or matches ``factor`` when
+    the caller is placing a mark-base 3/4 niche.
     """
+    from shared_half_cells import make_axis_niche_composite
+
     upem = int(
         target_upem if target_upem is not None else (advance if advance > 0 else 1000)
     )
     use = float(factor)
     occ = float(slot_frac) if slot_frac is not None else 0.5
-    simple = _normalize_winding(_bake_simple_glyph(glyph, glyph_set), glyph_set)
-    layer = layer_from_ttglyph(simple, float(advance if advance > 0 else upem))
-    if not layer.paths:
-        return place_glyph_in_half(
-            simple,
-            advance if advance > 0 else upem,
-            pin=pin,
-            axis=axis,
-            target_upem=upem,
-            glyph_set=None,
-            slot_frac=occ,
-        )
-
-    # CJK niches: uniform scale only (no stem compensation / outline offset).
-    cell_cx, cell_cy = ideographic_center(upem)
-    if axis == "y":
-        apply_height(layer, use, stem=0.0, center_y=cell_cy)
-    else:
-        apply_width(layer, use, stem=0.0, center_x=cell_cx)
-
-    out, _adv, _lsb = ttglyph_from_layer(layer)
-    return _translate_ink_to_half_center(
-        out, pin=pin, axis=axis, target_upem=upem, slot_frac=occ
+    x0, y0, x1, y1 = _half_slot_rect(
+        float(upem), pin=pin, axis=axis, niche_frac=occ
+    )
+    return make_axis_niche_composite(
+        base_name,
+        advance=int(advance if advance > 0 else upem),
+        axis=axis,
+        factor=use,
+        dest_x=(x0 + x1) / 2.0,
+        dest_y=(y0 + y1) / 2.0,
+        target_upem=upem,
+        glyph_set=glyph_set,
     )
 
 
@@ -1289,10 +1279,10 @@ def add_squish_forms(
     target_upem: int = 1000,
     slot_frac: Optional[float] = None,
 ) -> List[str]:
-    """Bake upright H/V niche squish; oriented niches are D4 composites.
+    """Upright H/V niches as composites of the identity; oriented via D4.
 
-    Per identity base, CAPE-bake **all four** niches from the upright outline
-    (do not mirror ``.dkl``/``.dkt`` into ``.dk``/``.dkb`` — that flips
+    Per identity base, emit **all four** niche composites from the upright
+    glyph (do not mirror ``.dkl``/``.dkt`` into ``.dk``/``.dkb`` — that flips
     asymmetric ideographs). Oriented bases (``.r90``, …) pick the upright
     niche that maps to the needed cell niche under that D4, then composite
     with the same rotate/reflect as the base.
@@ -1315,13 +1305,12 @@ def add_squish_forms(
     )
     for name in identities:
         adv, _lsb = metrics.get(name, (target_upem, 0))
-        src = glyphs[name]
         for name_fn, pin, axis, factor, occ in upright_slots:
             out_name = name_fn(name)
             if out_name in glyphs:
                 continue
             sq, sq_adv, sq_lsb = make_squished_glyph(
-                src,
+                name,
                 adv,
                 glyph_set=glyphs,
                 factor=factor,

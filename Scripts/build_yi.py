@@ -226,6 +226,7 @@ def build_panyi_font(
             source_advance=inv.source_advance,
             source_center_y=inv.source_center_y,
             source_max_height=inv.source_max_height,
+            widen=0.0,  # CAPE Weightor is kana-only
         )
         if sa is not None:
             standalones[idx] = sa

@@ -5,9 +5,9 @@ Encoding
 * One font (``panyi``) covering the whole Yi inventory.
 * Standalones: NuosuSIL is monospace (shared advance). Every glyph gets the
   **same** ``sx`` from that advance and the **same** ``sy`` from the tallest
-  ink height, then headless CAPE Weightor Width-mode stretch (``cape_weightor``);
-  Y is fitted to the CJK typo box (floor-pin), then uniformly downscaled to
-  ``STANDALONE_CELL_SCALE`` (~98%) about the ideographic center.
+  ink height (no CAPE Weightor — that is kana-only). Y is fitted to the CJK
+  typo box (floor-pin), then uniformly downscaled to ``STANDALONE_CELL_SCALE``
+  (~98%) about the ideographic center.
 * Orientations: D4 square symmetries on **VS01..VS08** (``U+E000``..``U+E007``,
   UVS ``U+FE00``..``U+FE07``), including ``r90my``. Pipeline for the two
   outline sources: **transform / reorient first**, then stem-normalize
@@ -89,7 +89,9 @@ HALFWIDTH_PAD = 0.0
 COMPOUND_PAD = 0.0
 # Standalone only: CAPE Weightor Width-mode factor after fit
 # (0.15 → target outer width 115% of post-fit ink, stems preserved).
-STANDALONE_CONTOUR_WIDEN = 0.15
+# Contour widen for ``make_standalone_glyph`` (CAPE Width). Default off —
+# only kana opts into CAPE Weightor; Yi / Hangul / CJK standalones stay affine.
+STANDALONE_CONTOUR_WIDEN = 0.0
 # Inset from CJK typo top/bottom when fitting Y (fraction of em).
 # Keeps short glyphs from sitting on the raw descent (-0.12em), which reads
 # low next to CJK ink that usually rests nearer the baseline.
@@ -1689,6 +1691,80 @@ def make_composite_variant(
     return g, advance, out_lsb
 
 
+def make_scaled_niche_composite(
+    base_name: str,
+    *,
+    advance: int,
+    scale_x: float,
+    scale_y: float,
+    pivot_x: float,
+    pivot_y: float,
+    dest_x: float,
+    dest_y: float,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> GlyphMetrics:
+    """One-component composite: scale about pivot, then place at dest.
+
+    ``p' = S·(p - pivot) + dest`` with axis-aligned ``S = diag(scale_x, scale_y)``.
+    Used for CJK upright niches (half / third / quarter) so outlines stay on
+    the identity glyph instead of CAPE-baking every niche.
+    """
+    xx = float(scale_x)
+    yy = float(scale_y)
+    dx = float(dest_x) - xx * float(pivot_x)
+    dy = float(dest_y) - yy * float(pivot_y)
+    g = TTGlyph()
+    g.numberOfContours = -1
+    comp = GlyphComponent()
+    comp.glyphName = base_name
+    comp.x = otRound(dx)
+    comp.y = otRound(dy)
+    comp.flags = USE_MY_METRICS | ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
+    if abs(xx - 1.0) > 1e-9 or abs(yy - 1.0) > 1e-9:
+        # fontTools: ((xx, xy), (yx, yy)) with x' = xx·x + yx·y + dx
+        comp.transform = ((xx, 0.0), (0.0, yy))
+    g.components = [comp]
+    out_lsb = 0
+    if glyph_set is not None:
+        try:
+            g.recalcBounds(glyph_set)
+            out_lsb = int(g.xMin)
+        except Exception:
+            pass
+    return g, int(advance), out_lsb
+
+
+def make_axis_niche_composite(
+    base_name: str,
+    *,
+    advance: int,
+    axis: str,
+    factor: float,
+    dest_x: float,
+    dest_y: float,
+    target_upem: int,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> GlyphMetrics:
+    """Scale one axis by ``factor`` about the ideographic center, pin to dest."""
+    cx, cy = ideographic_center(target_upem)
+    match axis:
+        case "y":
+            sx, sy = 1.0, float(factor)
+        case _:
+            sx, sy = float(factor), 1.0
+    return make_scaled_niche_composite(
+        base_name,
+        advance=advance,
+        scale_x=sx,
+        scale_y=sy,
+        pivot_x=cx,
+        pivot_y=cy,
+        dest_x=dest_x,
+        dest_y=dest_y,
+        glyph_set=glyph_set,
+    )
+
+
 def _recording_from_glyph(
     glyph: TTGlyph,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
@@ -2271,11 +2347,11 @@ def make_standalone_glyph(
     """Shared ``sx`` from advance, shared ``sy`` from inventory max ink height.
 
     X is placed from the monospace advance center (side bearings preserved).
-    Contours are then stretched with CAPE Weightor Width mode (``widen``,
-    default +15% outer width, vertical stems compensated). Then Y is fitted
-    to a padded CJK typo box: squash if taller, otherwise pin the ink bottom
-    to the padded floor (above raw descent). Finally uniform ``cell_scale``
-    (~98%) about the ideographic center keeps the syllable inset and centered.
+    Optional CAPE Width ``widen`` is kana-oriented and defaults to ``0`` (off)
+    for Yi / CJK standalones. Then Y is fitted to a padded CJK typo box:
+    squash if taller, otherwise pin the ink bottom to the padded floor.
+    Finally uniform ``cell_scale`` (~98%) about the ideographic center keeps
+    the syllable inset and centered.
     """
     del stroke_weight
     del source_center_y  # retained for call-site compat / inventory symmetry
