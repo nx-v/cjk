@@ -100,7 +100,7 @@ STACK_CJK_TAIL = (
     "FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2"
 )
 
-PLUGIN_ID = "edenia"
+PLUGIN_ID = "obsidian-edenia"
 PLUGIN_DIR_NAME = "obsidian-edenia"
 PLUGIN_ASSET = "edenia"
 PLUGIN_DISPLAY_NAME = "Edenia"
