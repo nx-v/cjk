@@ -1,8 +1,0 @@
-\u660e\ufe00\ufe0b\ufe0e => ['.notdef:500']
-\u660e\ufe0b\ufe0e => ['.notdef:500']
-\u660e\ufe0e => ['.notdef:500']
-\u660e\ufe0b => ['.notdef:500']
-\u660e\ufe00 => ['.notdef:500']
-\u65e5\ufe00\ufe0f => ['.notdef:500']
-\u65e5\ufe0f => ['.notdef:500']
-\u65e5\ufe0b => ['.notdef:500']
