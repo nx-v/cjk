@@ -3,25 +3,18 @@
 
 Encoding (matches ``cjk_diacritics`` / ``build_cjk``)::
 
-    U+16FF0/16FF1 (ca/nhay) — niche VS required::
+    Base face (``edenia cjk``) — ca/nhay; mark niche = 1/4 of the cell::
 
       CJK (D4)? FE0C MARK → base ``.dk``  + mark right
       CJK (D4)? FE0D MARK → base ``.dkl`` + mark left
       CJK (D4)? FE0E MARK → base ``.dkb`` (top)    + mark bottom
       CJK (D4)? FE0F MARK → base ``.dkt`` (bottom) + mark top
 
-    Gallery text uses the same FE0* selectors (BMP PUA is edenia kana).
-
-    Squish = occupy one half of the ideographic area (same ``.dk*`` glyphs):
-      FE0B       → zero-width ``.ov``
-      FE0C–FE0F  → ``.dk`` / ``.dkl`` / ``.dkb`` / ``.dkt`` (L/R/T/B)
-      FE0B+FE0C–F → zero-width half-cell overlay
-
-    Squish digraph (two kanji, often different edenia cjk buckets)::
+    Half digraphs use the ``h`` face (``edenia cjk h``)::
 
       A (D4)? FE0B FE0C–F   B (D4)? FE0D–F
-      e.g. ``明`` FE0B FE0C + ``日`` FE0D
-      First is zero-width overlay; niches oppose (FE0C↔FE0D, FE0E↔FE0F).
+
+    Third / quarter stacks: see ``cjk_multigraphs_html.py`` (faces ``t`` / ``qv`` / ``qh``).
 
 Usage
 -----
@@ -296,43 +289,45 @@ def pancjk_font_stack(
     *,
     ranges: Optional[Sequence[Tuple[int, int]]] = None,
     force_all: bool = False,
+    variants: Optional[Sequence[str]] = None,
 ) -> str:
-    """Quoted font stack for galleries (per-bucket ``'edenia cjk XX'`` only)."""
-    buckets: List[int] = []
-    if ranges:
-        seen: set = set()
-        for a, b in ranges:
-            for bid in range(a >> 8, (b >> 8) + 1):
-                if bid not in seen:
-                    seen.add(bid)
-                    buckets.append(bid)
-        if not force_all and len(buckets) == 1:
-            return f"'edenia cjk {buckets[0]:X}'"
-        if buckets and not force_all:
-            return ", ".join(f"'edenia cjk {bid:X}'" for bid in buckets)
+    """Quoted font stack for galleries (shared variant families).
 
-    # All faces present in font_dir (or ranges when force_all).
-    del force_all
-    if not buckets and os.path.isdir(font_dir):
-        for name in sorted(os.listdir(font_dir)):
-            if not (name.endswith(".woff2") or name.endswith(".ttf")):
-                continue
-            hex_id = os.path.splitext(name)[0]
-            try:
-                buckets.append(int(hex_id, 16))
-            except ValueError:
-                continue
-        # unique preserve order
-        seen2: set = set()
-        uniq: List[int] = []
-        for bid in buckets:
-            if bid not in seen2:
-                seen2.add(bid)
-                uniq.append(bid)
-        buckets = uniq
-    if not buckets:
-        return "'edenia cjk 4E'"
-    return ", ".join(f"'edenia cjk {bid:X}'" for bid in buckets)
+    ``variants`` defaults to CSS order (``qv``, ``qh``, ``t``, ``h``, ``''``).
+    Each variant is one family (``edenia cjk h``, …); buckets are selected via
+    ``unicode-range`` on ``@font-face``.
+    """
+    from edenia_names import CJK_FACE_CSS_ORDER, family_cjk_variant
+
+    del font_dir, ranges, force_all
+    face_vars = list(variants) if variants is not None else list(CJK_FACE_CSS_ORDER)
+    return ", ".join(f"'{family_cjk_variant(v)}'" for v in face_vars)
+
+
+# Third-cell digraph pairs that tile one cell (opposing niches).
+THIRD_DIGRAPH_PAIRS: Tuple[Tuple[str, str], ...] = (
+    ("t3l", "t3cr"),  # left + center-right
+    ("t3lc", "t3r"),  # left-center + right
+    ("t3t", "t3mb"),  # top + mid-bottom
+    ("t3tm", "t3b"),  # top-mid + bottom
+)
+
+# Third-cell trigraphs (three single thirds).
+THIRD_TRIGRAPH_SETS: Tuple[Tuple[str, ...], ...] = (
+    ("t3l", "t3c", "t3r"),
+    ("t3t", "t3m", "t3b"),
+)
+
+# Quarter pairs that tile one cell (same keys on qv / qh faces).
+QUARTER_TILE_PAIRS: Tuple[Tuple[str, str], ...] = (
+    ("q4th", "q4bh"),  # top/bottom half
+    ("q4t", "q4b3"),  # top quarter + bottom 3/4
+    ("q4t3", "q4b"),  # top 3/4 + bottom quarter
+)
+
+QUARTER_QUAD_SETS: Tuple[Tuple[str, ...], ...] = (
+    ("q4t", "q4nt", "q4nb", "q4b"),
+)
 
 
 def write_html(
@@ -392,6 +387,8 @@ def write_html(
         "DIGRAPH_PAIRS": [{"a": a, "b": b, "cross": cross} for a, b, cross in pairs],
         "DIGRAPH_NICHES": [{"a": a, "b": b} for a, b in DIGRAPH_NICHE_PAIRS],
         "OPPOSING_ORIENT_OI": opposing_oi,
+        "FACE_BASE": "",
+        "FACE_H": "h",
         "n": n,
         "total": total,
     }
@@ -468,8 +465,9 @@ h2 {{
   <p class="meta">
     Range: {range_note} · {n:,} characters embedded<br/>
     Base VS: identity / FE01..FE07 (full D4)<br/>
-    ca/nhay: <code>CJK FE0C–F MARK</code> (PUA E009–C; mark in free half)<br/>
-    Squish digraph: <code>A FE0B FE0C–F</code> + <code>B FE0D–F</code> (e.g. 明&#xFE0B;&#xFE0C;日&#xFE0D;)<br/>
+    ca/nhay: <code>CJK FE0C–F MARK</code> on base face (mark niche = 1/4)<br/>
+    Squish digraph: <code>A FE0B FE0C–F</code> + <code>B FE0D–F</code> on <code>edenia cjk h</code><br/>
+    Niche composer: <code>multigraph-cjk.html</code> (<code>edenia cjk h/t/qv/qh</code>)<br/>
     Digraph pairs: {len(pairs)} ({n_cross} cross-bucket) · gallery ≈ {total:,}
   </p>
   <div class="controls">
@@ -641,14 +639,33 @@ function digraphTag(ia, oia, sa, ib, oib, sb, cross) {{
   right += ' ' + squishHex(sb);
   return left + ' + ' + right + (cross ? ' ⇄font' : '');
 }}
-function cell(text, tag) {{
+function faceFamily(face) {{
+  return face ? ('edenia cjk ' + face) : 'edenia cjk';
+}}
+function cell(text, tag, cp, face) {{
   const d = document.createElement('div');
   d.className = 'cell';
   const g = document.createElement('div');
   g.className = 'glyph';
+  g.style.fontFamily = faceFamily(face);
   g.textContent = text;
   const t = document.createElement('div');
   t.className = 'tag';
+  t.textContent = tag;
+  d.appendChild(g);
+  d.appendChild(t);
+  return d;
+}}
+function digraphCell(textA, textB, cpA, cpB, tag, cross) {{
+  const d = document.createElement('div');
+  d.className = 'cell';
+  const g = document.createElement('div');
+  g.className = 'glyph';
+  // Shared 'edenia cjk h' + unicode-range: FE0* stay with preceding ideograph.
+  g.style.fontFamily = faceFamily(DATA.FACE_H);
+  g.textContent = textA + textB;
+  const t = document.createElement('div');
+  t.className = 'tag' + (cross ? ' cross' : '');
   t.textContent = tag;
   d.appendChild(g);
   d.appendChild(t);
@@ -671,10 +688,11 @@ const SQUISH_LABEL = {{
 
 function renderPlain(indices) {{
   clearOut();
-  out.appendChild(heading('Plain CJK'));
+  out.appendChild(heading('Plain CJK (base face)'));
   let n = 0;
   for (const i of indices) {{
-    out.appendChild(cell(DATA.CJK[i].ch, DATA.CJK[i].short));
+    out.appendChild(cell(
+      DATA.CJK[i].ch, DATA.CJK[i].short, DATA.CJK[i].cp, DATA.FACE_BASE));
     n++;
   }}
   setStatus('Rendered ' + n.toLocaleString() + ' plain cells');
@@ -683,12 +701,15 @@ function renderPlain(indices) {{
 function renderMarks(indices, baseOi, markIndices, markOi, side) {{
   const niche = side || selectedNiche();
   clearOut();
-  out.appendChild(heading('CJK + ' + SQUISH_LABEL[niche] + ' + ca/nhay'));
+  out.appendChild(heading(
+    'CJK + ' + SQUISH_LABEL[niche] + ' + ca/nhay (base face, mark = 1/4)'));
   let n = 0;
   for (const i of indices) {{
     for (const mi of markIndices) {{
       const text = markedCjk(i, baseOi, mi, markOi, niche);
-      out.appendChild(cell(text, tagFor(i, baseOi, mi, markOi, niche)));
+      out.appendChild(cell(
+        text, tagFor(i, baseOi, mi, markOi, niche),
+        DATA.CJK[i].cp, DATA.FACE_BASE));
       n++;
     }}
   }}
@@ -697,11 +718,14 @@ function renderMarks(indices, baseOi, markIndices, markOi, side) {{
 
 function renderSquish(indices, baseOi, side) {{
   clearOut();
-  out.appendChild(heading('CJK squish (' + SQUISH_LABEL[side] + ')'));
+  out.appendChild(heading(
+    'CJK squish (' + SQUISH_LABEL[side] + ') — base face mark niche'));
   let n = 0;
   for (const i of indices) {{
     const text = cjkPiece(i, baseOi) + squishPiece(side);
-    out.appendChild(cell(text, tagFor(i, baseOi, null, 0, side)));
+    out.appendChild(cell(
+      text, tagFor(i, baseOi, null, 0, side),
+      DATA.CJK[i].cp, DATA.FACE_BASE));
     n++;
   }}
   setStatus('Rendered ' + n.toLocaleString() + ' squish cells');
@@ -713,17 +737,18 @@ function renderDigraphs(orientOi) {{
   const niches = DATA.DIGRAPH_NICHES || [];
   const opp = DATA.OPPOSING_ORIENT_OI || [];
   out.appendChild(heading(
-    'Squish digraphs — first FE0B(+niche) zero-width · second niche · opposing orient'));
+    'Half digraphs (face h) — FE0B(+niche) + opposing niche'));
   let n = 0;
   for (const p of pairs) {{
     const oia = orientOi;
     const oib = opp[oia] != null ? opp[oia] : oia;
     for (const niche of niches) {{
-      const text = digraphFirst(p.a, oia, niche.a)
-        + digraphSecond(p.b, oib, niche.b);
-      out.appendChild(cell(
-        text,
-        digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross)));
+      out.appendChild(digraphCell(
+        digraphFirst(p.a, oia, niche.a),
+        digraphSecond(p.b, oib, niche.b),
+        DATA.CJK[p.a].cp, DATA.CJK[p.b].cp,
+        digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
+        !!p.cross));
       n++;
     }}
   }}
@@ -736,20 +761,20 @@ function renderDigraphGrid() {{
   const pairs = DATA.DIGRAPH_PAIRS || [];
   const niches = DATA.DIGRAPH_NICHES || [];
   const opp = DATA.OPPOSING_ORIENT_OI || [];
-  out.appendChild(heading('Squish digraphs × all base orients (opposing)'));
+  out.appendChild(heading('Half digraphs × all base orients (face h)'));
   let n = 0;
   for (let oia = 0; oia < DATA.BASE_ORIENT_VS.length; oia++) {{
     const oib = opp[oia] != null ? opp[oia] : oia;
-    const lab = (DATA.BASE_ORIENT_LABEL[oia] || 'id')
-      + ' ↔ ' + (DATA.BASE_ORIENT_LABEL[oib] || 'id');
-    out.appendChild(heading(lab));
+    out.appendChild(heading((DATA.BASE_ORIENT_LABEL[oia] || 'id')
+      + ' × ' + (DATA.BASE_ORIENT_LABEL[oib] || 'id')));
     for (const p of pairs) {{
       for (const niche of niches) {{
-        const text = digraphFirst(p.a, oia, niche.a)
-          + digraphSecond(p.b, oib, niche.b);
-        out.appendChild(cell(
-          text,
-          digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross)));
+        out.appendChild(digraphCell(
+          digraphFirst(p.a, oia, niche.a),
+          digraphSecond(p.b, oib, niche.b),
+          DATA.CJK[p.a].cp, DATA.CJK[p.b].cp,
+          digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
+          !!p.cross));
         n++;
       }}
     }}
@@ -766,7 +791,9 @@ function renderBaseGrid(indices, markIndices) {{
     for (let bo = 0; bo < DATA.BASE_ORIENT_VS.length; bo++) {{
       for (const mi of markIndices) {{
         const text = markedCjk(i, bo, mi, 0, niche);
-        out.appendChild(cell(text, tagFor(i, bo, mi, 0, niche)));
+        out.appendChild(cell(
+          text, tagFor(i, bo, mi, 0, niche),
+          DATA.CJK[i].cp, DATA.FACE_BASE));
         n++;
       }}
     }}
@@ -783,7 +810,9 @@ function renderMarkGrid(indices, baseOi, markIndices) {{
     for (const mi of markIndices) {{
       for (let mo = 0; mo < DATA.MARK_ORIENT_VS.length; mo++) {{
         const text = markedCjk(i, baseOi, mi, mo, niche);
-        out.appendChild(cell(text, tagFor(i, baseOi, mi, mo, niche)));
+        out.appendChild(cell(
+          text, tagFor(i, baseOi, mi, mo, niche),
+          DATA.CJK[i].cp, DATA.FACE_BASE));
         n++;
       }}
     }}
@@ -797,7 +826,8 @@ function renderEverything() {{
   let n = 0;
   out.appendChild(heading('Plain'));
   for (const i of indices) {{
-    out.appendChild(cell(DATA.CJK[i].ch, DATA.CJK[i].short));
+    out.appendChild(cell(
+      DATA.CJK[i].ch, DATA.CJK[i].short, DATA.CJK[i].cp, DATA.FACE_BASE));
     n++;
   }}
   for (const side of ['R', 'L', 'T', 'B']) {{
@@ -806,7 +836,8 @@ function renderEverything() {{
       for (let mi = 0; mi < DATA.MARKS.length; mi++) {{
         out.appendChild(cell(
           markedCjk(i, 0, mi, 0, side),
-          tagFor(i, 0, mi, 0, side)));
+          tagFor(i, 0, mi, 0, side),
+          DATA.CJK[i].cp, DATA.FACE_BASE));
         n++;
       }}
     }}
@@ -816,20 +847,24 @@ function renderEverything() {{
     for (const i of indices) {{
       out.appendChild(cell(
         cjkPiece(i, 0) + squishPiece(side),
-        tagFor(i, 0, null, 0, side)));
+        tagFor(i, 0, null, 0, side),
+        DATA.CJK[i].cp, DATA.FACE_BASE));
       n++;
     }}
   }}
-  out.appendChild(heading('Squish digraphs (id ↔ r180)'));
+  out.appendChild(heading('Half digraphs (face h, id ↔ r180)'));
   const pairs = DATA.DIGRAPH_PAIRS || [];
   const niches = DATA.DIGRAPH_NICHES || [];
   const opp = DATA.OPPOSING_ORIENT_OI || [];
   const oib = opp[0] != null ? opp[0] : 0;
   for (const p of pairs) {{
     for (const niche of niches) {{
-      out.appendChild(cell(
-        digraphFirst(p.a, 0, niche.a) + digraphSecond(p.b, oib, niche.b),
-        digraphTag(p.a, 0, niche.a, p.b, oib, niche.b, !!p.cross)));
+      out.appendChild(digraphCell(
+        digraphFirst(p.a, 0, niche.a),
+        digraphSecond(p.b, oib, niche.b),
+        DATA.CJK[p.a].cp, DATA.CJK[p.b].cp,
+        digraphTag(p.a, 0, niche.a, p.b, oib, niche.b, !!p.cross),
+        !!p.cross));
       n++;
     }}
   }}

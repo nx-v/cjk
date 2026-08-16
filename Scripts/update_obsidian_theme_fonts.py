@@ -84,7 +84,7 @@ _ANY_NEXOVOLTA_DIST = re.compile(
     re.I,
 )
 _PANCJK_FAMILY = re.compile(
-    r"font-family:\s*['\"](edenia cjk\s+[0-9A-Fa-f]+)['\"]"
+    r"font-family:\s*['\"](edenia cjk(?:\s+(?:qh|qv|[ht]))?)['\"]"
 )
 
 MARK_FACES_BEGIN = "/* === BEGIN auto pan fonts (update_obsidian_theme_fonts.py) === */"
@@ -160,7 +160,7 @@ def sync_woff2(dest_root: Path) -> int:
 
 
 def pancjk_families_from_css(css: str) -> list[str]:
-    """Ordered unique per-bucket family names from edenia-cjk.css."""
+    """Ordered unique shared family names from edenia-cjk.css."""
     seen: set[str] = set()
     out: list[str] = []
     for m in _PANCJK_FAMILY.finditer(css):
@@ -169,6 +169,16 @@ def pancjk_families_from_css(css: str) -> list[str]:
             seen.add(name)
             out.append(name)
     return out
+
+
+def pancjk_stack_families(css: str) -> list[str]:
+    """Body stack: base ``edenia cjk`` only (niche GSUB needs an explicit pin)."""
+    families = pancjk_families_from_css(css)
+    base = [n for n in families if n == "edenia cjk"]
+    if base:
+        return base
+    # Older CSS listed per-bucket ``edenia cjk XX`` — keep those for stack.
+    return families
 
 
 def css_family_token(name: str) -> str:
@@ -385,13 +395,14 @@ def _double_quotes(css: str) -> str:
 
 def build_stack_block(*, pancjk_families: list[str]) -> str:
     if not pancjk_families:
-        raise ValueError("no edenia cjk XX families found in CSS")
+        raise ValueError("no edenia cjk families found in CSS")
     cjk = ", ".join([css_family_token(n) for n in pancjk_families] + [STACK_CJK_TAIL])
     stack = f"{STACK_LATIN}, {cjk}, {STACK_TAIL}"
     return "\n".join(
         [
             MARK_STACK_BEGIN,
-            "/* Force --font-text: one entry per Edenia CJK bucket (matches name tables). */",
+            "/* Edenia CJK base family (unicode-range per bucket). "
+            "Pin 'edenia cjk h' / t / qv / qh for niche ligas. */",
             "body {",
             f"  --font-text-theme: {stack};",
             f"  --font-interface-theme: {stack};",
@@ -471,9 +482,11 @@ def patch_theme(theme_path: Path, faces: str, stack: str) -> None:
         text = _replace_legacy_stack(text, stack)
 
     theme_path.write_text(text, encoding="utf-8")
-    n_unique = len(set(re.findall(r'["\']edenia cjk\s+[0-9A-Fa-f]+["\']', text)))
+    n_unique = len(
+        set(re.findall(r'["\']edenia cjk(?:\s+(?:qh|qv|[ht]))?["\']', text))
+    )
     size_mb = theme_path.stat().st_size / (1024 * 1024)
-    print(f"Wrote {theme_path} (edenia cjk XX families~{n_unique}, {size_mb:.1f} MiB)")
+    print(f"Wrote {theme_path} (edenia cjk families~{n_unique}, {size_mb:.1f} MiB)")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -549,8 +562,8 @@ def main(argv: list[str] | None = None) -> int:
                 shutil.rmtree(stale)
                 print(f"  removed stale {stale.relative_to(REPO_ROOT)}")
 
-    pancjk_families = pancjk_families_from_css(cjk)
-    print(f"  edenia cjk families: {len(pancjk_families)}")
+    pancjk_families = pancjk_stack_families(cjk)
+    print(f"  edenia cjk stack families: {pancjk_families}")
     faces = build_faces_block(hangul, yi, kana, cjk, bake=args.bake)
     stack = build_stack_block(pancjk_families=pancjk_families)
     if not args.bake:

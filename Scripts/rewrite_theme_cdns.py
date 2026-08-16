@@ -34,15 +34,17 @@ _GH_URL = re.compile(
 
 def _fmt_for(path: str) -> str:
     lower = path.rsplit(".", 1)[-1].lower().split("?", 1)[0]
-    if lower == "woff2":
-        return "woff2"
-    if lower == "woff":
-        return "woff"
-    if lower == "otf":
-        return "opentype"
-    if lower in ("ttf", "ttc"):
-        return "truetype"
-    return "truetype"
+    match lower:
+        case "woff2":
+            return "woff2"
+        case "woff":
+            return "woff"
+        case "otf":
+            return "opentype"
+        case "ttf" | "ttc":
+            return "truetype"
+        case _:
+            return "truetype"
 
 
 def _parse_github(url: str) -> tuple[str, str, str] | None:

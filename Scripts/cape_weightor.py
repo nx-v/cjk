@@ -550,18 +550,19 @@ def _offset_path(
                     prev_on = on_idx[-1]
                 if next_on is None:
                     next_on = on_idx[0]
-            if prev_on is None and next_on is None:
-                ox = oy = 0.0
-            elif prev_on is None:
-                ox, oy = on_off[next_on]
-            elif next_on is None:
-                ox, oy = on_off[prev_on]
-            else:
-                span = next_on - prev_on
-                t = (i - prev_on) / span if span else 0.5
-                a, b = on_off[prev_on], on_off[next_on]
-                ox = a[0] * (1 - t) + b[0] * t
-                oy = a[1] * (1 - t) + b[1] * t
+            match (prev_on is None, next_on is None):
+                case (True, True):
+                    ox = oy = 0.0
+                case (True, False):
+                    ox, oy = on_off[next_on]
+                case (False, True):
+                    ox, oy = on_off[prev_on]
+                case _:
+                    span = next_on - prev_on
+                    t = (i - prev_on) / span if span else 0.5
+                    a, b = on_off[prev_on], on_off[next_on]
+                    ox = a[0] * (1 - t) + b[0] * t
+                    oy = a[1] * (1 - t) + b[1] * t
         new_pts.append((pts[i][0] + ox, pts[i][1] + oy))
 
     for i, nd in enumerate(nodes):
@@ -590,18 +591,33 @@ def width_scale_params(
     factor: float,
     stem: float,
 ) -> Tuple[bool, float, float]:
-    """Return ``(do_scale, s, offset_per_side)`` for Width mode."""
+    """Return ``(do_scale, s, offset_per_side)`` for Width mode.
+
+    Stem compensation solves for scale ``s`` so that after X-scale and a
+    bilateral outline offset, outer width ≈ ``width * factor`` while stems
+    stay near ``stem``. When the niche is a quarter (or stem is fat relative
+    to the target), that equation forces ``s → 0`` and huge offsets — outlines
+    explode into blobs or collapse to threads. In those cases fall back to
+    uniform scale with no offset.
+    """
     if width <= 0 or abs(factor - 1.0) < 1e-9:
         return False, 1.0, 0.0
     w_target = width * factor
     if stem <= 0:
         return True, factor, 0.0
-    if (width - stem) <= 0:
-        return False, 1.0, 0.0
+    # Impossible / unstable: stem would not fit in the target outer box.
+    if stem >= w_target * 0.85 or (width - stem) <= 1e-6:
+        return True, factor, 0.0
     s = (w_target - stem) / (width - stem)
-    if s < 0.05:
-        s = 0.05
+    # Extreme condense: compensation offsets dominate geometry — skip them.
+    if s < 0.2:
+        return True, factor, 0.0
     offset_per_side = stem * (1.0 - s) / 2.0
+    max_off = max(abs(w_target) * 0.35, 1.0)
+    if offset_per_side > max_off:
+        offset_per_side = max_off
+    elif offset_per_side < -max_off:
+        offset_per_side = -max_off
     return True, s, offset_per_side
 
 

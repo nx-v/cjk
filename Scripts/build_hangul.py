@@ -115,7 +115,7 @@ from edenia_names import (
     PS_HANGULS,
     stem,
 )
-from sync_obsidian_panfonts import sync_dist_to_plugin
+from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -180,13 +180,15 @@ JamoClass = str  # "L" | "V" | "T" | "other"
 
 
 def vs_glyph_name(vs_cp: int) -> str:
-    if VS_BASE <= vs_cp <= VS_LAST:
-        return f"vs{vs_cp - VS_BASE + 1:02d}"
-    if UVS_BASE <= vs_cp <= UVS_LAST:
-        return f"vs{vs_cp - UVS_BASE + 1:02d}"
-    if vs_cp == SWAP_CP:
-        return SWAP_GLYPH
-    raise ValueError(f"not a hangul VS codepoint: U+{vs_cp:04X}")
+    match vs_cp:
+        case _ if VS_BASE <= vs_cp <= VS_LAST:
+            return f"vs{vs_cp - VS_BASE + 1:02d}"
+        case _ if UVS_BASE <= vs_cp <= UVS_LAST:
+            return f"vs{vs_cp - UVS_BASE + 1:02d}"
+        case _ if vs_cp == SWAP_CP:
+            return SWAP_GLYPH
+        case _:
+            raise ValueError(f"not a hangul VS codepoint: U+{vs_cp:04X}")
 
 
 def is_vs_codepoint(cp: int) -> bool:
@@ -899,16 +901,19 @@ def fe04_medial_extra_dy(
     """
     _bottom, _top, ideo_h = ideographic_bounds(target_upem)
     flipped = fe04_medial_is_y_flipped(name)
-    if axis == "x":
-        return 0
-    if axis == "y":
-        if flipped:
+    match (axis, flipped):
+        case ("x", _):
+            return 0
+        case ("y", True):
             return otRound(ideo_h * 0.08)
-        return 0
-    # xy
-    if flipped:
-        return otRound(-(ideo_h * 0.14))
-    return otRound(-(ideo_h * 0.06))
+        case ("y", _):
+            return 0
+        case (_, True):
+            # xy flipped
+            return otRound(-(ideo_h * 0.14))
+        case _:
+            # xy upright
+            return otRound(-(ideo_h * 0.06))
 
 
 def fe04_t_x_placement(
@@ -1412,15 +1417,15 @@ def build_jamo_uvs_entries(
     for cp, gname in cmap.items():
         if is_vs_codepoint(cp):
             continue
-        kind = None
-        if 0x1100 <= cp <= 0x115F or 0xA960 <= cp <= 0xA97F:
-            kind = "L"
-        elif 0x1160 <= cp <= 0x11A7 or 0xD7B0 <= cp <= 0xD7C6:
-            kind = "V"
-        elif 0x11A8 <= cp <= 0x11FF or 0xD7CB <= cp <= 0xD7FB:
-            kind = "T"
-        if kind is None:
-            continue
+        match cp:
+            case _ if 0x1100 <= cp <= 0x115F or 0xA960 <= cp <= 0xA97F:
+                pass  # L
+            case _ if 0x1160 <= cp <= 0x11A7 or 0xD7B0 <= cp <= 0xD7C6:
+                pass  # V
+            case _ if 0x11A8 <= cp <= 0x11FF or 0xD7CB <= cp <= 0xD7FB:
+                pass  # T
+            case _:
+                continue
         for mode_i, (_pua, _nx, _ny, suffix) in enumerate(HANGUL_MIRROR_MODES):
             if suffix is None:
                 continue
@@ -2133,14 +2138,16 @@ def install_fe04_gpos(
     v_y_values: Dict[str, object] = {}
     v_x_values: Dict[str, object] = {}
     for V in v_all:
-        axis = _axis_of(V)
-        if axis == "x":
-            dy_v = dy_lv_x
-        elif axis == "y" and not fe04_medial_is_y_flipped(V):
-            # Y upright + FE04: medial to the floor under high L.
-            dy_v = fe04_y_floor_y_placement(V, glyphs=glyphs, target_upem=target_upem)
-        else:
-            dy_v = dy_lv_i + fe04_medial_extra_dy(axis, V, target_upem)
+        match _axis_of(V):
+            case "x" as axis:
+                dy_v = dy_lv_x
+            case "y" as axis if not fe04_medial_is_y_flipped(V):
+                # Y upright + FE04: medial to the floor under high L.
+                dy_v = fe04_y_floor_y_placement(
+                    V, glyphs=glyphs, target_upem=target_upem
+                )
+            case axis:
+                dy_v = dy_lv_i + fe04_medial_extra_dy(axis, V, target_upem)
         v_y_values[V] = buildValue({"YPlacement": dy_v})
         if axis == "xy":
             dx = fe04_xy_x_placement(
@@ -2551,19 +2558,22 @@ def build_jamo_font(
     for cp, gname in list(cmap.items()):
         if is_vs_codepoint(cp) or gname not in glyphs:
             continue
-        kind = None
-        if 0x1100 <= cp <= 0x115F or 0xA960 <= cp <= 0xA97F:
-            kind = "L"
-        elif 0x1160 <= cp <= 0x11A7 or 0xD7B0 <= cp <= 0xD7C6:
-            kind = "V"
-        elif 0x11A8 <= cp <= 0x11FF or 0xD7CB <= cp <= 0xD7FB:
-            kind = "T"
-        if kind == "L" and gname not in l_forms:
-            l_forms.append(gname)
-        elif kind == "V" and gname not in v_forms:
-            v_forms.append(gname)
-        elif kind == "T" and gname not in t_forms:
-            t_forms.append(gname)
+        match cp:
+            case _ if 0x1100 <= cp <= 0x115F or 0xA960 <= cp <= 0xA97F:
+                kind = "L"
+            case _ if 0x1160 <= cp <= 0x11A7 or 0xD7B0 <= cp <= 0xD7C6:
+                kind = "V"
+            case _ if 0x11A8 <= cp <= 0x11FF or 0xD7CB <= cp <= 0xD7FB:
+                kind = "T"
+            case _:
+                kind = None
+        match kind:
+            case "L" if gname not in l_forms:
+                l_forms.append(gname)
+            case "V" if gname not in v_forms:
+                v_forms.append(gname)
+            case "T" if gname not in t_forms:
+                t_forms.append(gname)
     l_forms = sorted(set(l_forms))
     v_forms = sorted(set(v_forms))
     t_forms = sorted(set(t_forms))

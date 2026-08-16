@@ -142,16 +142,17 @@ def clip_glyph_to_half(
     x0, y0, x1, y1 = cjk_box(target_upem, cell_width=cell_width)
     mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
     pad = target_upem * 0.05
-    if half == "top":
-        rx0, ry0, rx1, ry1 = x0 - pad, my, x1 + pad, y1 + pad
-    elif half == "bot":
-        rx0, ry0, rx1, ry1 = x0 - pad, y0 - pad, x1 + pad, my
-    elif half == "left":
-        rx0, ry0, rx1, ry1 = x0 - pad, y0 - pad, mx, y1 + pad
-    elif half == "right":
-        rx0, ry0, rx1, ry1 = mx, y0 - pad, x1 + pad, y1 + pad
-    else:
-        raise ValueError(f"unknown half-plane {half!r}")
+    match half:
+        case "top":
+            rx0, ry0, rx1, ry1 = x0 - pad, my, x1 + pad, y1 + pad
+        case "bot":
+            rx0, ry0, rx1, ry1 = x0 - pad, y0 - pad, x1 + pad, my
+        case "left":
+            rx0, ry0, rx1, ry1 = x0 - pad, y0 - pad, mx, y1 + pad
+        case "right":
+            rx0, ry0, rx1, ry1 = mx, y0 - pad, x1 + pad, y1 + pad
+        case _:
+            raise ValueError(f"unknown half-plane {half!r}")
 
     src = _ttglyph_to_pathops(glyph, glyph_set)
     clip = _rect_path(rx0, ry0, rx1, ry1)
@@ -314,49 +315,50 @@ def add_slice_halves(
             form = variant_glyph_name(base, suffix)
             if form not in glyphs:
                 continue
-            if suffix == "r90":
-                if all(half_glyph_name(form, h) in glyphs for h in HALF_SUFFIXES):
-                    added.append(form)
-                continue
-            if suffix in SIDEWAYS_FROM_R90:
-                if r90_name not in glyphs:
+            match suffix:
+                case "r90":
+                    if all(half_glyph_name(form, h) in glyphs for h in HALF_SUFFIXES):
+                        added.append(form)
                     continue
-                rel_rot, rel_fx, rel_fy = SIDEWAYS_FROM_R90[suffix]
-                _composite_halves_for_form(
-                    form,
-                    r90_name,
-                    rot90_quarters=rel_rot,
-                    flip_x=rel_fx,
-                    flip_y=rel_fy,
-                    half_source=_R90_HALF_SOURCE[suffix],
-                    glyph_order=glyph_order,
-                    glyphs=glyphs,
-                    metrics=metrics,
-                    target_upem=target_upem,
-                )
-            elif suffix in _AXIS_HALF_SOURCE:
-                _composite_halves_for_form(
-                    form,
-                    base,
-                    rot90_quarters=rot,
-                    flip_x=flip_x,
-                    flip_y=flip_y,
-                    half_source=_AXIS_HALF_SOURCE[suffix],
-                    glyph_order=glyph_order,
-                    glyphs=glyphs,
-                    metrics=metrics,
-                    target_upem=target_upem,
-                )
-            else:
-                # Unknown suffix — bake from the form outline.
-                _bake_halves_for_form(
-                    form,
-                    glyph_order=glyph_order,
-                    glyphs=glyphs,
-                    metrics=metrics,
-                    target_upem=target_upem,
-                    cell_width=cell_width,
-                )
+                case _ if suffix in SIDEWAYS_FROM_R90:
+                    if r90_name not in glyphs:
+                        continue
+                    rel_rot, rel_fx, rel_fy = SIDEWAYS_FROM_R90[suffix]
+                    _composite_halves_for_form(
+                        form,
+                        r90_name,
+                        rot90_quarters=rel_rot,
+                        flip_x=rel_fx,
+                        flip_y=rel_fy,
+                        half_source=_R90_HALF_SOURCE[suffix],
+                        glyph_order=glyph_order,
+                        glyphs=glyphs,
+                        metrics=metrics,
+                        target_upem=target_upem,
+                    )
+                case _ if suffix in _AXIS_HALF_SOURCE:
+                    _composite_halves_for_form(
+                        form,
+                        base,
+                        rot90_quarters=rot,
+                        flip_x=flip_x,
+                        flip_y=flip_y,
+                        half_source=_AXIS_HALF_SOURCE[suffix],
+                        glyph_order=glyph_order,
+                        glyphs=glyphs,
+                        metrics=metrics,
+                        target_upem=target_upem,
+                    )
+                case _:
+                    # Unknown suffix — bake from the form outline.
+                    _bake_halves_for_form(
+                        form,
+                        glyph_order=glyph_order,
+                        glyphs=glyphs,
+                        metrics=metrics,
+                        target_upem=target_upem,
+                        cell_width=cell_width,
+                    )
             if all(half_glyph_name(form, h) in glyphs for h in HALF_SUFFIXES):
                 added.append(form)
 

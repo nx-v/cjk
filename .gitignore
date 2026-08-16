@@ -1,7 +1,9 @@
 # Leaf directories whose contents exceed 100MB
 Scripts/data/
 Scripts/dump/
-Scripts/dist/glyphwiki/
+# Built fonts + Obsidian plugin sync tree (too large for git)
+Scripts/dist/
+Scripts/obsidian-edenia/
 *.pyc
 **/__pycache__/
 **/private/

@@ -867,28 +867,28 @@ def _random_stem_target(
     ref_h: float,
 ) -> Tuple[float, float]:
     """One pseudorandom (V, H) stem target in a plausible search band."""
-    mode = rng.randrange(3)
-    if mode == 0:
-        # Shared blend from pre → ref.
-        t = rng.uniform(0.05, 1.0)
-        tv = _lerp(pre_v, ref_v, t) if pre_v > 0 else ref_v * t
-        th = _lerp(pre_h, ref_h, t) if pre_h > 0 else ref_h * t
-    elif mode == 1:
-        # Independent blends per axis.
-        tv = (
-            _lerp(pre_v, ref_v, rng.uniform(0.05, 1.0))
-            if pre_v > 0
-            else ref_v * rng.uniform(0.05, 1.0)
-        )
-        th = (
-            _lerp(pre_h, ref_h, rng.uniform(0.05, 1.0))
-            if pre_h > 0
-            else ref_h * rng.uniform(0.05, 1.0)
-        )
-    else:
-        # Absolute scales of the reference (larger / smaller).
-        tv = ref_v * rng.uniform(NORM_SCALE_LO, NORM_SCALE_HI)
-        th = ref_h * rng.uniform(NORM_SCALE_LO, NORM_SCALE_HI)
+    match rng.randrange(3):
+        case 0:
+            # Shared blend from pre → ref.
+            t = rng.uniform(0.05, 1.0)
+            tv = _lerp(pre_v, ref_v, t) if pre_v > 0 else ref_v * t
+            th = _lerp(pre_h, ref_h, t) if pre_h > 0 else ref_h * t
+        case 1:
+            # Independent blends per axis.
+            tv = (
+                _lerp(pre_v, ref_v, rng.uniform(0.05, 1.0))
+                if pre_v > 0
+                else ref_v * rng.uniform(0.05, 1.0)
+            )
+            th = (
+                _lerp(pre_h, ref_h, rng.uniform(0.05, 1.0))
+                if pre_h > 0
+                else ref_h * rng.uniform(0.05, 1.0)
+            )
+        case _:
+            # Absolute scales of the reference (larger / smaller).
+            tv = ref_v * rng.uniform(NORM_SCALE_LO, NORM_SCALE_HI)
+            th = ref_h * rng.uniform(NORM_SCALE_LO, NORM_SCALE_HI)
     return max(1.0, tv), max(1.0, th)
 
 
@@ -1053,12 +1053,13 @@ def add_d4_variant_glyphs(
         for _vs, _r, _fx, _fy, suffix in use_modes
         if suffix is not None
     )
-    if pivot is not None:
-        cell_mid = (float(pivot[0]), float(pivot[1]))
-    elif anchor == "cell":
-        cell_mid = ideographic_center(target_upem)
-    else:
-        cell_mid = None
+    match pivot:
+        case (px, py):
+            cell_mid = (float(px), float(py))
+        case None if anchor == "cell":
+            cell_mid = ideographic_center(target_upem)
+        case _:
+            cell_mid = None
 
     def _install(name: str, glyph: TTGlyph, adv: int, glyph_lsb: int) -> None:
         if name in glyphs:
@@ -1186,31 +1187,32 @@ def add_d4_variant_glyphs(
             continue
         m_name = variant_glyph_name(base_name, suffix)
         if m_name not in glyphs:
-            if suffix == "r90":
-                installed.append((vs_cp, suffix, m_name))
-                continue
-            if suffix in SIDEWAYS_FROM_R90 and r90_name in glyphs:
-                rel_rot, rel_fx, rel_fy = SIDEWAYS_FROM_R90[suffix]
-                parent = r90_name
-                m_glyph, m_adv, m_lsb = _composite_from(
-                    parent,
-                    glyphs[parent],
-                    metrics[parent][0],
-                    metrics[parent][1],
-                    rot90_quarters=rel_rot,
-                    flip_x=rel_fx,
-                    flip_y=rel_fy,
-                )
-            else:
-                m_glyph, m_adv, m_lsb = _composite_from(
-                    base_name,
-                    glyphs[base_name],
-                    metrics[base_name][0],
-                    metrics[base_name][1],
-                    rot90_quarters=rot,
-                    flip_x=flip_x,
-                    flip_y=flip_y,
-                )
+            match suffix:
+                case "r90":
+                    installed.append((vs_cp, suffix, m_name))
+                    continue
+                case _ if suffix in SIDEWAYS_FROM_R90 and r90_name in glyphs:
+                    rel_rot, rel_fx, rel_fy = SIDEWAYS_FROM_R90[suffix]
+                    parent = r90_name
+                    m_glyph, m_adv, m_lsb = _composite_from(
+                        parent,
+                        glyphs[parent],
+                        metrics[parent][0],
+                        metrics[parent][1],
+                        rot90_quarters=rel_rot,
+                        flip_x=rel_fx,
+                        flip_y=rel_fy,
+                    )
+                case _:
+                    m_glyph, m_adv, m_lsb = _composite_from(
+                        base_name,
+                        glyphs[base_name],
+                        metrics[base_name][0],
+                        metrics[base_name][1],
+                        rot90_quarters=rot,
+                        flip_x=flip_x,
+                        flip_y=flip_y,
+                    )
             # Floor-pin after flips; cell-fill composites stay locked to the square.
             if anchor == "floor":
                 m_glyph, m_adv, m_lsb = _place(m_glyph, m_adv)
@@ -1226,11 +1228,13 @@ def add_d4_variant_glyphs(
 
 
 def vs_glyph_name(vs_cp: int) -> str:
-    if vs_cp == STACK_MARK_CP:
-        return "vsStack"
-    if VS_BASE <= vs_cp <= VS_LAST:
-        return f"vs{vs_cp - VS_BASE + 1:02d}"
-    raise ValueError(f"not a Yi VS/stack codepoint: U+{vs_cp:04X}")
+    match vs_cp:
+        case _ if vs_cp == STACK_MARK_CP:
+            return "vsStack"
+        case _ if VS_BASE <= vs_cp <= VS_LAST:
+            return f"vs{vs_cp - VS_BASE + 1:02d}"
+        case _:
+            raise ValueError(f"not a Yi VS/stack codepoint: U+{vs_cp:04X}")
 
 
 def stack_glyph_name() -> str:
@@ -1539,14 +1543,15 @@ def composition_fea(*rule_groups: Sequence[str]) -> str:
 
 
 def _rot90_matrix(quarters: int) -> Tuple[Tuple[float, float], Tuple[float, float]]:
-    q = quarters % 4
-    if q == 0:
-        return ((1.0, 0.0), (0.0, 1.0))
-    if q == 1:
-        return ((0.0, 1.0), (-1.0, 0.0))
-    if q == 2:
-        return ((-1.0, 0.0), (0.0, -1.0))
-    return ((0.0, -1.0), (1.0, 0.0))
+    match quarters % 4:
+        case 0:
+            return ((1.0, 0.0), (0.0, 1.0))
+        case 1:
+            return ((0.0, 1.0), (-1.0, 0.0))
+        case 2:
+            return ((-1.0, 0.0), (0.0, -1.0))
+        case _:
+            return ((0.0, -1.0), (1.0, 0.0))
 
 
 def _mul2(

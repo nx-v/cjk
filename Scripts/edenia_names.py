@@ -25,12 +25,73 @@ CSS_HANGUL = f"{PS_HANGUL}.css"
 CSS_CJK = "edenia-cjk.css"
 
 
-def family_cjk(hex_id: str) -> str:
-    return f"edenia cjk {hex_id}"
+# Per-bucket face suffixes:
+#   ""   base + ca/nhay
+#   h    half-cells
+#   t    thirds
+#   qv   quarter-cells (vertical / Y)
+#   qh   quarter-cells (horizontal / X)
+# Build waves (base → niche faces).
+CJK_FACE_VARIANTS: tuple[str, ...] = ("", "h", "t", "qv", "qh")
+# @font-face emission order (niche faces before base). Body stacks use the
+# shared ``edenia cjk`` family (base) only — pin ``edenia cjk h`` / ``t`` /
+# ``qv`` / ``qh`` for niche GSUB. FE0*/VS stay with the preceding ideograph
+# via default-ignorable font selection (do not put them in unicode-range).
+CJK_FACE_CSS_ORDER: tuple[str, ...] = ("qv", "qh", "t", "h", "")
+
+# Longer suffixes first so ``qh`` is not parsed as ``h``.
+_CJK_FACE_SUFFIXES: tuple[str, ...] = ("qh", "qv", "h", "t")
 
 
-def ps_cjk(hex_id: str) -> str:
-    return f"edenia-cjk-{hex_id}"
+def family_cjk(face_id: str) -> str:
+    """CSS / name-table family for a face file stem.
+
+    All buckets of one variant share a family so cross-bucket digraphs can
+    shape in one run::
+
+        ``4E`` / ``66``  → ``edenia cjk``
+        ``4Eh`` / ``66h`` → ``edenia cjk h``
+        ``4Et``           → ``edenia cjk t``
+        ``4Eqv``          → ``edenia cjk qv``
+        ``4Eqh``          → ``edenia cjk qh``
+
+    Per-bucket coverage is applied with ``unicode-range`` on each ``@font-face``.
+    """
+    _core, variant = split_cjk_face_id(face_id)
+    return family_cjk_variant(variant)
+
+
+def family_cjk_variant(variant: str = "") -> str:
+    """CSS family for a CJK face variant (``''`` / ``h`` / ``t`` / ``qv`` / ``qh``)."""
+    if variant and variant not in CJK_FACE_VARIANTS:
+        raise ValueError(
+            f"CJK face variant must be one of {CJK_FACE_VARIANTS}, got {variant!r}"
+        )
+    if not variant:
+        return "edenia cjk"
+    return f"edenia cjk {variant}"
+
+
+def ps_cjk(face_id: str) -> str:
+    """Unique PostScript name per file (buckets stay distinct)."""
+    return f"edenia-cjk-{face_id}"
+
+
+def cjk_face_id(bucket_hex: str, variant: str = "") -> str:
+    """Filename / family stem: ``4E``, ``4Eh``, ``4Et``, ``4Eqv``, ``4Eqh``."""
+    if variant and variant not in CJK_FACE_VARIANTS:
+        raise ValueError(
+            f"CJK face variant must be one of {CJK_FACE_VARIANTS}, got {variant!r}"
+        )
+    return f"{bucket_hex}{variant}"
+
+
+def split_cjk_face_id(face_id: str) -> tuple[str, str]:
+    """Split ``4Eqv`` → ``('4E', 'qv')``."""
+    for suf in _CJK_FACE_SUFFIXES:
+        if face_id.endswith(suf):
+            return face_id[: -len(suf)], suf
+    return face_id, ""
 
 
 # Stack tail after per-bucket CJK faces.

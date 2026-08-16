@@ -55,13 +55,14 @@ def main() -> None:
         futs = [ex.submit(sanitize, f) for f in files]
         for fut in as_completed(futs):
             name, status = fut.result()
-            if status == "fixed":
-                fixed += 1
-            elif status == "ok":
-                ok += 1
-            else:
-                err += 1
-                print(name, status)
+            match status:
+                case "fixed":
+                    fixed += 1
+                case "ok":
+                    ok += 1
+                case _:
+                    err += 1
+                    print(name, status)
     print(f"done fixed={fixed} ok={ok} err={err}")
     for p in sub.glob("_*.woff2"):
         p.unlink()

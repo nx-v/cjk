@@ -420,18 +420,20 @@ def mark_corner_anchor(
         x1, y1 = float(glyph.xMax), float(glyph.yMax)
     except Exception:
         return 0, 0
-    if slot in ("tr", "cr", "br"):
-        x = x1
-    elif slot in ("tl", "cl", "bl"):
-        x = x0
-    else:
-        x = (x0 + x1) / 2.0
-    if slot in ("tr", "tm", "tl"):
-        y = y1
-    elif slot in ("br", "bm", "bl"):
-        y = y0
-    else:
-        y = (y0 + y1) / 2.0
+    match slot:
+        case "tr" | "cr" | "br":
+            x = x1
+        case "tl" | "cl" | "bl":
+            x = x0
+        case _:
+            x = (x0 + x1) / 2.0
+    match slot:
+        case "tr" | "tm" | "tl":
+            y = y1
+        case "br" | "bm" | "bl":
+            y = y0
+        case _:
+            y = (y0 + y1) / 2.0
     return otRound(x), otRound(y)
 
 

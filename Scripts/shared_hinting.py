@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import time
 from typing import Union
 
 PathLike = Union[str, os.PathLike]
@@ -19,9 +20,10 @@ PathLike = Union[str, os.PathLike]
 def autohint_ttf(ttf_path: PathLike, *, enabled: bool = True) -> None:
     """Autohint ``ttf_path`` in place with ttfautohint-py.
 
-    Writes to a sibling temp file then ``os.replace`` (Windows-safe). No-op
-    when ``enabled`` is false. Raises ``RuntimeError`` if the package is
-    missing or hinting fails.
+    Reads the TTF into memory, hints, writes a sibling temp file, then
+    ``os.replace`` with retries (Windows AV / OneDrive often lock the
+    destination briefly under parallel builds). No-op when ``enabled`` is
+    false. Raises ``RuntimeError`` if the package is missing or hinting fails.
     """
     if not enabled:
         return
@@ -38,11 +40,14 @@ def autohint_ttf(ttf_path: PathLike, *, enabled: bool = True) -> None:
     path = os.fspath(ttf_path)
     print(f"  Hinting with ttfautohint-py: {os.path.basename(path)}...", flush=True)
 
+    with open(path, "rb") as src_f:
+        src_bytes = src_f.read()
+
     # Prefer bytes return (avoid ttfautohint-py opening out_file in text mode).
     # CJK/Hangul/Yi subfonts often lack Latin "standard" glyphs; retry with
     # symbol=True (--symbol) when ttfautohint cannot derive stem metrics.
     common = dict(
-        in_file=path,
+        in_buffer=src_bytes,
         no_info=True,
         ignore_restrictions=True,
         default_script="latn",
@@ -67,7 +72,16 @@ def autohint_ttf(ttf_path: PathLike, *, enabled: bool = True) -> None:
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(hinted)
-        os.replace(tmp_path, path)
+        last_err: BaseException | None = None
+        for attempt in range(8):
+            try:
+                os.replace(tmp_path, path)
+                return
+            except OSError as exc:
+                last_err = exc
+                time.sleep(0.05 * (2 ** min(attempt, 6)))
+        assert last_err is not None
+        raise last_err
     except Exception:
         try:
             os.remove(tmp_path)

@@ -173,6 +173,9 @@ BASE_VS_MODE_COUNT = 8
 SQUISH_FACTOR = 0.55
 SQUISH_FACTOR_MIN = 0.55
 SQUISH_FACTOR_MAX = 0.55
+# Base face (ca/nhay): mark occupies 1/4; CJK squish fills the other 3/4.
+MARK_NICHE_FRAC = 1.0 / 4.0
+MARK_BASE_SQUISH_FACTOR = 1.0 - MARK_NICHE_FRAC  # 3/4
 EDGE_PAD_FRAC = 0.03
 GAP_FRAC = 0.02
 HALF_PAD_FRAC = 0.02  # inset inside the occupied half (was 0.04)
@@ -376,15 +379,17 @@ _NICHE_NAMES: Tuple[str, ...] = ("right", "left", "top", "bottom")
 
 
 def _niche_squish_name(root: str, niche: str) -> str:
-    if niche == "right":
-        return squish_name(root)
-    if niche == "left":
-        return squish_left_name(root)
-    if niche == "top":
-        return squish_top_name(root)
-    if niche == "bottom":
-        return squish_bot_name(root)
-    raise ValueError(niche)
+    match niche:
+        case "right":
+            return squish_name(root)
+        case "left":
+            return squish_left_name(root)
+        case "top":
+            return squish_top_name(root)
+        case "bottom":
+            return squish_bot_name(root)
+        case _:
+            raise ValueError(niche)
 
 
 def _d4_niche_forward(rot: int, fx: bool, fy: bool) -> Dict[str, str]:
@@ -1042,12 +1047,14 @@ def fit_mark_to_halfcell(
     *,
     axis: str = "x",
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    niche_frac: float = 0.5,
 ) -> TTGlyph:
-    """Fit mark into one half-cell with CAPE Width/Height (stems preserved).
+    """Fit mark into one niche with uniform CAPE Width/Height.
 
-    ``axis="x"`` → LR niche (half width × full ideo height).
-    ``axis="y"`` → TB niche (full width × half ideo height).
+    ``axis="x"`` → LR niche (``niche_frac`` × width × full ideo height).
+    ``axis="y"`` → TB niche (full width × ``niche_frac`` × ideo height).
     Ink is centered at the origin for GPOS attachment.
+    Default ``niche_frac=0.5`` (half-cell); base face uses ``1/4``.
     """
     pin = "right" if axis == "x" else "bottom"
     src = _normalize_winding(_bake_simple_glyph(glyph, glyph_set), glyph_set)
@@ -1055,7 +1062,9 @@ def fit_mark_to_halfcell(
     if not layer.paths:
         return src
 
-    x0, y0, x1, y1 = _half_slot_rect(float(target_upem), pin=pin, axis=axis)
+    x0, y0, x1, y1 = _half_slot_rect(
+        float(target_upem), pin=pin, axis=axis, niche_frac=niche_frac
+    )
     tw = max(x1 - x0, 1.0)
     th = max(y1 - y0, 1.0)
     b = layer.bounds
@@ -1063,22 +1072,11 @@ def fit_mark_to_halfcell(
     bh = max(b.size.y, 1.0)
     fx = tw / bw
     fy = th / bh
-    vstem = estimate_vertical_stem(layer)
-    hstem = estimate_horizontal_stem(layer)
+    # Uniform scale only — no stem compensation.
     if abs(fx - 1.0) > 1e-4:
-        apply_width(
-            layer,
-            fx,
-            stem=vstem if vstem > 0 else None,
-            center_x=0.0,
-        )
+        apply_width(layer, fx, stem=0.0, center_x=0.0)
     if abs(fy - 1.0) > 1e-4:
-        apply_height(
-            layer,
-            fy,
-            stem=hstem if hstem > 0 else None,
-            center_y=0.0,
-        )
+        apply_height(layer, fy, stem=0.0, center_y=0.0)
     b = layer.bounds
     cx = b.origin.x + 0.5 * b.size.x
     cy = b.origin.y + 0.5 * b.size.y
@@ -1097,23 +1095,31 @@ def _half_slot_rect(
     *,
     pin: str,
     axis: str,
+    niche_frac: float = 0.5,
 ) -> Tuple[float, float, float, float]:
-    """Return ``(x0, y0, x1, y1)`` for the occupied half slot."""
+    """Return ``(x0, y0, x1, y1)`` for the occupied niche slot.
+
+    ``niche_frac`` is the fraction of the cell the niche occupies (0.5 half,
+    ``1/4`` for ca/nhay on the base face).
+    """
     bot, top, _ = ideographic_bounds(int(target_upem))
-    mid_y = (bot + top) / 2.0
     pad = target_upem * HALF_PAD_FRAC
-    half = target_upem * 0.5
-    if axis == "y":
-        if pin == "top":
-            y0, y1 = mid_y + pad, top - pad
-        else:
-            y0, y1 = bot + pad, mid_y - pad
-        return pad, y0, target_upem - pad, y1
-    if pin == "right":
-        x0, x1 = half + pad, target_upem - pad
-    else:
-        x0, x1 = pad, half - pad
-    return x0, bot + pad, x1, top - pad
+    frac = float(niche_frac)
+    match (axis, pin):
+        case ("y", "top"):
+            span = top - bot
+            y0, y1 = top - span * frac + pad, top - pad
+            return pad, y0, target_upem - pad, y1
+        case ("y", _):
+            span = top - bot
+            y0, y1 = bot + pad, bot + span * frac - pad
+            return pad, y0, target_upem - pad, y1
+        case (_, "right"):
+            x0, x1 = target_upem * (1.0 - frac) + pad, target_upem - pad
+            return x0, bot + pad, x1, top - pad
+        case _:
+            x0, x1 = pad, target_upem * frac - pad
+            return x0, bot + pad, x1, top - pad
 
 
 def place_glyph_in_half(
@@ -1124,12 +1130,13 @@ def place_glyph_in_half(
     axis: str = "x",
     target_upem: int = 1000,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    slot_frac: float = 0.5,
 ) -> Tuple[TTGlyph, int, int]:
-    """Map the full ideographic cell frame into one half-slot.
+    """Map the full ideographic cell frame into one niche slot.
 
     Source frame is the same padded typo cell that
     ``fit_glyph_to_ideographic_cell`` centers ink into (not a second contour
-    fit). ``sx = half_w/cell_w``, ``sy = half_h/cell_h``. Composites bake once.
+    fit). ``sx = slot_w/cell_w``, ``sy = slot_h/cell_h``. Composites bake once.
 
     Prefer ``make_squished_glyph`` for upright H/V bakes (CAPE then translate);
     this affine map is the empty-outline / no-CAPE fallback.
@@ -1158,7 +1165,9 @@ def place_glyph_in_half(
     sw = max(sx1 - sx0, 1.0)
     sh = max(sy1 - sy0, 1.0)
 
-    x0, y0, x1, y1 = _half_slot_rect(upem, pin=pin, axis=axis)
+    x0, y0, x1, y1 = _half_slot_rect(
+        upem, pin=pin, axis=axis, niche_frac=slot_frac
+    )
     tw = max(x1 - x0, 1.0)
     th = max(y1 - y0, 1.0)
     sx = tw / sw
@@ -1185,12 +1194,15 @@ def _translate_ink_to_half_center(
     pin: str,
     axis: str,
     target_upem: int,
+    slot_frac: float = 0.5,
 ) -> Tuple[TTGlyph, int, int]:
-    """Translate only so ink center sits at the half-slot center (no re-scale)."""
+    """Translate only so ink center sits at the niche-slot center (no re-scale)."""
     from shared_half_cells import apply_transform, _recording_from_glyph
 
     upem = float(target_upem)
-    x0, y0, x1, y1 = _half_slot_rect(upem, pin=pin, axis=axis)
+    x0, y0, x1, y1 = _half_slot_rect(
+        upem, pin=pin, axis=axis, niche_frac=slot_frac
+    )
     dst_cx = (x0 + x1) / 2.0
     dst_cy = (y0 + y1) / 2.0
     try:
@@ -1225,17 +1237,21 @@ def make_squished_glyph(
     pin: str = "left",
     axis: str = "x",
     target_upem: Optional[int] = None,
+    slot_frac: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Half-cell via CAPE Width/Height, then translate into the slot.
+    """Niche via CAPE Width/Height, then translate into the slot.
 
-    ``axis="x"`` → Width-condense (vertical stems kept); ``axis="y"`` →
-    Height-condense (horizontal stems kept). CAPE already halves the outer
-    size — do **not** also map cell→slot (that was double-scaling to ~¼).
+    ``axis="x"`` → uniform Width-condense; ``axis="y"`` → uniform
+    Height-condense. CAPE already sizes the outer box — do **not** also map
+    cell→slot (that was double-scaling to ~¼). ``slot_frac`` defaults to
+    ``0.5`` (half-cell) or matches ``factor`` when the caller is baking a
+    mark-base 3/4 niche.
     """
     upem = int(
         target_upem if target_upem is not None else (advance if advance > 0 else 1000)
     )
-    use = float(min(SQUISH_FACTOR_MAX, max(SQUISH_FACTOR_MIN, factor)))
+    use = float(factor)
+    occ = float(slot_frac) if slot_frac is not None else 0.5
     simple = _normalize_winding(_bake_simple_glyph(glyph, glyph_set), glyph_set)
     layer = layer_from_ttglyph(simple, float(advance if advance > 0 else upem))
     if not layer.paths:
@@ -1246,28 +1262,20 @@ def make_squished_glyph(
             axis=axis,
             target_upem=upem,
             glyph_set=None,
+            slot_frac=occ,
         )
 
+    # CJK niches: uniform scale only (no stem compensation / outline offset).
     cell_cx, cell_cy = ideographic_center(upem)
-    hstem = estimate_horizontal_stem(layer)
-    vstem = estimate_vertical_stem(layer)
     if axis == "y":
-        apply_height(
-            layer,
-            use,
-            stem=hstem if hstem > 0 else None,
-            center_y=cell_cy,
-        )
+        apply_height(layer, use, stem=0.0, center_y=cell_cy)
     else:
-        apply_width(
-            layer,
-            use,
-            stem=vstem if vstem > 0 else None,
-            center_x=cell_cx,
-        )
+        apply_width(layer, use, stem=0.0, center_x=cell_cx)
 
     out, _adv, _lsb = ttglyph_from_layer(layer)
-    return _translate_ink_to_half_center(out, pin=pin, axis=axis, target_upem=upem)
+    return _translate_ink_to_half_center(
+        out, pin=pin, axis=axis, target_upem=upem, slot_frac=occ
+    )
 
 
 def add_squish_forms(
@@ -1279,8 +1287,9 @@ def add_squish_forms(
     width_factor: float = SQUISH_FACTOR,
     height_factor: float = SQUISH_FACTOR,
     target_upem: int = 1000,
+    slot_frac: Optional[float] = None,
 ) -> List[str]:
-    """Bake upright H/V half-cell squish; oriented niches are D4 composites.
+    """Bake upright H/V niche squish; oriented niches are D4 composites.
 
     Per identity base, CAPE-bake **all four** niches from the upright outline
     (do not mirror ``.dkl``/``.dkt`` into ``.dk``/``.dkb`` — that flips
@@ -1292,19 +1301,22 @@ def add_squish_forms(
 
     identities = [n for n in base_names if _d4_suffix_of(n) is None and n in glyphs]
     oriented = [n for n in base_names if _d4_suffix_of(n) is not None and n in glyphs]
+    # Half-cell digraphs keep a 0.5 slot; mark-base (3/4) passes slot_frac=factor.
+    occ_x = float(slot_frac) if slot_frac is not None else 0.5
+    occ_y = float(slot_frac) if slot_frac is not None else 0.5
 
     added: List[str] = []
-    # (name_fn, pin, axis, factor)
+    # (name_fn, pin, axis, factor, slot_frac)
     upright_slots = (
-        (squish_name, "left", "x", width_factor),  # .dk  — left ink, right niche
-        (squish_left_name, "right", "x", width_factor),  # .dkl — right ink, left niche
-        (squish_top_name, "bottom", "y", height_factor),  # .dkt — bottom ink, top niche
-        (squish_bot_name, "top", "y", height_factor),  # .dkb — top ink, bottom niche
+        (squish_name, "left", "x", width_factor, occ_x),  # .dk  — left ink
+        (squish_left_name, "right", "x", width_factor, occ_x),  # .dkl — right ink
+        (squish_top_name, "bottom", "y", height_factor, occ_y),  # .dkt — bottom ink
+        (squish_bot_name, "top", "y", height_factor, occ_y),  # .dkb — top ink
     )
     for name in identities:
         adv, _lsb = metrics.get(name, (target_upem, 0))
         src = glyphs[name]
-        for name_fn, pin, axis, factor in upright_slots:
+        for name_fn, pin, axis, factor, occ in upright_slots:
             out_name = name_fn(name)
             if out_name in glyphs:
                 continue
@@ -1316,6 +1328,7 @@ def add_squish_forms(
                 pin=pin,
                 axis=axis,
                 target_upem=target_upem,
+                slot_frac=occ,
             )
             glyph_order.append(out_name)
             glyphs[out_name] = sq
@@ -1364,12 +1377,13 @@ def cjk_right_anchor(
     target_upem: int,
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    niche_frac: float = 0.5,
 ) -> Tuple[int, int]:
-    """Center of the free right half (mark sits here)."""
+    """Center of the free right niche (mark sits here)."""
     del glyph, glyph_set
     bot, top, _ = ideographic_bounds(target_upem)
     right = float(advance) if advance > 0 else float(target_upem)
-    return otRound(right * 0.75), otRound((bot + top) / 2.0)
+    return otRound(right * (1.0 - niche_frac / 2.0)), otRound((bot + top) / 2.0)
 
 
 def cjk_left_anchor(
@@ -1378,11 +1392,12 @@ def cjk_left_anchor(
     target_upem: int,
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    niche_frac: float = 0.5,
 ) -> Tuple[int, int]:
-    """Center of the free left half (mark sits here)."""
+    """Center of the free left niche (mark sits here)."""
     del glyph, glyph_set, advance
     bot, top, _ = ideographic_bounds(target_upem)
-    return otRound(target_upem * 0.25), otRound((bot + top) / 2.0)
+    return otRound(target_upem * (niche_frac / 2.0)), otRound((bot + top) / 2.0)
 
 
 def cjk_top_anchor(
@@ -1391,13 +1406,15 @@ def cjk_top_anchor(
     target_upem: int,
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    niche_frac: float = 0.5,
 ) -> Tuple[int, int]:
-    """Center of the free top half (mark sits here)."""
+    """Center of the free top niche (mark sits here)."""
     del glyph, glyph_set
     bot, top, _ = ideographic_bounds(target_upem)
-    mid_y = (bot + top) / 2.0
+    span = top - bot
+    mid_free = top - span * (niche_frac / 2.0)
     right = float(advance) if advance > 0 else float(target_upem)
-    return otRound(right * 0.5), otRound((mid_y + top) / 2.0)
+    return otRound(right * 0.5), otRound(mid_free)
 
 
 def cjk_bottom_anchor(
@@ -1406,13 +1423,15 @@ def cjk_bottom_anchor(
     target_upem: int,
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    niche_frac: float = 0.5,
 ) -> Tuple[int, int]:
-    """Center of the free bottom half (mark sits here)."""
+    """Center of the free bottom niche (mark sits here)."""
     del glyph, glyph_set
     bot, top, _ = ideographic_bounds(target_upem)
-    mid_y = (bot + top) / 2.0
+    span = top - bot
+    mid_free = bot + span * (niche_frac / 2.0)
     right = float(advance) if advance > 0 else float(target_upem)
-    return otRound(right * 0.5), otRound((bot + mid_y) / 2.0)
+    return otRound(right * 0.5), otRound(mid_free)
 
 
 def collect_niche_base_anchors(
@@ -1446,39 +1465,45 @@ def marked_form_name(squish_form: str, mark_root: str) -> str:
 
 def _niche_mark_component(upright: str, niche_suf: str) -> str:
     """Mark glyph baked into the free half for ``niche_suf``."""
-    if niche_suf == "dk":
-        return upright
-    if niche_suf == "dkl":
-        return left_mark_name(upright)
-    if niche_suf == "dkt":
-        return top_mark_name(upright)
-    if niche_suf == "dkb":
-        return bottom_mark_name(upright)
-    return upright
+    match niche_suf:
+        case "dk":
+            return upright
+        case "dkl":
+            return left_mark_name(upright)
+        case "dkt":
+            return top_mark_name(upright)
+        case "dkb":
+            return bottom_mark_name(upright)
+        case _:
+            return upright
 
 
 def _niche_anchor_fn(niche_suf: str):
-    if niche_suf == "dk":
-        return cjk_right_anchor
-    if niche_suf == "dkl":
-        return cjk_left_anchor
-    if niche_suf == "dkt":
-        return cjk_top_anchor
-    if niche_suf == "dkb":
-        return cjk_bottom_anchor
-    return cjk_right_anchor
+    match niche_suf:
+        case "dk":
+            return cjk_right_anchor
+        case "dkl":
+            return cjk_left_anchor
+        case "dkt":
+            return cjk_top_anchor
+        case "dkb":
+            return cjk_bottom_anchor
+        case _:
+            return cjk_right_anchor
 
 
 def _niche_squish_of(base: str, niche_suf: str) -> str:
-    if niche_suf == "dk":
-        return squish_name(base)
-    if niche_suf == "dkl":
-        return squish_left_name(base)
-    if niche_suf == "dkt":
-        return squish_top_name(base)
-    if niche_suf == "dkb":
-        return squish_bot_name(base)
-    return squish_name(base)
+    match niche_suf:
+        case "dk":
+            return squish_name(base)
+        case "dkl":
+            return squish_left_name(base)
+        case "dkt":
+            return squish_top_name(base)
+        case "dkb":
+            return squish_bot_name(base)
+        case _:
+            return squish_name(base)
 
 
 def make_marked_composite(
@@ -1517,6 +1542,7 @@ def add_marked_composites(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
+    niche_frac: float = 0.5,
 ) -> List[str]:
     """Bake precomposed squish+ca/nhay composites (and return their names).
 
@@ -1533,7 +1559,11 @@ def add_marked_composites(
                 continue
             adv, lsb = metrics.get(sq, (target_upem, 0))
             ax, ay = _niche_anchor_fn(niche_suf)(
-                glyphs[sq], adv, target_upem, glyph_set=glyphs
+                glyphs[sq],
+                adv,
+                target_upem,
+                glyph_set=glyphs,
+                niche_frac=niche_frac,
             )
             for cp in mark_cps:
                 upright = glyph_name_for_cp(cp)
@@ -2352,6 +2382,7 @@ def prepare_squish_vs_access(
     uvs_rows: Optional[List[Tuple[int, int, Optional[str]]]] = None,
     width_factor: float = SQUISH_FACTOR,
     height_factor: float = SQUISH_FACTOR,
+    slot_frac: Optional[float] = None,
     base_cps: Optional[Sequence[int]] = None,
     in_dir: Optional[str] = None,
 ) -> List[str]:
@@ -2385,6 +2416,7 @@ def prepare_squish_vs_access(
         width_factor=width_factor,
         height_factor=height_factor,
         target_upem=target_upem,
+        slot_frac=slot_frac,
     )
 
     ov_sources: List[str] = []
@@ -2435,8 +2467,15 @@ def prepare_marks(
     liga_rules: List[str],
     uvs_rows: Optional[List[Tuple[int, int, Optional[str]]]] = None,
     local_scale: float = 0.96,
+    width_factor: float = MARK_BASE_SQUISH_FACTOR,
+    height_factor: float = MARK_BASE_SQUISH_FACTOR,
+    mark_niche_frac: float = MARK_NICHE_FRAC,
 ) -> Optional[Dict]:
-    """Load ca/nhay (half-cell niche GPOS) + FE0B–FE0F half-cell access."""
+    """Load ca/nhay + niche squish for the base CJK face.
+
+    Default niche is **1/4** of the cell (mark) with the base occupying **3/4**.
+    Half-cell digraph access (``.dk*`` at 0.55) lives on the ``h`` face instead.
+    """
     try:
         path = resolve_plangothic_p2(in_dir)
     except FileNotFoundError:
@@ -2449,9 +2488,13 @@ def prepare_marks(
         return None
 
     for cp in list(core_glyphs):
-        # CAPE Width/Height into LR half-cell (legacy stroke weight adjust).
+        # CAPE into the mark niche (default 1/4 of the cell).
         core_glyphs[cp] = fit_mark_to_halfcell(
-            core_glyphs[cp], target_upem, axis="x", glyph_set=None
+            core_glyphs[cp],
+            target_upem,
+            axis="x",
+            glyph_set=None,
+            niche_frac=mark_niche_frac,
         )
 
     set_mark_cps(core_cps)
@@ -2489,8 +2532,9 @@ def prepare_marks(
         target_upem=target_upem,
         liga_rules=liga_rules,
         uvs_rows=uvs_rows,
-        width_factor=SQUISH_FACTOR,
-        height_factor=SQUISH_FACTOR,
+        width_factor=width_factor,
+        height_factor=height_factor,
+        slot_frac=width_factor,
         in_dir=in_dir,
     )
 
@@ -2501,6 +2545,7 @@ def prepare_marks(
         glyphs=glyphs,
         metrics=metrics,
         target_upem=target_upem,
+        niche_frac=mark_niche_frac,
     )
     if marked:
         add_overlay_forms(
@@ -2519,8 +2564,9 @@ def prepare_marks(
         "bottom_marks": list(bottom_marks),
         "squishable": list(squishable),
         "marked": list(marked),
-        "width_factor": SQUISH_FACTOR,
-        "height_factor": SQUISH_FACTOR,
+        "width_factor": width_factor,
+        "height_factor": height_factor,
+        "mark_niche_frac": mark_niche_frac,
         "n_core": len(core_cps),
         "n_shared": 0,
         "shared_cps": [],

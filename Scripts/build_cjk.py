@@ -6,16 +6,18 @@ Claims CJK/Tangut codepoints from priority-ordered source fonts, buckets them
 into 256-codepoint blocks (cp >> 8), and builds each TTF/WOFF2 from scratch by
 copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
 
-D4 variants for bucket fonts are emitted **in the same TTF**:
-transformed outlines (2×2 rotates baked; axis mirrors as composites) plus
-GSUB ``ccmp``/``rlig``/``liga`` for ``unicode + VS01..VS08``
-(UVS U+FE00..FE07) — the 8 unique square symmetries.
-No FE08 overlay in panCJK (GlyphWiki keeps its own FE08 overlays).
+Five faces per bucket (filename / family stem = ``{hex}`` / ``{hex}h`` /
+``{hex}t`` / ``{hex}qv`` / ``{hex}qh``)::
 
-Vietnamese reading marks from Plangothic P2: ``U+16FF0``/``U+16FF1`` (ca/nhay)
-only. Squish = one half of the ideographic cell (``.dk``/``.dkl``/``.dkt``/
-``.dkb``); ca/nhay sits in the free half via niche GPOS. Same half-cell glyphs
-for ``FE0C``–``FE0F`` access; ``FE0B`` = zero-width overlay.
+    (none)  base forms + ca/nhay (all mark orientations); mark niche = 1/4
+                (base occupies 3/4)
+    h       base forms + D4 + half-cell squish (FE0B–FE0F)
+    t       base forms + D4 + third-cell niches (VS17–VS26; FE0B zero-width)
+    qv      base forms + D4 + vertical quarter niches (VS13–14, VS27–33)
+    qh      base forms + D4 + horizontal quarter niches (VS15–16, VS34–40)
+
+Builds run as variant waves: all buckets for one face in parallel, then the
+next face (base → h → t → qv → qh).
 
 Also writes edenia-cjk.css (@font-face) and fontlist.css (CSS-safe stack).
 """
@@ -46,7 +48,10 @@ from cape_weightor import bolden_ttglyph
 from cjk_diacritics import (
     PLANGOTHIC_P2_FILENAME,
     MARK_CPS,
+    MARK_BASE_SQUISH_FACTOR,
+    MARK_NICHE_FRAC,
     SIDE_SELECTOR_CPS,
+    SQUISH_FACTOR,
     SQUISH_PUA_CPS,
     compile_marks_layout,
     install_cjk_composition_gsub,
@@ -69,8 +74,27 @@ from shared_half_cells import (
     uvs_selector_for_mode,
     vs_glyph_name,
 )
-from edenia_names import CSS_CJK, STACK_CJK_TAIL, family_cjk, ps_cjk
-from sync_obsidian_panfonts import sync_dist_to_plugin
+from shared_third_cells import (
+    install_third_cell_gsub,
+    prepare_third_cells,
+)
+from shared_quarter_cells import (
+    QUARTER_FACE_H,
+    QUARTER_FACE_V,
+    install_quarter_cell_gsub,
+    prepare_quarter_cells,
+)
+from edenia_names import (
+    CJK_FACE_CSS_ORDER,
+    CJK_FACE_VARIANTS,
+    CSS_CJK,
+    STACK_CJK_TAIL,
+    cjk_face_id,
+    family_cjk,
+    ps_cjk,
+    split_cjk_face_id,
+)
+from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
 
 # ---------- Directories ----------
@@ -426,19 +450,30 @@ def build_bucket_font(
     out_dir: str,
     target_upem: int,
     *,
+    variant: str = "",
     write_ttf: bool = True,
     write_woff2: bool = True,
     hint: bool = True,
 ) -> Tuple[str, int, List[int]]:
-    """Build one pigeonhole font with in-font D4 variant ligatures.
+    """Build one pigeonhole face for a bucket.
 
-    Returns (ttf_path, glyph_count, codepoints) where codepoints are the
-    Unicode cmap keys (bases + VS01..VS08 + FE0B..FE0F squish/overlay).
+    ``variant``::
+
+        ""   identity bases + ca/nhay (mark niche 1/4, base 3/4); no CJK D4
+        "h"  bases + D4 + half-cell squish/overlay
+        "t"  bases + D4 + third-cell niches (VS17–VS26 on standard CPs)
+        "qv" bases + D4 + vertical quarter niches (VS13–14, VS27–33)
+        "qh" bases + D4 + horizontal quarter niches (VS15–16, VS34–40)
+
+    Returns (ttf_path, glyph_count, codepoints).
     """
+    if variant not in CJK_FACE_VARIANTS:
+        raise ValueError(f"variant must be one of {CJK_FACE_VARIANTS}, got {variant!r}")
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
-    hex_id = f"{bucket_id:X}"
-    out_path = os.path.join(out_dir, f"{hex_id}.ttf")
+    bucket_hex = f"{bucket_id:X}"
+    face_id = cjk_face_id(bucket_hex, variant)
+    out_path = os.path.join(out_dir, f"{face_id}.ttf")
 
     glyph_order = [".notdef"]
     glyphs: Dict[str, TTGlyph] = {".notdef": empty_glyph()}
@@ -446,6 +481,7 @@ def build_bucket_font(
     cmap: Dict[int, str] = {}
     uvs_rows: List[Tuple[int, int, Optional[str]]] = []
     base_names: List[str] = []
+    with_d4 = variant in ("h", "t", "qv", "qh")
 
     for out_cp, path, src_cp in entries:
         src = sources[path]
@@ -494,24 +530,22 @@ def build_bucket_font(
         cmap[out_cp] = gname
         base_names.append(gname)
 
-        add_d4_variant_glyphs(
-            gname,
-            advance=advance,
-            lsb=lsb,
-            target_upem=target_upem,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-            anchor="cell",
-        )
-        # No D4 cmap-14 UVS — FE00..FE07 + FE0B..FE0F are GSUB ligatures only.
+        if with_d4:
+            add_d4_variant_glyphs(
+                gname,
+                advance=advance,
+                lsb=lsb,
+                target_upem=target_upem,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+                anchor="cell",
+            )
 
     if len(cmap) == 0:
         return out_path, 0, []
 
-    # Inject VS marks so D4 ligatures stay in-font.
-    # Unicode VS U+FE00..FE07 only (FE00 = identity no-op liga). BMP PUA
-    # E000+ is edenia kana — do not cmap those aliases.
+    # FE00..FE07 selectors (mark D4 on base face; CJK D4 on h/t faces).
     for mode_i, (vs_cp, _rot, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
         vname = vs_glyph_name(vs_cp)
         if vname not in glyphs:
@@ -520,44 +554,92 @@ def build_bucket_font(
             metrics[vname] = (0, 0)
         cmap[uvs_selector_for_mode(mode_i)] = vname
 
-    # Reading marks: ca/nhay niche GPOS; FE0B–FE0F squish/overlay access.
     in_dir = os.path.dirname(next(iter(sources.keys()))) if sources else IN_DIR
     mark_scale = FONT_LOCAL_SCALE.get(PLANGOTHIC_P2_FILENAME, 0.96)
-    # Throwaway list kept for prepare_* signature compat (ligas are programmatic).
     _liga_unused: List[str] = []
-    mark_state = prepare_marks(
-        in_dir=in_dir,
-        cjk_bases=base_names,
-        glyph_order=glyph_order,
-        glyphs=glyphs,
-        metrics=metrics,
-        cmap=cmap,
-        target_upem=target_upem,
-        liga_rules=_liga_unused,
-        uvs_rows=uvs_rows,
-        local_scale=mark_scale,
-    )
-    if mark_state is None:
-        squishable = prepare_squish_vs_access(
-            cjk_bases=base_names,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-            cmap=cmap,
-            target_upem=target_upem,
-            liga_rules=_liga_unused,
-            uvs_rows=uvs_rows,
-            in_dir=in_dir,
-        )
-        mark_cps: List[int] = []
-    else:
-        squishable = mark_state["squishable"]
-        mark_cps = list(mark_state.get("core_cps") or [])
+    mark_state: Optional[Dict] = None
+    squishable: List[str] = []
+    mark_cps: List[int] = []
+    third_forms: List[str] = []
+    quarter_forms: List[str] = []
+    quarter_face: Optional[str] = None
+
+    match variant:
+        case "":
+            # Base face: ca/nhay with 1/4 mark niche (base occupies 3/4).
+            mark_state = prepare_marks(
+                in_dir=in_dir,
+                cjk_bases=base_names,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+                cmap=cmap,
+                target_upem=target_upem,
+                liga_rules=_liga_unused,
+                uvs_rows=uvs_rows,
+                local_scale=mark_scale,
+                width_factor=MARK_BASE_SQUISH_FACTOR,
+                height_factor=MARK_BASE_SQUISH_FACTOR,
+                mark_niche_frac=MARK_NICHE_FRAC,
+            )
+            if mark_state is None:
+                # No Plangothic — still emit FE0C–F niches at 3/4 for consistency.
+                squishable = prepare_squish_vs_access(
+                    cjk_bases=base_names,
+                    glyph_order=glyph_order,
+                    glyphs=glyphs,
+                    metrics=metrics,
+                    cmap=cmap,
+                    target_upem=target_upem,
+                    liga_rules=_liga_unused,
+                    uvs_rows=uvs_rows,
+                    width_factor=MARK_BASE_SQUISH_FACTOR,
+                    height_factor=MARK_BASE_SQUISH_FACTOR,
+                    slot_frac=MARK_BASE_SQUISH_FACTOR,
+                    in_dir=in_dir,
+                )
+            else:
+                squishable = mark_state["squishable"]
+                mark_cps = list(mark_state.get("core_cps") or [])
+        case "h":
+            squishable = prepare_squish_vs_access(
+                cjk_bases=base_names,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+                cmap=cmap,
+                target_upem=target_upem,
+                liga_rules=_liga_unused,
+                uvs_rows=uvs_rows,
+                width_factor=SQUISH_FACTOR,
+                height_factor=SQUISH_FACTOR,
+                in_dir=in_dir,
+            )
+        case "t":
+            third_forms = prepare_third_cells(
+                cjk_bases=base_names,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+                cmap=cmap,
+                target_upem=target_upem,
+            )
+        case "qv" | "qh":
+            quarter_face = variant
+            quarter_forms = prepare_quarter_cells(
+                face=variant,
+                cjk_bases=base_names,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+                cmap=cmap,
+                target_upem=target_upem,
+            )
 
     ascent = otRound(target_upem * 0.88)
     descent = otRound(target_upem * -0.12)
-    family = family_cjk(hex_id)
-    ps = ps_cjk(hex_id)
+    family = family_cjk(face_id)
+    ps = ps_cjk(face_id)
 
     fb = FontBuilder(target_upem, isTTF=True)
     fb.setupGlyphOrder(glyph_order)
@@ -589,14 +671,40 @@ def build_bucket_font(
     )
     fb.setupPost()
 
-    install_cjk_composition_gsub(
-        fb.font,
-        cjk_bases=base_names,
-        glyphs=glyphs,
-        glyph_order=glyph_order,
-        squishable=squishable,
-        mark_cps=mark_cps,
-    )
+    match variant:
+        case "" | "h":
+            install_cjk_composition_gsub(
+                fb.font,
+                cjk_bases=base_names,
+                glyphs=glyphs,
+                glyph_order=glyph_order,
+                squishable=squishable,
+                mark_cps=mark_cps,
+            )
+        case _:
+            # D4 only, then niche-face VS ligatures.
+            install_cjk_composition_gsub(
+                fb.font,
+                cjk_bases=base_names,
+                glyphs=glyphs,
+                glyph_order=glyph_order,
+                squishable=[],
+                mark_cps=[],
+            )
+            match variant:
+                case "t":
+                    install_third_cell_gsub(
+                        fb.font,
+                        bases=third_forms,
+                        glyphs=glyphs,
+                    )
+                case "qv" | "qh" if quarter_face is not None:
+                    install_quarter_cell_gsub(
+                        fb.font,
+                        face=quarter_face,
+                        bases=quarter_forms,
+                        glyphs=glyphs,
+                    )
     if mark_state is not None:
         compile_marks_layout(
             fb.font,
@@ -620,6 +728,38 @@ def build_bucket_font(
     return out_path, len(glyphs) - 1, sorted(cmap.keys())
 
 
+def build_bucket_faces(
+    bucket_id: int,
+    entries: List[BucketEntry],
+    sources: Dict[str, SourceFont],
+    out_dir: str,
+    target_upem: int,
+    *,
+    write_ttf: bool = True,
+    write_woff2: bool = True,
+    hint: bool = True,
+) -> List[Tuple[str, int, List[int]]]:
+    """Build every face for one bucket sequentially (tests / single-bucket use)."""
+    built: List[Tuple[str, int, List[int]]] = []
+    for variant in CJK_FACE_VARIANTS:
+        _path, count, codepoints = build_bucket_font(
+            bucket_id,
+            entries,
+            sources,
+            out_dir,
+            target_upem,
+            variant=variant,
+            write_ttf=write_ttf,
+            write_woff2=write_woff2,
+            hint=hint,
+        )
+        if count == 0:
+            continue
+        face_id = cjk_face_id(f"{bucket_id:X}", variant)
+        built.append((face_id, count, codepoints))
+    return built
+
+
 # ---------- Parallel workers ----------
 
 _WORKER_SOURCES: Optional[Dict[str, SourceFont]] = None
@@ -640,14 +780,14 @@ def compress_woff2(ttf_path: str, woff2_path: Optional[str] = None) -> str:
     os.close(fd)
     try:
         last_err: Optional[BaseException] = None
-        for attempt in range(5):
+        for attempt in range(8):
             try:
                 woff2.compress(ttf_path, tmp_path)
                 os.replace(tmp_path, woff2_path)
                 return woff2_path
             except OSError as exc:
                 last_err = exc
-                time.sleep(0.05 * (2**attempt))
+                time.sleep(0.05 * (2 ** min(attempt, 6)))
         assert last_err is not None
         raise last_err
     finally:
@@ -686,58 +826,95 @@ def _init_build_worker(
     }
 
 
-def _build_bucket_task(
-    args: Tuple[int, List[BucketEntry]],
-) -> Tuple[int, str, int, List[int]]:
-    """Build one bucket; WOFF2 compress (+ TTF drop) happens here when requested."""
-    bucket_id, entries = args
+def _build_bucket_variant_task(
+    args: Tuple[int, List[BucketEntry], str],
+) -> Tuple[int, str, Optional[Tuple[str, int, List[int]]]]:
+    """Build one ``(bucket, variant)`` face; returns ``None`` face when empty."""
+    bucket_id, entries, variant = args
     assert _WORKER_SOURCES is not None
     assert _WORKER_OUT_DIR is not None
     assert _WORKER_UPEM is not None
-    path, count, codepoints = build_bucket_font(
+    _path, count, codepoints = build_bucket_font(
         bucket_id,
         entries,
         _WORKER_SOURCES,
         _WORKER_OUT_DIR,
         _WORKER_UPEM,
+        variant=variant,
         write_ttf=_WORKER_WRITE_TTF,
         write_woff2=_WORKER_WRITE_WOFF2,
         hint=_WORKER_HINT,
     )
-    return bucket_id, path, count, codepoints
+    if count == 0:
+        return bucket_id, variant, None
+    face_id = cjk_face_id(f"{bucket_id:X}", variant)
+    return bucket_id, variant, (face_id, count, codepoints)
 
 
-def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
-    """CSS unicode-range for this bucket's CJK + selectors + reading marks.
+def _face_sort_key(face_id: str) -> Tuple[int, int]:
+    """Sort faces as bucket then qv / qh / t / h / base (CSS stack order)."""
+    core, variant = split_cjk_face_id(face_id)
+    order = {v: i for i, v in enumerate(CJK_FACE_CSS_ORDER)}
+    try:
+        return int(core, 16), order.get(variant, 9)
+    except ValueError:
+        return 0, 9
 
-    Per-bucket ``'edenia cjk XX'`` faces list FE00..FE0F. Pin each half to its
-    bucket face; do not share a single ``edenia cjk`` family (overlapping
-    unicode-range faces conflict). U+16FF0/16FF1 stay listed so marks load
-    from this face. BMP PUA is edenia kana.
+
+def parse_cjk_face_id(face_id: str) -> Optional[Tuple[int, str]]:
+    """Parse ``4E`` / ``4Eh`` / ``4Eqv`` → ``(bucket_id, variant)``."""
+    core, variant = split_cjk_face_id(face_id)
+    if not core:
+        return None
+    try:
+        return int(core, 16), variant
+    except ValueError:
+        return None
+
+
+def unicode_range_for_bucket(
+    bucket_id: int,
+    codepoints: List[int],
+    *,
+    include_marks: bool = False,
+) -> str:
+    """CSS ``unicode-range`` for one bucket face (ideographs only).
+
+    Intentionally **omits** FE00–FE0F and VS17–40. Those are Default_Ignorable;
+    browsers keep them with the preceding ideograph's face. Listing them on
+    every bucket made the first ``@font-face`` steal selectors and break
+    cross-bucket digraph ligas (``明`` from 66h, ``FE0B`` from 65h).
+
+    Base faces may add U+16FF0/16FF1 (ca/nhay) via ``include_marks``.
     """
     side_sels = set(SIDE_SELECTOR_CPS)
-    # FE00..FE0F (D4 + squish/overlay / mark niches).
     fe0_sels = set(range(0xFE00, 0xFE10))
-    selector_cps = fe0_sels
     bucket_cps = {
         cp
         for cp in codepoints
         if not (VS_BASE <= cp <= VS_LAST)
         and cp not in SQUISH_PUA_CPS
         and cp not in side_sels
-        and cp not in selector_cps
+        and cp not in fe0_sels
         and cp not in MARK_CPS
     }
-    cps = sorted(bucket_cps | set(MARK_CPS) | selector_cps)
+    cps: set = set(bucket_cps)
+    if include_marks:
+        cps |= set(MARK_CPS)
     if not bucket_cps:
         start = bucket_id << 8
-        end = start + 0xFF
-        cps = sorted(set(range(start, end + 1)) | set(MARK_CPS) | selector_cps)
+        cps |= set(range(start, start + 0x100))
+        if include_marks:
+            cps |= set(MARK_CPS)
+    if not cps:
+        start = bucket_id << 8
+        cps = set(range(start, start + 0x100))
 
+    ordered = sorted(cps)
     runs: List[str] = []
-    run_start = cps[0]
-    prev = cps[0]
-    for cp in cps[1:]:
+    run_start = ordered[0]
+    prev = ordered[0]
+    for cp in ordered[1:]:
         if cp == prev + 1:
             prev = cp
             continue
@@ -754,60 +931,75 @@ def unicode_range_for_bucket(bucket_id: int, codepoints: List[int]) -> str:
 
 
 def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
-    """Write edenia-cjk.css (@font-face) and fontlist.css (CSS-safe stack)."""
+    """Write edenia-cjk.css (@font-face) and fontlist.css (CSS-safe stack).
+
+    Each variant shares one family (``edenia cjk`` / ``… h`` / ``… t`` / …)
+    with per-bucket ``unicode-range`` (ideographs only). Niche GSUB is selected
+    with ``font-family: 'edenia cjk h'`` (etc.); body stack uses base only.
+    """
+    from edenia_names import family_cjk_variant
+
     css_path = os.path.join(out_dir, CSS_CJK)
     lines: List[str] = [
         "/* Auto-generated Edenia CJK pigeonhole @font-face rules */",
-        "/* One family per bucket ('edenia cjk XX'). Digraph / multi-bucket",
-        "   stacks list those families. No unicode-range (cmap decides). */",
+        "/* Shared families: 'edenia cjk' / h / t / qv / qh.",
+        "   Per-file unicode-range = bucket ideographs only (no FE0*/VS).",
+        "   Digraphs: font-family: 'edenia cjk h' — one run, cross-bucket OK. */",
         "",
     ]
-    family_names: List[str] = []
 
-    def _face(family: str, hex_id: str) -> None:
-        # Remote CDNs first (raw → statically → jsDelivr mirrors); local last.
-        # Obsidian themes resolve ./ relative to theme.css (no cjk beside it).
+    def _face(family: str, face_id: str, unicode_range: str) -> None:
         lines.append("@font-face {")
         lines.append(f"  font-family: '{family}';")
         lines.append(
             format_src_line(
-                dist_rel(CJK_FOLDER, f"{hex_id}.woff2"),
+                dist_rel(CJK_FOLDER, f"{face_id}.woff2"),
                 fmt="woff2",
                 local=(
-                    (f"./{hex_id}.woff2", "woff2"),
-                    (f"./{hex_id}.ttf", "truetype"),
+                    (f"./{face_id}.woff2", "woff2"),
+                    (f"./{face_id}.ttf", "truetype"),
                 ),
                 indent="  ",
             )
         )
+        lines.append(f"  unicode-range: {unicode_range};")
         lines.append("  font-weight: normal;")
         lines.append("  font-style: normal;")
         lines.append("  font-display: swap;")
         lines.append("}")
         lines.append("")
 
-    for hex_id, _count, _codepoints in built:
-        family = family_cjk(hex_id)
-        family_names.append(family)
-        _face(family, hex_id)
+    ordered = sorted(built, key=lambda t: _face_sort_key(t[0]))
+    for face_id, _count, codepoints in ordered:
+        parsed = parse_cjk_face_id(face_id)
+        if parsed is None:
+            continue
+        bucket_id, variant = parsed
+        family = family_cjk(face_id)
+        ur = unicode_range_for_bucket(
+            bucket_id,
+            codepoints,
+            include_marks=(variant == ""),
+        )
+        _face(family, face_id, ur)
 
     with open(css_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
-    # CSS-safe quoted per-bucket family list for stacks.
-    quoted = ", ".join(f"'{name}'" for name in family_names)
+    base_fam = family_cjk_variant("")
     fontlist_path = os.path.join(out_dir, "fontlist.css")
     fontlist = f"""/* src/scss/index.scss — Edenia CJK pigeonhole font stack */
+/* Base family only. Digraphs/thirds/quarters: 'edenia cjk h' / t / qv / qh. */
 body {{
   --font-editor-theme: '';
   --font-editor: var(--font-editor-theme), var(--font-text);
   --font-text-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, {quoted}, {STACK_CJK_TAIL}, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, '{base_fam}', {STACK_CJK_TAIL}, monospace;
   --font-interface-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, {quoted}, {STACK_CJK_TAIL}, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, '{base_fam}', {STACK_CJK_TAIL}, monospace;
   --font-monospace-theme:
-    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, {quoted}, {STACK_CJK_TAIL}, monospace;
+    Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, '{base_fam}', {STACK_CJK_TAIL}, monospace;
 }}
 """
     with open(fontlist_path, "w", encoding="utf-8") as f:
@@ -822,21 +1014,23 @@ def regenerate_css_from_dist(out_dir: str) -> None:
     for name in sorted(os.listdir(out_dir)):
         if not (name.endswith(".woff2") or name.endswith(".ttf")):
             continue
-        hex_id = os.path.splitext(name)[0]
-        if hex_id in seen:
+        face_id = os.path.splitext(name)[0]
+        if face_id in seen:
             continue
-        try:
-            bucket_id = int(hex_id, 16)
-        except ValueError:
+        parsed = parse_cjk_face_id(face_id)
+        if parsed is None:
             continue
-        seen[hex_id] = None
-        # Family name is the bucket id; cmap decides coverage.
-        built.append((hex_id, 0, []))
+        bucket_id, variant = parsed
+        if variant not in CJK_FACE_VARIANTS:
+            continue
+        seen[face_id] = None
+        built.append((face_id, 0, []))
         _ = bucket_id
     if not built:
         print(f"No bucket fonts found under {out_dir}", file=sys.stderr)
         sys.exit(1)
-    print(f"Regenerating CSS for {len(built)} buckets from {out_dir}")
+    built.sort(key=lambda t: _face_sort_key(t[0]))
+    print(f"Regenerating CSS for {len(built)} faces from {out_dir}")
     write_css(out_dir, built)
     sync_dist_to_plugin(CJK_FOLDER, out_dir)
 
@@ -876,8 +1070,7 @@ def build_all(
     )
     print(f"Output formats: {fmt_note}")
     print(
-        "Reading marks: U+16FF0/16FF1 ca/nhay as precomposed squish+mark "
-        "composites (FE0C–FE0F niche; bare mark → .dk); FE0B .ov for digraphs"
+        "Faces/bucket: qv/qh, t, h, base (CSS); build waves base→h→t→qv→qh"
     )
 
     sources_list = [
@@ -911,19 +1104,19 @@ def build_all(
     params_by_path = {p: (s, w) for p, s, w in font_entries}
     used_entries = [(p, *params_by_path.get(p, (1.0, 1.0))) for p in used_paths]
     workers = max(1, jobs)
+    bucket_ids = sorted(buckets.keys())
+    n_buckets = len(bucket_ids)
+    n_variants = len(CJK_FACE_VARIANTS)
     print(
-        f"\nBuilding {len(buckets)} subfonts (glyph-by-glyph, {workers} workers) "
-        f"-> {out_dir}",
+        f"\nBuilding {n_variants} variants × {n_buckets} buckets "
+        f"(one variant at a time; {workers} workers) -> {out_dir}",
         flush=True,
     )
 
-    tasks = [(bid, buckets[bid]) for bid in sorted(buckets.keys())]
-    total = len(tasks)
     written = 0
     glyph_total = 0
     skipped = 0
     built: List[Tuple[str, int, List[int]]] = []
-    done = 0
     fmt_tag = (
         "ttf+woff2" if write_ttf and write_woff2 else ("ttf" if write_ttf else "woff2")
     )
@@ -933,27 +1126,42 @@ def build_all(
         initializer=_init_build_worker,
         initargs=(used_entries, out_dir, target_upem, write_ttf, write_woff2, hint),
     ) as executor:
-        futures = [executor.submit(_build_bucket_task, task) for task in tasks]
-        for fut in concurrent.futures.as_completed(futures):
-            bucket_id, path, count, codepoints = fut.result()
-            done += 1
-            hex_id = f"{bucket_id:X}"
-            if count == 0:
-                skipped += 1
-                print(
-                    f"  [{done}/{total}] {hex_id} skipped (empty)",
-                    flush=True,
-                )
-                continue
-            written += 1
-            glyph_total += count
-            built.append((hex_id, count, codepoints))
+        for vi, variant in enumerate(CJK_FACE_VARIANTS, start=1):
+            label = variant if variant else "base"
             print(
-                f"  [{done}/{total}] {hex_id} ({fmt_tag}, {count} glyphs)",
+                f"\n── variant {vi}/{n_variants}: {label} "
+                f"({n_buckets} buckets) ──",
                 flush=True,
             )
+            futures = [
+                executor.submit(
+                    _build_bucket_variant_task,
+                    (bid, buckets[bid], variant),
+                )
+                for bid in bucket_ids
+            ]
+            done = 0
+            for fut in concurrent.futures.as_completed(futures):
+                bucket_id, _var, face = fut.result()
+                done += 1
+                hex_id = f"{bucket_id:X}"
+                if face is None:
+                    skipped += 1
+                    print(
+                        f"  [{done}/{n_buckets}] {hex_id}{variant} skipped (empty)",
+                        flush=True,
+                    )
+                    continue
+                face_id, count, codepoints = face
+                written += 1
+                glyph_total += count
+                built.append((face_id, count, codepoints))
+                print(
+                    f"  [{done}/{n_buckets}] {face_id} ({fmt_tag}; {count})",
+                    flush=True,
+                )
 
-    built.sort(key=lambda t: int(t[0], 16))
+    built.sort(key=lambda t: _face_sort_key(t[0]))
     write_css(out_dir, built)
 
     print(
@@ -983,7 +1191,7 @@ def parse_args() -> argparse.Namespace:
         dest="jobs",
         type=int,
         default=max(1, os.cpu_count() or 4),
-        help="Parallel workers for bucket builds (default: CPU count)",
+        help="Parallel workers per variant wave (default: CPU count)",
     )
     p.add_argument(
         "--css-only",

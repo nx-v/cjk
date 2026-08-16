@@ -97,7 +97,7 @@ from yi_slice import (
     install_slice_gsub,
 )
 from edenia_names import CSS_KANA, FAMILY_KANA, PS_KANA
-from sync_obsidian_panfonts import sync_dist_to_plugin
+from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
