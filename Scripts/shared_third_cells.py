@@ -26,7 +26,9 @@ VS26    U+E0109    right third                      ``t3r``
 
 Upright bases are TrueType composites of the identity (uniform scale on one
 axis into the niche). Oriented (D4) bases reuse the upright niche via further
-composites (same pattern as half-cell ``.dk*``).
+composites (same pattern as half-cell ``.dk*``). All niche scales also take
+``COMPOUND_CELL_SCALE`` from ``shared_half_cells`` so compounds match
+standalone CJK size.
 """
 
 from __future__ import annotations
@@ -217,7 +219,11 @@ def place_glyph_in_third(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[TTGlyph, int, int]:
     """Affine map full ideographic frame → third / two-thirds slot (no CAPE)."""
-    from shared_half_cells import STANDALONE_VERT_PAD, cjk_padded_floor
+    from shared_half_cells import (
+        COMPOUND_CELL_SCALE,
+        STANDALONE_VERT_PAD,
+        cjk_padded_floor,
+    )
 
     upem = float(target_upem)
     src = glyph
@@ -240,8 +246,9 @@ def place_glyph_in_third(
     )
     tw = max(x1 - x0, 1.0)
     th = max(y1 - y0, 1.0)
-    sx = tw / sw
-    sy = th / sh
+    g = float(COMPOUND_CELL_SCALE)
+    sx = (tw / sw) * g
+    sy = (th / sh) * g
     src_cx = (sx0 + sx1) / 2.0
     src_cy = (sy0 + sy1) / 2.0
     dst_cx = (x0 + x1) / 2.0

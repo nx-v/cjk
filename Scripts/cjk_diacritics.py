@@ -1142,6 +1142,7 @@ def place_glyph_in_half(
     this affine map is the empty-outline / no-composite fallback.
     """
     from shared_half_cells import (
+        COMPOUND_CELL_SCALE,
         STANDALONE_VERT_PAD,
         apply_transform,
         cjk_padded_floor,
@@ -1170,8 +1171,9 @@ def place_glyph_in_half(
     )
     tw = max(x1 - x0, 1.0)
     th = max(y1 - y0, 1.0)
-    sx = tw / sw
-    sy = th / sh
+    g = float(COMPOUND_CELL_SCALE)
+    sx = (tw / sw) * g
+    sy = (th / sh) * g
     src_cx = (sx0 + sx1) / 2.0
     src_cy = (sy0 + sy1) / 2.0
     dst_cx = (x0 + x1) / 2.0

@@ -39,6 +39,9 @@ VS38    U+E0115    top 3/4 (= left 3/4)      ``q4t3``
 VS39    U+E0116    bottom 3/4 (= right 3/4)  ``q4b3``
 VS40    U+E0117    middle half               ``q4mh``
 ======= ========== ========================= ========
+
+Niche composites / placers apply ``COMPOUND_CELL_SCALE`` (``shared_half_cells``)
+so stacked quarters match standalone CJK size.
 """
 
 from __future__ import annotations
@@ -238,7 +241,11 @@ def place_glyph_in_quarter(
     target_upem: int = 1000,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    from shared_half_cells import STANDALONE_VERT_PAD, cjk_padded_floor
+    from shared_half_cells import (
+        COMPOUND_CELL_SCALE,
+        STANDALONE_VERT_PAD,
+        cjk_padded_floor,
+    )
 
     upem = float(target_upem)
     src = glyph
@@ -261,8 +268,9 @@ def place_glyph_in_quarter(
     )
     tw = max(x1 - x0, 1.0)
     th = max(y1 - y0, 1.0)
-    sx = tw / sw
-    sy = th / sh
+    g = float(COMPOUND_CELL_SCALE)
+    sx = (tw / sw) * g
+    sy = (th / sh) * g
     src_cx = (sx0 + sx1) / 2.0
     src_cy = (sy0 + sy1) / 2.0
     dst_cx = (x0 + x1) / 2.0

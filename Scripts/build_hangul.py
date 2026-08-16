@@ -131,10 +131,10 @@ PS_SYLL = PS_HANGULS
 LOCAL_SCALE = 1.0
 # Uniform Y translate after UPM fit (target-upem units). Malgun Hangul sits
 # high vs CJK/kana/Yi (typo mid ~380); negative shifts down to match.
-MALGUN_Y_SHIFT = -40
+MALGUN_Y_SHIFT = -45
 # Extra Y scale about the ideographic center after UPM fit (1.0 = none).
 # Malgun Hangul syllables are ~935 tall vs CJK median ~901 → ~0.96.
-MALGUN_Y_SCALE = 0.93
+MALGUN_Y_SCALE = 0.875
 # VS1..VS4 — axis mirrors (Unicode VS U+FE00..FE03). PUA E000+ is edenia kana.
 HANGUL_MIRROR_MODES: List[Tuple[int, bool, bool, Optional[str]]] = [
     (0xE000, False, False, None),

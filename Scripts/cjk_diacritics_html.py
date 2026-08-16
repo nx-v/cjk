@@ -661,7 +661,8 @@ function digraphCell(textA, textB, cpA, cpB, tag, cross) {{
   d.className = 'cell';
   const g = document.createElement('div');
   g.className = 'glyph';
-  // Shared 'edenia cjk h' + unicode-range: FE0* stay with preceding ideograph.
+  // Shared 'edenia cjk h' + unicode-range (ideographs + FE00–FE0F).
+  // FE0* must be in-range or Blink drops them before GSUB.
   g.style.fontFamily = faceFamily(DATA.FACE_H);
   g.textContent = textA + textB;
   const t = document.createElement('div');

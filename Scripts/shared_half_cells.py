@@ -99,6 +99,10 @@ STANDALONE_VERT_PAD = 0.05
 # After stretch / stem-normalize + CJK floor pin: uniform scale about the
 # ideographic center so Yi ink occupies ~98% of the cell (still centered).
 STANDALONE_CELL_SCALE = 0.98
+# Extra uniform shrink for half / third / quarter niche components (composites
+# and affine placers). Niche slots otherwise fill the typo box harder than
+# standalone CJK, so compounds read oversized next to 劫/幸-class ideographs.
+COMPOUND_CELL_SCALE = 0.90
 
 # Match build_yi / build_cjk OS/2 + hhea (CJK ideographic body).
 TYPO_ASCENDER_FRAC = 0.88
@@ -1707,10 +1711,12 @@ def make_scaled_niche_composite(
 
     ``p' = S·(p - pivot) + dest`` with axis-aligned ``S = diag(scale_x, scale_y)``.
     Used for CJK upright niches (half / third / quarter) so outlines stay on
-    the identity glyph instead of CAPE-baking every niche.
+    the identity glyph instead of CAPE-baking every niche. Both axes also
+    take ``COMPOUND_CELL_SCALE`` so stacked niches match standalone CJK size.
     """
-    xx = float(scale_x)
-    yy = float(scale_y)
+    g = float(COMPOUND_CELL_SCALE)
+    xx = float(scale_x) * g
+    yy = float(scale_y) * g
     dx = float(dest_x) - xx * float(pivot_x)
     dy = float(dest_y) - yy * float(pivot_y)
     g = TTGlyph()

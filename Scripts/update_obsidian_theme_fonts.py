@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Refresh Obsidian theme.css Edenia font blocks from GitHub CDN or local dist.
 
-Each Edenia CJK bucket keeps its own family name (``edenia cjk 4E``, …)
-matching the name table inside the WOFF2. Digraphs and Obsidian both need
-those distinct names — collapsing every face to a shared family does not
-work reliably with ``FontFace`` / the theme stack.
+CJK faces share ``edenia cjk`` / ``edenia cjk h`` / … with per-bucket
+``unicode-range``. ``U+FE00–FE0F`` must be listed on each face — Blink drops
+Default_Ignorable selectors that match no range, which breaks digraph GSUB.
 
 Default: font files via **jsDelivr**.
 
@@ -94,10 +93,7 @@ MARK_STACK_BEGIN = (
 )
 MARK_STACK_END = "/* === END auto pan font stack === */"
 
-STACK_LATIN = (
-    "Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "
-    "FlopDesignFont, MKanaPlus"
-)
+STACK_LATIN = "Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono"
 STACK_TAIL = "monospace"
 
 
@@ -172,11 +168,18 @@ def pancjk_families_from_css(css: str) -> list[str]:
 
 
 def pancjk_stack_families(css: str) -> list[str]:
-    """Body stack: base ``edenia cjk`` only (niche GSUB needs an explicit pin)."""
+    """Body stack CJK families: ``h`` first (digraph/FE0B–F GSUB), then base.
+
+    Niche ligas live on the half-cell face. Base alone cannot merge compounds.
+    ``t`` / ``qv`` / ``qh`` stay opt-in (explicit pin), not in the body stack.
+    """
     families = pancjk_families_from_css(css)
-    base = [n for n in families if n == "edenia cjk"]
-    if base:
-        return base
+    out: list[str] = []
+    for name in ("edenia cjk h", "edenia cjk"):
+        if name in families:
+            out.append(name)
+    if out:
+        return out
     # Older CSS listed per-bucket ``edenia cjk XX`` — keep those for stack.
     return families
 
@@ -186,6 +189,16 @@ def css_family_token(name: str) -> str:
     if re.search(r"[\s,]", name):
         return f'"{name}"'
     return name
+
+
+_FE0_RANGE = "U+FE00-FE0F"
+
+
+def _ensure_fe0_unicode_range(ur: str) -> str:
+    """Blink drops FE0* when no FontFace unicode-range claims them."""
+    if re.search(r"U\+FE0[0-9A-Fa-f]", ur):
+        return ur
+    return f"{ur}, {_FE0_RANGE}" if ur else _FE0_RANGE
 
 
 def collect_faces(css: str, *, folder: str) -> list[dict]:
@@ -206,7 +219,11 @@ def collect_faces(css: str, *, folder: str) -> list[dict]:
         }
         ur_m = re.search(r"unicode-range:\s*([^;]+);", block)
         if ur_m:
-            face["unicodeRange"] = " ".join(ur_m.group(1).split())
+            ur = " ".join(ur_m.group(1).split())
+            # CJK pigeonholes need FE0* in-range or digraph/mark GSUB never runs.
+            if folder == "cjk":
+                ur = _ensure_fe0_unicode_range(ur)
+            face["unicodeRange"] = ur
         out.append(face)
     return out
 
@@ -437,8 +454,7 @@ def build_stack_block(*, pancjk_families: list[str]) -> str:
     return "\n".join(
         [
             MARK_STACK_BEGIN,
-            "/* Edenia CJK base family (unicode-range per bucket). "
-            "Pin 'edenia cjk h' / t / qv / qh for niche ligas. */",
+            "/* Edenia CJK: 'edenia cjk h' before base so FE0B–F digraphs shape. */",
             "body {",
             f"  --font-text-theme: {stack};",
             f"  --font-interface-theme: {stack};",
@@ -569,6 +585,18 @@ def main(argv: list[str] | None = None) -> int:
     themes: list[Path] = list(args.theme or [REPO_ROOT / "theme.css"])
     if args.also_private:
         themes.append(SCRIPT_DIR / "private" / "theme.css")
+    # With --vault, also patch installed Obsidian themes that already carry
+    # the auto pan markers (Sanctum / Origami / …).
+    if args.vault:
+        themes_dir = Path(args.vault) / ".obsidian" / "themes"
+        if themes_dir.is_dir():
+            for theme_css in sorted(themes_dir.glob("*/theme.css")):
+                try:
+                    text = theme_css.read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                if MARK_STACK_BEGIN in text or MARK_FACES_BEGIN in text:
+                    themes.append(theme_css)
 
     print("Loading Edenia font CSS…")
     hangul = load_css("hangul", local=args.local)
