@@ -751,6 +751,61 @@ def apply_weight(
             pass
 
 
+def apply_horizontal_weight(
+    layer: Layer,
+    factor: float,
+    *,
+    stem: Optional[float] = None,
+    preserve_width: bool = True,
+    preserve_height: bool = True,
+) -> None:
+    """Bolden/lighten **horizontal** strokes (Y-only OffsetCurve).
+
+    Same Weight-mode box restore as ``apply_weight``, but the offset is only
+    on Y so vertical stems stay put. Used when anisotropic CJK-cell stretch
+    has thinned horizontals (Nuosu → ideograph square).
+    """
+    if abs(factor - 1.0) < 1e-9:
+        return
+    b = layer.bounds
+    orig_x, orig_y = b.origin.x, b.origin.y
+    orig_w, orig_h = b.size.x, b.size.y
+    if orig_w <= 1e-6 or orig_h <= 1e-6:
+        return
+
+    n = float(stem) if stem is not None else estimate_horizontal_stem(layer)
+    if n <= 0:
+        n = 0.1 * min(orig_w, orig_h)
+    offset = n * (factor - 1.0) / 2.0
+    if abs(offset) < 1e-6:
+        return
+
+    offset_layer(layer, 0.0, offset)
+
+    if preserve_height or preserve_width:
+        nb = layer.bounds
+        nw, nh = nb.size.x, nb.size.y
+        if nw <= 1e-6 or nh <= 1e-6:
+            return
+        sx = orig_w / nw if preserve_width else 1.0
+        sy = orig_h / nh if preserve_height else 1.0
+        tx = orig_x - nb.origin.x * sx if preserve_width else 0.0
+        ty = orig_y - nb.origin.y * sy if preserve_height else 0.0
+        if (
+            abs(sx - 1.0) > 1e-9
+            or abs(sy - 1.0) > 1e-9
+            or abs(tx) > 1e-6
+            or abs(ty) > 1e-6
+        ):
+            layer.applyTransform((sx, 0, 0, sy, tx, ty))
+
+    if preserve_width:
+        try:
+            layer.LSB = layer.bounds.origin.x
+        except Exception:
+            pass
+
+
 def widen_ttglyph(
     glyph: TTGlyph,
     factor: float,
@@ -808,5 +863,26 @@ def bolden_ttglyph(
     layer = layer_from_ttglyph(glyph, advance)
     adv0 = layer.width
     apply_weight(layer, factor, stem=stem)
+    layer.width = adv0
+    return ttglyph_from_layer(layer)
+
+
+def bolden_horizontal_ttglyph(
+    glyph: TTGlyph,
+    factor: float,
+    *,
+    advance: Optional[float] = None,
+    stem: Optional[float] = None,
+) -> Tuple[TTGlyph, int, int]:
+    """Y-only Weight-mode bolden; returns ``(glyph, advance, lsb)``."""
+    if advance is None:
+        try:
+            glyph.recalcBounds(None)
+            advance = float(max(glyph.xMax, 0)) + 100.0
+        except Exception:
+            advance = 1000.0
+    layer = layer_from_ttglyph(glyph, advance)
+    adv0 = layer.width
+    apply_horizontal_weight(layer, factor, stem=stem)
     layer.width = adv0
     return ttglyph_from_layer(layer)

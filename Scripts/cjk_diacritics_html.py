@@ -943,7 +943,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--in-dir",
         default=IN_DIR,
-        help="Source font dir for shared-mark inventory (default: Scripts/src)",
+        help="Source font dir (Plangothic ca/nhay; default: Scripts/src)",
     )
     return p.parse_args()
 

@@ -24,9 +24,10 @@ VS25    U+E0108    center + right third             ``t3cr``
 VS26    U+E0109    right third                      ``t3r``
 ======= ========== ================================ ========
 
-Upright bases are **slices** of the identity (clip to the third / two-thirds
-band — no stretch). Oriented (D4) bases reuse the upright niche via further
-composites (same pattern as half-cell ``.dk*``).
+Upright and D4 bases are **slices** of the already-baked fullwidth outline:
+clip the two end thirds per axis; middle and two-thirds bands are
+``full − end`` / ``(full − end) − other end``. Zero-width ``.ov``
+forms are composites of those fullwidth slices.
 """
 
 from __future__ import annotations
@@ -43,13 +44,16 @@ from shared_half_cells import (
     _recording_from_glyph,
     add_overlay_forms,
     apply_transform,
+    boolean_subtract_named,
     build_chunked_ligature_subst_lookup,
-    contour_center,
     empty_glyph,
+    half_plane_rect,
     ideographic_bounds,
-    make_composite_variant,
+    install_derived_glyph,
+    make_niche_slice_glyph,
     overlay_glyph_name,
     variant_glyph_name,
+    HALF_PLANE_INF_FRAC,
 )
 
 # FE0B zero-width overlay (same glyph name as half-cell digraphs).
@@ -92,13 +96,6 @@ THIRD_VS_SLOTS: Tuple[ThirdSlot, ...] = (
 
 THIRD_VS_CPS: Tuple[int, ...] = tuple(cp for cp, *_ in THIRD_VS_SLOTS)
 
-_D4_SUFFIXES = frozenset({"r90", "r180", "r270", "mx", "my", "r90mx", "r90my"})
-_D4_TRANSFORM: Dict[str, Tuple[int, bool, bool]] = {
-    suf: (rot, fx, fy)
-    for _vs, rot, fx, fy, suf in TRANSFORM_MODES
-    if suf is not None
-}
-
 
 def third_vs_glyph_name(vs_cp: int) -> str:
     if not (THIRD_VS_BASE <= vs_cp <= THIRD_VS_LAST):
@@ -108,20 +105,6 @@ def third_vs_glyph_name(vs_cp: int) -> str:
 
 def third_form_name(base_name: str, suffix: str) -> str:
     return f"{base_name}.{suffix}"
-
-
-def _d4_suffix_of(name: str) -> Optional[str]:
-    if "." not in name:
-        return None
-    suf = name.rsplit(".", 1)[1]
-    return suf if suf in _D4_SUFFIXES else None
-
-
-def _d4_root_name(name: str) -> str:
-    suf = _d4_suffix_of(name)
-    if suf is None:
-        return name
-    return name[: -(len(suf) + 1)]
 
 
 def _third_slot_rect(
@@ -260,45 +243,6 @@ def make_third_glyph(
     )
 
 
-def _niche_center_xy(axis: str, band0: int, band1: int) -> Tuple[float, float]:
-    """Unit-square niche center for D4 remapping (origin at cell center)."""
-    lo = min(band0, band1)
-    hi = max(band0, band1)
-    mid = (lo + hi + 1) / 2.0 / 3.0  # 0..1 along axis from start
-    # Map 0..1 → -1..+1 about center.
-    t = mid * 2.0 - 1.0
-    if axis == "y":
-        # band 0 = bottom (−1), band 2 = top (+1)
-        return 0.0, t
-    return t, 0.0
-
-
-def _d4_third_parent_suffix(needed_suf: str, rot: int, fx: bool, fy: bool) -> str:
-    """Upright niche suffix that maps to ``needed_suf`` under D4."""
-    from shared_half_cells import variant_matrix
-
-    slot = next(s for s in THIRD_VS_SLOTS if s[2] == needed_suf)
-    _cp, _sel, _suf, axis, b0, b1 = slot
-    sx, sy = _niche_center_xy(axis, b0, b1)
-    (xx, xy), (yx, yy) = variant_matrix(rot90_quarters=rot, flip_x=fx, flip_y=fy)
-    # Inverse map: needed on oriented ← upright parent.
-    # Forward: upright → oriented; we want parent such that F(parent) ≈ needed.
-    # Solve approx by testing all upright niches.
-    best = needed_suf
-    best_d = 1e9
-    for _c, _s, suf, a, p0, p1 in THIRD_VS_SLOTS:
-        ux, uy = _niche_center_xy(a, p0, p1)
-        mx, my = xx * ux + yx * uy, xy * ux + yy * uy
-        d = (mx - sx) ** 2 + (my - sy) ** 2
-        # Prefer matching span width.
-        if abs((p1 - p0) - (b1 - b0)) > 0:
-            d += 0.5
-        if d < best_d:
-            best_d = d
-            best = suf
-    return best
-
-
 def add_third_forms(
     base_names: Sequence[str],
     *,
@@ -307,62 +251,118 @@ def add_third_forms(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int = 1000,
 ) -> List[str]:
-    """Upright third niches as slices of the identity; oriented via D4."""
-    identities = [n for n in base_names if _d4_suffix_of(n) is None and n in glyphs]
-    oriented = [n for n in base_names if _d4_suffix_of(n) is not None and n in glyphs]
-
+    """Slice each baked form: clip end thirds; derive mid / 2/3 by subtract."""
     added: List[str] = []
-    for name in identities:
+    end_slots = (
+        ("t3t", "y", 2, 2),
+        ("t3b", "y", 0, 0),
+        ("t3l", "x", 0, 0),
+        ("t3r", "x", 2, 2),
+    )
+    for name in base_names:
+        if name not in glyphs:
+            continue
         adv, _lsb = metrics.get(name, (target_upem, 0))
-        for _cp, _sel, suf, axis, b0, b1 in THIRD_VS_SLOTS:
+
+        def _put(out_name: str, gm: Tuple[TTGlyph, int, int]) -> None:
+            install_derived_glyph(
+                out_name,
+                gm,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+            )
+
+        for suf, axis, b0, b1 in end_slots:
             out_name = third_form_name(name, suf)
             if out_name in glyphs:
                 continue
-            g, a, l = make_third_glyph(
-                name,
-                adv,
-                axis=axis,
-                band0=b0,
-                band1=b1,
-                target_upem=target_upem,
-                glyph_set=glyphs,
+            bot, top, _ = ideographic_bounds(target_upem)
+            inf = float(target_upem) * HALF_PLANE_INF_FRAC
+            if axis == "y":
+                span = top - bot
+                if b0 == 2:  # top third: y >= 2/3
+                    rect = half_plane_rect(
+                        bot + span * (2.0 / 3.0),
+                        axis="y",
+                        keep="hi",
+                        inf=inf,
+                    )
+                else:  # bottom third: y <= 1/3
+                    rect = half_plane_rect(
+                        bot + span * (1.0 / 3.0),
+                        axis="y",
+                        keep="lo",
+                        inf=inf,
+                    )
+            elif b0 == 0:  # left third
+                rect = half_plane_rect(
+                    float(target_upem) / 3.0, axis="x", keep="lo", inf=inf
+                )
+            else:  # right third
+                rect = half_plane_rect(
+                    float(target_upem) * (2.0 / 3.0),
+                    axis="x",
+                    keep="hi",
+                    inf=inf,
+                )
+            _put(
+                out_name,
+                make_niche_slice_glyph(
+                    name,
+                    advance=adv,
+                    rect=rect,
+                    glyph_set=glyphs,
+                ),
             )
-            glyph_order.append(out_name)
-            glyphs[out_name] = g
-            metrics[out_name] = (a, l)
-        added.append(name)
 
-    for name in oriented:
-        suf = _d4_suffix_of(name)
-        assert suf is not None
-        root = _d4_root_name(name)
-        rot, fx, fy = _D4_TRANSFORM[suf]
-        pivot = contour_center(glyphs[root], glyphs)
-        for _cp, _sel, needed, _axis, _b0, _b1 in THIRD_VS_SLOTS:
-            parent_suf = _d4_third_parent_suffix(needed, rot, fx, fy)
-            parent = third_form_name(root, parent_suf)
-            child = third_form_name(name, needed)
-            if child in glyphs or parent not in glyphs:
-                continue
-            p_adv, p_lsb = metrics[parent]
-            g, a, l = make_composite_variant(
-                parent,
-                target_upem,
-                rot90_quarters=rot,
-                flip_x=fx,
-                flip_y=fy,
-                advance=p_adv,
-                lsb=p_lsb,
-                base_glyph=glyphs[parent],
-                glyph_set=glyphs,
-                center=pivot,
-                allow_2x2=False,
-            )
-            glyph_order.append(child)
-            glyphs[child] = g
-            metrics[child] = (a, l)
+        t = third_form_name(name, "t3t")
+        b = third_form_name(name, "t3b")
+        l = third_form_name(name, "t3l")
+        r = third_form_name(name, "t3r")
+        tm = third_form_name(name, "t3tm")
+        mb = third_form_name(name, "t3mb")
+        m = third_form_name(name, "t3m")
+        lc = third_form_name(name, "t3lc")
+        cr = third_form_name(name, "t3cr")
+        c = third_form_name(name, "t3c")
+        _put(
+            mb,
+            boolean_subtract_named(
+                name, t, glyphs=glyphs, metrics=metrics, advance=adv
+            ),
+        )
+        _put(
+            tm,
+            boolean_subtract_named(
+                name, b, glyphs=glyphs, metrics=metrics, advance=adv
+            ),
+        )
+        _put(
+            m,
+            boolean_subtract_named(
+                mb, b, glyphs=glyphs, metrics=metrics, advance=adv
+            ),
+        )
+        _put(
+            cr,
+            boolean_subtract_named(
+                name, l, glyphs=glyphs, metrics=metrics, advance=adv
+            ),
+        )
+        _put(
+            lc,
+            boolean_subtract_named(
+                name, r, glyphs=glyphs, metrics=metrics, advance=adv
+            ),
+        )
+        _put(
+            c,
+            boolean_subtract_named(
+                lc, l, glyphs=glyphs, metrics=metrics, advance=adv
+            ),
+        )
         added.append(name)
-
     return added
 
 

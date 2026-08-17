@@ -16,7 +16,7 @@
  *                slices FE00/FE01; combining marks + CGJ slot skip
  *                (not Unicode Hiragana/Katakana/Kana Extended blocks)
  *   CJK (+Tangut/Khitan): D4 FE00–FE07; digraph A FE0B FE0C–F + B FE0D–F;
- *                         ca/nhay U+16FF0/16FF1; combining marks
+ *                         ca/nhay U+16FF0/16FF1 only (no combining marks)
  *
  * Combining marks = ``\p{M}`` baked into Hangul/Yi/Kana (see
  * ``shared_diacritics.iter_dakuten_codepoints``), excluding variation
@@ -681,7 +681,6 @@ function generateString(maxLength = 1000) {
         }
         let charArray = chars.join``;
         if (random() < 0.55) charArray = generateReading([...charArray]);
-        if (random() < 0.12) charArray = attachDakuten(charArray, 1);
         result += charArray;
         addOkurigana = true;
         break;
@@ -966,12 +965,6 @@ function generateFeatureCatalog() {
       }
     }
     lines.push(nicheLines.join('　'));
-    lines.push('**Ideograph + combining marks**');
-    lines.push(
-      [...Array(8)]
-        .map(() => attachDakuten(cjkWithD4(getIdeographLike()), 2))
-        .join('　'),
-    );
     sections.push(
       catalogBlock('CJK set (Han · Tangut · Khitan) — compounds & marks', lines),
     );

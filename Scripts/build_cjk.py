@@ -16,8 +16,9 @@ Five faces per bucket (filename / family stem = ``{hex}`` / ``{hex}h`` /
     qv      base forms + D4 + vertical quarter niches (VS13–14, VS27–33)
     qh      base forms + D4 + horizontal quarter niches (VS15–16, VS34–40)
 
-Builds run as variant waves: all buckets for one face in parallel, then the
-next face (base → h → t → qv → qh).
+Every bucket is a process-pool job (``--jobs`` defaults to all CPUs). Inside
+each worker, faces are sequential: **base**, then **h / qv / qh**, then
+**t**. Concurrent variants of the same bucket raced on shared intermediates.
 
 Also writes edenia-cjk.css (@font-face) and fontlist.css (CSS-safe stack).
 """
@@ -85,6 +86,7 @@ from shared_quarter_cells import (
     prepare_quarter_cells,
 )
 from edenia_names import (
+    CJK_FACE_BUILD_ORDER,
     CJK_FACE_CSS_ORDER,
     CJK_FACE_VARIANTS,
     CSS_CJK,
@@ -744,7 +746,7 @@ def build_bucket_faces(
 ) -> List[Tuple[str, int, List[int]]]:
     """Build every face for one bucket sequentially (tests / single-bucket use)."""
     built: List[Tuple[str, int, List[int]]] = []
-    for variant in CJK_FACE_VARIANTS:
+    for variant in CJK_FACE_BUILD_ORDER:
         _path, count, codepoints = build_bucket_font(
             bucket_id,
             entries,
@@ -829,11 +831,12 @@ def _init_build_worker(
     }
 
 
-def _build_bucket_variant_task(
-    args: Tuple[int, List[BucketEntry], str],
+def _build_bucket_variant(
+    bucket_id: int,
+    entries: List[BucketEntry],
+    variant: str,
 ) -> Tuple[int, str, Optional[Tuple[str, int, List[int]]]]:
-    """Build one ``(bucket, variant)`` face; returns ``None`` face when empty."""
-    bucket_id, entries, variant = args
+    """Build one face; returns ``None`` face when empty."""
     assert _WORKER_SOURCES is not None
     assert _WORKER_OUT_DIR is not None
     assert _WORKER_UPEM is not None
@@ -852,6 +855,17 @@ def _build_bucket_variant_task(
         return bucket_id, variant, None
     face_id = cjk_face_id(f"{bucket_id:X}", variant)
     return bucket_id, variant, (face_id, count, codepoints)
+
+
+def _build_bucket_task(
+    args: Tuple[int, List[BucketEntry]],
+) -> List[Tuple[int, str, Optional[Tuple[str, int, List[int]]]]]:
+    """One bucket: base, then halves/quarters, then thirds (no overlap)."""
+    bucket_id, entries = args
+    return [
+        _build_bucket_variant(bucket_id, entries, variant)
+        for variant in CJK_FACE_BUILD_ORDER
+    ]
 
 
 def _face_sort_key(face_id: str) -> Tuple[int, int]:
@@ -1081,7 +1095,10 @@ def build_all(
         else ("ttf only" if write_ttf else "woff2 only")
     )
     print(f"Output formats: {fmt_note}")
-    print("Faces/bucket: qv/qh, t, h, base (CSS); build waves base→h→t→qv→qh")
+    print(
+        "Faces/bucket: qv/qh, t, h, base (CSS); "
+        "build order per bucket: base → h/qv/qh → t"
+    )
 
     sources_list = [
         SourceFont(p, local_scale=s, weightor=w) for p, s, w in font_entries
@@ -1116,10 +1133,13 @@ def build_all(
     workers = max(1, jobs)
     bucket_ids = sorted(buckets.keys())
     n_buckets = len(bucket_ids)
-    n_variants = len(CJK_FACE_VARIANTS)
+    n_variants = len(CJK_FACE_BUILD_ORDER)
+    n_jobs = n_buckets
+    n_faces = n_buckets * n_variants
     print(
-        f"\nBuilding {n_variants} variants × {n_buckets} buckets "
-        f"(one variant at a time; {workers} workers) -> {out_dir}",
+        f"\nBuilding {n_faces} faces "
+        f"({n_variants} variants × {n_buckets} buckets, {workers} workers; "
+        f"one bucket per worker, faces sequential) -> {out_dir}",
         flush=True,
     )
 
@@ -1136,28 +1156,23 @@ def build_all(
         initializer=_init_build_worker,
         initargs=(used_entries, out_dir, target_upem, write_ttf, write_woff2, hint),
     ) as executor:
-        for vi, variant in enumerate(CJK_FACE_VARIANTS, start=1):
-            label = variant if variant else "base"
-            print(
-                f"\n── variant {vi}/{n_variants}: {label} " f"({n_buckets} buckets) ──",
-                flush=True,
-            )
-            futures = [
-                executor.submit(
-                    _build_bucket_variant_task,
-                    (bid, buckets[bid], variant),
-                )
-                for bid in bucket_ids
-            ]
-            done = 0
-            for fut in concurrent.futures.as_completed(futures):
-                bucket_id, _var, face = fut.result()
-                done += 1
+        futures = [
+            executor.submit(_build_bucket_task, (bid, buckets[bid]))
+            for bid in bucket_ids
+        ]
+        done_buckets = 0
+        done_faces = 0
+        for fut in concurrent.futures.as_completed(futures):
+            rows = fut.result()
+            done_buckets += 1
+            for bucket_id, variant, face in rows:
+                done_faces += 1
                 hex_id = f"{bucket_id:X}"
                 if face is None:
                     skipped += 1
                     print(
-                        f"  [{done}/{n_buckets}] {hex_id}{variant} skipped (empty)",
+                        f"  [{done_faces}/{n_faces}] "
+                        f"{hex_id}{variant} skipped (empty)",
                         flush=True,
                     )
                     continue
@@ -1166,9 +1181,13 @@ def build_all(
                 glyph_total += count
                 built.append((face_id, count, codepoints))
                 print(
-                    f"  [{done}/{n_buckets}] {face_id} ({fmt_tag}; {count})",
+                    f"  [{done_faces}/{n_faces}] {face_id} ({fmt_tag}; {count})",
                     flush=True,
                 )
+            print(
+                f"  bucket {done_buckets}/{n_jobs} complete",
+                flush=True,
+            )
 
     built.sort(key=lambda t: _face_sort_key(t[0]))
     write_css(out_dir, built)
@@ -1200,7 +1219,7 @@ def parse_args() -> argparse.Namespace:
         dest="jobs",
         type=int,
         default=max(1, os.cpu_count() or 4),
-        help="Parallel workers per variant wave (default: CPU count)",
+        help="Parallel bucket workers (default: all CPUs); faces stay sequential",
     )
     p.add_argument(
         "--css-only",

@@ -33,6 +33,9 @@ CSS_CJK = "edenia-cjk.css"
 #   qh   quarter-cells (horizontal / X)
 # Build waves (base → niche faces).
 CJK_FACE_VARIANTS: tuple[str, ...] = ("", "h", "t", "qv", "qh")
+# Sequential order *inside* each bucket worker. Same-bucket faces must not
+# overlap: base first, then halves + quarters, then thirds.
+CJK_FACE_BUILD_ORDER: tuple[str, ...] = ("", "h", "qv", "qh", "t")
 # @font-face emission order (niche faces before base). Body stacks use the
 # shared ``edenia cjk`` family (base) only — pin ``edenia cjk h`` / ``t`` /
 # ``qv`` / ``qh`` for niche GSUB. CJK unicode-range lists FE00–FE07 (D4) and

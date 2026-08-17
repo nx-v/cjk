@@ -2,8 +2,10 @@
 
 Core marks from Plangothic P2: U+16FF0 (ca) / U+16FF1 (nhay) only.
 
-Half-cell niches are **slices** (clip to left / right / top / bottom — no
-stretch). Same half-cell glyphs serve FE0C–FE0F access and ca/nhay placement.
+Half-cell niches are **slices** of already-baked fullwidth outlines (identity
+and D4). Clip one side per axis; the opposite is ``full − that side``.
+Zero-width ``.ov`` forms are composites of those fullwidth glyphs.
+Same half-cell glyphs serve FE0C–FE0F access and ca/nhay placement.
 ca/nhay **trigger** the matching niche: GSUB ligates
 ``base (+ niche VS)? + mark`` into a precomposed TT composite
 (``base.dk_u16FF0``, …) with the mark baked into the free half. Zero-width
@@ -32,7 +34,6 @@ Slice / overlay access (same ``.dk*`` glyphs; GSUB liga, not cmap-14 UVS)::
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from fontTools.misc.roundTools import otRound
@@ -52,24 +53,8 @@ from fontTools.ttLib.tables._g_l_y_f import (
 from cape_weightor import (
     apply_height,
     apply_width,
-    estimate_horizontal_stem,
-    estimate_vertical_stem,
     layer_from_ttglyph,
-    offset_layer,
     ttglyph_from_layer,
-)
-from shared_diacritics import (
-    CGJ_CP,
-    MAX_DIACRITIC_FRAC,
-    _glyph_ink_size,
-    add_dakuten_mark_glyphs,
-    collect_dakuten_base_anchors,
-    dakuten_mark_name,
-    dakuten_mark_stack_label,
-    install_dakuten_gpos,
-    install_dakuten_slot_gsub,
-    iter_dakuten_codepoints,
-    resolve_dakuten_mark_font_stack,
 )
 from shared_half_cells import (
     COMPOSITION_FEATURE_TAGS,
@@ -78,17 +63,23 @@ from shared_half_cells import (
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,
     add_overlay_forms,
+    boolean_subtract_glyphs,
+    boolean_subtract_named,
     build_chain_context_format2,
     build_chunked_single_subst_lookup,
     build_ext_gsub_lookup,
     empty_glyph,
     ideographic_bounds,
     ideographic_center,
+    install_derived_glyph,
+    make_niche_slice_glyph,
+    metrics_for_glyph,
     orientation_form_names,
     overlay_glyph_name,
     recording_bounds,
     variant_glyph_name,
     vs_glyph_name,
+    HALF_PLANE_INF_FRAC,
 )
 
 PLANGOTHIC_P2_FILENAME = "PlangothicP2-Regular.ttf"
@@ -97,13 +88,6 @@ CORE_MARK_CPS: Tuple[int, ...] = (0x16FF0, 0x16FF1)
 # Runtime: ca/nhay only (updated by ``prepare_marks``).
 MARK_CPS: Tuple[int, ...] = CORE_MARK_CPS
 LR_MARK_CPS: Tuple[int, ...] = CORE_MARK_CPS  # compat export
-# Cap stem-match steps when fitting mark ink (squish niche sizing).
-_MARK_STEM_STEP = 8.0
-# Cache fitted shared marks (inventory helper / optional tools).
-_SHARED_MARK_CACHE: Dict[
-    Tuple[Tuple[str, ...], int, Tuple[int, int, int, int]],
-    Tuple[Tuple[int, ...], Dict[int, TTGlyph]],
-] = {}
 # Compat / mark-niche selectors (FE08–FE0A) + squish/overlay access (FE0B–FE0F).
 ALT_SELECTOR_CP = 0xFE08
 ALT_SELECTOR_NAME = "vsLeft"
@@ -242,188 +226,9 @@ def _mark_cp_from_name(name: str) -> Optional[int]:
         return None
 
 
-@dataclass(frozen=True)
-class MarkRef:
-    """Ink envelope + stems that shared marks are fitted to (ca/nhay)."""
-
-    width: float
-    height: float
-    vstem: float
-    hstem: float
-
-
-def measure_mark_ref(
-    mark_glyphs: Dict[int, TTGlyph],
-    mark_cps: Sequence[int] = CORE_MARK_CPS,
-) -> Optional[MarkRef]:
-    """Average width/height/stems over available core mark outlines."""
-    widths: List[float] = []
-    heights: List[float] = []
-    vstems: List[float] = []
-    hstems: List[float] = []
-    for cp in mark_cps:
-        g = mark_glyphs.get(cp)
-        if g is None:
-            continue
-        layer = layer_from_ttglyph(g, 0.0)
-        if not layer.paths:
-            continue
-        b = layer.bounds
-        if b.size.x > 1.0 and b.size.y > 1.0:
-            widths.append(float(b.size.x))
-            heights.append(float(b.size.y))
-        v = estimate_vertical_stem(layer)
-        h = estimate_horizontal_stem(layer)
-        if v > 0:
-            vstems.append(v)
-        if h > 0:
-            hstems.append(h)
-    if not widths or not heights:
-        return None
-    return MarkRef(
-        width=sum(widths) / len(widths),
-        height=sum(heights) / len(heights),
-        vstem=(sum(vstems) / len(vstems)) if vstems else 0.0,
-        hstem=(sum(hstems) / len(hstems)) if hstems else 0.0,
-    )
-
-
-def fit_mark_to_ref(glyph: TTGlyph, ref: MarkRef) -> TTGlyph:
-    """Match ca/nhay width, height, and H/V stems; keep ink centered at origin."""
-    layer = layer_from_ttglyph(glyph, 0.0)
-    if not layer.paths:
-        return glyph
-
-    def _size_to_ref() -> None:
-        # Direct axis scales hit the ca/nhay envelope exactly; stem match
-        # afterward restores stroke weight (CAPE Width/Height undershoot on
-        # sparse accent outlines).
-        b = layer.bounds
-        bw, bh = b.size.x, b.size.y
-        cx = b.origin.x + 0.5 * bw
-        cy = b.origin.y + 0.5 * bh
-        sx = (ref.width / bw) if bw > 1.0 and ref.width > 1.0 else 1.0
-        sy = (ref.height / bh) if bh > 1.0 and ref.height > 1.0 else 1.0
-        if abs(sx - 1.0) < 1e-4 and abs(sy - 1.0) < 1e-4:
-            return
-        layer.applyTransform((sx, 0, 0, sy, cx - sx * cx, cy - sy * cy))
-
-    _size_to_ref()
-
-    # Stem match (polarity probe, same idea as Yi stem normalize).
-    sign_x = 1.0
-    sign_y = 1.0
-    probe = 2.0
-    v0 = estimate_vertical_stem(layer)
-    if v0 > 0 and ref.vstem > 0:
-        offset_layer(layer, -probe, 0.0)
-        v1 = estimate_vertical_stem(layer)
-        offset_layer(layer, probe, 0.0)
-        if v1 + 1e-6 < v0:
-            sign_x = -1.0
-    h0 = estimate_horizontal_stem(layer)
-    if h0 > 0 and ref.hstem > 0:
-        offset_layer(layer, 0.0, probe)
-        h1 = estimate_horizontal_stem(layer)
-        offset_layer(layer, 0.0, -probe)
-        if h1 + 1e-6 > h0:
-            sign_y = -1.0
-
-    for _ in range(3):
-        cur_v = estimate_vertical_stem(layer)
-        cur_h = estimate_horizontal_stem(layer)
-        dx = dy = 0.0
-        if ref.vstem > 0 and cur_v > 0:
-            ratio = cur_v / ref.vstem
-            if 0.5 <= ratio <= 1.85:
-                dx = sign_x * (cur_v - ref.vstem) / 2.0
-                dx = max(-_MARK_STEM_STEP, min(_MARK_STEM_STEP, dx))
-        if ref.hstem > 0 and cur_h > 0:
-            ratio = cur_h / ref.hstem
-            if 0.5 <= ratio <= 1.85:
-                dy = sign_y * (cur_h - ref.hstem) / 2.0
-                dy = max(-_MARK_STEM_STEP, min(_MARK_STEM_STEP, dy))
-        if abs(dx) < 0.25 and abs(dy) < 0.25:
-            break
-        offset_layer(layer, dx, dy)
-
-    # Stem offset can inflate the bbox — snap size back to the niche envelope.
-    _size_to_ref()
-
-    b = layer.bounds
-    cx = b.origin.x + 0.5 * b.size.x
-    cy = b.origin.y + 0.5 * b.size.y
-    if abs(cx) > 1e-6 or abs(cy) > 1e-6:
-        layer.applyTransform((1, 0, 0, 1, -cx, -cy))
-
-    out, _adv, _lsb = ttglyph_from_layer(layer)
-    try:
-        out.recalcBounds(None)
-    except Exception:
-        pass
-    return out
-
-
 _D4_SUFFIXES: frozenset[str] = frozenset(
     suffix for _vs, _r, _fx, _fy, suffix in TRANSFORM_MODES if suffix is not None
 )
-_D4_TRANSFORM: Dict[str, Tuple[int, bool, bool]] = {
-    suffix: (rot, fx, fy)
-    for _vs, rot, fx, fy, suffix in TRANSFORM_MODES
-    if suffix is not None
-}
-
-# Cell niches. Oriented squish forms are D4(composites) of upright H/V bakes;
-# under 90° maps, LR niches come from upright TB parents and vice versa.
-_NICHE_NAMES: Tuple[str, ...] = ("right", "left", "top", "bottom")
-
-
-def _niche_squish_name(root: str, niche: str) -> str:
-    match niche:
-        case "right":
-            return squish_name(root)
-        case "left":
-            return squish_left_name(root)
-        case "top":
-            return squish_top_name(root)
-        case "bottom":
-            return squish_bot_name(root)
-        case _:
-            raise ValueError(niche)
-
-
-def _d4_niche_forward(rot: int, fx: bool, fy: bool) -> Dict[str, str]:
-    """Upright niche → niche after D4 (about origin)."""
-    from shared_half_cells import variant_matrix
-
-    (xx, xy), (yx, yy) = variant_matrix(rot90_quarters=rot, flip_x=fx, flip_y=fy)
-    pts = {
-        "right": [(1.0, y) for y in (-1.0, 0.0, 1.0)],
-        "left": [(-1.0, y) for y in (-1.0, 0.0, 1.0)],
-        "top": [(x, 1.0) for x in (-1.0, 0.0, 1.0)],
-        "bottom": [(x, -1.0) for x in (-1.0, 0.0, 1.0)],
-    }
-
-    def _xf(x: float, y: float) -> Tuple[float, float]:
-        return (xx * x + yx * y, xy * x + yy * y)
-
-    out: Dict[str, str] = {}
-    for side, samples in pts.items():
-        mapped = [_xf(x, y) for x, y in samples]
-        cx = sum(p[0] for p in mapped) / len(mapped)
-        cy = sum(p[1] for p in mapped) / len(mapped)
-        if abs(cx) >= abs(cy):
-            out[side] = "right" if cx > 0 else "left"
-        else:
-            out[side] = "top" if cy > 0 else "bottom"
-    return out
-
-
-# needed_niche_on_oriented → upright_niche_parent
-_ORIENTED_SQUISH_PARENT: Dict[str, Dict[str, str]] = {}
-for _suf, (_rot, _fx, _fy) in _D4_TRANSFORM.items():
-    fwd = _d4_niche_forward(_rot, _fx, _fy)
-    _ORIENTED_SQUISH_PARENT[_suf] = {new: old for old, new in fwd.items()}
 
 
 def _d4_suffix_of(name: str) -> Optional[str]:
@@ -481,7 +286,7 @@ def add_mark_d4_composites(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
 ) -> List[str]:
-    """Install mark D4 forms as pure composites (incl. 2×2 r90)."""
+    """Install mark D4 forms as baked outlines (sliced later if needed)."""
     from shared_half_cells import SIDEWAYS_FROM_R90, make_composite_variant
 
     installed: List[str] = []
@@ -699,115 +504,12 @@ def load_core_marks(
         tt.close()
 
 
-def load_shared_marks(
-    font_paths: Sequence[str],
-    target_upem: int,
-    *,
-    ref: MarkRef,
-    exclude_cps: Sequence[int] = (),
-) -> Tuple[List[int], Dict[int, TTGlyph]]:
-    """Load stack ``\\p{M}`` marks; fit each to ca/nhay W/H/stems.
-
-    Same inventory as ``shared_diacritics`` (all ``\\p{M}`` except variation
-    selectors; oversized outlines dropped). Earlier fonts in ``font_paths``
-    win per codepoint.
-    """
-    from copy import deepcopy
-
-    paths_key = tuple(os.path.normpath(p) for p in font_paths)
-    ref_key = (
-        otRound(ref.width),
-        otRound(ref.height),
-        otRound(ref.vstem),
-        otRound(ref.hstem),
-    )
-    cache_key = (paths_key, int(target_upem), ref_key)
-    cached = _SHARED_MARK_CACHE.get(cache_key)
-    if cached is not None:
-        order_t, glyphs_t = cached
-        excl = set(exclude_cps)
-        order = [cp for cp in order_t if cp not in excl]
-        return order, {cp: deepcopy(glyphs_t[cp]) for cp in order}
-
-    excluded = set(exclude_cps)
-    claimed: Dict[int, TTGlyph] = {}
-    order: List[int] = []
-
-    for font_path in font_paths:
-        tt = TTFont(font_path, fontNumber=0)
-        try:
-            cmap: Dict[int, str] = {}
-            for table in tt["cmap"].tables:
-                if table.isUnicode():
-                    cmap.update(table.cmap)
-            glyph_set = tt.getGlyphSet()
-            src_upem = float(tt["head"].unitsPerEm)
-            max_ext = src_upem * MAX_DIACRITIC_FRAC
-            scale = (float(target_upem) / src_upem) if src_upem else 1.0
-
-            for cp in iter_dakuten_codepoints(cmap):
-                if cp == CGJ_CP or cp in claimed:
-                    continue
-                gname = cmap[cp]
-                try:
-                    sized = _glyph_ink_size(glyph_set, gname)
-                except Exception:
-                    sized = None
-                if sized is None:
-                    continue
-                w, h = sized
-                if w > max_ext + 1e-6 and h > max_ext + 1e-6:
-                    continue
-                rec = DecomposingRecordingPen(glyph_set)
-                try:
-                    glyph_set[gname].draw(rec)
-                except Exception:
-                    continue
-                mark = make_mark_glyph(rec, scale=scale)
-                if mark is None:
-                    continue
-                mark = fit_mark_to_ref(mark, ref)
-                claimed[cp] = mark
-                order.append(cp)
-        finally:
-            tt.close()
-
-    _SHARED_MARK_CACHE[cache_key] = (tuple(order), claimed)
-    order_out = [cp for cp in order if cp not in excluded]
-    return order_out, {cp: deepcopy(claimed[cp]) for cp in order_out}
-
-
 def set_mark_cps(cps: Sequence[int]) -> Tuple[int, ...]:
     """Update module-level ``MARK_CPS`` (used by CSS unicode-range)."""
     global MARK_CPS, LR_MARK_CPS
     MARK_CPS = tuple(cps)
     LR_MARK_CPS = tuple(c for c in cps if c in CORE_MARK_CPS) or CORE_MARK_CPS
     return MARK_CPS
-
-
-def inventory_shared_mark_cps(in_dir: str) -> List[int]:
-    """Codepoints from the mark stack (no outlines) — gallery / CSS helpers."""
-    try:
-        paths = resolve_dakuten_mark_font_stack(in_dir)
-    except FileNotFoundError:
-        return []
-    seen: set[int] = set()
-    out: List[int] = []
-    for font_path in paths:
-        tt = TTFont(font_path, fontNumber=0)
-        try:
-            cmap: Dict[int, str] = {}
-            for table in tt["cmap"].tables:
-                if table.isUnicode():
-                    cmap.update(table.cmap)
-            for cp in iter_dakuten_codepoints(cmap):
-                if cp == CGJ_CP or cp in seen or cp in CORE_MARK_CPS:
-                    continue
-                seen.add(cp)
-                out.append(cp)
-        finally:
-            tt.close()
-    return out
 
 
 def mark_ink_width(
@@ -1122,6 +824,38 @@ def _half_slot_rect(
             return x0, bot + pad, x1, top - pad
 
 
+def _occupied_plane_rect(
+    target_upem: float,
+    *,
+    pin: str,
+    axis: str,
+    niche_frac: float = 0.5,
+) -> Tuple[float, float, float, float]:
+    """Half-plane covering the ``pin`` side; cut at ``frac``, pad only outward.
+
+    Used as the seed clip so the complementary niche can be ``full − seed``
+    without leftover slivers from inset padding on the cut.
+    """
+    bot, top, _ = ideographic_bounds(int(target_upem))
+    inf = target_upem * HALF_PLANE_INF_FRAC
+    frac = float(niche_frac)
+    match (axis, pin):
+        case ("y", "top"):
+            span = top - bot
+            cut = top - span * frac
+            return -inf, cut, inf, inf
+        case ("y", _):
+            span = top - bot
+            cut = bot + span * frac
+            return -inf, -inf, inf, cut
+        case (_, "right"):
+            cut = target_upem * (1.0 - frac)
+            return cut, -inf, inf, inf
+        case _:
+            cut = target_upem * frac
+            return -inf, -inf, cut, inf
+
+
 def place_glyph_in_half(
     glyph: TTGlyph,
     advance: int,
@@ -1214,7 +948,7 @@ def make_squished_glyph(
     )
     del factor
     occ = float(slot_frac) if slot_frac is not None else 0.5
-    rect = _half_slot_rect(float(upem), pin=pin, axis=axis, niche_frac=occ)
+    rect = _occupied_plane_rect(float(upem), pin=pin, axis=axis, niche_frac=occ)
     return make_niche_slice_glyph(
         base_name,
         advance=int(advance if advance > 0 else upem),
@@ -1234,84 +968,114 @@ def add_squish_forms(
     target_upem: int = 1000,
     slot_frac: Optional[float] = None,
 ) -> List[str]:
-    """Upright H/V niches as slices of the identity; oriented via D4.
+    """Slice each baked form (identity + D4) into the four half-cell niches.
 
-    Per identity base, bake **all four** niche clips from the upright glyph
-    (do not mirror ``.dkl``/``.dkt`` into ``.dk``/``.dkb`` — that flips
-    asymmetric ideographs). Oriented bases (``.r90``, …) pick the upright
-    niche that maps to the needed cell niche under that D4, then composite
-    with the same rotate/reflect as the base.
+    D4 orientations are baked first; niches clip those outlines. Clip one
+    side per axis; the opposite is ``full − that side`` (or, for a 3/4
+    mark-base slot, ``full − the complementary sliver``). Do not mirror
+    ``.dkl``/``.dkt`` into ``.dk``/``.dkb`` — that flips asymmetric
+    ideographs. Zero-width ``.ov`` forms are composites of these slices.
     """
-    from shared_half_cells import contour_center, make_composite_variant
-
-    identities = [n for n in base_names if _d4_suffix_of(n) is None and n in glyphs]
-    oriented = [n for n in base_names if _d4_suffix_of(n) is not None and n in glyphs]
     # Half-cell digraphs keep a 0.5 slot; mark-base (3/4) passes slot_frac=factor.
     occ_x = float(slot_frac) if slot_frac is not None else 0.5
     occ_y = float(slot_frac) if slot_frac is not None else 0.5
+    del width_factor, height_factor
 
     added: List[str] = []
-    # (name_fn, pin, axis, factor, slot_frac)
-    upright_slots = (
-        (squish_name, "left", "x", width_factor, occ_x),  # .dk  — left ink
-        (squish_left_name, "right", "x", width_factor, occ_x),  # .dkl — right ink
-        (squish_top_name, "bottom", "y", height_factor, occ_y),  # .dkt — bottom ink
-        (squish_bot_name, "top", "y", height_factor, occ_y),  # .dkb — top ink
-    )
-    for name in identities:
+    for name in base_names:
+        if name not in glyphs:
+            continue
         adv, _lsb = metrics.get(name, (target_upem, 0))
-        for name_fn, pin, axis, factor, occ in upright_slots:
-            out_name = name_fn(name)
-            if out_name in glyphs:
-                continue
-            sq, sq_adv, sq_lsb = make_squished_glyph(
-                name,
+        left_n = squish_name(name)
+        right_n = squish_left_name(name)
+        bot_n = squish_top_name(name)
+        top_n = squish_bot_name(name)
+
+        def _put(out_name: str, gm: Tuple[TTGlyph, int, int]) -> None:
+            install_derived_glyph(
+                out_name,
+                gm,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+            )
+
+        def _minus_sliver(pin: str, axis: str, sliver_frac: float):
+            rect = _occupied_plane_rect(
+                float(target_upem), pin=pin, axis=axis, niche_frac=sliver_frac
+            )
+            cut, _, _ = make_niche_slice_glyph(
+                name, advance=adv, rect=rect, glyph_set=glyphs
+            )
+            return metrics_for_glyph(
+                boolean_subtract_glyphs(glyphs[name], cut, glyph_set=glyphs),
                 adv,
-                glyph_set=glyphs,
-                factor=factor,
-                pin=pin,
-                axis=axis,
-                target_upem=target_upem,
-                slot_frac=occ,
             )
-            glyph_order.append(out_name)
-            glyphs[out_name] = sq
-            metrics[out_name] = (sq_adv, sq_lsb)
-        added.append(name)
 
-    for name in oriented:
-        suf = _d4_suffix_of(name)
-        assert suf is not None
-        root = _d4_root_name(name)
-        rot, fx, fy = _D4_TRANSFORM[suf]
-        parent_for = _ORIENTED_SQUISH_PARENT[suf]
-        # Same pivot as base → base.<suf> so squish stays locked to the cell.
-        pivot = contour_center(glyphs[root], glyphs)
-        for needed in _NICHE_NAMES:
-            upright_niche = parent_for[needed]
-            parent = _niche_squish_name(root, upright_niche)
-            child = _niche_squish_name(name, needed)
-            if child in glyphs or parent not in glyphs:
-                continue
-            p_adv, p_lsb = metrics[parent]
-            g, a, l = make_composite_variant(
-                parent,
-                target_upem,
-                rot90_quarters=rot,
-                flip_x=fx,
-                flip_y=fy,
-                advance=p_adv,
-                lsb=p_lsb,
-                base_glyph=glyphs[parent],
-                glyph_set=glyphs,
-                center=pivot,
-                allow_2x2=False,
-            )
-            glyph_order.append(child)
-            glyphs[child] = g
-            metrics[child] = (a, l)
-        added.append(name)
+        if abs(occ_x - 0.5) < 1e-9:
+            if left_n not in glyphs:
+                _put(
+                    left_n,
+                    make_squished_glyph(
+                        name,
+                        adv,
+                        glyph_set=glyphs,
+                        pin="left",
+                        axis="x",
+                        target_upem=target_upem,
+                        slot_frac=occ_x,
+                    ),
+                )
+            if right_n not in glyphs:
+                _put(
+                    right_n,
+                    boolean_subtract_named(
+                        name,
+                        left_n,
+                        glyphs=glyphs,
+                        metrics=metrics,
+                        advance=adv,
+                    ),
+                )
+        else:
+            sliver = max(0.0, 1.0 - occ_x)
+            if left_n not in glyphs:
+                _put(left_n, _minus_sliver("right", "x", sliver))
+            if right_n not in glyphs:
+                _put(right_n, _minus_sliver("left", "x", sliver))
 
+        if abs(occ_y - 0.5) < 1e-9:
+            if top_n not in glyphs:
+                _put(
+                    top_n,
+                    make_squished_glyph(
+                        name,
+                        adv,
+                        glyph_set=glyphs,
+                        pin="top",
+                        axis="y",
+                        target_upem=target_upem,
+                        slot_frac=occ_y,
+                    ),
+                )
+            if bot_n not in glyphs:
+                _put(
+                    bot_n,
+                    boolean_subtract_named(
+                        name,
+                        top_n,
+                        glyphs=glyphs,
+                        metrics=metrics,
+                        advance=adv,
+                    ),
+                )
+        else:
+            sliver = max(0.0, 1.0 - occ_y)
+            if top_n not in glyphs:
+                _put(top_n, _minus_sliver("bottom", "y", sliver))
+            if bot_n not in glyphs:
+                _put(bot_n, _minus_sliver("top", "y", sliver))
+        added.append(name)
     return added
 
 
@@ -2512,10 +2276,6 @@ def prepare_marks(
         "height_factor": height_factor,
         "mark_niche_frac": mark_niche_frac,
         "n_core": len(core_cps),
-        "n_shared": 0,
-        "shared_cps": [],
-        "shared_mark_names": [],
-        "shared_label": "",
     }
 
 

@@ -7,10 +7,11 @@ Encoding
 
 Budget
 ------
-Each identity / ``r90`` form stores **four** baked CJK-box half-plane clips
-(all zero-advance). Other D4 orientations reuse those via TrueType composites
-(same id/r90 split as full-glyph orientations). A shared ``sliceAdv`` empty
-glyph carries the em advance after the second half.
+Each identity / ``r90`` form stores **four** baked CJK-box half-plane
+glyphs (all zero-advance): clip top and left; bottom and right are
+``full − that half``. Other D4 orientations reuse those via TrueType
+composites (same id/r90 split as full-glyph orientations). A shared
+``sliceAdv`` empty glyph carries the em advance after the second half.
 """
 
 from __future__ import annotations
@@ -27,8 +28,10 @@ from shared_half_cells import (
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,
     TransformMode,
+    boolean_subtract_named,
     contour_center,
     empty_glyph,
+    install_derived_glyph,
     make_composite_variant,
     variant_glyph_name,
 )
@@ -106,16 +109,16 @@ def clip_glyph_to_half(
 
     x0, y0, x1, y1 = cjk_box(target_upem, cell_width=cell_width)
     mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
-    pad = target_upem * 0.05
+    inf = target_upem * 8.0
     match half:
         case "top":
-            rect = (x0 - pad, my, x1 + pad, y1 + pad)
+            rect = (-inf, my, inf, inf)
         case "bot":
-            rect = (x0 - pad, y0 - pad, x1 + pad, my)
+            rect = (-inf, -inf, inf, my)
         case "left":
-            rect = (x0 - pad, y0 - pad, mx, y1 + pad)
+            rect = (-inf, -inf, mx, inf)
         case "right":
-            rect = (mx, y0 - pad, x1 + pad, y1 + pad)
+            rect = (mx, -inf, inf, inf)
         case _:
             raise ValueError(f"unknown half-plane {half!r}")
     return clip_glyph_to_rect(glyph, rect, glyph_set=glyph_set)
@@ -147,11 +150,12 @@ def _bake_halves_for_form(
     target_upem: int,
     cell_width: Optional[float] = None,
 ) -> None:
-    """Clip ``form_name`` into four baked zero-advance half-plane glyphs."""
-    for half in HALF_SUFFIXES:
+    """Clip one half per axis; the opposite is ``full − that half``."""
+
+    def _put_clip(half: str) -> None:
         hname = half_glyph_name(form_name, half)
         if hname in glyphs:
-            continue
+            return
         clipped = clip_glyph_to_half(
             glyphs[form_name],
             half,
@@ -167,6 +171,27 @@ def _bake_halves_for_form(
         glyph_order.append(hname)
         glyphs[hname] = clipped
         metrics[hname] = (0, h_lsb)
+
+    for first, second in (("top", "bot"), ("left", "right")):
+        _put_clip(first)
+        h2 = half_glyph_name(form_name, second)
+        if h2 in glyphs:
+            continue
+        gm = boolean_subtract_named(
+            form_name,
+            half_glyph_name(form_name, first),
+            glyphs=glyphs,
+            metrics=metrics,
+            advance=0,
+        )
+        install_derived_glyph(
+            h2,
+            gm,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            advance=0,
+        )
 
 
 def _composite_halves_for_form(

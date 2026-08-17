@@ -40,8 +40,10 @@ VS39    U+E0116    bottom 3/4 (= right 3/4)  ``q4b3``
 VS40    U+E0117    middle half               ``q4mh``
 ======= ========== ========================= ========
 
-Niche forms are **slices** of the identity (clip to the band — no stretch /
-squish). Oriented D4 niches are composites of those upright slices.
+Niche forms are **slices** of the already-baked fullwidth outline (identity
+or D4). Clip one seed band per axis (or inherit CJK ``.dk*`` halves); the
+rest are ``full − piece`` or union of remaining pieces. Zero-width ``.ov``
+forms are composites of those fullwidth slices.
 """
 
 from __future__ import annotations
@@ -58,13 +60,18 @@ from shared_half_cells import (
     _recording_from_glyph,
     add_overlay_forms,
     apply_transform,
+    boolean_subtract_named,
+    boolean_union_named,
     build_chunked_ligature_subst_lookup,
-    contour_center,
+    copy_named_glyph,
     empty_glyph,
+    half_plane_rect,
     ideographic_bounds,
-    make_composite_variant,
+    install_derived_glyph,
+    make_niche_slice_glyph,
     overlay_glyph_name,
     variant_glyph_name,
+    HALF_PLANE_INF_FRAC,
 )
 
 # FE0B zero-width overlay.
@@ -109,13 +116,6 @@ QUARTER_VS_SLOTS_H: Tuple[QuarterSlot, ...] = (
 QUARTER_FACE_V = "qv"
 QUARTER_FACE_H = "qh"
 
-_D4_SUFFIXES = frozenset({"r90", "r180", "r270", "mx", "my", "r90mx", "r90my"})
-_D4_TRANSFORM: Dict[str, Tuple[int, bool, bool]] = {
-    suf: (rot, fx, fy)
-    for _vs, rot, fx, fy, suf in TRANSFORM_MODES
-    if suf is not None
-}
-
 
 def quarter_slots_for_face(face: str) -> Tuple[QuarterSlot, ...]:
     match face:
@@ -140,20 +140,6 @@ def quarter_form_name(base_name: str, suffix: str) -> str:
 def _factor_for_bands(band0: int, band1: int) -> float:
     n = abs(band1 - band0) + 1
     return n / float(QUARTER_BANDS)
-
-
-def _d4_suffix_of(name: str) -> Optional[str]:
-    if "." not in name:
-        return None
-    suf = name.rsplit(".", 1)[1]
-    return suf if suf in _D4_SUFFIXES else None
-
-
-def _d4_root_name(name: str) -> str:
-    suf = _d4_suffix_of(name)
-    if suf is None:
-        return name
-    return name[: -(len(suf) + 1)]
 
 
 def _quarter_slot_rect(
@@ -285,44 +271,6 @@ def make_quarter_glyph(
     )
 
 
-def _niche_center_xy(axis: str, band0: int, band1: int) -> Tuple[float, float]:
-    lo = min(band0, band1)
-    hi = max(band0, band1)
-    mid = (lo + hi + 1) / 2.0 / float(QUARTER_BANDS)
-    t = mid * 2.0 - 1.0
-    if axis == "y":
-        return 0.0, t
-    return t, 0.0
-
-
-def _d4_quarter_parent_suffix(
-    needed_suf: str,
-    rot: int,
-    fx: bool,
-    fy: bool,
-    slots: Sequence[QuarterSlot],
-    axis: str,
-) -> str:
-    from shared_half_cells import variant_matrix
-
-    slot = next(s for s in slots if s[2] == needed_suf)
-    _cp, _sel, _suf, b0, b1 = slot
-    sx, sy = _niche_center_xy(axis, b0, b1)
-    (xx, xy), (yx, yy) = variant_matrix(rot90_quarters=rot, flip_x=fx, flip_y=fy)
-    best = needed_suf
-    best_d = 1e9
-    for _c, _s, suf, p0, p1 in slots:
-        ux, uy = _niche_center_xy(axis, p0, p1)
-        mx, my = xx * ux + yx * uy, xy * ux + yy * uy
-        d = (mx - sx) ** 2 + (my - sy) ** 2
-        if abs((p1 - p0) - (b1 - b0)) > 0:
-            d += 0.5
-        if d < best_d:
-            best_d = d
-            best = suf
-    return best
-
-
 def add_quarter_forms(
     base_names: Sequence[str],
     *,
@@ -332,66 +280,174 @@ def add_quarter_forms(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int = 1000,
 ) -> List[str]:
-    """Upright quarter niches as slices of the identity; D4 via composites."""
-    slots = quarter_slots_for_face(face)
+    """Slice each baked form: clip/inherit halves; derive the rest by boolean.
+
+    ``qv`` reuses CJK ``.dkb`` / ``.dkt`` (top / bottom) when present;
+    ``qh`` reuses ``.dk`` / ``.dkl`` (left / right). End quarters are clipped
+    from those halves; near-quarters, 3/4, and middle half are subtract/union.
+    """
     axis = quarter_axis_for_face(face)
-    identities = [n for n in base_names if _d4_suffix_of(n) is None and n in glyphs]
-    oriented = [n for n in base_names if _d4_suffix_of(n) is not None and n in glyphs]
+    if face == QUARTER_FACE_V:
+        inherit_th, inherit_bh = "dkb", "dkt"
+    else:
+        inherit_th, inherit_bh = "dk", "dkl"
+    bot, top, _ = ideographic_bounds(target_upem)
+    span = top - bot
+    inf = float(target_upem) * HALF_PLANE_INF_FRAC
+
+    def _plane_for(suf: str) -> Tuple[float, float, float, float]:
+        if axis == "y":
+            match suf:
+                case "q4th":
+                    return half_plane_rect(
+                        bot + span * 0.5, axis="y", keep="hi", inf=inf
+                    )
+                case "q4t":
+                    return half_plane_rect(
+                        bot + span * 0.75, axis="y", keep="hi", inf=inf
+                    )
+                case "q4b":
+                    return half_plane_rect(
+                        bot + span * 0.25, axis="y", keep="lo", inf=inf
+                    )
+                case "q4bh":
+                    return half_plane_rect(
+                        bot + span * 0.5, axis="y", keep="lo", inf=inf
+                    )
+        else:
+            match suf:
+                case "q4th":
+                    return half_plane_rect(
+                        float(target_upem) * 0.5, axis="x", keep="lo", inf=inf
+                    )
+                case "q4t":
+                    return half_plane_rect(
+                        float(target_upem) * 0.25, axis="x", keep="lo", inf=inf
+                    )
+                case "q4b":
+                    return half_plane_rect(
+                        float(target_upem) * 0.75, axis="x", keep="hi", inf=inf
+                    )
+                case "q4bh":
+                    return half_plane_rect(
+                        float(target_upem) * 0.5, axis="x", keep="hi", inf=inf
+                    )
+        raise ValueError(f"no half-plane seed for {suf!r}")
 
     added: List[str] = []
-    for name in identities:
+    for name in base_names:
+        if name not in glyphs:
+            continue
         adv, _lsb = metrics.get(name, (target_upem, 0))
-        for _cp, _sel, suf, b0, b1 in slots:
-            out_name = quarter_form_name(name, suf)
-            if out_name in glyphs:
-                continue
-            g, a, l = make_quarter_glyph(
-                name,
-                adv,
-                axis=axis,
-                band0=b0,
-                band1=b1,
-                target_upem=target_upem,
-                glyph_set=glyphs,
-            )
-            glyph_order.append(out_name)
-            glyphs[out_name] = g
-            metrics[out_name] = (a, l)
-        added.append(name)
 
-    for name in oriented:
-        suf = _d4_suffix_of(name)
-        assert suf is not None
-        root = _d4_root_name(name)
-        rot, fx, fy = _D4_TRANSFORM[suf]
-        pivot = contour_center(glyphs[root], glyphs)
-        for _cp, _sel, needed, _b0, _b1 in slots:
-            parent_suf = _d4_quarter_parent_suffix(
-                needed, rot, fx, fy, slots, axis
+        def _put(out_name: str, gm: Tuple[TTGlyph, int, int]) -> None:
+            install_derived_glyph(
+                out_name,
+                gm,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
             )
-            parent = quarter_form_name(root, parent_suf)
-            child = quarter_form_name(name, needed)
-            if child in glyphs or parent not in glyphs:
-                continue
-            p_adv, p_lsb = metrics[parent]
-            g, a, l = make_composite_variant(
-                parent,
-                target_upem,
-                rot90_quarters=rot,
-                flip_x=fx,
-                flip_y=fy,
-                advance=p_adv,
-                lsb=p_lsb,
-                base_glyph=glyphs[parent],
-                glyph_set=glyphs,
-                center=pivot,
-                allow_2x2=False,
-            )
-            glyph_order.append(child)
-            glyphs[child] = g
-            metrics[child] = (a, l)
-        added.append(name)
 
+        def _clip(src: str, suf: str) -> str:
+            out = quarter_form_name(name, suf)
+            if out not in glyphs:
+                _put(
+                    out,
+                    make_niche_slice_glyph(
+                        src,
+                        advance=adv,
+                        rect=_plane_for(suf),
+                        glyph_set=glyphs,
+                    ),
+                )
+            return out
+
+        th = quarter_form_name(name, "q4th")
+        bh = quarter_form_name(name, "q4bh")
+        src_th = f"{name}.{inherit_th}"
+        src_bh = f"{name}.{inherit_bh}"
+        if src_th in glyphs:
+            _put(
+                th,
+                copy_named_glyph(
+                    src_th, glyphs=glyphs, metrics=metrics, advance=adv
+                ),
+            )
+        else:
+            _clip(name, "q4th")
+        if src_bh in glyphs:
+            _put(
+                bh,
+                copy_named_glyph(
+                    src_bh, glyphs=glyphs, metrics=metrics, advance=adv
+                ),
+            )
+        elif th in glyphs:
+            _put(
+                bh,
+                boolean_subtract_named(
+                    name, th, glyphs=glyphs, metrics=metrics, advance=adv
+                ),
+            )
+        else:
+            _clip(name, "q4bh")
+
+        tq = _clip(th if th in glyphs else name, "q4t")
+        ntop = quarter_form_name(name, "q4nt")
+        if ntop not in glyphs and th in glyphs:
+            _put(
+                ntop,
+                boolean_subtract_named(
+                    th, tq, glyphs=glyphs, metrics=metrics, advance=adv
+                ),
+            )
+        bq = _clip(bh if bh in glyphs else name, "q4b")
+        nbot = quarter_form_name(name, "q4nb")
+        if nbot not in glyphs and bh in glyphs:
+            _put(
+                nbot,
+                boolean_subtract_named(
+                    bh, bq, glyphs=glyphs, metrics=metrics, advance=adv
+                ),
+            )
+
+        t3 = quarter_form_name(name, "q4t3")
+        b3 = quarter_form_name(name, "q4b3")
+        mh = quarter_form_name(name, "q4mh")
+        if t3 not in glyphs:
+            _put(
+                t3,
+                boolean_subtract_named(
+                    name, bq, glyphs=glyphs, metrics=metrics, advance=adv
+                ),
+            )
+        if b3 not in glyphs:
+            _put(
+                b3,
+                boolean_subtract_named(
+                    name, tq, glyphs=glyphs, metrics=metrics, advance=adv
+                ),
+            )
+        if mh not in glyphs:
+            if ntop in glyphs and nbot in glyphs:
+                _put(
+                    mh,
+                    boolean_union_named(
+                        [ntop, nbot],
+                        glyphs=glyphs,
+                        metrics=metrics,
+                        advance=adv,
+                    ),
+                )
+            elif t3 in glyphs:
+                _put(
+                    mh,
+                    boolean_subtract_named(
+                        t3, tq, glyphs=glyphs, metrics=metrics, advance=adv
+                    ),
+                )
+        added.append(name)
     return added
 
 

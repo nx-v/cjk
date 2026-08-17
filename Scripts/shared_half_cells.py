@@ -5,8 +5,10 @@ Encoding
 * One font (``panyi``) covering the whole Yi inventory.
 * Standalones: NuosuSIL is monospace (shared advance). Every glyph gets the
   **same** ``sx`` from that advance and the **same** ``sy`` from the tallest
-  ink height (no CAPE Weightor — that is kana-only). Y is fitted to the CJK
-  typo box (floor-pin), then uniformly downscaled to ``STANDALONE_CELL_SCALE``
+  ink height (no CAPE Width — that is kana-only). Y is fitted to the CJK
+  typo box (floor-pin), then horizontal strokes are Weight-boldened to
+  ``STANDALONE_HORIZONTAL_WEIGHT`` (110%) to recover thickness lost in the
+  anisotropic stretch, then uniformly downscaled to ``STANDALONE_CELL_SCALE``
   (~98%) about the ideographic center.
 * Orientations: D4 square symmetries on **VS01..VS08** (``U+E000``..``U+E007``,
   UVS ``U+FE00``..``U+FE07``), including ``r90my``. Pipeline for the two
@@ -60,6 +62,7 @@ except ImportError:  # Scripts.* import style
 
 from cape_weightor import (
     apply_width,
+    bolden_horizontal_ttglyph,
     estimate_horizontal_stem,
     estimate_vertical_stem,
     layer_from_ttglyph,
@@ -99,6 +102,9 @@ STANDALONE_VERT_PAD = 0.05
 # After stretch / stem-normalize + CJK floor pin: uniform scale about the
 # ideographic center so Yi ink occupies ~98% of the cell (still centered).
 STANDALONE_CELL_SCALE = 0.98
+# Anisotropic CJK-cell fit (shared sx ≠ sy) thins horizontal strokes.
+# Y-only Weight-mode factor after that fit (1.10 = 110% horizontal stem).
+STANDALONE_HORIZONTAL_WEIGHT = 1.10
 # Legacy: was an extra shrink on scaled niche composites. Half / third /
 # quarter niches are now **slices** (clip, no stretch); this constant is
 # unused by that path and kept only for any external callers.
@@ -1324,8 +1330,10 @@ def add_overlay_forms(
     metrics: Dict[str, Tuple[int, int]],
     limit: Optional[int] = None,
 ) -> List[str]:
-    """Create zero-advance ``.ov`` composites for each name in ``form_names``.
+    """Create zero-advance ``.ov`` composites of each fullwidth ``form_names``.
 
+    Overlay glyphs inherit outlines from the matching fullwidth counterpart
+    (identity, D4, or niche slice) — they are not independently baked.
     ``limit`` caps how many new ``.ov`` glyphs are added (GlyphWiki 64k budget).
     Returns the list of base form names that received an ``.ov``.
     """
@@ -1423,7 +1431,6 @@ def install_overlay_gsub(
     if "GSUB" in font:
         gsub = font["GSUB"].table
     else:
-
         def _langsys() -> ot.DefaultLangSys:
             ls = ot.DefaultLangSys()
             ls.ReqFeatureIndex = 0xFFFF
@@ -1731,6 +1738,154 @@ def _pathops_to_ttglyph(path) -> TTGlyph:
     return g
 
 
+def boolean_union_glyphs(
+    parts: Sequence[TTGlyph],
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> TTGlyph:
+    """Boolean **union** of ``parts`` (decomposed via ``glyph_set``)."""
+    import pathops
+
+    acc = None
+    for glyph in parts:
+        piece = _ttglyph_to_pathops(glyph, glyph_set)
+        if acc is None:
+            acc = piece
+            continue
+        try:
+            acc = pathops.op(acc, piece, pathops.PathOp.UNION, fix_winding=True)
+        except Exception:
+            continue
+    if acc is None:
+        return empty_glyph()
+    return _pathops_to_ttglyph(acc)
+
+
+def boolean_subtract_glyphs(
+    minuend: TTGlyph,
+    subtrahend: TTGlyph,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> TTGlyph:
+    """Boolean **difference** ``minuend − subtrahend``."""
+    import pathops
+
+    a = _ttglyph_to_pathops(minuend, glyph_set)
+    b = _ttglyph_to_pathops(subtrahend, glyph_set)
+    try:
+        out = pathops.op(a, b, pathops.PathOp.DIFFERENCE, fix_winding=True)
+    except Exception:
+        return empty_glyph()
+    return _pathops_to_ttglyph(out)
+
+
+def _lsb_of(glyph: TTGlyph) -> int:
+    try:
+        glyph.recalcBounds(None)
+        return int(glyph.xMin)
+    except Exception:
+        return 0
+
+
+def boolean_union_named(
+    names: Sequence[str],
+    *,
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    advance: Optional[int] = None,
+) -> GlyphMetrics:
+    """Union named glyphs; advance defaults to the first component's."""
+    parts = [glyphs[n] for n in names if n in glyphs]
+    if not parts:
+        return empty_glyph(), 0, 0
+    out = boolean_union_glyphs(parts, glyph_set=glyphs)
+    adv = int(advance if advance is not None else metrics[names[0]][0])
+    return out, adv, _lsb_of(out)
+
+
+def boolean_subtract_named(
+    keep: str,
+    cut: str,
+    *,
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    advance: Optional[int] = None,
+) -> GlyphMetrics:
+    """``keep − cut``; advance defaults to ``keep``."""
+    if keep not in glyphs:
+        return empty_glyph(), 0, 0
+    if cut not in glyphs:
+        g = glyphs[keep]
+        adv, lsb = metrics.get(keep, (0, 0))
+        return g, int(advance if advance is not None else adv), int(lsb)
+    out = boolean_subtract_glyphs(
+        glyphs[keep], glyphs[cut], glyph_set=glyphs
+    )
+    adv = int(advance if advance is not None else metrics[keep][0])
+    return out, adv, _lsb_of(out)
+
+
+def metrics_for_glyph(glyph: TTGlyph, advance: int) -> GlyphMetrics:
+    return glyph, int(advance), _lsb_of(glyph)
+
+
+def copy_named_glyph(
+    src: str,
+    *,
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    advance: Optional[int] = None,
+) -> GlyphMetrics:
+    """Independent outline copy of ``src`` (pathops round-trip)."""
+    if src not in glyphs:
+        return empty_glyph(), 0, 0
+    out = boolean_union_glyphs([glyphs[src]], glyph_set=glyphs)
+    adv, _lsb = metrics.get(src, (0, 0))
+    return out, int(advance if advance is not None else adv), _lsb_of(out)
+
+
+def install_derived_glyph(
+    name: str,
+    gm: GlyphMetrics,
+    *,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    advance: Optional[int] = None,
+) -> None:
+    """Append ``name`` unless it already exists."""
+    if name in glyphs:
+        return
+    g, a, l = gm
+    glyph_order.append(name)
+    glyphs[name] = g
+    metrics[name] = (int(advance if advance is not None else a), int(l))
+
+
+HALF_PLANE_INF_FRAC = 8.0
+
+
+def half_plane_rect(
+    cut: float,
+    *,
+    axis: str,
+    keep: str,
+    inf: float,
+) -> Tuple[float, float, float, float]:
+    """Unbounded half-plane on ``axis``: ``keep`` ``'lo'`` or ``'hi'`` of ``cut``."""
+    if keep not in ("lo", "hi"):
+        raise ValueError(f"keep must be 'lo' or 'hi', got {keep!r}")
+    if axis == "y":
+        if keep == "hi":
+            return -inf, cut, inf, inf
+        return -inf, -inf, inf, cut
+    if axis != "x":
+        raise ValueError(f"axis must be 'x' or 'y', got {axis!r}")
+    if keep == "hi":
+        return cut, -inf, inf, inf
+    return -inf, -inf, cut, inf
+
+
 def clip_glyph_to_rect(
     glyph: TTGlyph,
     rect: Tuple[float, float, float, float],
@@ -1741,6 +1896,8 @@ def clip_glyph_to_rect(
 
     Used for CJK half / third / quarter niches and Yi FE08/FE09 slices: ink
     outside the band is dropped; ink inside keeps its original size and place.
+    Complementary bands are ``boolean_subtract`` / ``boolean_union``, not a
+    second clip.
     """
     import pathops
 
@@ -1936,7 +2093,7 @@ def make_overlay_composite(
     *,
     lsb: int = 0,
 ) -> GlyphMetrics:
-    """Zero-advance same-cell overlay of ``base_name`` (FE08 superposition)."""
+    """Zero-advance composite of ``base_name`` (inherits the fullwidth outline)."""
     g = TTGlyph()
     g.numberOfContours = -1
     comp = GlyphComponent()
@@ -2435,6 +2592,8 @@ def make_standalone_glyph(
     Optional CAPE Width ``widen`` is kana-oriented and defaults to ``0`` (off)
     for Yi / CJK standalones. Then Y is fitted to a padded CJK typo box:
     squash if taller, otherwise pin the ink bottom to the padded floor.
+    Horizontal stems are then Weight-boldened to
+    ``STANDALONE_HORIZONTAL_WEIGHT`` (Y-only offset, outer box restored).
     Finally uniform ``cell_scale`` (~98%) about the ideographic center keeps
     the syllable inset and centered.
     """
@@ -2469,6 +2628,15 @@ def make_standalone_glyph(
             center_x=dst_cx,
         )
     glyph = _fit_glyph_to_cjk_height(glyph, target_upem, pad=vert_pad)
+    if abs(STANDALONE_HORIZONTAL_WEIGHT - 1.0) > 1e-9:
+        try:
+            glyph, _hadv, _hlsb = bolden_horizontal_ttglyph(
+                glyph,
+                STANDALONE_HORIZONTAL_WEIGHT,
+                advance=float(target_upem),
+            )
+        except Exception:
+            pass
     return scale_glyph_in_ideographic_cell(
         glyph, target_upem, target_upem, scale=cell_scale
     )
@@ -2511,6 +2679,15 @@ def make_halfwidth_glyph(
     if glyph is None:
         return None
     glyph = _fit_glyph_to_cjk_height(glyph, target_upem)
+    if abs(STANDALONE_HORIZONTAL_WEIGHT - 1.0) > 1e-9:
+        try:
+            glyph, _hadv, _hlsb = bolden_horizontal_ttglyph(
+                glyph,
+                STANDALONE_HORIZONTAL_WEIGHT,
+                advance=float(adv),
+            )
+        except Exception:
+            pass
     try:
         glyph.recalcBounds(None)
         lsb = int(glyph.xMin)
