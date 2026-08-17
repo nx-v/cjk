@@ -36,7 +36,7 @@ import hashlib
 import os
 import random
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
@@ -1431,6 +1431,7 @@ def install_overlay_gsub(
     if "GSUB" in font:
         gsub = font["GSUB"].table
     else:
+
         def _langsys() -> ot.DefaultLangSys:
             ls = ot.DefaultLangSys()
             ls.ReqFeatureIndex = 0xFFFF
@@ -1637,6 +1638,150 @@ def variant_transform(
     return Transform(xx, xy, yx, yy, dx, dy)
 
 
+BoundsRect = Tuple[float, float, float, float]
+
+
+def transform_aabb(rect: BoundsRect, t: Transform) -> BoundsRect:
+    """Axis-aligned bounds of ``rect``'s corners after ``t``."""
+    x0, y0, x1, y1 = rect
+    xs, ys = [], []
+    for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+        px, py = t.transformPoint((x, y))
+        xs.append(px)
+        ys.append(py)
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def aabb_iou(a: BoundsRect, b: BoundsRect) -> float:
+    ax0, ay0, ax1, ay1 = a
+    bx0, by0, bx1, by1 = b
+    ix0, iy0 = max(ax0, bx0), max(ay0, by0)
+    ix1, iy1 = min(ax1, bx1), min(ay1, by1)
+    inter = max(0.0, ix1 - ix0) * max(0.0, iy1 - iy0)
+    if inter <= 0.0:
+        return 0.0
+    union = (
+        max(0.0, ax1 - ax0) * max(0.0, ay1 - ay0)
+        + max(0.0, bx1 - bx0) * max(0.0, by1 - by0)
+        - inter
+    )
+    return inter / union if union > 0.0 else 0.0
+
+
+def _map_corner_label(lab: str, t: Transform, center: Tuple[float, float]) -> str:
+    """Send a tl/tr/bl/br label through ``t`` about ``center``."""
+    cx, cy = center
+    dx = -1.0 if "l" in lab else 1.0
+    dy = 1.0 if lab.startswith("t") else -1.0
+    x, y = t.transformPoint((cx + dx, cy + dy))
+    return ("t" if y >= cy else "b") + ("l" if x < cx else "r")
+
+
+def match_d4_source_suffix(
+    dest_suffix: str,
+    t_inv: Transform,
+    *,
+    windows: Dict[str, BoundsRect],
+    labels: Optional[Dict[str, FrozenSet[str]]] = None,
+    center: Tuple[float, float],
+) -> Optional[str]:
+    """Identity niche whose window/labels map to ``dest_suffix`` under ``t_inv``."""
+    if labels and dest_suffix in labels:
+        src_labs = frozenset(
+            _map_corner_label(lab, t_inv, center) for lab in labels[dest_suffix]
+        )
+        for suf, labs in labels.items():
+            if labs == src_labs:
+                return suf
+        return None
+    dest_w = windows.get(dest_suffix)
+    if dest_w is None:
+        return None
+    want = transform_aabb(dest_w, t_inv)
+    best: Optional[str] = None
+    best_iou = 0.0
+    for suf, win in windows.items():
+        iou = aabb_iou(want, win)
+        if iou > best_iou:
+            best, best_iou = suf, iou
+    return best if best_iou >= 0.55 else None
+
+
+def propagate_d4_niches(
+    identity_bases: Sequence[str],
+    *,
+    suffixes: Sequence[str],
+    form_name: Callable[[str, str], str],
+    windows: Dict[str, BoundsRect],
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    target_upem: int,
+    labels: Optional[Dict[str, FrozenSet[str]]] = None,
+) -> None:
+    """Fill D4 × niche glyphs from identity clips: ``R(clip(g, R⁻¹(W)))``.
+
+    Identity niches (``form_name(base, suffix)``) must already exist. Each
+    oriented form is a cell-centered D4 of the matching identity niche —
+    no second pathops clip of the rotated outline.
+    """
+    center = ideographic_center(target_upem)
+    for base in identity_bases:
+        if base not in glyphs:
+            continue
+        adv, _lsb = metrics.get(base, (target_upem, 0))
+        for _vs, rot, fx, fy, d4suf in TRANSFORM_MODES:
+            if d4suf is None:
+                continue
+            oriented = variant_glyph_name(base, d4suf)
+            if oriented not in glyphs:
+                continue
+            t = variant_transform(
+                target_upem,
+                rot90_quarters=rot,
+                flip_x=fx,
+                flip_y=fy,
+                center=center,
+            )
+            try:
+                t_inv = t.inverse()
+            except Exception:
+                continue
+            for nsuf in suffixes:
+                dest = form_name(oriented, nsuf)
+                if dest in glyphs:
+                    continue
+                src_suf = match_d4_source_suffix(
+                    nsuf,
+                    t_inv,
+                    windows=windows,
+                    labels=labels,
+                    center=center,
+                )
+                src = form_name(base, src_suf) if src_suf else ""
+                if src and src in glyphs:
+                    gm = _bake_transformed_glyph(
+                        glyphs[src], t, int(adv), glyph_set=glyphs
+                    )
+                elif nsuf in windows:
+                    piece, _, _ = make_niche_slice_glyph(
+                        base,
+                        advance=int(adv),
+                        rect=transform_aabb(windows[nsuf], t_inv),
+                        glyph_set=glyphs,
+                    )
+                    gm = _bake_transformed_glyph(piece, t, int(adv))
+                else:
+                    continue
+                install_derived_glyph(
+                    dest,
+                    gm,
+                    glyph_order=glyph_order,
+                    glyphs=glyphs,
+                    metrics=metrics,
+                )
+
+
 def make_composite_variant(
     base_name: str,
     target_upem: int,
@@ -1714,9 +1859,7 @@ def _rect_pathops(x0: float, y0: float, x1: float, y1: float):
     return p
 
 
-def _ttglyph_to_pathops(
-    glyph: TTGlyph, glyph_set: Optional[Dict[str, TTGlyph]] = None
-):
+def _ttglyph_to_pathops(glyph: TTGlyph, glyph_set: Optional[Dict[str, TTGlyph]] = None):
     import pathops
 
     rec = _recording_from_glyph(glyph, glyph_set)
@@ -1818,9 +1961,7 @@ def boolean_subtract_named(
         g = glyphs[keep]
         adv, lsb = metrics.get(keep, (0, 0))
         return g, int(advance if advance is not None else adv), int(lsb)
-    out = boolean_subtract_glyphs(
-        glyphs[keep], glyphs[cut], glyph_set=glyphs
-    )
+    out = boolean_subtract_glyphs(glyphs[keep], glyphs[cut], glyph_set=glyphs)
     adv = int(advance if advance is not None else metrics[keep][0])
     return out, adv, _lsb_of(out)
 

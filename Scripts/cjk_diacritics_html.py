@@ -14,7 +14,7 @@ Encoding (matches ``cjk_diacritics`` / ``build_cjk``)::
 
       A (D4)? FE0B FE0C–F   B (D4)? FE0D–F
 
-    Third / quarter stacks: see ``cjk_multigraphs_html.py`` (faces ``t`` / ``qv`` / ``qh``).
+    Third / quarter stacks: see ``cjk_multigraphs_html.py`` (faces ``t`` / ``q`` / ``qv`` / ``qh``).
 
 Usage
 -----
@@ -293,7 +293,7 @@ def pancjk_font_stack(
 ) -> str:
     """Quoted font stack for galleries (shared variant families).
 
-    ``variants`` defaults to CSS order (``qv``, ``qh``, ``t``, ``h``, ``''``).
+    ``variants`` defaults to CSS order (``q``, ``qv``, ``qh``, ``t``, ``h``, ``''``).
     Each variant is one family (``edenia cjk h``, …); buckets are selected via
     ``unicode-range`` on ``@font-face``.
     """
@@ -467,7 +467,7 @@ h2 {{
     Base VS: identity / FE01..FE07 (full D4)<br/>
     ca/nhay: <code>CJK FE0C–F MARK</code> on base face (mark niche = 1/4)<br/>
     Squish digraph: <code>A FE0B FE0C–F</code> + <code>B FE0D–F</code> on <code>edenia cjk h</code><br/>
-    Niche composer: <code>multigraph-cjk.html</code> (<code>edenia cjk h/t/qv/qh</code>)<br/>
+    Niche composer: <code>multigraph-cjk.html</code> (<code>edenia cjk h/t/q/qv/qh</code>)<br/>
     Digraph pairs: {len(pairs)} ({n_cross} cross-bucket) · gallery ≈ {total:,}
   </p>
   <div class="controls">

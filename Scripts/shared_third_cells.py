@@ -54,6 +54,7 @@ from shared_half_cells import (
     overlay_glyph_name,
     variant_glyph_name,
     HALF_PLANE_INF_FRAC,
+    propagate_d4_niches,
 )
 
 # FE0B zero-width overlay (same glyph name as half-cell digraphs).
@@ -458,7 +459,23 @@ def prepare_third_cells(
                 seen.add(vname)
 
     add_third_forms(
-        forms,
+        list(cjk_bases),
+        glyph_order=glyph_order,
+        glyphs=glyphs,
+        metrics=metrics,
+        target_upem=target_upem,
+    )
+    third_windows = {
+        suf: _third_slot_rect(
+            float(target_upem), axis=axis, band0=b0, band1=b1
+        )
+        for _cp, _sel, suf, axis, b0, b1 in THIRD_VS_SLOTS
+    }
+    propagate_d4_niches(
+        cjk_bases,
+        suffixes=tuple(suf for _cp, _sel, suf, _a, _b0, _b1 in THIRD_VS_SLOTS),
+        form_name=third_form_name,
+        windows=third_windows,
         glyph_order=glyph_order,
         glyphs=glyphs,
         metrics=metrics,

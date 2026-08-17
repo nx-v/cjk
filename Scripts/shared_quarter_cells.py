@@ -1,14 +1,29 @@
-"""CJK quarter-cell niches — two faces (vertical / horizontal).
+"""CJK quarter-cell niches — three faces (2×2 grid / vertical / horizontal).
 
 Encoding
 --------
 * Standard CJK code points are used as-is.
+* **Grid face** (``q``): 2×2 corners + L-shaped 3/4 via VS41–48.
 * **Vertical face** (``qv``): Y-axis bands via VS13–14 + VS27–33.
 * **Horizontal face** (``qh``): X-axis bands via VS15–16 + VS34–40.
   Label “top”/“bottom” on the horizontal face maps to **left**/**right**
   (r90 CCW: top→left, bottom→right).
 * ``FE0B`` (and PUA ``U+E008``) → zero-width ``.ov`` for stacking.
 * GSUB ``ccmp``/``rlig``/``liga`` only — no cmap-14 UVS.
+
+Grid (``q``) — 2×2; L for a corner is the 3/4 that includes that corner
+======= ========== ========================= ========
+VS      Code point Niche                     Suffix
+======= ========== ========================= ========
+VS41    U+E0118    top-left quarter          ``q2tl``
+VS42    U+E0119    top-right quarter         ``q2tr``
+VS43    U+E011A    bottom-left quarter       ``q2bl``
+VS44    U+E011B    bottom-right quarter      ``q2br``
+VS45    U+E011C    L at top-left (top∪left)  ``q2tl3``
+VS46    U+E011D    L at top-right            ``q2tr3``
+VS47    U+E011E    L at bottom-left          ``q2bl3``
+VS48    U+E011F    L at bottom-right         ``q2br3``
+======= ========== ========================= ========
 
 Vertical (``qv``) — axis Y, bands 0=bottom … 3=top
 ======= ========== ========================= ========
@@ -40,15 +55,15 @@ VS39    U+E0116    bottom 3/4 (= right 3/4)  ``q4b3``
 VS40    U+E0117    middle half               ``q4mh``
 ======= ========== ========================= ========
 
-Niche forms are **slices** of the already-baked fullwidth outline (identity
-or D4). Clip one seed band per axis (or inherit CJK ``.dk*`` halves); the
-rest are ``full − piece`` or union of remaining pieces. Zero-width ``.ov``
-forms are composites of those fullwidth slices.
+Niche forms are **slices** of already-baked fullwidth / half-cell outlines.
+``qv``/``qh``/``q`` inherit CJK ``.dk*`` halves when present; remaining
+bands are ``full − piece`` or union. Zero-width ``.ov`` forms are composites
+of those fullwidth slices.
 """
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from fontTools.misc.transform import Transform
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
@@ -72,6 +87,7 @@ from shared_half_cells import (
     overlay_glyph_name,
     variant_glyph_name,
     HALF_PLANE_INF_FRAC,
+    propagate_d4_niches,
 )
 
 # FE0B zero-width overlay.
@@ -113,27 +129,67 @@ QUARTER_VS_SLOTS_H: Tuple[QuarterSlot, ...] = (
     (0xE0117, "vs40", "q4mh", 1, 2),  # middle half
 )
 
+# 2×2 grid face. VS41–44 corners tl,tr,bl,br; VS45–48 L 3/4 for the same corners.
+# (vs_cp, selector name, suffix) — no band indices.
+GridSlot = Tuple[int, str, str]
+GRID_VS_SLOTS: Tuple[GridSlot, ...] = (
+    (0xE0118, "vs41", "q2tl"),
+    (0xE0119, "vs42", "q2tr"),
+    (0xE011A, "vs43", "q2bl"),
+    (0xE011B, "vs44", "q2br"),
+    (0xE011C, "vs45", "q2tl3"),
+    (0xE011D, "vs46", "q2tr3"),
+    (0xE011E, "vs47", "q2bl3"),
+    (0xE011F, "vs48", "q2br3"),
+)
+
+# Discrete 2×2 cells for D4 remapping of corners / L 3/4.
+GRID_CELL_LABELS: Dict[str, FrozenSet[str]] = {
+    "q2tl": frozenset({"tl"}),
+    "q2tr": frozenset({"tr"}),
+    "q2bl": frozenset({"bl"}),
+    "q2br": frozenset({"br"}),
+    "q2tl3": frozenset({"tl", "tr", "bl"}),
+    "q2tr3": frozenset({"tl", "tr", "br"}),
+    "q2bl3": frozenset({"tl", "bl", "br"}),
+    "q2br3": frozenset({"tr", "bl", "br"}),
+}
+
 QUARTER_FACE_V = "qv"
 QUARTER_FACE_H = "qh"
+QUARTER_FACE_GRID = "q"
+QUARTER_FACES = (QUARTER_FACE_GRID, QUARTER_FACE_V, QUARTER_FACE_H)
 
 
-def quarter_slots_for_face(face: str) -> Tuple[QuarterSlot, ...]:
+def quarter_slots_for_face(face: str) -> Tuple:
     match face:
         case "qv":
             return QUARTER_VS_SLOTS_V
         case "qh":
             return QUARTER_VS_SLOTS_H
+        case "q":
+            return GRID_VS_SLOTS
         case _:
             raise ValueError(
-                f"quarter face must be {QUARTER_FACE_V!r} or {QUARTER_FACE_H!r}"
+                f"quarter face must be one of {QUARTER_FACES}, got {face!r}"
             )
 
 
 def quarter_axis_for_face(face: str) -> str:
+    if face == QUARTER_FACE_GRID:
+        raise ValueError("grid face q has no single niche axis")
     return "y" if face == QUARTER_FACE_V else "x"
 
 
-def quarter_form_name(base_name: str, suffix: str) -> str:
+def quarter_slot_parts(slot: Tuple) -> Tuple[int, str, str]:
+    """``(vs_cp, selector name, suffix)`` from a 3- or 5-tuple slot."""
+    return slot[0], slot[1], slot[2]
+
+
+def quarter_form_name(base_name: str, suffix: str, *, face: str = "") -> str:
+    """Niche glyph name. ``qv``/``qh`` are tagged so they can share a master."""
+    if face in ("qv", "qh"):
+        return f"{base_name}.{face}.{suffix}"
     return f"{base_name}.{suffix}"
 
 
@@ -162,6 +218,20 @@ def _quarter_slot_rect(
     x0 = target_upem * (lo_b / n) + pad
     x1 = target_upem * ((hi_b + 1) / n) - pad
     return x0, bot + pad, x1, top - pad
+
+
+def quarter_niche_windows(
+    face: str, target_upem: int
+) -> Dict[str, Tuple[float, float, float, float]]:
+    """Finite AABBs for qv/qh band suffixes (D4 matching)."""
+    axis = quarter_axis_for_face(face)
+    out: Dict[str, Tuple[float, float, float, float]] = {}
+    for slot in quarter_slots_for_face(face):
+        _cp, _sel, suf, b0, b1 = slot
+        out[suf] = _quarter_slot_rect(
+            float(target_upem), axis=axis, band0=b0, band1=b1
+        )
+    return out
 
 
 def _bake_simple_glyph(
@@ -334,6 +404,9 @@ def add_quarter_forms(
                     )
         raise ValueError(f"no half-plane seed for {suf!r}")
 
+    def _qn(form: str, suf: str) -> str:
+        return quarter_form_name(form, suf, face=face)
+
     added: List[str] = []
     for name in base_names:
         if name not in glyphs:
@@ -350,7 +423,7 @@ def add_quarter_forms(
             )
 
         def _clip(src: str, suf: str) -> str:
-            out = quarter_form_name(name, suf)
+            out = _qn(name, suf)
             if out not in glyphs:
                 _put(
                     out,
@@ -363,8 +436,8 @@ def add_quarter_forms(
                 )
             return out
 
-        th = quarter_form_name(name, "q4th")
-        bh = quarter_form_name(name, "q4bh")
+        th = _qn(name, "q4th")
+        bh = _qn(name, "q4bh")
         src_th = f"{name}.{inherit_th}"
         src_bh = f"{name}.{inherit_bh}"
         if src_th in glyphs:
@@ -394,7 +467,7 @@ def add_quarter_forms(
             _clip(name, "q4bh")
 
         tq = _clip(th if th in glyphs else name, "q4t")
-        ntop = quarter_form_name(name, "q4nt")
+        ntop = _qn(name, "q4nt")
         if ntop not in glyphs and th in glyphs:
             _put(
                 ntop,
@@ -403,7 +476,7 @@ def add_quarter_forms(
                 ),
             )
         bq = _clip(bh if bh in glyphs else name, "q4b")
-        nbot = quarter_form_name(name, "q4nb")
+        nbot = _qn(name, "q4nb")
         if nbot not in glyphs and bh in glyphs:
             _put(
                 nbot,
@@ -412,9 +485,9 @@ def add_quarter_forms(
                 ),
             )
 
-        t3 = quarter_form_name(name, "q4t3")
-        b3 = quarter_form_name(name, "q4b3")
-        mh = quarter_form_name(name, "q4mh")
+        t3 = _qn(name, "q4t3")
+        b3 = _qn(name, "q4b3")
+        mh = _qn(name, "q4mh")
         if t3 not in glyphs:
             _put(
                 t3,
@@ -451,6 +524,96 @@ def add_quarter_forms(
     return added
 
 
+def add_grid_forms(
+    base_names: Sequence[str],
+    *,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    target_upem: int = 1000,
+) -> List[str]:
+    """2×2 corners and L 3/4 from CJK half slices (``.dk`` / ``.dkl`` / ``.dkb`` / ``.dkt``).
+
+    ``q2tl = left − bottom``, ``q2tl3 = top ∪ left``, and the same pattern
+    for tr / bl / br.
+    """
+    bot, top, _ = ideographic_bounds(target_upem)
+    mid_y = (bot + top) / 2.0
+    mid_x = float(target_upem) * 0.5
+    inf = float(target_upem) * HALF_PLANE_INF_FRAC
+    added: List[str] = []
+
+    def _plane(axis: str, keep: str, cut: float) -> Tuple[float, float, float, float]:
+        return half_plane_rect(cut, axis=axis, keep=keep, inf=inf)
+
+    for name in base_names:
+        if name not in glyphs:
+            continue
+        adv, _lsb = metrics.get(name, (target_upem, 0))
+
+        def _put(out_name: str, gm: Tuple[TTGlyph, int, int]) -> None:
+            install_derived_glyph(
+                out_name,
+                gm,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+            )
+
+        def _ensure_half(suf: str, axis: str, keep: str, cut: float) -> str:
+            hname = f"{name}.{suf}"
+            if hname not in glyphs:
+                _put(
+                    hname,
+                    make_niche_slice_glyph(
+                        name,
+                        advance=adv,
+                        rect=_plane(axis, keep, cut),
+                        glyph_set=glyphs,
+                    ),
+                )
+            return hname
+
+        left = _ensure_half("dk", "x", "lo", mid_x)
+        right = _ensure_half("dkl", "x", "hi", mid_x)
+        top_h = _ensure_half("dkb", "y", "hi", mid_y)
+        bot_h = _ensure_half("dkt", "y", "lo", mid_y)
+
+        corners = (
+            ("q2tl", left, bot_h),
+            ("q2tr", right, bot_h),
+            ("q2bl", left, top_h),
+            ("q2br", right, top_h),
+        )
+        for suf, keep, cut in corners:
+            out = quarter_form_name(name, suf)
+            if out not in glyphs:
+                _put(
+                    out,
+                    boolean_subtract_named(
+                        keep, cut, glyphs=glyphs, metrics=metrics, advance=adv
+                    ),
+                )
+
+        ells = (
+            ("q2tl3", top_h, left),
+            ("q2tr3", top_h, right),
+            ("q2bl3", bot_h, left),
+            ("q2br3", bot_h, right),
+        )
+        for suf, a, b in ells:
+            out = quarter_form_name(name, suf)
+            if out not in glyphs:
+                _put(
+                    out,
+                    boolean_union_named(
+                        [a, b], glyphs=glyphs, metrics=metrics, advance=adv
+                    ),
+                )
+        added.append(name)
+    return added
+
+
 def quarter_vs_liga_map(
     bases: Sequence[str],
     *,
@@ -471,8 +634,9 @@ def quarter_vs_liga_map(
         if form_ov in glyphs and ov in glyphs:
             liga[(form, ov)] = form_ov
             liga[(form, vs01, ov)] = form_ov
-        for _vs_cp, sel_name, suf, _b0, _b1 in slots:
-            out = quarter_form_name(form, suf)
+        for slot in slots:
+            _vs_cp, sel_name, suf = quarter_slot_parts(slot)
+            out = quarter_form_name(form, suf, face=face)
             if out not in glyphs:
                 continue
             if sel_name not in glyphs:
@@ -510,7 +674,8 @@ def prepare_quarter_cells(
     cmap[OV_SELECTOR_CP] = OV_SELECTOR_NAME
     cmap[OV_PUA_CP] = OV_SELECTOR_NAME
 
-    for vs_cp, sel_name, _suf, _b0, _b1 in slots:
+    for slot in slots:
+        vs_cp, sel_name, _suf = quarter_slot_parts(slot)
         if sel_name not in glyphs:
             glyph_order.append(sel_name)
             glyphs[sel_name] = empty_glyph()
@@ -532,22 +697,53 @@ def prepare_quarter_cells(
                 forms.append(vname)
                 seen.add(vname)
 
-    add_quarter_forms(
-        forms,
-        face=face,
-        glyph_order=glyph_order,
-        glyphs=glyphs,
-        metrics=metrics,
-        target_upem=target_upem,
-    )
+    if face == QUARTER_FACE_GRID:
+        add_grid_forms(
+            list(cjk_bases),
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+        )
+        propagate_d4_niches(
+            cjk_bases,
+            suffixes=tuple(s[2] for s in GRID_VS_SLOTS),
+            form_name=lambda form, suf: quarter_form_name(form, suf, face=face),
+            windows={},
+            labels=GRID_CELL_LABELS,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+        )
+    else:
+        add_quarter_forms(
+            list(cjk_bases),
+            face=face,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+        )
+        propagate_d4_niches(
+            cjk_bases,
+            suffixes=tuple(quarter_slot_parts(s)[2] for s in slots),
+            form_name=lambda form, suf: quarter_form_name(form, suf, face=face),
+            windows=quarter_niche_windows(face, target_upem),
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+        )
 
     ov_sources: List[str] = []
     for form in forms:
         if form not in glyphs:
             continue
         ov_sources.append(form)
-        for _cp, _sel, suf, _b0, _b1 in slots:
-            niche = quarter_form_name(form, suf)
+        for slot in slots:
+            _cp, _sel, suf = quarter_slot_parts(slot)
+            niche = quarter_form_name(form, suf, face=face)
             if niche in glyphs:
                 ov_sources.append(niche)
     add_overlay_forms(

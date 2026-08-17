@@ -102,6 +102,7 @@ from yi_slice import (
 from edenia_names import CSS_KANA, FAMILY_KANA, PS_KANA
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
+from shared_hinting import add_no_hint_argument
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -1975,11 +1976,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
-    p.add_argument(
-        "--no-hint",
-        action="store_true",
-        help="Skip ttfautohint-py TrueType autohint step",
-    )
+    add_no_hint_argument(p)
     return p.parse_args()
 
 

@@ -29,22 +29,22 @@ CSS_CJK = "edenia-cjk.css"
 #   ""   base + ca/nhay
 #   h    half-cells
 #   t    thirds
+#   q    2×2 corners + L 3/4 (VS41–48)
 #   qv   quarter-cells (vertical / Y)
 #   qh   quarter-cells (horizontal / X)
-# Build waves (base → niche faces).
-CJK_FACE_VARIANTS: tuple[str, ...] = ("", "h", "t", "qv", "qh")
-# Sequential order *inside* each bucket worker. Same-bucket faces must not
-# overlap: base first, then halves + quarters, then thirds.
-CJK_FACE_BUILD_ORDER: tuple[str, ...] = ("", "h", "qv", "qh", "t")
+CJK_FACE_VARIANTS: tuple[str, ...] = ("", "h", "t", "q", "qv", "qh")
+# Sequential order *inside* each bucket worker. Base, then half TTF, then
+# q/qv/qh derived from that half font, then thirds.
+CJK_FACE_BUILD_ORDER: tuple[str, ...] = ("", "h", "q", "qv", "qh", "t")
 # @font-face emission order (niche faces before base). Body stacks use the
 # shared ``edenia cjk`` family (base) only — pin ``edenia cjk h`` / ``t`` /
-# ``qv`` / ``qh`` for niche GSUB. CJK unicode-range lists FE00–FE07 (D4) and
-# FE0B–FE0F (digraphs); Hangul/Kana/Yi faces restrict unicode-range so bare
-# cmap FE* does not steal those selectors.
-CJK_FACE_CSS_ORDER: tuple[str, ...] = ("qv", "qh", "t", "h", "")
+# ``q`` / ``qv`` / ``qh`` for niche GSUB. CJK unicode-range lists FE00–FE07
+# (D4) and FE0B–FE0F (digraphs); Hangul/Kana/Yi faces restrict unicode-range
+# so bare cmap FE* does not steal those selectors.
+CJK_FACE_CSS_ORDER: tuple[str, ...] = ("q", "qv", "qh", "t", "h", "")
 
-# Longer suffixes first so ``qh`` is not parsed as ``h``.
-_CJK_FACE_SUFFIXES: tuple[str, ...] = ("qh", "qv", "h", "t")
+# Longer suffixes first so ``qh``/``qv`` are not parsed as ``q``/``h``.
+_CJK_FACE_SUFFIXES: tuple[str, ...] = ("qh", "qv", "q", "h", "t")
 
 
 def family_cjk(face_id: str) -> str:
@@ -56,6 +56,7 @@ def family_cjk(face_id: str) -> str:
         ``4E`` / ``66``  → ``edenia cjk``
         ``4Eh`` / ``66h`` → ``edenia cjk h``
         ``4Et``           → ``edenia cjk t``
+        ``4Eq``           → ``edenia cjk q``
         ``4Eqv``          → ``edenia cjk qv``
         ``4Eqh``          → ``edenia cjk qh``
 
@@ -66,7 +67,7 @@ def family_cjk(face_id: str) -> str:
 
 
 def family_cjk_variant(variant: str = "") -> str:
-    """CSS family for a CJK face variant (``''`` / ``h`` / ``t`` / ``qv`` / ``qh``)."""
+    """CSS family for a CJK face variant (``''`` / ``h`` / ``t`` / ``q`` / ``qv`` / ``qh``)."""
     if variant and variant not in CJK_FACE_VARIANTS:
         raise ValueError(
             f"CJK face variant must be one of {CJK_FACE_VARIANTS}, got {variant!r}"
@@ -82,7 +83,7 @@ def ps_cjk(face_id: str) -> str:
 
 
 def cjk_face_id(bucket_hex: str, variant: str = "") -> str:
-    """Filename / family stem: ``4E``, ``4Eh``, ``4Et``, ``4Eqv``, ``4Eqh``."""
+    """Filename / family stem: ``4E``, ``4Eh``, ``4Et``, ``4Eq``, ``4Eqv``, ``4Eqh``."""
     if variant and variant not in CJK_FACE_VARIANTS:
         raise ValueError(
             f"CJK face variant must be one of {CJK_FACE_VARIANTS}, got {variant!r}"
@@ -91,7 +92,7 @@ def cjk_face_id(bucket_hex: str, variant: str = "") -> str:
 
 
 def split_cjk_face_id(face_id: str) -> tuple[str, str]:
-    """Split ``4Eqv`` → ``('4E', 'qv')``."""
+    """Split ``4Eqv`` → ``('4E', 'qv')``; ``4Eq`` → ``('4E', 'q')``."""
     for suf in _CJK_FACE_SUFFIXES:
         if face_id.endswith(suf):
             return face_id[: -len(suf)], suf

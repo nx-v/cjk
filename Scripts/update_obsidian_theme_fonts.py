@@ -90,7 +90,7 @@ _ANY_NEXOVOLTA_DIST = re.compile(
     re.I,
 )
 _PANCJK_FAMILY = re.compile(
-    r"font-family:\s*['\"](edenia cjk(?:\s+(?:qh|qv|[ht]))?)['\"]"
+    r"font-family:\s*['\"](edenia cjk(?:\s+(?:qh|qv|q|[ht]))?)['\"]"
 )
 
 MARK_FACES_BEGIN = "/* === BEGIN auto pan fonts (update_obsidian_theme_fonts.py) === */"
@@ -704,7 +704,7 @@ def patch_theme(theme_path: Path, faces: str, stack: str) -> None:
 
     theme_path.write_text(text, encoding="utf-8")
     n_unique = len(
-        set(re.findall(r'["\']edenia cjk(?:\s+(?:qh|qv|[ht]))?["\']', text))
+        set(re.findall(r'["\']edenia cjk(?:\s+(?:qh|qv|q|[ht]))?["\']', text))
     )
     size_mb = theme_path.stat().st_size / (1024 * 1024)
     print(f"Wrote {theme_path} (edenia cjk families~{n_unique}, {size_mb:.1f} MiB)")

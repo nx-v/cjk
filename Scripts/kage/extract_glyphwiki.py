@@ -57,6 +57,11 @@ from .mapping import (
     sort_glyph_entries,
 )
 
+_SCRIPTS_DIR = Path(__file__).resolve().parent.parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+from shared_hinting import add_no_hint_argument  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]  # Scripts/
 DUMP_DIR = ROOT / "dump"
 DATA_DIR = ROOT / "data"
@@ -1298,11 +1303,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
-    parser.add_argument(
-        "--no-hint",
-        action="store_true",
-        help="Skip ttfautohint-py TrueType autohint step",
-    )
+    add_no_hint_argument(parser)
     parser.add_argument(
         "--no-filters",
         action="store_true",

@@ -43,6 +43,7 @@ from Scripts.kage.extract_glyphwiki import (  # noqa: E402
     RESOLVED_PATH,
     main as extract_main,
 )
+from Scripts.shared_hinting import add_no_hint_argument  # noqa: E402
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -105,11 +106,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
-    p.add_argument(
-        "--no-hint",
-        action="store_true",
-        help="Skip ttfautohint-py TrueType autohint step",
-    )
+    add_no_hint_argument(p)
     p.add_argument(
         "--no-filters",
         action="store_true",

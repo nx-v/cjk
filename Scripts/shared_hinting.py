@@ -9,12 +9,25 @@ supported integration.
 
 from __future__ import annotations
 
+import argparse
 import os
 import tempfile
 import time
 from typing import Union
 
 PathLike = Union[str, os.PathLike]
+
+NO_HINT_HELP = "Skip ttfautohint-py TrueType autohint step"
+
+
+def add_no_hint_argument(parser: argparse.ArgumentParser) -> None:
+    """``--no-hint`` / ``--no-hinting`` on a build-script parser."""
+    parser.add_argument(
+        "--no-hint",
+        "--no-hinting",
+        action="store_true",
+        help=NO_HINT_HELP,
+    )
 
 
 def autohint_ttf(ttf_path: PathLike, *, enabled: bool = True) -> None:

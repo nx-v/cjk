@@ -968,13 +968,12 @@ def add_squish_forms(
     target_upem: int = 1000,
     slot_frac: Optional[float] = None,
 ) -> List[str]:
-    """Slice each baked form (identity + D4) into the four half-cell niches.
+    """Slice each identity form into the four half-cell niches.
 
-    D4 orientations are baked first; niches clip those outlines. Clip one
-    side per axis; the opposite is ``full − that side`` (or, for a 3/4
-    mark-base slot, ``full − the complementary sliver``). Do not mirror
-    ``.dkl``/``.dkt`` into ``.dk``/``.dkb`` — that flips asymmetric
-    ideographs. Zero-width ``.ov`` forms are composites of these slices.
+    D4 copies of those niches are filled later by ``propagate_d4_niches``
+    (clip identity once, then ``R(clip(g, R⁻¹(W)))``). Clip one side per
+    axis; the opposite is ``full − that side`` (or, for a 3/4 mark-base
+    slot, ``full − the complementary sliver``).
     """
     # Half-cell digraphs keep a 0.5 slot; mark-base (3/4) passes slot_frac=factor.
     occ_x = float(slot_frac) if slot_frac is not None else 0.5
@@ -2117,7 +2116,7 @@ def prepare_squish_vs_access(
         )
     squishable = squishable_forms(cjk_bases)
     add_squish_forms(
-        squishable,
+        cjk_bases,
         glyph_order=glyph_order,
         glyphs=glyphs,
         metrics=metrics,
@@ -2125,6 +2124,33 @@ def prepare_squish_vs_access(
         height_factor=height_factor,
         target_upem=target_upem,
         slot_frac=slot_frac,
+    )
+    occ = float(slot_frac) if slot_frac is not None else 0.5
+    from shared_half_cells import propagate_d4_niches
+
+    half_windows = {
+        "dk": _half_slot_rect(
+            float(target_upem), pin="left", axis="x", niche_frac=occ
+        ),
+        "dkl": _half_slot_rect(
+            float(target_upem), pin="right", axis="x", niche_frac=occ
+        ),
+        "dkb": _half_slot_rect(
+            float(target_upem), pin="top", axis="y", niche_frac=occ
+        ),
+        "dkt": _half_slot_rect(
+            float(target_upem), pin="bottom", axis="y", niche_frac=occ
+        ),
+    }
+    propagate_d4_niches(
+        cjk_bases,
+        suffixes=("dk", "dkl", "dkb", "dkt"),
+        form_name=lambda form, suf: f"{form}.{suf}",
+        windows=half_windows,
+        glyph_order=glyph_order,
+        glyphs=glyphs,
+        metrics=metrics,
+        target_upem=target_upem,
     )
 
     ov_sources: List[str] = []
