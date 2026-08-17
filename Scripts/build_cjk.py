@@ -886,16 +886,17 @@ def unicode_range_for_bucket(
 ) -> str:
     """CSS ``unicode-range`` for one bucket face.
 
-    Ideograph cps from the bucket, plus ``U+FE00–FE0F`` when ``include_fe0``
-    (default). Blink/FontFace drop Default_Ignorable selectors that match no
-    face's range, so digraph/mark GSUB never runs if FE0* are omitted. Chromium
-    still clusters FE0* with the preceding ideograph when several faces list
-    them (cross-bucket ``明日`` digraphs keep working).
+    Ideograph cps from the bucket, plus CJK VS when ``include_fe0`` (default):
+    ``U+FE00–FE07`` (D4) and ``U+FE0B–FE0F`` (digraph niches). Blink drops
+    unclaimed Default_Ignorables, so both sets must be listed. ``FE08–FE0A``
+    stay out so Yi digraph/slice selectors are not claimed by CJK.
 
     Base faces may add U+16FF0/16FF1 (ca/nhay) via ``include_marks``.
     """
     side_sels = set(SIDE_SELECTOR_CPS)
     fe0_sels = set(range(0xFE00, 0xFE10))
+    # D4 (FE00–FE07) + digraph niches (FE0B–FE0F); not FE08–FE0A (Yi).
+    fe0_cjk = set(range(0xFE00, 0xFE08)) | set(range(0xFE0B, 0xFE10))
     bucket_cps = {
         cp
         for cp in codepoints
@@ -909,19 +910,19 @@ def unicode_range_for_bucket(
     if include_marks:
         cps |= set(MARK_CPS)
     if include_fe0:
-        cps |= fe0_sels
+        cps |= fe0_cjk
     if not bucket_cps:
         start = bucket_id << 8
         cps |= set(range(start, start + 0x100))
         if include_marks:
             cps |= set(MARK_CPS)
         if include_fe0:
-            cps |= fe0_sels
+            cps |= fe0_cjk
     if not cps:
         start = bucket_id << 8
         cps = set(range(start, start + 0x100))
         if include_fe0:
-            cps |= fe0_sels
+            cps |= fe0_cjk
 
     ordered = sorted(cps)
     runs: List[str] = []
@@ -947,7 +948,7 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     """Write edenia-cjk.css (@font-face) and fontlist.css (CSS-safe stack).
 
     Each variant shares one family (``edenia cjk`` / ``… h`` / ``… t`` / …)
-    with per-bucket ``unicode-range`` (ideographs + ``U+FE00–FE0F``). Niche
+    with per-bucket ``unicode-range`` (ideographs + ``U+FE00–FE07,FE0B–FE0F``). Niche
     GSUB is selected with ``font-family: 'edenia cjk h'`` (etc.).
     """
     from edenia_names import family_cjk_variant
@@ -956,7 +957,7 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     lines: List[str] = [
         "/* Auto-generated Edenia CJK pigeonhole @font-face rules */",
         "/* Shared families: 'edenia cjk' / h / t / qv / qh.",
-        "   Per-file unicode-range = bucket ideographs + U+FE00-FE0F.",
+        "   Per-file unicode-range = bucket ideographs + U+FE00-FE07, U+FE0B-FE0F.",
         "   Digraphs: font-family: 'edenia cjk h' — one run, cross-bucket OK. */",
         "",
     ]

@@ -1290,6 +1290,10 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     css_path = os.path.join(out_dir, CSS_KANA)
+    # PUA D4 bases + FE00/FE01 slice selectors; omit other FE*.
+    cps_for_ur = {cp for cp in codepoints if not (0xFE02 <= cp <= 0xFE0F)}
+    cps_for_ur |= {0xFE00, 0xFE01}
+    ur = unicode_range_css(cps_for_ur)
     lines = [
         "/* Auto-generated single kana font (PUA D4 + smalls + halfwidth + slices) */",
         "",
@@ -1306,6 +1310,10 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
         ),
         "  font-weight: normal;",
         "  font-style: normal;",
+    ]
+    if ur:
+        lines.append(f"  unicode-range: {ur};")
+    lines += [
         "  font-display: swap;",
         "}",
         "",

@@ -2,8 +2,11 @@
 """Refresh Obsidian theme.css Edenia font blocks from GitHub CDN or local dist.
 
 CJK faces share ``edenia cjk`` / ``edenia cjk h`` / … with per-bucket
-``unicode-range``. ``U+FE00–FE0F`` must be listed on each face — Blink drops
-Default_Ignorable selectors that match no range, which breaks digraph GSUB.
+``unicode-range``. Each CJK face must list ``U+FE00–FE07`` (D4) and
+``U+FE0B–FE0F`` (digraphs) or Blink drops those Default_Ignorables.
+Hangul / Kana / Yi faces get script ``unicode-range`` so bare cmap FE*
+does not steal selectors from later faces; Yi keeps ``FE00–FE09``, Kana
+``FE00–FE01`` for slices.
 
 Default: font files via **jsDelivr**.
 
@@ -43,6 +46,10 @@ from edenia_names import (
     CSS_HANGUL,
     CSS_KANA,
     CSS_YI,
+    FAMILY_HANGUL,
+    FAMILY_HANGULS,
+    FAMILY_KANA,
+    FAMILY_YI,
     PLUGIN_ASSET,
     PLUGIN_CLASS,
     PLUGIN_DIR_NAME,
@@ -167,23 +174,6 @@ def pancjk_families_from_css(css: str) -> list[str]:
     return out
 
 
-def pancjk_stack_families(css: str) -> list[str]:
-    """Body stack CJK families: ``h`` first (digraph/FE0B–F GSUB), then base.
-
-    Niche ligas live on the half-cell face. Base alone cannot merge compounds.
-    ``t`` / ``qv`` / ``qh`` stay opt-in (explicit pin), not in the body stack.
-    """
-    families = pancjk_families_from_css(css)
-    out: list[str] = []
-    for name in ("edenia cjk h", "edenia cjk"):
-        if name in families:
-            out.append(name)
-    if out:
-        return out
-    # Older CSS listed per-bucket ``edenia cjk XX`` — keep those for stack.
-    return families
-
-
 def css_family_token(name: str) -> str:
     """Quote family names that contain spaces."""
     if re.search(r"[\s,]", name):
@@ -191,14 +181,55 @@ def css_family_token(name: str) -> str:
     return name
 
 
-_FE0_RANGE = "U+FE00-FE0F"
+# CJK: D4 (FE00–FE07) + digraph niches (FE0B–FE0F). Not FE08–FE0A (Yi).
+_FE0_CJK_RANGE = "U+FE00-FE07, U+FE0B-FE0F"
+_FE0_TOKEN = re.compile(
+    r"(?:,\s*)?U\+FE0[0-9A-Fa-f](?:\s*-\s*FE0[0-9A-Fa-f])?",
+    re.I,
+)
+# Script faces without unicode-range claim every cmap glyph (including FE*),
+# which steals CJK D4. Bases only for Hangul; Kana/Yi keep their FE slices.
+_SCRIPT_UNICODE_RANGE = {
+    FAMILY_HANGUL: "U+1100-11FF, U+A960-A97C, U+D7B0-D7FB, U+302E-302F",
+    FAMILY_HANGULS: "U+AC00-D7A3, U+3130-318F",
+    FAMILY_YI: "U+A000-A4C6, U+FE00-FE09",
+    FAMILY_KANA: "U+E000-F8FF, U+FF9E-FF9F, U+FE00-FE01",
+}
+
+
+def _strip_fe0_from_unicode_range(ur: str) -> str:
+    ur = _FE0_TOKEN.sub("", ur)
+    return re.sub(r",\s*,+", ", ", ur).strip(" ,")
 
 
 def _ensure_fe0_unicode_range(ur: str) -> str:
-    """Blink drops FE0* when no FontFace unicode-range claims them."""
-    if re.search(r"U\+FE0[0-9A-Fa-f]", ur):
+    """Ensure CJK faces claim D4 (FE00–FE07) and digraph VS (FE0B–FE0F)."""
+    ur = _strip_fe0_from_unicode_range(ur)
+    return f"{ur}, {_FE0_CJK_RANGE}" if ur else _FE0_CJK_RANGE
+
+
+def _script_unicode_range(family: str, ur: str | None) -> str | None:
+    """Normalize Hangul/Yi/Kana ranges; inject defaults when CSS omits them."""
+    if ur:
+        # Hangul must not list FE* (clusters with preceding jamo).
+        if family in (FAMILY_HANGUL, FAMILY_HANGULS):
+            return _strip_fe0_from_unicode_range(ur) or _SCRIPT_UNICODE_RANGE.get(
+                family
+            )
         return ur
-    return f"{ur}, {_FE0_RANGE}" if ur else _FE0_RANGE
+    return _SCRIPT_UNICODE_RANGE.get(family)
+
+
+def pancjk_stack_families(css: str) -> list[str]:
+    """Body stack CJK families: ``h`` first (digraph/FE0B–F GSUB), then base."""
+    families = pancjk_families_from_css(css)
+    out: list[str] = []
+    for name in ("edenia cjk h", "edenia cjk"):
+        if name in families:
+            out.append(name)
+    if out:
+        return out
+    return families
 
 
 def collect_faces(css: str, *, folder: str) -> list[dict]:
@@ -213,19 +244,54 @@ def collect_faces(css: str, *, folder: str) -> list[dict]:
         )
         if not (fam_m and name_m):
             continue
+        family = fam_m.group(1)
         face: dict = {
-            "family": fam_m.group(1),
+            "family": family,
             "file": f"{PLUGIN_ASSET}/{folder}/{name_m.group(2)}",
         }
         ur_m = re.search(r"unicode-range:\s*([^;]+);", block)
-        if ur_m:
-            ur = " ".join(ur_m.group(1).split())
-            # CJK pigeonholes need FE0* in-range or digraph/mark GSUB never runs.
-            if folder == "cjk":
-                ur = _ensure_fe0_unicode_range(ur)
+        ur = " ".join(ur_m.group(1).split()) if ur_m else None
+        if folder == "cjk":
+            face["unicodeRange"] = _ensure_fe0_unicode_range(ur or "")
+        elif folder in ("hangul", "yi", "kana"):
+            fixed = _script_unicode_range(family, ur)
+            if fixed:
+                face["unicodeRange"] = fixed
+        elif ur:
             face["unicodeRange"] = ur
         out.append(face)
     return out
+
+
+def build_stack_block(*, pancjk_families: list[str]) -> str:
+    if not pancjk_families:
+        raise ValueError("no edenia cjk families found in CSS")
+    scripts = (
+        f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", '
+        f'"{FAMILY_KANA}", "{FAMILY_YI}"'
+    )
+    cjk = ", ".join(css_family_token(n) for n in pancjk_families)
+    fallbacks = "FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2"
+    stack = f"{STACK_LATIN}, {scripts}, {cjk}, {fallbacks}, {STACK_TAIL}"
+    return "\n".join(
+        [
+            MARK_STACK_BEGIN,
+            "/* Hangul/Kana/Yi before CJK; script unicode-range keeps FE*",
+            "   with the right face. CJK lists FE00–07 (D4) + FE0B–F (digraphs). */",
+            "body {",
+            f"  --font-text-theme: {stack};",
+            f"  --font-interface-theme: {stack};",
+            f"  --font-monospace-theme: {stack};",
+            f"  --font-text: {stack} !important;",
+            f"  --font-interface: {stack} !important;",
+            f"  --font-monospace: {stack} !important;",
+            '  --font-editor-theme: "";',
+            "  --font-editor: var(--font-editor-theme), var(--font-text);",
+            "}",
+            MARK_STACK_END,
+            "",
+        ]
+    )
 
 
 def write_plugin(faces: list[dict]) -> None:
@@ -233,9 +299,12 @@ def write_plugin(faces: list[dict]) -> None:
     manifest = {
         "id": PLUGIN_ID,
         "name": PLUGIN_DISPLAY_NAME,
-        "version": "1.3.0",
+        "version": "1.4.0",
         "minAppVersion": "1.5.0",
-        "description": "Loads baked edenia cjk / yi / kana / hangul via FontFace + local files.",
+        "description": (
+            "Loads baked edenia cjk / yi / kana / hangul via FontFace "
+            "(desktop: Node fs; mobile: vault.adapter.readBinary)."
+        ),
         "author": "nexovolta",
         "isDesktopOnly": False,
     }
@@ -243,37 +312,68 @@ def write_plugin(faces: list[dict]) -> None:
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
     faces_json = json.dumps(faces, ensure_ascii=True)
-    # Fonts live under .obsidian/plugins/obsidian-edenia/edenia/ only (not vault
-    # root). Load with Node fs (vault.adapter often misses plugin-dir reads) and
-    # pass unicodeRange so shared CJK families do not collide.
-    main_js = f"""const {{ Plugin, normalizePath }} = require("obsidian");
-const fs = require("fs");
-const path = require("path");
+    # Fonts under .obsidian/plugins/<id>/edenia/. Never top-level require("fs")
+    # — that crashes Capacitor on parse. Desktop lazy-loads Node; mobile uses
+    # vault.adapter.readBinary.
+    main_js = f"""const {{ Plugin, Platform, normalizePath }} = require("obsidian");
 
 /* Auto-generated by update_obsidian_theme_fonts.py --bake — do not edit. */
 const FACES = {faces_json};
-const BATCH = 24;
+const BATCH_DESKTOP = 24;
+const BATCH_MOBILE = 4;
 const PLUGIN_FOLDER = {json.dumps(PLUGIN_DIR_NAME)};
+
+function nodeFs() {{
+  try {{
+    return {{ fs: require("fs"), path: require("path") }};
+  }} catch (_) {{
+    return null;
+  }}
+}}
 
 module.exports = class {PLUGIN_CLASS} extends Plugin {{
   async onload() {{
     const adapter = this.app.vault.adapter;
-    const base =
-      typeof adapter.getBasePath === "function"
-        ? adapter.getBasePath()
-        : adapter.basePath || "";
     const relPlugin = normalizePath(
       this.manifest.dir ||
-        `${{this.app.vault.configDir}}/plugins/${{PLUGIN_FOLDER}}`
+        `${{this.app.vault.configDir}}/plugins/${{this.manifest.id || PLUGIN_FOLDER}}`
     );
-    const pluginAbs = base ? path.join(base, relPlugin) : relPlugin;
+    const mobile = !!(Platform.isMobile || !Platform.isDesktopApp);
+    const batch = mobile ? BATCH_MOBILE : BATCH_DESKTOP;
+    const node = mobile ? null : nodeFs();
 
-    const resolveAbs = (file) => {{
-      const abs = path.join(pluginAbs, file);
+    let pluginAbs = "";
+    if (node) {{
+      const base =
+        typeof adapter.getBasePath === "function"
+          ? adapter.getBasePath()
+          : adapter.basePath || "";
+      pluginAbs = base ? node.path.join(base, relPlugin) : relPlugin;
+    }}
+
+    const readFace = async (file) => {{
+      if (node && pluginAbs) {{
+        const abs = node.path.join(pluginAbs, file);
+        try {{
+          if (node.fs.existsSync(abs)) {{
+            const nodeBuf = node.fs.readFileSync(abs);
+            return nodeBuf.buffer.slice(
+              nodeBuf.byteOffset,
+              nodeBuf.byteOffset + nodeBuf.byteLength
+            );
+          }}
+        }} catch (_) {{}}
+      }}
+      const rel = normalizePath(`${{relPlugin}}/${{file}}`);
+      if (typeof adapter.readBinary !== "function") return null;
       try {{
-        if (fs.existsSync(abs)) return abs;
-      }} catch (_) {{}}
-      return null;
+        if (typeof adapter.exists === "function" && !(await adapter.exists(rel))) {{
+          return null;
+        }}
+        return await adapter.readBinary(rel);
+      }} catch (_) {{
+        return null;
+      }}
     }};
 
     let ok = 0;
@@ -281,18 +381,13 @@ module.exports = class {PLUGIN_CLASS} extends Plugin {{
     let failed = 0;
 
     const loadOne = async (f) => {{
-      const abs = resolveAbs(f.file);
-      if (!abs) {{
+      const buf = await readFace(f.file);
+      if (!buf) {{
         missing++;
         if (missing <= 5) console.warn(`[edenia] missing ${{f.file}}`);
         return;
       }}
       try {{
-        const nodeBuf = fs.readFileSync(abs);
-        const buf = nodeBuf.buffer.slice(
-          nodeBuf.byteOffset,
-          nodeBuf.byteOffset + nodeBuf.byteLength
-        );
         const descriptors = {{
           style: "normal",
           weight: "normal",
@@ -309,9 +404,12 @@ module.exports = class {PLUGIN_CLASS} extends Plugin {{
       }}
     }};
 
-    console.info(`[edenia] loading ${{FACES.length}} faces from ${{relPlugin}}…`);
-    for (let i = 0; i < FACES.length; i += BATCH) {{
-      await Promise.all(FACES.slice(i, i + BATCH).map(loadOne));
+    console.info(
+      `[edenia] loading ${{FACES.length}} faces from ${{relPlugin}}` +
+        ` (${{mobile ? "mobile/adapter" : "desktop"}} )…`
+    );
+    for (let i = 0; i < FACES.length; i += batch) {{
+      await Promise.all(FACES.slice(i, i + batch).map(loadOne));
     }}
     console.info(
       `[edenia] ready: ${{ok}} loaded, ${{missing}} missing, ${{failed}} failed`
@@ -405,6 +503,36 @@ def transform_face_css(css: str, *, folder: str) -> str:
     def face_fix(m: re.Match[str]) -> str:
         block = m.group(0)
         block = _face_src(block, folder=folder)
+        if folder in ("hangul", "yi", "kana"):
+            fam_m = re.search(r"font-family:\s*['\"]([^'\"]+)['\"]", block)
+            ur_m = re.search(r"unicode-range:\s*([^;]+);", block)
+            ur = " ".join(ur_m.group(1).split()) if ur_m else None
+            fixed = _script_unicode_range(fam_m.group(1), ur) if fam_m else None
+            if fixed:
+                if ur_m:
+                    block = re.sub(
+                        r"unicode-range:\s*[^;]+;",
+                        f"unicode-range: {fixed};",
+                        block,
+                        count=1,
+                    )
+                else:
+                    block = re.sub(
+                        r"(font-display:\s*swap;)",
+                        f"unicode-range: {fixed};\n  \\1",
+                        block,
+                        count=1,
+                    )
+        elif folder == "cjk":
+            ur_m = re.search(r"unicode-range:\s*([^;]+);", block)
+            if ur_m:
+                fixed = _ensure_fe0_unicode_range(" ".join(ur_m.group(1).split()))
+                block = re.sub(
+                    r"unicode-range:\s*[^;]+;",
+                    f"unicode-range: {fixed};",
+                    block,
+                    count=1,
+                )
         return _double_quotes(block)
 
     out = re.sub(r"@font-face\s*\{[^{}]*\}", face_fix, out, flags=re.S)
@@ -444,31 +572,6 @@ def build_faces_block(
 
 def _double_quotes(css: str) -> str:
     return css.replace("'", '"')
-
-
-def build_stack_block(*, pancjk_families: list[str]) -> str:
-    if not pancjk_families:
-        raise ValueError("no edenia cjk families found in CSS")
-    cjk = ", ".join([css_family_token(n) for n in pancjk_families] + [STACK_CJK_TAIL])
-    stack = f"{STACK_LATIN}, {cjk}, {STACK_TAIL}"
-    return "\n".join(
-        [
-            MARK_STACK_BEGIN,
-            "/* Edenia CJK: 'edenia cjk h' before base so FE0B–F digraphs shape. */",
-            "body {",
-            f"  --font-text-theme: {stack};",
-            f"  --font-interface-theme: {stack};",
-            f"  --font-monospace-theme: {stack};",
-            f"  --font-text: {stack} !important;",
-            f"  --font-interface: {stack} !important;",
-            f"  --font-monospace: {stack} !important;",
-            '  --font-editor-theme: "";',
-            "  --font-editor: var(--font-editor-theme), var(--font-text);",
-            "}",
-            MARK_STACK_END,
-            "",
-        ]
-    )
 
 
 def _replace_marked(text: str, begin: str, end: str, new_block: str) -> str:

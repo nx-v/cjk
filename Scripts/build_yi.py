@@ -427,6 +427,10 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     css_path = os.path.join(out_dir, CSS_YI)
+    # Keep FE00–FE09 in-range for Yi D4 + digraph slices; omit FE0A–FE0F.
+    cps_for_ur = {cp for cp in codepoints if not (0xFE0A <= cp <= 0xFE0F)}
+    cps_for_ur |= set(range(0xFE00, 0xFE0A))
+    ur = unicode_range_css(cps_for_ur)
     lines = [
         "/* Auto-generated single Yi font */",
         "",
@@ -443,6 +447,10 @@ def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
         ),
         "  font-weight: normal;",
         "  font-style: normal;",
+    ]
+    if ur:
+        lines.append(f"  unicode-range: {ur};")
+    lines += [
         "  font-display: swap;",
         "}",
         "",

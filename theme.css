@@ -3145,14 +3145,15 @@ SOFTWARE.
 /* === END auto pan fonts === */
 
 /* === BEGIN auto pan font stack (update_obsidian_theme_fonts.py) === */
-/* Edenia CJK: 'edenia cjk h' before base so FE0B–F digraphs shape. */
+/* Hangul/Kana/Yi before CJK; script unicode-range keeps FE*
+   with the right face. CJK lists FE00–07 (D4) + FE0B–F (digraphs). */
 body {
-  --font-text-theme: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia cjk h", "edenia cjk", "edenia kana", "edenia yi", "edenia hangul", "edenia hanguls", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace;
-  --font-interface-theme: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia cjk h", "edenia cjk", "edenia kana", "edenia yi", "edenia hangul", "edenia hanguls", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace;
-  --font-monospace-theme: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia cjk h", "edenia cjk", "edenia kana", "edenia yi", "edenia hangul", "edenia hanguls", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace;
-  --font-text: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia cjk h", "edenia cjk", "edenia kana", "edenia yi", "edenia hangul", "edenia hanguls", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace !important;
-  --font-interface: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia cjk h", "edenia cjk", "edenia kana", "edenia yi", "edenia hangul", "edenia hanguls", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace !important;
-  --font-monospace: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia cjk h", "edenia cjk", "edenia kana", "edenia yi", "edenia hangul", "edenia hanguls", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace !important;
+  --font-text-theme: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hangul", "edenia hanguls", "edenia kana", "edenia yi", "edenia cjk h", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace;
+  --font-interface-theme: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hangul", "edenia hanguls", "edenia kana", "edenia yi", "edenia cjk h", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace;
+  --font-monospace-theme: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hangul", "edenia hanguls", "edenia kana", "edenia yi", "edenia cjk h", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace;
+  --font-text: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hangul", "edenia hanguls", "edenia kana", "edenia yi", "edenia cjk h", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace !important;
+  --font-interface: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hangul", "edenia hanguls", "edenia kana", "edenia yi", "edenia cjk h", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace !important;
+  --font-monospace: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hangul", "edenia hanguls", "edenia kana", "edenia yi", "edenia cjk h", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace !important;
   --font-editor-theme: "";
   --font-editor: var(--font-editor-theme), var(--font-text);
 }

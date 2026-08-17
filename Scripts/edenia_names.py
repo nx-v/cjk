@@ -35,8 +35,9 @@ CSS_CJK = "edenia-cjk.css"
 CJK_FACE_VARIANTS: tuple[str, ...] = ("", "h", "t", "qv", "qh")
 # @font-face emission order (niche faces before base). Body stacks use the
 # shared ``edenia cjk`` family (base) only — pin ``edenia cjk h`` / ``t`` /
-# ``qv`` / ``qh`` for niche GSUB. FE0*/VS stay with the preceding ideograph
-# via default-ignorable font selection (do not put them in unicode-range).
+# ``qv`` / ``qh`` for niche GSUB. CJK unicode-range lists FE00–FE07 (D4) and
+# FE0B–FE0F (digraphs); Hangul/Kana/Yi faces restrict unicode-range so bare
+# cmap FE* does not steal those selectors.
 CJK_FACE_CSS_ORDER: tuple[str, ...] = ("qv", "qh", "t", "h", "")
 
 # Longer suffixes first so ``qh`` is not parsed as ``h``.
@@ -94,9 +95,10 @@ def split_cjk_face_id(face_id: str) -> tuple[str, str]:
     return face_id, ""
 
 
-# Stack tail after per-bucket CJK faces.
+# Stack after Latin: Hangul / Kana / Yi before CJK. Script faces use
+# unicode-range so FE00–FE09 GSUB is not stolen; CJK lists D4 + digraph VS.
 STACK_CJK_TAIL = (
-    f'"{FAMILY_KANA}", "{FAMILY_YI}", "{FAMILY_HANGUL}", "{FAMILY_HANGULS}", '
+    f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", "{FAMILY_KANA}", "{FAMILY_YI}", '
     "FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2"
 )
 

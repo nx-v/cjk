@@ -3001,9 +3001,14 @@ def write_css(
         "/* VS: U+FE00..FE03 mirrors; U+FE04 = batchim top-swap. */",
         "",
     ]
-    for family, _cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
+    for family, cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
         file_stem = stem(family)
-        lines += [
+        # Omit FE00–FE0F from unicode-range: Blink clusters VS with the
+        # preceding jamo; listing them steals CJK/Yi/Kana D4 selectors.
+        ur = unicode_range_css(
+            cp for cp in cps if not (0xFE00 <= cp <= 0xFE0F)
+        )
+        face_lines = [
             "@font-face {",
             f"  font-family: '{family}';",
             format_src_line(
@@ -3017,10 +3022,15 @@ def write_css(
             ),
             "  font-weight: normal;",
             "  font-style: normal;",
+        ]
+        if ur:
+            face_lines.append(f"  unicode-range: {ur};")
+        face_lines += [
             "  font-display: swap;",
             "}",
             "",
         ]
+        lines += face_lines
 
     with open(css_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
