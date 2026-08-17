@@ -514,9 +514,7 @@ def build_bucket_font(
             if abs(src.local_scale - 1.0) > 1e-9:
                 g = _scale_glyph_about_bounds_center(g, src.local_scale)
             if abs(src.weightor - 1.0) > 1e-9:
-                g, adv, _lsb = bolden_ttglyph(
-                    g, src.weightor, advance=float(adv)
-                )
+                g, adv, _lsb = bolden_ttglyph(g, src.weightor, advance=float(adv))
             try:
                 g.recalcBounds(None)
                 copied = (g, adv, int(g.xMin))
@@ -1083,9 +1081,7 @@ def build_all(
         else ("ttf only" if write_ttf else "woff2 only")
     )
     print(f"Output formats: {fmt_note}")
-    print(
-        "Faces/bucket: qv/qh, t, h, base (CSS); build waves base→h→t→qv→qh"
-    )
+    print("Faces/bucket: qv/qh, t, h, base (CSS); build waves base→h→t→qv→qh")
 
     sources_list = [
         SourceFont(p, local_scale=s, weightor=w) for p, s, w in font_entries
@@ -1143,8 +1139,7 @@ def build_all(
         for vi, variant in enumerate(CJK_FACE_VARIANTS, start=1):
             label = variant if variant else "base"
             print(
-                f"\n── variant {vi}/{n_variants}: {label} "
-                f"({n_buckets} buckets) ──",
+                f"\n── variant {vi}/{n_variants}: {label} " f"({n_buckets} buckets) ──",
                 flush=True,
             )
             futures = [

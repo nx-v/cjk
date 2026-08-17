@@ -174,19 +174,6 @@ function getWeightedCategory(
 }
 
 const CHARACTERS = {
-  bopomofoConsonants: [
-    0x3105, 0x3106, 0x3107, 0x3108, 0x3109, 0x310a, 0x310b, 0x310c, 0x310d,
-    0x310e, 0x310f, 0x3110, 0x3111, 0x3112, 0x3113, 0x3114, 0x3115, 0x3116,
-    0x3117, 0x3118, 0x3119, 0x312a, 0x312b, 0x312c, 0x31b8, 0x31b9, 0x31ba,
-    0x31bc, 0x31bd,
-  ].map(fromCodePoint),
-  bopomofoVowels: [
-    0x311a, 0x311b, 0x311c, 0x311d, 0x311e, 0x311f, 0x3120, 0x3121, 0x3122,
-    0x3123, 0x3124, 0x3125, 0x3126, 0x3127, 0x3128, 0x3129, 0x312d, 0x312e,
-    0x312f, 0x31a4, 0x31a6, 0x31a8, 0x31ac, 0x31ad, 0x31b0, 0x31b1, 0x31b2,
-    0x31be, 0x31bf,
-  ].map(fromCodePoint),
-
   // Edenia kana lives in BMP PUA / SPUA — not U+3040…/U+30A0… blocks.
   //   i = L*8 + o;  full=E000+2i; small=E000+2i+1; hw=ED00+2i / +1
   // Chart: 17×6 hiragana + length/gemination, then 17×6 katakana + marks.
@@ -595,6 +582,30 @@ function getWeightedLength() {
   return 1;
 }
 
+/** Ruby `<rt>` from Hangul / Yi / Kana (not CJK — the three other scripts). */
+function generateRubyReading(numberSyllables = 1) {
+  const script = randomItem(['hangul', 'yi', 'kana']);
+  if (script === 'hangul') {
+    return generateHangul(numberSyllables, {withVs: random() < 0.35});
+  }
+  if (script === 'yi') {
+    let s = '';
+    for (let i = 0; i < numberSyllables; i++) {
+      if (random() < 0.22) s += yiSliceDigraph();
+      else s += yiWithD4();
+      if (random() < 0.12) s = attachDakuten(s, 1);
+    }
+    return s;
+  }
+  const kind = random() < 0.55 ? 'hira' : 'kata';
+  let s = '';
+  for (let i = 0; i < numberSyllables; i++) {
+    if (random() < 0.18) s += kanaSliceDigraph(kind);
+    else s += kanaSyllable(kind);
+  }
+  return s;
+}
+
 function generateReading(cjkArray) {
   let rubyResult = '';
   let reading = '';
@@ -603,8 +614,8 @@ function generateReading(cjkArray) {
     if (index > 0 && cjkChar != '\u3005')
       reading =
         USED_READINGS[cjkChar] ||
-        (USED_READINGS[cjkChar] = generateHangul(readingLength));
-    else reading = reading || generateHangul(readingLength);
+        (USED_READINGS[cjkChar] = generateRubyReading(readingLength));
+    else reading = reading || generateRubyReading(readingLength);
     rubyResult += `${cjkChar}<rt>${reading}</rt>`;
   }
   return `<ruby>${rubyResult}</ruby>`;
@@ -703,12 +714,12 @@ function generateString(maxLength = 1000) {
       }
     }
 
+    // Okurigana after CJK: Edenia hiragana PUA (not Bopomofo).
     if (addOkurigana && random() < 0.5) {
-      let syllable = random() < 0.05 ? '\u31b7' : '';
-      if (random() < 0.7) syllable += randomItem(CHARACTERS.bopomofoConsonants);
-      if (random() < 0.5) syllable += randomItem(CHARACTERS.bopomofoVowels);
-      if (random() < 0.5) syllable += randomItem(CHARACTERS.bopomofoConsonants);
-      result += syllable.replace(/\u31b7$/, '');
+      const n = randomIntInclusive(1, 2);
+      let syllable = '';
+      for (let i = 0; i < n; i++) syllable += kanaSyllable('hira');
+      result += syllable;
     }
 
     let remainingLength = maxLength - [...result].length;

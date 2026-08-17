@@ -1163,9 +1163,7 @@ def _translate_ink_to_half_center(
     from shared_half_cells import apply_transform, _recording_from_glyph
 
     upem = float(target_upem)
-    x0, y0, x1, y1 = _half_slot_rect(
-        upem, pin=pin, axis=axis, niche_frac=slot_frac
-    )
+    x0, y0, x1, y1 = _half_slot_rect(upem, pin=pin, axis=axis, niche_frac=slot_frac)
     dst_cx = (x0 + x1) / 2.0
     dst_cy = (y0 + y1) / 2.0
     try:

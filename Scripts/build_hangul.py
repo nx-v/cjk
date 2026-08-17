@@ -3011,8 +3011,34 @@ def write_css(
         # FE00–FE03 omit from unicode-range (cluster with jamo). FE04 must
         # stay listed — top-swap GPOS does not run when FE04 is out of range.
         cps_for_ur = [cp for cp in cps if not (0xFE00 <= cp <= 0xFE0F) or cp == 0xFE04]
-        if 0xFE04 not in cps_for_ur:
-            cps_for_ur.append(0xFE04)
+        if family == FAMILY_JAMO:
+            if 0xFE04 not in cps_for_ur:
+                cps_for_ur.append(0xFE04)
+            # Jamo face hosts dakuten; syllables must not claim marks
+            # (would steal Yi/Kana clusters earlier in the stack).
+            for stem_name in (f"{file_stem}.woff2", f"{file_stem}.ttf"):
+                font_path = os.path.join(out_dir, stem_name)
+                if not os.path.isfile(font_path):
+                    continue
+                try:
+                    from shared_diacritics import combining_mark_codepoints_from_font
+
+                    cps_for_ur = list(
+                        set(cps_for_ur) | set(combining_mark_codepoints_from_font(font_path))
+                    )
+                except Exception as exc:
+                    print(f"  [!] hangul mark unicode-range: {exc}", flush=True)
+                break
+        else:
+            # Syllables: drop FE04 and any Mn/Mc that leaked from a full cmap.
+            import unicodedata
+
+            cps_for_ur = [
+                cp
+                for cp in cps_for_ur
+                if cp != 0xFE04
+                and unicodedata.category(chr(cp)) not in ("Mn", "Mc", "Me")
+            ]
         ur = unicode_range_css(cps_for_ur)
         face_lines = [
             "@font-face {",

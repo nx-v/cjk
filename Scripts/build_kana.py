@@ -1291,8 +1291,20 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     css_path = os.path.join(out_dir, CSS_KANA)
     # PUA D4 bases + FE00/FE01 slice selectors; omit other FE*.
+    # Combining marks must be listed or Blink drops them (tofu after kana).
     cps_for_ur = {cp for cp in codepoints if not (0xFE02 <= cp <= 0xFE0F)}
     cps_for_ur |= {0xFE00, 0xFE01}
+    for stem_name in (f"{PS_NAME}.woff2", f"{PS_NAME}.ttf"):
+        font_path = os.path.join(out_dir, stem_name)
+        if not os.path.isfile(font_path):
+            continue
+        try:
+            from shared_diacritics import combining_mark_codepoints_from_font
+
+            cps_for_ur |= set(combining_mark_codepoints_from_font(font_path))
+        except Exception as exc:
+            print(f"  [!] kana mark unicode-range: {exc}", flush=True)
+        break
     ur = unicode_range_css(cps_for_ur)
     lines = [
         "/* Auto-generated single kana font (PUA D4 + smalls + halfwidth + slices) */",

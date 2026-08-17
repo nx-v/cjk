@@ -200,6 +200,51 @@ _SCRIPT_UNICODE_RANGE = {
     FAMILY_KANA: "U+E000-F8FF, U+FF9E-FF9F, U+FE00-FE01",
 }
 
+# Combining marks (dakuten) must be in unicode-range or Blink shows tofu.
+_DAKUTEN_UR_CACHE: str | None = None
+_DAKUTEN_UR_FALLBACK = (
+    "U+300-36F, U+483-489, U+591-5C7, U+64B-65F, U+670, U+6D6-6ED, "
+    "U+1AB0-1ACE, U+1DC0-1DFF, U+20D0-20F0, U+FE20-FE2F"
+)
+
+
+def _dakuten_unicode_range() -> str:
+    """CSS unicode-range for marks baked into Hangul / Yi / Kana."""
+    global _DAKUTEN_UR_CACHE
+    if _DAKUTEN_UR_CACHE is not None:
+        return _DAKUTEN_UR_CACHE
+    from shared_diacritics import combining_marks_unicode_range_from_font
+
+    candidates = (
+        DIST_DIR / "yi" / "edenia-yi.woff2",
+        DIST_DIR / "hangul" / "edenia-hangul.woff2",
+        DIST_DIR / "kana" / "edenia-kana.woff2",
+        PLUGIN_DIR / PLUGIN_ASSET / "yi" / "edenia-yi.woff2",
+        PLUGIN_DIR / PLUGIN_ASSET / "hangul" / "edenia-hangul.woff2",
+    )
+    for path in candidates:
+        if path.is_file():
+            try:
+                ur = combining_marks_unicode_range_from_font(str(path))
+            except Exception as exc:
+                print(f"  [!] mark unicode-range from {path.name}: {exc}")
+                continue
+            if ur:
+                _DAKUTEN_UR_CACHE = ur
+                return ur
+    _DAKUTEN_UR_CACHE = _DAKUTEN_UR_FALLBACK
+    return _DAKUTEN_UR_CACHE
+
+
+def _with_dakuten_unicode_range(ur: str) -> str:
+    marks = _dakuten_unicode_range()
+    if not marks:
+        return ur
+    # Already merged (rebuild / prior bake).
+    if "U+300-" in ur or "U+0300-" in ur or "U+300," in ur:
+        return ur
+    return f"{ur}, {marks}" if ur else marks
+
 
 def _strip_fe0_from_unicode_range(ur: str) -> str:
     ur = _FE0_TOKEN.sub("", ur)
@@ -218,14 +263,24 @@ def _script_unicode_range(family: str, ur: str | None) -> str | None:
         # FE00–FE03 cluster with jamo; FE04 (top-swap GPOS) must be listed.
         cleaned = _strip_fe0_from_unicode_range(ur) if ur else ""
         if not cleaned:
-            return _SCRIPT_UNICODE_RANGE[FAMILY_HANGUL]
-        return f"{cleaned}, U+FE04"
+            base = _SCRIPT_UNICODE_RANGE[FAMILY_HANGUL]
+        else:
+            base = f"{cleaned}, U+FE04"
+        return _with_dakuten_unicode_range(base)
     if family == FAMILY_HANGULS:
         if ur:
-            return _strip_fe0_from_unicode_range(ur) or _SCRIPT_UNICODE_RANGE.get(
+            cleaned = _strip_fe0_from_unicode_range(ur) or _SCRIPT_UNICODE_RANGE.get(
                 family
             )
-        return _SCRIPT_UNICODE_RANGE.get(family)
+        else:
+            cleaned = _SCRIPT_UNICODE_RANGE.get(family)
+        # Hanguls must not claim dakuten (jamo / yi / kana own those).
+        if cleaned and ("U+300-" in cleaned or "U+0300-" in cleaned):
+            cleaned = _SCRIPT_UNICODE_RANGE.get(family)
+        return cleaned
+    if family in (FAMILY_YI, FAMILY_KANA):
+        base = ur or _SCRIPT_UNICODE_RANGE.get(family) or ""
+        return _with_dakuten_unicode_range(base)
     if ur:
         return ur
     return _SCRIPT_UNICODE_RANGE.get(family)

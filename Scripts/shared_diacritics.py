@@ -278,6 +278,52 @@ def visible_dakuten_cps(cps: Sequence[int]) -> List[int]:
     return [cp for cp in cps if cp != CGJ_CP]
 
 
+def unicode_range_css(codepoints: Sequence[int]) -> str:
+    """Compact CSS ``unicode-range`` from sorted codepoints."""
+    cps = sorted(set(int(cp) for cp in codepoints))
+    if not cps:
+        return ""
+    runs: List[str] = []
+    run_start = prev = cps[0]
+    for cp in cps[1:]:
+        if cp == prev + 1:
+            prev = cp
+            continue
+        if run_start == prev:
+            runs.append(f"U+{run_start:X}")
+        else:
+            runs.append(f"U+{run_start:X}-{prev:X}")
+        run_start = prev = cp
+    if run_start == prev:
+        runs.append(f"U+{run_start:X}")
+    else:
+        runs.append(f"U+{run_start:X}-{prev:X}")
+    return ", ".join(runs)
+
+
+def combining_mark_codepoints_from_cmap(cmap: Dict[int, str]) -> List[int]:
+    """``\\p{M}`` minus variation selectors (includes CGJ when present)."""
+    return iter_dakuten_codepoints(cmap)
+
+
+def combining_mark_codepoints_from_font(font_path: str) -> List[int]:
+    """``\\p{M}`` minus variation selectors from a font file's cmap."""
+    tt = TTFont(font_path, fontNumber=0)
+    try:
+        cmap: Dict[int, str] = {}
+        for table in tt["cmap"].tables:
+            if table.isUnicode():
+                cmap.update(table.cmap)
+        return combining_mark_codepoints_from_cmap(cmap)
+    finally:
+        tt.close()
+
+
+def combining_marks_unicode_range_from_font(font_path: str) -> str:
+    """CSS unicode-range for dakuten marks baked into an Edenia script font."""
+    return unicode_range_css(combining_mark_codepoints_from_font(font_path))
+
+
 def dakuten_count_options_html(indent: str = "      ") -> str:
     """``<option>`` list for mark-count (1..N, labels TR / +CR / …)."""
     lines: List[str] = []
