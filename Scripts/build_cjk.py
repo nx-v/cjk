@@ -18,9 +18,10 @@ Six faces per bucket (filename / family stem = ``{hex}`` / ``{hex}h`` /
     qh      horizontal quarter niches (VS15–16, VS34–40), derived from ``h``
 
 Every bucket is a process-pool job (``--jobs`` defaults to all CPUs). Inside
-each worker a **master** glyf is baked (identity + D4 + halves + thirds +
-2×2/qv/qh), **hinted once**, then subset into the six faces (cmap/GSUB
-differ). D4 niche copies are transforms of identity clips, not re-slices.
+each worker a **master** glyf is baked in memory (identity + D4 + halves +
+thirds + 2×2/qv/qh). Each face is then fully synchronous: subset, save TTF
+(if needed), hint (if enabled), WOFF2 (if enabled). D4 niche copies are
+transforms of identity clips, not re-slices.
 
 Also writes edenia-cjk.css (@font-face) and fontlist.css (CSS-safe stack).
 """
@@ -275,7 +276,7 @@ class SourceFont:
         self.path = path
         self.local_scale = float(local_scale)
         self.weightor = float(weightor)
-        self.tt = TTFont(path, fontNumber=0)
+        self.tt = TTFont(path, fontNumber=0, lazy=True, recalcBBoxes=False)
         self.upem = int(self.tt["head"].unitsPerEm)
         self.cmap = font_cmap(self.tt)
         self.glyph_set = self.tt.getGlyphSet()
@@ -467,6 +468,7 @@ def _import_bucket_glyphs(
     target_upem: int,
     *,
     with_d4: bool,
+    timings: Optional[Dict[str, float]] = None,
 ) -> Tuple[
     List[str],
     Dict[str, TTGlyph],
@@ -480,6 +482,8 @@ def _import_bucket_glyphs(
     metrics: Dict[str, Tuple[int, int]] = {".notdef": (target_upem // 2, 0)}
     cmap: Dict[int, str] = {}
     base_names: List[str] = []
+    t_copy = 0.0
+    t_d4 = 0.0
 
     for out_cp, path, src_cp in entries:
         src = sources[path]
@@ -487,6 +491,7 @@ def _import_bucket_glyphs(
         if src_name is None:
             continue
 
+        t_glyph = time.perf_counter()
         use_yi_standalone = os.path.basename(path) == NUOSU_FILENAME and is_yi_cp(
             src_cp
         )
@@ -527,8 +532,10 @@ def _import_bucket_glyphs(
         metrics[gname] = (advance, lsb)
         cmap[out_cp] = gname
         base_names.append(gname)
+        t_copy += time.perf_counter() - t_glyph
 
         if with_d4:
+            t_glyph = time.perf_counter()
             add_d4_variant_glyphs(
                 gname,
                 advance=advance,
@@ -539,6 +546,11 @@ def _import_bucket_glyphs(
                 metrics=metrics,
                 anchor="cell",
             )
+            t_d4 += time.perf_counter() - t_glyph
+
+    if timings is not None:
+        timings["import"] = t_copy
+        timings["d4"] = t_d4
 
     for mode_i, (vs_cp, _rot, _fx, _fy, _suffix) in enumerate(TRANSFORM_MODES):
         vname = vs_glyph_name(vs_cp)
@@ -1079,13 +1091,18 @@ def _subset_master_tables(
     metrics: Dict[str, Tuple[int, int]],
     cmap: Dict[int, str],
     keep: set,
+    *,
+    clone_glyphs: bool = False,
 ) -> Tuple[List[str], Dict[str, TTGlyph], Dict[str, Tuple[int, int]], Dict[int, str]]:
     keep = _close_component_names(keep, glyphs)
     order = [n for n in glyph_order if n in keep]
     for name in keep:
         if name not in order and name in glyphs:
             order.append(name)
-    out_glyphs = {n: copy.deepcopy(glyphs[n]) for n in order if n in glyphs}
+    if clone_glyphs:
+        out_glyphs = {n: copy.deepcopy(glyphs[n]) for n in order if n in glyphs}
+    else:
+        out_glyphs = {n: glyphs[n] for n in order if n in glyphs}
     out_metrics = {n: metrics[n] for n in order if n in metrics}
     out_cmap = {cp: name for cp, name in cmap.items() if name in out_glyphs}
     return order, out_glyphs, out_metrics, out_cmap
@@ -1118,8 +1135,7 @@ def _filter_face_cmap(
     return out
 
 
-def _write_tables_ttf(
-    out_path: str,
+def _build_tables_font(
     *,
     face_id: str,
     glyph_order: List[str],
@@ -1127,14 +1143,20 @@ def _write_tables_ttf(
     metrics: Dict[str, Tuple[int, int]],
     cmap: Dict[int, str],
     target_upem: int,
-) -> None:
+    calc_bounds: bool = False,
+) -> TTFont:
+    """In-memory TTF (no GSUB yet) so callers can install layout before first save."""
     ascent = otRound(target_upem * 0.88)
     descent = otRound(target_upem * -0.12)
     family = family_cjk(face_id)
     ps = ps_cjk(face_id)
     fb = FontBuilder(target_upem, isTTF=True)
     fb.setupGlyphOrder(glyph_order)
-    fb.setupGlyf(glyphs)
+    fb.setupGlyf(
+        glyphs,
+        calcGlyphBounds=calc_bounds,
+        validateGlyphFormat=False,
+    )
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=ascent, descent=descent)
     fb.setupCharacterMap(cmap)
@@ -1157,7 +1179,7 @@ def _write_tables_ttf(
         achVendID="pCJK",
     )
     fb.setupPost()
-    fb.save(out_path)
+    return fb.font
 
 
 def _install_face_gsub(
@@ -1172,9 +1194,11 @@ def _install_face_gsub(
     third_forms: Sequence[str],
     quarter_forms: Sequence[str],
     quarter_face: Optional[str],
+    gsub_cache: Optional[Dict[str, object]] = None,
 ) -> None:
+    cache = gsub_cache if gsub_cache is not None else {}
     match variant:
-        case "" | "h":
+        case "":
             install_cjk_composition_gsub(
                 font,
                 cjk_bases=base_names,
@@ -1183,7 +1207,7 @@ def _install_face_gsub(
                 squishable=squishable,
                 mark_cps=list(mark_cps),
             )
-        case "q":
+        case "h":
             install_cjk_composition_gsub(
                 font,
                 cjk_bases=base_names,
@@ -1192,6 +1216,21 @@ def _install_face_gsub(
                 squishable=squishable,
                 mark_cps=[],
             )
+            if gsub_cache is not None and "GSUB" in font:
+                cache["half"] = copy.deepcopy(font["GSUB"])
+        case "q":
+            half = cache.get("half")
+            if half is not None:
+                font["GSUB"] = copy.deepcopy(half)
+            else:
+                install_cjk_composition_gsub(
+                    font,
+                    cjk_bases=base_names,
+                    glyphs=glyphs,
+                    glyph_order=glyph_order,
+                    squishable=squishable,
+                    mark_cps=[],
+                )
             install_quarter_cell_gsub(
                 font,
                 face=QUARTER_FACE_GRID,
@@ -1199,14 +1238,20 @@ def _install_face_gsub(
                 glyphs=glyphs,
             )
         case _:
-            install_cjk_composition_gsub(
-                font,
-                cjk_bases=base_names,
-                glyphs=glyphs,
-                glyph_order=glyph_order,
-                squishable=[],
-                mark_cps=[],
-            )
+            d4 = cache.get("d4")
+            if d4 is not None:
+                font["GSUB"] = copy.deepcopy(d4)
+            else:
+                install_cjk_composition_gsub(
+                    font,
+                    cjk_bases=base_names,
+                    glyphs=glyphs,
+                    glyph_order=glyph_order,
+                    squishable=[],
+                    mark_cps=[],
+                )
+                if gsub_cache is not None and "GSUB" in font:
+                    cache["d4"] = copy.deepcopy(font["GSUB"])
             match variant:
                 case "t":
                     install_third_cell_gsub(
@@ -1221,6 +1266,90 @@ def _install_face_gsub(
                     )
 
 
+def _save_font(font: TTFont, path: str) -> None:
+    """Save via a sibling temp file (Windows AV / OneDrive often lock the dest)."""
+    out_dir = os.path.dirname(os.path.abspath(path)) or "."
+    os.makedirs(out_dir, exist_ok=True)
+    suffix = os.path.splitext(path)[1] or ".tmp"
+    fd, tmp_path = tempfile.mkstemp(suffix=suffix, dir=out_dir)
+    os.close(fd)
+    try:
+        last_err: Optional[BaseException] = None
+        for attempt in range(8):
+            try:
+                font.save(tmp_path, recalcTimestamp=False)
+                os.replace(tmp_path, path)
+                return
+            except OSError as exc:
+                last_err = exc
+                time.sleep(0.05 * (2 ** min(attempt, 6)))
+        assert last_err is not None
+        raise last_err
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+
+def _emit_face(
+    font: TTFont,
+    ttf_path: str,
+    *,
+    hint: bool,
+    write_ttf: bool,
+    write_woff2: bool,
+    times: Dict[str, float],
+) -> None:
+    """Synchronous TTF → hint → WOFF2. Skip the TTF file when ``--woff2-only --no-hint``."""
+    from shared_hinting import autohint_ttf
+
+    woff2_path = os.path.splitext(ttf_path)[0] + ".woff2"
+    if hint:
+        t0 = time.perf_counter()
+        _save_font(font, ttf_path)
+        times["faces"] = times.get("faces", 0.0) + time.perf_counter() - t0
+        t0 = time.perf_counter()
+        autohint_ttf(ttf_path, enabled=True)
+        times["hint"] = times.get("hint", 0.0) + time.perf_counter() - t0
+        if write_woff2:
+            t0 = time.perf_counter()
+            compress_woff2(ttf_path, woff2_path)
+            times["woff"] = times.get("woff", 0.0) + time.perf_counter() - t0
+        if not write_ttf:
+            _drop_ttf(ttf_path)
+        return
+
+    if write_ttf:
+        t0 = time.perf_counter()
+        _save_font(font, ttf_path)
+        times["faces"] = times.get("faces", 0.0) + time.perf_counter() - t0
+    if write_woff2:
+        t0 = time.perf_counter()
+        font.flavor = "woff2"
+        _save_font(font, woff2_path)
+        times["woff"] = times.get("woff", 0.0) + time.perf_counter() - t0
+
+
+def _print_bucket_profile(bucket_hex: str, times: Dict[str, float]) -> None:
+    keys = (
+        "import",
+        "d4",
+        "halves",
+        "thirds",
+        "q",
+        "qv",
+        "qh",
+        "faces",
+        "hint",
+        "woff",
+        "total",
+    )
+    parts = " ".join(f"{k}={times[k]:.2f}" for k in keys if k in times)
+    print(f"  {bucket_hex} profile: {parts}", flush=True)
+
+
 def _build_all_bucket_faces(
     bucket_id: int,
     entries: List[BucketEntry],
@@ -1232,13 +1361,11 @@ def _build_all_bucket_faces(
     write_woff2: bool = True,
     hint: bool = True,
 ) -> List[Tuple[str, Optional[Tuple[str, int, List[int]]]]]:
-    """One source walk (identity + D4 + halves), then thirds/quarters, hint once, subset six faces.
+    """One source walk (identity + D4 + halves), then thirds/quarters, subset six faces.
 
     Base and ``t`` are subsets of that seed (marks / third clips), not a second
-    copy from the source fonts.
+    copy from the source fonts. Each face is TTF → hint → WOFF2, synchronously.
     """
-    from shared_hinting import autohint_ttf
-
     rows: List[Tuple[str, Optional[Tuple[str, int, List[int]]]]] = []
     bucket_hex = f"{bucket_id:X}"
     os.makedirs(out_dir, exist_ok=True)
@@ -1250,14 +1377,17 @@ def _build_all_bucket_faces(
         ("qh", None),
         ("t", None),
     ]
+    times: Dict[str, float] = {}
+    t_all = time.perf_counter()
 
     glyph_order, glyphs, metrics, cmap, base_names = _import_bucket_glyphs(
-        entries, sources, target_upem, with_d4=True
+        entries, sources, target_upem, with_d4=True, timings=times
     )
     if not base_names:
         return empty_row
 
     in_dir = os.path.dirname(next(iter(sources.keys()))) if sources else IN_DIR
+    t0 = time.perf_counter()
     prepare_squish_vs_access(
         cjk_bases=base_names,
         glyph_order=glyph_order,
@@ -1271,6 +1401,8 @@ def _build_all_bucket_faces(
         height_factor=SQUISH_FACTOR,
         in_dir=in_dir,
     )
+    times["halves"] = time.perf_counter() - t0
+    t0 = time.perf_counter()
     prepare_third_cells(
         cjk_bases=base_names,
         glyph_order=glyph_order,
@@ -1279,7 +1411,13 @@ def _build_all_bucket_faces(
         cmap=cmap,
         target_upem=target_upem,
     )
-    for qface in (QUARTER_FACE_GRID, QUARTER_FACE_V, QUARTER_FACE_H):
+    times["thirds"] = time.perf_counter() - t0
+    for qface, qkey in (
+        (QUARTER_FACE_GRID, "q"),
+        (QUARTER_FACE_V, "qv"),
+        (QUARTER_FACE_H, "qh"),
+    ):
+        t0 = time.perf_counter()
         prepare_quarter_cells(
             face=qface,
             cjk_bases=base_names,
@@ -1289,136 +1427,138 @@ def _build_all_bucket_faces(
             cmap=cmap,
             target_upem=target_upem,
         )
+        times[qkey] = time.perf_counter() - t0
 
-    fd, master_path = tempfile.mkstemp(suffix=".ttf", dir=out_dir)
-    os.close(fd)
-    _write_tables_ttf(
-        master_path,
-        face_id=cjk_face_id(bucket_hex, "h"),
-        glyph_order=glyph_order,
-        glyphs=glyphs,
-        metrics=metrics,
-        cmap=cmap,
-        target_upem=target_upem,
-    )
-
-    try:
-        autohint_ttf(master_path, enabled=hint)
-        hint_tt, glyph_order, glyphs, metrics, cmap, upem = unpack_built_ttf(
-            master_path
-        )
+    upem = target_upem
+    base_names = _identity_cjk_bases(cmap, glyphs)
+    if not base_names:
+        return empty_row
+    oriented = _oriented_forms(base_names, glyphs)
+    mark_scale = FONT_LOCAL_SCALE.get(PLANGOTHIC_P2_FILENAME, 0.96)
+    for g in glyphs.values():
         try:
-            base_names = _identity_cjk_bases(cmap, glyphs)
-            if not base_names:
-                return empty_row
-            oriented = _oriented_forms(base_names, glyphs)
-            mark_scale = FONT_LOCAL_SCALE.get(PLANGOTHIC_P2_FILENAME, 0.96)
+            g.recalcBounds(None)
+        except Exception:
+            pass
 
-            for variant in CJK_FACE_BUILD_ORDER:
-                face_id = cjk_face_id(bucket_hex, variant)
-                out_path = os.path.join(out_dir, f"{face_id}.ttf")
-                keep = _keep_names_for_face(variant, base_names, glyphs)
-                go, gl, mt, cm = _subset_master_tables(
-                    glyph_order, glyphs, metrics, cmap, keep
-                )
-                cm = _filter_face_cmap(variant, cm, base_names)
-                mark_state: Optional[Dict] = None
-                mark_cps: List[int] = []
-                squishable: List[str] = []
-                third_forms: List[str] = []
-                quarter_forms: List[str] = []
-                quarter_face: Optional[str] = None
-                _liga: List[str] = []
-                _uvs: List = []
+    gsub_cache: Dict[str, object] = {}
+    times["faces"] = 0.0
+    times["hint"] = 0.0
+    times["woff"] = 0.0
+    for variant in CJK_FACE_BUILD_ORDER:
+        t_face = time.perf_counter()
+        face_id = cjk_face_id(bucket_hex, variant)
+        out_path = os.path.join(out_dir, f"{face_id}.ttf")
+        keep = _keep_names_for_face(variant, base_names, glyphs)
+        go, gl, mt, cm = _subset_master_tables(
+            glyph_order,
+            glyphs,
+            metrics,
+            cmap,
+            keep,
+            clone_glyphs=variant == "",
+        )
+        cm = _filter_face_cmap(variant, cm, base_names)
+        mark_state: Optional[Dict] = None
+        mark_cps: List[int] = []
+        squishable: List[str] = []
+        third_forms: List[str] = []
+        quarter_forms: List[str] = []
+        quarter_face: Optional[str] = None
+        _liga: List[str] = []
+        _uvs: List = []
 
-                if variant == "":
-                    mark_state = prepare_marks(
-                        in_dir=in_dir,
-                        cjk_bases=base_names,
-                        glyph_order=go,
-                        glyphs=gl,
-                        metrics=mt,
-                        cmap=cm,
-                        target_upem=upem,
-                        liga_rules=_liga,
-                        uvs_rows=_uvs,
-                        local_scale=mark_scale,
-                        width_factor=MARK_BASE_SQUISH_FACTOR,
-                        height_factor=MARK_BASE_SQUISH_FACTOR,
-                        mark_niche_frac=MARK_NICHE_FRAC,
-                    )
-                    if mark_state is None:
-                        squishable = prepare_squish_vs_access(
-                            cjk_bases=base_names,
-                            glyph_order=go,
-                            glyphs=gl,
-                            metrics=mt,
-                            cmap=cm,
-                            target_upem=upem,
-                            liga_rules=_liga,
-                            uvs_rows=_uvs,
-                            width_factor=MARK_BASE_SQUISH_FACTOR,
-                            height_factor=MARK_BASE_SQUISH_FACTOR,
-                            slot_frac=MARK_BASE_SQUISH_FACTOR,
-                            in_dir=in_dir,
-                        )
-                    else:
-                        squishable = mark_state["squishable"]
-                        mark_cps = list(mark_state.get("core_cps") or [])
-                elif variant in ("h", "q"):
-                    squishable = squishable_forms(base_names)
-                if variant == "t":
-                    third_forms = oriented
-                if variant in ("q", "qv", "qh"):
-                    quarter_face = variant
-                    quarter_forms = oriented
-
-                _write_tables_ttf(
-                    out_path,
-                    face_id=face_id,
+        if variant == "":
+            mark_state = prepare_marks(
+                in_dir=in_dir,
+                cjk_bases=base_names,
+                glyph_order=go,
+                glyphs=gl,
+                metrics=mt,
+                cmap=cm,
+                target_upem=upem,
+                liga_rules=_liga,
+                uvs_rows=_uvs,
+                local_scale=mark_scale,
+                width_factor=MARK_BASE_SQUISH_FACTOR,
+                height_factor=MARK_BASE_SQUISH_FACTOR,
+                mark_niche_frac=MARK_NICHE_FRAC,
+            )
+            if mark_state is None:
+                squishable = prepare_squish_vs_access(
+                    cjk_bases=base_names,
                     glyph_order=go,
                     glyphs=gl,
                     metrics=mt,
                     cmap=cm,
                     target_upem=upem,
+                    liga_rules=_liga,
+                    uvs_rows=_uvs,
+                    width_factor=MARK_BASE_SQUISH_FACTOR,
+                    height_factor=MARK_BASE_SQUISH_FACTOR,
+                    slot_frac=MARK_BASE_SQUISH_FACTOR,
+                    in_dir=in_dir,
                 )
-                fb_font = TTFont(out_path)
-                try:
-                    _install_face_gsub(
-                        fb_font,
-                        variant=variant,
-                        base_names=base_names,
-                        glyphs=gl,
-                        glyph_order=go,
-                        squishable=squishable,
-                        mark_cps=mark_cps,
-                        third_forms=third_forms,
-                        quarter_forms=quarter_forms,
-                        quarter_face=quarter_face,
-                    )
-                    if mark_state is not None:
-                        compile_marks_layout(
-                            fb_font,
-                            mark_state,
-                            glyphs=gl,
-                            metrics=mt,
-                            glyph_order=go,
-                            target_upem=upem,
-                        )
-                    fb_font.save(out_path)
-                finally:
-                    fb_font.close()
-                if write_woff2:
-                    compress_woff2(out_path)
-                if not write_ttf:
-                    _drop_ttf(out_path)
-                rows.append(
-                    (variant, (face_id, len(gl) - 1, sorted(cm.keys())))
+            else:
+                squishable = mark_state["squishable"]
+                mark_cps = list(mark_state.get("core_cps") or [])
+        elif variant in ("h", "q"):
+            squishable = squishable_forms(base_names)
+        if variant == "t":
+            third_forms = oriented
+        if variant in ("q", "qv", "qh"):
+            quarter_face = variant
+            quarter_forms = oriented
+
+        fb_font = _build_tables_font(
+            face_id=face_id,
+            glyph_order=go,
+            glyphs=gl,
+            metrics=mt,
+            cmap=cm,
+            target_upem=upem,
+            calc_bounds=variant == "",
+        )
+        try:
+            _install_face_gsub(
+                fb_font,
+                variant=variant,
+                base_names=base_names,
+                glyphs=gl,
+                glyph_order=go,
+                squishable=squishable,
+                mark_cps=mark_cps,
+                third_forms=third_forms,
+                quarter_forms=quarter_forms,
+                quarter_face=quarter_face,
+                gsub_cache=gsub_cache,
+            )
+            if mark_state is not None:
+                compile_marks_layout(
+                    fb_font,
+                    mark_state,
+                    glyphs=gl,
+                    metrics=mt,
+                    glyph_order=go,
+                    target_upem=upem,
                 )
+            times["faces"] += time.perf_counter() - t_face
+            _emit_face(
+                fb_font,
+                out_path,
+                hint=hint,
+                write_ttf=write_ttf,
+                write_woff2=write_woff2,
+                times=times,
+            )
         finally:
-            hint_tt.close()
-    finally:
-        _drop_ttf(master_path)
+            fb_font.close()
+        rows.append(
+            (variant, (face_id, len(gl) - 1, sorted(cm.keys())))
+        )
+
+    times["total"] = time.perf_counter() - t_all
+    _print_bucket_profile(bucket_hex, times)
     return rows
 
 
@@ -1817,7 +1957,7 @@ def build_all(
     print(f"Output formats: {fmt_note}")
     print(
         "Faces/bucket: q/qv/qh, t, h, base (CSS); "
-        "build order per bucket: master (hint once) → subset six faces"
+        "per face TTF→hint→WOFF2"
     )
 
     sources_list = [
@@ -1859,7 +1999,7 @@ def build_all(
     print(
         f"\nBuilding {n_faces} faces "
         f"({n_variants} variants × {n_buckets} buckets, {workers} workers; "
-        f"one bucket per worker, faces sequential) -> {out_dir}",
+        f"each face TTF→hint→WOFF2) -> {out_dir}",
         flush=True,
     )
 
@@ -1939,7 +2079,7 @@ def parse_args() -> argparse.Namespace:
         dest="jobs",
         type=int,
         default=max(1, os.cpu_count() or 4),
-        help="Parallel bucket workers (default: all CPUs); faces stay sequential",
+        help="Parallel bucket workers (default: all CPUs); each face is TTF then hint then WOFF2",
     )
     p.add_argument(
         "--css-only",
