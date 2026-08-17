@@ -27,7 +27,6 @@ from shared_half_cells import (
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,
     TransformMode,
-    _recording_from_glyph,
     contour_center,
     empty_glyph,
     make_composite_variant,
@@ -94,40 +93,6 @@ def cjk_mid(
     return (x0 + x1) / 2.0, (y0 + y1) / 2.0
 
 
-def _rect_path(x0: float, y0: float, x1: float, y1: float):
-    import pathops
-
-    p = pathops.Path()
-    p.moveTo(x0, y0)
-    p.lineTo(x1, y0)
-    p.lineTo(x1, y1)
-    p.lineTo(x0, y1)
-    p.close()
-    return p
-
-
-def _ttglyph_to_pathops(glyph: TTGlyph, glyph_set: Optional[Dict[str, TTGlyph]]):
-    import pathops
-
-    rec = _recording_from_glyph(glyph, glyph_set)
-    sk = pathops.Path()
-    rec.replay(sk.getPen())
-    return sk
-
-
-def _pathops_to_ttglyph(path) -> TTGlyph:
-    from fontTools.ttLib.removeOverlaps import ttfGlyphFromSkPath
-
-    if path is None or not list(path.contours):
-        return empty_glyph()
-    g = ttfGlyphFromSkPath(path)
-    try:
-        g.recalcBounds(None)
-    except Exception:
-        pass
-    return g
-
-
 def clip_glyph_to_half(
     glyph: TTGlyph,
     half: str,
@@ -137,30 +102,23 @@ def clip_glyph_to_half(
     cell_width: Optional[float] = None,
 ) -> TTGlyph:
     """Intersect ``glyph`` with one CJK-box half-plane (top/bot/left/right)."""
-    import pathops
+    from shared_half_cells import clip_glyph_to_rect
 
     x0, y0, x1, y1 = cjk_box(target_upem, cell_width=cell_width)
     mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
     pad = target_upem * 0.05
     match half:
         case "top":
-            rx0, ry0, rx1, ry1 = x0 - pad, my, x1 + pad, y1 + pad
+            rect = (x0 - pad, my, x1 + pad, y1 + pad)
         case "bot":
-            rx0, ry0, rx1, ry1 = x0 - pad, y0 - pad, x1 + pad, my
+            rect = (x0 - pad, y0 - pad, x1 + pad, my)
         case "left":
-            rx0, ry0, rx1, ry1 = x0 - pad, y0 - pad, mx, y1 + pad
+            rect = (x0 - pad, y0 - pad, mx, y1 + pad)
         case "right":
-            rx0, ry0, rx1, ry1 = mx, y0 - pad, x1 + pad, y1 + pad
+            rect = (mx, y0 - pad, x1 + pad, y1 + pad)
         case _:
             raise ValueError(f"unknown half-plane {half!r}")
-
-    src = _ttglyph_to_pathops(glyph, glyph_set)
-    clip = _rect_path(rx0, ry0, rx1, ry1)
-    try:
-        out = pathops.op(src, clip, pathops.PathOp.INTERSECTION, fix_winding=True)
-    except Exception:
-        return empty_glyph()
-    return _pathops_to_ttglyph(out)
+    return clip_glyph_to_rect(glyph, rect, glyph_set=glyph_set)
 
 
 def ensure_slice_adv(

@@ -40,8 +40,8 @@ VS39    U+E0116    bottom 3/4 (= right 3/4)  ``q4b3``
 VS40    U+E0117    middle half               ``q4mh``
 ======= ========== ========================= ========
 
-Niche composites / placers apply ``COMPOUND_CELL_SCALE`` (``shared_half_cells``)
-so stacked quarters match standalone CJK size.
+Niche forms are **slices** of the identity (clip to the band — no stretch /
+squish). Oriented D4 niches are composites of those upright slices.
 """
 
 from __future__ import annotations
@@ -241,50 +241,19 @@ def place_glyph_in_quarter(
     target_upem: int = 1000,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    from shared_half_cells import (
-        COMPOUND_CELL_SCALE,
-        STANDALONE_VERT_PAD,
-        cjk_padded_floor,
-    )
+    """Clip ``glyph`` to a quarter / half / 3/4 slot (slice — no stretch)."""
+    from shared_half_cells import clip_glyph_to_rect
 
     upem = float(target_upem)
-    src = glyph
+    rect = _quarter_slot_rect(upem, axis=axis, band0=band0, band1=band1)
+    clipped = clip_glyph_to_rect(glyph, rect, glyph_set=glyph_set)
     try:
-        is_comp = bool(glyph.isComposite())
-    except Exception:
-        is_comp = False
-    if is_comp:
-        src = _bake_simple_glyph(glyph, glyph_set)
-
-    bottom, top, _ = cjk_padded_floor(int(target_upem), pad=STANDALONE_VERT_PAD)
-    inset = upem * STANDALONE_VERT_PAD
-    sx0, sx1 = inset, upem - inset
-    sy0, sy1 = bottom, top
-    sw = max(sx1 - sx0, 1.0)
-    sh = max(sy1 - sy0, 1.0)
-
-    x0, y0, x1, y1 = _quarter_slot_rect(
-        upem, axis=axis, band0=band0, band1=band1
-    )
-    tw = max(x1 - x0, 1.0)
-    th = max(y1 - y0, 1.0)
-    g = float(COMPOUND_CELL_SCALE)
-    sx = (tw / sw) * g
-    sy = (th / sh) * g
-    src_cx = (sx0 + sx1) / 2.0
-    src_cy = (sy0 + sy1) / 2.0
-    dst_cx = (x0 + x1) / 2.0
-    dst_cy = (y0 + y1) / 2.0
-    t = Transform(sx, 0, 0, sy, dst_cx - sx * src_cx, dst_cy - sy * src_cy)
-    rec = _recording_from_glyph(src, None)
-    out = apply_transform(rec, t)
-    try:
-        out.recalcBounds(None)
-        lsb = int(out.xMin)
+        clipped.recalcBounds(None)
+        lsb = int(clipped.xMin)
     except Exception:
         lsb = 0
     del advance
-    return out, int(upem), lsb
+    return clipped, int(upem), lsb
 
 
 def make_quarter_glyph(
@@ -298,24 +267,20 @@ def make_quarter_glyph(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     factor: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Upright quarter niche as a scaled composite of ``base_name``."""
-    from shared_half_cells import make_axis_niche_composite
+    """Upright quarter niche as a slice of ``base_name`` (clip; no stretch)."""
+    from shared_half_cells import make_niche_slice_glyph
 
+    if glyph_set is None:
+        raise ValueError("make_quarter_glyph requires glyph_set for slice bake")
     upem = int(
         target_upem if target_upem is not None else (advance if advance > 0 else 1000)
     )
-    use = float(factor if factor is not None else _factor_for_bands(band0, band1))
-    x0, y0, x1, y1 = _quarter_slot_rect(
-        float(upem), axis=axis, band0=band0, band1=band1
-    )
-    return make_axis_niche_composite(
+    del factor
+    rect = _quarter_slot_rect(float(upem), axis=axis, band0=band0, band1=band1)
+    return make_niche_slice_glyph(
         base_name,
         advance=int(advance if advance > 0 else upem),
-        axis=axis,
-        factor=use,
-        dest_x=(x0 + x1) / 2.0,
-        dest_y=(y0 + y1) / 2.0,
-        target_upem=upem,
+        rect=rect,
         glyph_set=glyph_set,
     )
 
@@ -367,7 +332,7 @@ def add_quarter_forms(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int = 1000,
 ) -> List[str]:
-    """Upright quarter niches as composites of the identity; D4 via composites."""
+    """Upright quarter niches as slices of the identity; D4 via composites."""
     slots = quarter_slots_for_face(face)
     axis = quarter_axis_for_face(face)
     identities = [n for n in base_names if _d4_suffix_of(n) is None and n in glyphs]

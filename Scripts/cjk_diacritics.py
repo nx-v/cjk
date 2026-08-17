@@ -2,25 +2,25 @@
 
 Core marks from Plangothic P2: U+16FF0 (ca) / U+16FF1 (nhay) only.
 
-Squish = occupy **one half** of the CJK ideographic area (left / right /
-top / bottom). Same half-cell glyphs serve FE0C–FE0F access and ca/nhay
-placement. ca/nhay **trigger** the matching squish: GSUB ligates
+Half-cell niches are **slices** (clip to left / right / top / bottom — no
+stretch). Same half-cell glyphs serve FE0C–FE0F access and ca/nhay placement.
+ca/nhay **trigger** the matching niche: GSUB ligates
 ``base (+ niche VS)? + mark`` into a precomposed TT composite
 (``base.dk_u16FF0``, …) with the mark baked into the free half. Zero-width
 ``.ov`` forms of those composites liga the same way for digraphs.
 
-    CJK (D4)? FE0C MARK   → ``base.dk_MARK``   (left squish + mark right)
-    CJK (D4)? FE0D MARK   → ``base.dkl_MARK``  (right squish + mark left)
-    CJK (D4)? FE0E MARK   → ``base.dkb_MARK``  (top squish + mark bottom)
-    CJK (D4)? FE0F MARK   → ``base.dkt_MARK``  (bottom squish + mark top)
-    CJK (D4)? MARK        → ``base.dk_MARK``   (bare mark auto-squishes)
+    CJK (D4)? FE0C MARK   → ``base.dk_MARK``   (left slice + mark right)
+    CJK (D4)? FE0D MARK   → ``base.dkl_MARK``  (right slice + mark left)
+    CJK (D4)? FE0E MARK   → ``base.dkb_MARK``  (top slice + mark bottom)
+    CJK (D4)? FE0F MARK   → ``base.dkt_MARK``  (bottom slice + mark top)
+    CJK (D4)? MARK        → ``base.dk_MARK``   (bare mark auto-slices)
 
 Niche VS (``FE0C``–``FE0F``) selects which half; bare ca/nhay defaults to
 ``.dk``. Optional legacy ``FE08``/``FE09``/``FE0A`` still select mark-side
 forms (L/T/B). Browser galleries prefer PUA ``E009``–``E00C`` mirrors of
 FE0C–F.
 
-Squish / overlay access (same ``.dk*`` glyphs; GSUB liga, not cmap-14 UVS)::
+Slice / overlay access (same ``.dk*`` glyphs; GSUB liga, not cmap-14 UVS)::
 
     CJK  ( D4 VS )?  FE0B              → zero-width ``.ov``
     CJK  ( D4 VS )?  FE0C..FE0F        → half-cell ``.dk`` / ``.dkl`` / ``.dkt`` / ``.dkb``
@@ -197,22 +197,22 @@ def resolve_plangothic_p2(in_dir: str) -> str:
 
 
 def squish_name(base_name: str) -> str:
-    """Left-squished form (right niche) — CAPE Width of upright id."""
+    """Left half-slice (right niche free) — clip of upright id."""
     return f"{base_name}.dk"
 
 
 def squish_left_name(base_name: str) -> str:
-    """Right-squished form (left niche); CAPE Width of upright id."""
+    """Right half-slice (left niche free); clip of upright id."""
     return f"{base_name}.dkl"
 
 
 def squish_top_name(base_name: str) -> str:
-    """Bottom-squished form (top niche); CAPE Height of upright id."""
+    """Bottom half-slice (top niche free); clip of upright id."""
     return f"{base_name}.dkt"
 
 
 def squish_bot_name(base_name: str) -> str:
-    """Top-squished form (bottom niche); CAPE Height of upright id."""
+    """Top half-slice (bottom niche free); clip of upright id."""
     return f"{base_name}.dkb"
 
 
@@ -1132,62 +1132,23 @@ def place_glyph_in_half(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     slot_frac: float = 0.5,
 ) -> Tuple[TTGlyph, int, int]:
-    """Map the full ideographic cell frame into one niche slot.
+    """Clip ``glyph`` to one niche slot (slice — no stretch / squish).
 
-    Source frame is the same padded typo cell that
-    ``fit_glyph_to_ideographic_cell`` centers ink into (not a second contour
-    fit). ``sx = slot_w/cell_w``, ``sy = slot_h/cell_h``. Composites bake once.
-
-    Prefer ``make_squished_glyph`` for upright H/V niches (scaled composite);
-    this affine map is the empty-outline / no-composite fallback.
+    Prefer ``make_squished_glyph`` when the upright niche can be built from a
+    named base in ``glyph_set``.
     """
-    from shared_half_cells import (
-        COMPOUND_CELL_SCALE,
-        STANDALONE_VERT_PAD,
-        apply_transform,
-        cjk_padded_floor,
-        _recording_from_glyph,
-    )
+    from shared_half_cells import clip_glyph_to_rect
 
     upem = float(target_upem)
-    src = glyph
+    rect = _half_slot_rect(upem, pin=pin, axis=axis, niche_frac=slot_frac)
+    clipped = clip_glyph_to_rect(glyph, rect, glyph_set=glyph_set)
     try:
-        is_comp = bool(glyph.isComposite())
-    except Exception:
-        is_comp = False
-    if is_comp:
-        src = _bake_simple_glyph(glyph, glyph_set)
-
-    # Full-cell frame in current glyph space (= fit_glyph destination).
-    bottom, top, _ = cjk_padded_floor(int(target_upem), pad=STANDALONE_VERT_PAD)
-    inset = upem * STANDALONE_VERT_PAD
-    sx0, sx1 = inset, upem - inset
-    sy0, sy1 = bottom, top
-    sw = max(sx1 - sx0, 1.0)
-    sh = max(sy1 - sy0, 1.0)
-
-    x0, y0, x1, y1 = _half_slot_rect(
-        upem, pin=pin, axis=axis, niche_frac=slot_frac
-    )
-    tw = max(x1 - x0, 1.0)
-    th = max(y1 - y0, 1.0)
-    g = float(COMPOUND_CELL_SCALE)
-    sx = (tw / sw) * g
-    sy = (th / sh) * g
-    src_cx = (sx0 + sx1) / 2.0
-    src_cy = (sy0 + sy1) / 2.0
-    dst_cx = (x0 + x1) / 2.0
-    dst_cy = (y0 + y1) / 2.0
-    t = Transform(sx, 0, 0, sy, dst_cx - sx * src_cx, dst_cy - sy * src_cy)
-    rec = _recording_from_glyph(src, None)
-    out = apply_transform(rec, t)
-    try:
-        out.recalcBounds(None)
-        lsb = int(out.xMin)
+        clipped.recalcBounds(None)
+        lsb = int(clipped.xMin)
     except Exception:
         lsb = 0
-    del advance  # half-cell advance is always full UPM
-    return out, int(upem), lsb
+    del advance
+    return clipped, int(upem), lsb
 
 
 def _translate_ink_to_half_center(
@@ -1241,31 +1202,25 @@ def make_squished_glyph(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     slot_frac: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Upright niche as a scaled composite of ``base_name`` (no outline bake).
+    """Upright niche as a **slice** of ``base_name`` (clip; no stretch).
 
-    ``axis="x"`` → Width-condense about cell mid, then pin to LR niche center.
-    ``axis="y"`` → Height-condense, then pin to TB niche center.
-    ``slot_frac`` defaults to ``0.5`` (half-cell) or matches ``factor`` when
-    the caller is placing a mark-base 3/4 niche.
+    ``slot_frac`` is the niche band width (0.5 half-cell, 0.75 mark-base, …).
+    ``factor`` is kept for call-site compatibility and ignored (no scale).
     """
-    from shared_half_cells import make_axis_niche_composite
+    from shared_half_cells import make_niche_slice_glyph
 
+    if glyph_set is None:
+        raise ValueError("make_squished_glyph requires glyph_set for slice bake")
     upem = int(
         target_upem if target_upem is not None else (advance if advance > 0 else 1000)
     )
-    use = float(factor)
+    del factor
     occ = float(slot_frac) if slot_frac is not None else 0.5
-    x0, y0, x1, y1 = _half_slot_rect(
-        float(upem), pin=pin, axis=axis, niche_frac=occ
-    )
-    return make_axis_niche_composite(
+    rect = _half_slot_rect(float(upem), pin=pin, axis=axis, niche_frac=occ)
+    return make_niche_slice_glyph(
         base_name,
         advance=int(advance if advance > 0 else upem),
-        axis=axis,
-        factor=use,
-        dest_x=(x0 + x1) / 2.0,
-        dest_y=(y0 + y1) / 2.0,
-        target_upem=upem,
+        rect=rect,
         glyph_set=glyph_set,
     )
 
@@ -1281,10 +1236,10 @@ def add_squish_forms(
     target_upem: int = 1000,
     slot_frac: Optional[float] = None,
 ) -> List[str]:
-    """Upright H/V niches as composites of the identity; oriented via D4.
+    """Upright H/V niches as slices of the identity; oriented via D4.
 
-    Per identity base, emit **all four** niche composites from the upright
-    glyph (do not mirror ``.dkl``/``.dkt`` into ``.dk``/``.dkb`` — that flips
+    Per identity base, bake **all four** niche clips from the upright glyph
+    (do not mirror ``.dkl``/``.dkt`` into ``.dk``/``.dkb`` — that flips
     asymmetric ideographs). Oriented bases (``.r90``, …) pick the upright
     niche that maps to the needed cell niche under that D4, then composite
     with the same rotate/reflect as the base.

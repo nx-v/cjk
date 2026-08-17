@@ -190,7 +190,11 @@ _FE0_TOKEN = re.compile(
 # Script faces without unicode-range claim every cmap glyph (including FE*),
 # which steals CJK D4. Bases only for Hangul; Kana/Yi keep their FE slices.
 _SCRIPT_UNICODE_RANGE = {
-    FAMILY_HANGUL: "U+1100-11FF, U+A960-A97C, U+D7B0-D7FB, U+302E-302F",
+    # FE04 must be listed: Hangul top-swap is GPOS on vs05 and does not
+    # cluster when FE04 is outside unicode-range (unlike FE00–FE03 mirrors).
+    FAMILY_HANGUL: (
+        "U+1100-11FF, U+A960-A97C, U+D7B0-D7FB, U+302E-302F, U+FE04"
+    ),
     FAMILY_HANGULS: "U+AC00-D7A3, U+3130-318F",
     FAMILY_YI: "U+A000-A4C6, U+FE00-FE09",
     FAMILY_KANA: "U+E000-F8FF, U+FF9E-FF9F, U+FE00-FE01",
@@ -210,12 +214,19 @@ def _ensure_fe0_unicode_range(ur: str) -> str:
 
 def _script_unicode_range(family: str, ur: str | None) -> str | None:
     """Normalize Hangul/Yi/Kana ranges; inject defaults when CSS omits them."""
-    if ur:
-        # Hangul must not list FE* (clusters with preceding jamo).
-        if family in (FAMILY_HANGUL, FAMILY_HANGULS):
+    if family == FAMILY_HANGUL:
+        # FE00–FE03 cluster with jamo; FE04 (top-swap GPOS) must be listed.
+        cleaned = _strip_fe0_from_unicode_range(ur) if ur else ""
+        if not cleaned:
+            return _SCRIPT_UNICODE_RANGE[FAMILY_HANGUL]
+        return f"{cleaned}, U+FE04"
+    if family == FAMILY_HANGULS:
+        if ur:
             return _strip_fe0_from_unicode_range(ur) or _SCRIPT_UNICODE_RANGE.get(
                 family
             )
+        return _SCRIPT_UNICODE_RANGE.get(family)
+    if ur:
         return ur
     return _SCRIPT_UNICODE_RANGE.get(family)
 

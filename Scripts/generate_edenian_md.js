@@ -425,10 +425,21 @@ function maybeHangulVs() {
   return random() < 0.35 ? randomItem(CHARACTERS.feHangulMirror) : '';
 }
 
-function generateHangulSyllableJamo({withVs = false, withFe04 = false} = {}) {
+/**
+ * Conjoining Hangul syllable: L (+VS) V (+VS) [T (+VS)] [FE04] [bangjeom].
+ * ``withFe04`` forces a batchim then appends ``U+FE04`` (top-swap GPOS).
+ */
+function generateHangulSyllableJamo({
+  withVs = false,
+  withFe04 = false,
+  withBatchim = null,
+} = {}) {
   let L = randomItem(choseong);
   let V = randomItem(jungseong);
-  let T = random() < 0.45 ? randomItem(jongseong) : '';
+  const wantT =
+    withFe04 ||
+    (withBatchim == null ? random() < 0.45 : !!withBatchim);
+  let T = wantT ? randomItem(jongseong) : '';
   if (withVs || random() < 0.4) {
     L += maybeHangulVs() || (withVs ? vs(randomIntInclusive(1, 3)) : '');
     V += maybeHangulVs() || (withVs ? vs(randomIntInclusive(1, 3)) : '');
@@ -436,7 +447,8 @@ function generateHangulSyllableJamo({withVs = false, withFe04 = false} = {}) {
       T += maybeHangulVs() || (withVs ? vs(randomIntInclusive(1, 3)) : '');
   }
   let s = L + V + T;
-  if (T && (withFe04 || random() < 0.2)) s += CHARACTERS.fe04;
+  // FE04 is a syllable-final mark after T (open syllables ignore it).
+  if (T && (withFe04 || random() < 0.25)) s += CHARACTERS.fe04;
   if (random() < 0.15) s += randomItem(CHARACTERS.bangjeom);
   return s;
 }
@@ -764,22 +776,48 @@ function generateFeatureCatalog() {
   {
     const lines = [];
     lines.push(
-      '**Jamo × FE00–FE03 mirrors + FE04 batchim swap** (font: `edenia hangul`)',
+      '**Jamo × FE00–FE03 mirrors** (font: `edenia hangul`) — L/V/T each may take VS',
     );
     lines.push(
       [...Array(12)]
-        .map((_, i) =>
-          generateHangulSyllableJamo({withVs: true, withFe04: i % 3 === 0}),
+        .map(() => generateHangulSyllableJamo({withVs: true}))
+        .join('　'),
+    );
+    lines.push(
+      '**FE04 batchim top-swap** — same closed syllable ± `U+FE04` (GPOS raises T / lowers LV)',
+    );
+    lines.push(
+      [...Array(10)]
+        .map(() => {
+          // Shared L V T; only the second copy gets FE04.
+          const L = randomItem(choseong);
+          const V = randomItem(jungseong);
+          const T = randomItem(jongseong);
+          const base = L + V + T;
+          return `${base}　${base}${CHARACTERS.fe04}`;
+        })
+        .join('　·　'),
+    );
+    lines.push(
+      '**Mirrors + FE04** (T required; FE04 after optional T×VS)',
+    );
+    lines.push(
+      [...Array(10)]
+        .map(() =>
+          generateHangulSyllableJamo({withVs: true, withFe04: true}),
         )
         .join('　'),
     );
-    lines.push('**Canonical sample**');
+    lines.push('**Canonical sample** (FE03 on L/V/T + FE04)');
     lines.push('ᄒ︃ᅮ︃ᆫ︂︄');
     lines.push('**With combining marks / CGJ**');
     lines.push(
       [...Array(8)]
         .map(() =>
-          attachDakuten(generateHangulSyllableJamo({withVs: true}), 2),
+          attachDakuten(
+            generateHangulSyllableJamo({withVs: true, withFe04: random() < 0.5}),
+            2,
+          ),
         )
         .join('　'),
     );

@@ -11,7 +11,7 @@ Five faces per bucket (filename / family stem = ``{hex}`` / ``{hex}h`` /
 
     (none)  base forms + ca/nhay (all mark orientations); mark niche = 1/4
                 (base occupies 3/4)
-    h       base forms + D4 + half-cell squish (FE0B–FE0F)
+    h       base forms + D4 + half-cell slices (FE0B–FE0F)
     t       base forms + D4 + third-cell niches (VS17–VS26; FE0B zero-width)
     qv      base forms + D4 + vertical quarter niches (VS13–14, VS27–33)
     qh      base forms + D4 + horizontal quarter niches (VS15–16, VS34–40)
@@ -462,7 +462,7 @@ def build_bucket_font(
     ``variant``::
 
         ""   identity bases + ca/nhay (mark niche 1/4, base 3/4); no CJK D4
-        "h"  bases + D4 + half-cell squish/overlay
+        "h"  bases + D4 + half-cell slice/overlay
         "t"  bases + D4 + third-cell niches (VS17–VS26 on standard CPs)
         "qv" bases + D4 + vertical quarter niches (VS13–14, VS27–33)
         "qh" bases + D4 + horizontal quarter niches (VS15–16, VS34–40)

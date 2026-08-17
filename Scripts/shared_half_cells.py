@@ -99,9 +99,9 @@ STANDALONE_VERT_PAD = 0.05
 # After stretch / stem-normalize + CJK floor pin: uniform scale about the
 # ideographic center so Yi ink occupies ~98% of the cell (still centered).
 STANDALONE_CELL_SCALE = 0.98
-# Extra uniform shrink for half / third / quarter niche components (composites
-# and affine placers). Niche slots otherwise fill the typo box harder than
-# standalone CJK, so compounds read oversized next to 劫/幸-class ideographs.
+# Legacy: was an extra shrink on scaled niche composites. Half / third /
+# quarter niches are now **slices** (clip, no stretch); this constant is
+# unused by that path and kept only for any external callers.
 COMPOUND_CELL_SCALE = 0.90
 
 # Match build_yi / build_cjk OS/2 + hhea (CJK ideographic body).
@@ -1695,6 +1695,88 @@ def make_composite_variant(
     return g, advance, out_lsb
 
 
+def _rect_pathops(x0: float, y0: float, x1: float, y1: float):
+    import pathops
+
+    p = pathops.Path()
+    p.moveTo(x0, y0)
+    p.lineTo(x1, y0)
+    p.lineTo(x1, y1)
+    p.lineTo(x0, y1)
+    p.close()
+    return p
+
+
+def _ttglyph_to_pathops(
+    glyph: TTGlyph, glyph_set: Optional[Dict[str, TTGlyph]] = None
+):
+    import pathops
+
+    rec = _recording_from_glyph(glyph, glyph_set)
+    sk = pathops.Path()
+    rec.replay(sk.getPen())
+    return sk
+
+
+def _pathops_to_ttglyph(path) -> TTGlyph:
+    from fontTools.ttLib.removeOverlaps import ttfGlyphFromSkPath
+
+    if path is None or not list(path.contours):
+        return empty_glyph()
+    g = ttfGlyphFromSkPath(path)
+    try:
+        g.recalcBounds(None)
+    except Exception:
+        pass
+    return g
+
+
+def clip_glyph_to_rect(
+    glyph: TTGlyph,
+    rect: Tuple[float, float, float, float],
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> TTGlyph:
+    """Intersect ``glyph`` with axis-aligned ``(x0, y0, x1, y1)`` — no scale.
+
+    Used for CJK half / third / quarter niches and Yi FE08/FE09 slices: ink
+    outside the band is dropped; ink inside keeps its original size and place.
+    """
+    import pathops
+
+    x0, y0, x1, y1 = (float(v) for v in rect)
+    if x1 < x0:
+        x0, x1 = x1, x0
+    if y1 < y0:
+        y0, y1 = y1, y0
+    src = _ttglyph_to_pathops(glyph, glyph_set)
+    clip = _rect_pathops(x0, y0, x1, y1)
+    try:
+        out = pathops.op(src, clip, pathops.PathOp.INTERSECTION, fix_winding=True)
+    except Exception:
+        return empty_glyph()
+    return _pathops_to_ttglyph(out)
+
+
+def make_niche_slice_glyph(
+    base_name: str,
+    *,
+    advance: int,
+    rect: Tuple[float, float, float, float],
+    glyph_set: Dict[str, TTGlyph],
+) -> GlyphMetrics:
+    """Bake ``base_name`` clipped to ``rect`` (slice niche; full advance)."""
+    if base_name not in glyph_set:
+        raise KeyError(f"niche slice needs base glyph {base_name!r}")
+    clipped = clip_glyph_to_rect(glyph_set[base_name], rect, glyph_set=glyph_set)
+    try:
+        clipped.recalcBounds(None)
+        lsb = int(clipped.xMin)
+    except Exception:
+        lsb = 0
+    return clipped, int(advance), lsb
+
+
 def make_scaled_niche_composite(
     base_name: str,
     *,
@@ -1707,12 +1789,9 @@ def make_scaled_niche_composite(
     dest_y: float,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> GlyphMetrics:
-    """One-component composite: scale about pivot, then place at dest.
+    """Deprecated stretch placer — niches use ``make_niche_slice_glyph`` now.
 
-    ``p' = S·(p - pivot) + dest`` with axis-aligned ``S = diag(scale_x, scale_y)``.
-    Used for CJK upright niches (half / third / quarter) so outlines stay on
-    the identity glyph instead of CAPE-baking every niche. Both axes also
-    take ``COMPOUND_CELL_SCALE`` so stacked niches match standalone CJK size.
+    Kept for any external callers; prefer clip-to-rect slices.
     """
     g = float(COMPOUND_CELL_SCALE)
     xx = float(scale_x) * g
@@ -1751,7 +1830,7 @@ def make_axis_niche_composite(
     target_upem: int,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> GlyphMetrics:
-    """Scale one axis by ``factor`` about the ideographic center, pin to dest."""
+    """Deprecated axis stretch — niches use ``make_niche_slice_glyph`` now."""
     cx, cy = ideographic_center(target_upem)
     match axis:
         case "y":

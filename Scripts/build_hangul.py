@@ -346,6 +346,10 @@ _JUNGSEONG_VERTICAL = frozenset({"A", "AE", "YA", "YAE", "EO", "E", "YEO", "YE",
 _JUNGSEONG_HORIZONTAL = frozenset({"O", "YO", "U", "YU", "EU", "ARAEA", "SSANGARAEA"})
 # Modern precomposed digraph names (already mix vertical+horizontal).
 _JUNGSEONG_COMPOUND = frozenset({"WA", "WAE", "OE", "WEO", "WE", "WI", "YI"})
+# Digraph Unicode names whose layout is not ``xy`` despite mixed parts.
+_JUNGSEONG_AXIS_OVERRIDE: Dict[int, VowelAxis] = {
+    0x117D: "x",  # YEO-O ᆝ — vertical (x), not y/xy
+}
 _JUNGSEONG_CP_RANGES: Tuple[Tuple[int, int], ...] = (
     (0x1160, 0x11A7),  # Hangul Jamo medials (+ filler)
     (0xD7B0, 0xD7C6),  # Hangul Jamo Extended-B medials
@@ -387,6 +391,7 @@ def _build_vowel_axis_by_cp() -> Dict[int, VowelAxis]:
             axis = jungseong_axis_from_name(name)
             if axis is not None:
                 out[cp] = axis
+    out.update(_JUNGSEONG_AXIS_OVERRIDE)
     return out
 
 
@@ -3003,11 +3008,12 @@ def write_css(
     ]
     for family, cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
         file_stem = stem(family)
-        # Omit FE00–FE0F from unicode-range: Blink clusters VS with the
-        # preceding jamo; listing them steals CJK/Yi/Kana D4 selectors.
-        ur = unicode_range_css(
-            cp for cp in cps if not (0xFE00 <= cp <= 0xFE0F)
-        )
+        # FE00–FE03 omit from unicode-range (cluster with jamo). FE04 must
+        # stay listed — top-swap GPOS does not run when FE04 is out of range.
+        cps_for_ur = [cp for cp in cps if not (0xFE00 <= cp <= 0xFE0F) or cp == 0xFE04]
+        if 0xFE04 not in cps_for_ur:
+            cps_for_ur.append(0xFE04)
+        ur = unicode_range_css(cps_for_ur)
         face_lines = [
             "@font-face {",
             f"  font-family: '{family}';",
