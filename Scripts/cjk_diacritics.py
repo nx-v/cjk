@@ -511,7 +511,7 @@ def add_mark_d4_composites(
                 base_glyph=glyphs[parent],
                 glyph_set=glyphs,
                 center=(0.0, 0.0),
-                allow_2x2=True,
+                allow_2x2=False,
             )
         else:
             g, a, l = make_composite_variant(
@@ -525,7 +525,7 @@ def add_mark_d4_composites(
                 base_glyph=glyphs[base_name],
                 glyph_set=glyphs,
                 center=(0.0, 0.0),
-                allow_2x2=True,
+                allow_2x2=False,
             )
         glyph_order.append(m_name)
         glyphs[m_name] = g
@@ -1305,7 +1305,7 @@ def add_squish_forms(
                 base_glyph=glyphs[parent],
                 glyph_set=glyphs,
                 center=pivot,
-                allow_2x2=True,
+                allow_2x2=False,
             )
             glyph_order.append(child)
             glyphs[child] = g

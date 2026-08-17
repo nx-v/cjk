@@ -1026,8 +1026,8 @@ def add_d4_variant_glyphs(
            downscales ~98% about the ideographic center (Yi);
            ``anchor="cell"`` centers in the padded cell, shrink-only (CJK)
 
-    Other orientations are simple rotate/reflect composites (no further stem
-    offset)::
+    Other orientations are baked rotate/reflect outlines of ``id`` or ``r90``
+    (no further stem pass)::
 
         id  →  r180 / mx / my
         r90 →  r270 / r90mx / r90my
@@ -1113,7 +1113,8 @@ def add_d4_variant_glyphs(
             base_glyph=parent_glyph,
             glyph_set=glyphs,
             center=cell_mid,
-            allow_2x2=(anchor == "cell"),
+            # Bake every orientation to outlines (see make_composite_variant).
+            allow_2x2=False,
         )
 
     def _keep(glyph: TTGlyph, adv: int) -> GlyphMetrics:
@@ -1645,11 +1646,10 @@ def make_composite_variant(
 ) -> GlyphMetrics:
     """D4 variant of ``base_name`` about the contour bounding-box center.
 
-    Axis-aligned maps (r180 / mx / my) stay one-component TT composites.
-    Rotations that need a full 2×2 matrix (r90 / r270 / diagonals) are baked
-    to outlines by default — many viewers mishandle ``WE_HAVE_A_TWO_BY_TWO``.
-    Pass ``allow_2x2=True`` to keep those as true composites (CJK diacritic
-    marks / derived squish forms).
+    Every non-identity orientation (r90 / r180 / r270 / mx / my / diagonals)
+    is **baked to outlines** by default — TT composites (axis-aligned or
+    ``WE_HAVE_A_TWO_BY_TWO``) are mishandled by some viewers. Pass
+    ``allow_2x2=True`` only when a true composite is required.
     """
     src = base_glyph
     if src is None and glyph_set is not None:
@@ -1664,11 +1664,11 @@ def make_composite_variant(
         flip_y=flip_y,
         center=pivot,
     )
-    needs_2x2 = abs(t.xy) > 1e-9 or abs(t.yx) > 1e-9
-    if needs_2x2 and not allow_2x2:
+    oriented = (rot90_quarters % 4 != 0) or flip_x or flip_y
+    if oriented and not allow_2x2:
         if src is None:
             raise ValueError(
-                f"2x2 variant of {base_name!r} needs base_glyph or glyph_set"
+                f"baked variant of {base_name!r} needs base_glyph or glyph_set"
             )
         return _bake_transformed_glyph(src, t, advance, glyph_set=glyph_set)
 

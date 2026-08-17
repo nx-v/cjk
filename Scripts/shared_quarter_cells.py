@@ -385,7 +385,7 @@ def add_quarter_forms(
                 base_glyph=glyphs[parent],
                 glyph_set=glyphs,
                 center=pivot,
-                allow_2x2=True,
+                allow_2x2=False,
             )
             glyph_order.append(child)
             glyphs[child] = g
