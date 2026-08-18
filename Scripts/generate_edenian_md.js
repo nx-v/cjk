@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 /**
  * Edenia font test Markdown generator.
@@ -27,15 +27,15 @@
  *   node Scripts/generate_edenian_md.js --lines 64 --out Scripts/dist/Edenian-test.md
  */
 
-const fs = require('fs');
-const path = require('path');
-const {spawnSync} = require('child_process');
+const fs = require("fs");
+const path = require("path");
+const {spawnSync} = require("child_process");
 
 const {ceil, floor, random, min} = Math;
 const {keys, entries, fromEntries} = Object;
 
 const SCRIPT_DIR = __dirname;
-const REPO_ROOT = path.resolve(SCRIPT_DIR, '..');
+const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
 
 const ARGS = (() => {
   const a = process.argv.slice(2);
@@ -44,16 +44,16 @@ const ARGS = (() => {
     return i >= 0 && a[i + 1] != null ? a[i + 1] : dflt;
   };
   return {
-    lines: Number(get('--lines', '128')) || 128,
-    out: get('--out', path.join(SCRIPT_DIR, 'dist', 'Edenian-test.md')),
-    catalogOnly: a.includes('--catalog-only'),
-    proseOnly: a.includes('--prose-only'),
+    lines: Number(get("--lines", "512")) || 512,
+    out: get("--out", path.join(SCRIPT_DIR, "dist", "Edenian-test.md")),
+    catalogOnly: a.includes("--catalog-only"),
+    proseOnly: a.includes("--prose-only"),
   };
 })();
 
 /** Fallback if no built font / Python inventory is available. */
 const FALLBACK_COMBINING_MARKS = [
-  ...'\u3099\u309a\uff9e\uff9f\u0308\u0301\u0300\u0302\u0304\u0306',
+  ..."\u3099\u309a\uff9e\uff9f\u0308\u0301\u0300\u0302\u0304\u0306",
 ];
 
 /**
@@ -64,21 +64,21 @@ const FALLBACK_COMBINING_MARKS = [
  */
 function loadCombiningMarks() {
   const fontCandidates = [
-    path.join(SCRIPT_DIR, 'dist', 'hangul', 'edenia-hangul.woff2'),
-    path.join(SCRIPT_DIR, 'dist', 'yi', 'edenia-yi.woff2'),
-    path.join(SCRIPT_DIR, 'dist', 'kana', 'edenia-kana.woff2'),
+    path.join(SCRIPT_DIR, "dist", "hangul", "edenia-hangul.woff2"),
+    path.join(SCRIPT_DIR, "dist", "yi", "edenia-yi.woff2"),
+    path.join(SCRIPT_DIR, "dist", "kana", "edenia-kana.woff2"),
     path.join(
       SCRIPT_DIR,
-      'obsidian-edenia',
-      'edenia',
-      'hangul',
-      'edenia-hangul.woff2',
+      "obsidian-edenia",
+      "edenia",
+      "hangul",
+      "edenia-hangul.woff2",
     ),
   ];
   const fontPath = fontCandidates.find(p => fs.existsSync(p));
   if (!fontPath) {
     console.warn(
-      '[generate_edenian_md] no Edenia font for mark inventory; using fallback',
+      "[generate_edenian_md] no Edenia font for mark inventory; using fallback",
     );
     return FALLBACK_COMBINING_MARKS;
   }
@@ -94,22 +94,24 @@ for table in tt["cmap"].tables:
 tt.close()
 print(json.dumps(visible_dakuten_cps(iter_dakuten_codepoints(cmap))))
 `.trim();
-  const r = spawnSync('python', ['-c', py, fontPath], {
-    encoding: 'utf8',
+  const r = spawnSync("python", ["-c", py, fontPath], {
+    encoding: "utf8",
     cwd: SCRIPT_DIR,
-    env: {...process.env, PYTHONIOENCODING: 'utf-8'},
+    env: {...process.env, PYTHONIOENCODING: "utf-8"},
   });
   if (r.status !== 0) {
     console.warn(
-      '[generate_edenian_md] mark inventory failed:',
-      (r.stderr || r.stdout || '').trim() || `exit ${r.status}`,
+      "[generate_edenian_md] mark inventory failed:",
+      (r.stderr || r.stdout || "").trim() || `exit ${r.status}`,
     );
     return FALLBACK_COMBINING_MARKS;
   }
   try {
     const cps = JSON.parse(r.stdout.trim());
     if (!Array.isArray(cps) || cps.length === 0) {
-      console.warn('[generate_edenian_md] empty mark inventory; using fallback');
+      console.warn(
+        "[generate_edenian_md] empty mark inventory; using fallback",
+      );
       return FALLBACK_COMBINING_MARKS;
     }
     console.log(
@@ -117,7 +119,7 @@ print(json.dumps(visible_dakuten_cps(iter_dakuten_codepoints(cmap))))
     );
     return cps.map(cp => String.fromCodePoint(cp));
   } catch (err) {
-    console.warn('[generate_edenian_md] bad mark JSON:', err.message);
+    console.warn("[generate_edenian_md] bad mark JSON:", err.message);
     return FALLBACK_COMBINING_MARKS;
   }
 }
@@ -137,7 +139,7 @@ function* inclusiveRange(start, stop, step = 1) {
   if (stop == void 0) [start, stop] = [0, start];
   if (step > 0) while (start <= stop) (yield start, (start += step));
   else if (step < 0) while (start >= stop) (yield start, (start += step));
-  else throw new RangeError('range() step argument invalid');
+  else throw new RangeError("range() step argument invalid");
 }
 
 function sampleRange(start, end, n) {
@@ -150,9 +152,9 @@ function sampleRange(start, end, n) {
 function getWeightedCategory(
   categories,
   usePrevious = false,
-  previousCategory = '',
+  previousCategory = "",
 ) {
-  let currentCategory = '';
+  let currentCategory = "";
   let totalWeight = 0;
   for (const category in categories) totalWeight += categories[category];
   let randomValue = random() * totalWeight;
@@ -192,11 +194,11 @@ const CHARACTERS = {
   ].map(fromCodePoint),
 
   midParagraphPunctuation: [
-    ...'\u3001\u3002\uff0c\uff01\uff1f\uff1a\uff1b\uff0f',
+    ..."\u3001\u3002\uff0c\uff01\uff1f\uff1a\uff1b\uff0f",
   ],
-  endParagraphPunctuation: [...'\u3002\uff01\uff1f'],
-  digits: [...'0123456789\u218a\u218b'],
-  alphabet: [...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'],
+  endParagraphPunctuation: [..."\u3002\uff01\uff1f"],
+  digits: [..."0123456789\u218a\u218b"],
+  alphabet: [..."ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"],
 
   feD4: [...inclusiveRange(0xfe00, 0xfe07)].map(fromCodePoint),
   feHangulMirror: [...inclusiveRange(0xfe00, 0xfe03)].map(fromCodePoint),
@@ -214,7 +216,7 @@ const CHARACTERS = {
   },
   ca: fromCodePoint(0x16ff0),
   nhay: fromCodePoint(0x16ff1),
-  bangjeom: [...'\u302e\u302f'],
+  bangjeom: [..."\u302e\u302f"],
   cgj: fromCodePoint(0x034f),
   /** Visible ``\p{M}`` from Edenia fonts (CGJ is separate slot-skip). */
   dakutenMarks: COMBINING_MARKS,
@@ -222,30 +224,30 @@ const CHARACTERS = {
 
 const HANGUL_JAMO = {
   choseong:
-    '\u11001\u11012\u11021\u11031\u11042\u11051\u11061\u11071\u11082\u11091\u110a2\u110b1\u110c1\u110d2\u110e1\u110f1\u11101\u11111\u11121\u11132\u11142\u11152\u11162\u11172\u11182\u11192\u111a2\u111b1\u111c2\u111d1\u111e2\u111f2\u11202\u11212\u11223\u11233\u11243\u11253\u11263\u11272\u11282\u11292\u112a2\u112b2\u112c2\u112d2\u112e2\u112f2\u11302\u11312\u11322\u11333\u11343\u11352\u11362\u11372\u11382\u11392\u113a2\u113b2\u113c1\u113d2\u113e1\u113f2\u11401\u11412\u11422\u11432\u11442\u11452\u11462\u11472\u11482\u11492\u114a2\u114b2\u114c1\u114d2\u114e1\u114f2\u11501\u11512\u11522\u11532\u11541\u11551\u11562\u11571\u11582\u11591\u115a2\u115b2\u115c2\u115d2\u115e2\ua9602\ua9612\ua9622\ua9632\ua9642\ua9653\ua9662\ua9673\ua9682\ua9692\ua96a3\ua96b2\ua96c2\ua96d2\ua96e2\ua96f2\ua9702\ua9712\ua9723\ua9732\ua9742\ua9753\ua9762\ua9772\ua9783\ua9792\ua97a2\ua97b2\ua97c2',
+    "\u11001\u11012\u11021\u11031\u11042\u11051\u11061\u11071\u11082\u11091\u110a2\u110b1\u110c1\u110d2\u110e1\u110f1\u11101\u11111\u11121\u11132\u11142\u11152\u11162\u11172\u11182\u11192\u111a2\u111b1\u111c2\u111d1\u111e2\u111f2\u11202\u11212\u11223\u11233\u11243\u11253\u11263\u11272\u11282\u11292\u112a2\u112b2\u112c2\u112d2\u112e2\u112f2\u11302\u11312\u11322\u11333\u11343\u11352\u11362\u11372\u11382\u11392\u113a2\u113b2\u113c1\u113d2\u113e1\u113f2\u11401\u11412\u11422\u11432\u11442\u11452\u11462\u11472\u11482\u11492\u114a2\u114b2\u114c1\u114d2\u114e1\u114f2\u11501\u11512\u11522\u11532\u11541\u11551\u11562\u11571\u11582\u11591\u115a2\u115b2\u115c2\u115d2\u115e2\ua9602\ua9612\ua9622\ua9632\ua9642\ua9653\ua9662\ua9673\ua9682\ua9692\ua96a3\ua96b2\ua96c2\ua96d2\ua96e2\ua96f2\ua9702\ua9712\ua9723\ua9732\ua9742\ua9753\ua9762\ua9772\ua9783\ua9792\ua97a2\ua97b2\ua97c2",
   jungseong:
-    '\u11611\u11622\u11631\u11642\u11651\u11662\u11671\u11682\u11691\u116a2\u116b3\u116c2\u116d1\u116e1\u116f2\u11703\u11712\u11721\u11731\u11742\u11751\u11762\u11772\u11782\u11792\u117a2\u117b2\u117c2\u117d2\u117e2\u117f2\u11803\u11813\u11822\u11832\u11842\u11852\u11862\u11872\u11882\u11892\u118a2\u118b3\u118c3\u118d2\u118e2\u118f2\u11903\u11912\u11923\u11932\u11942\u11952\u11962\u11973\u11982\u11992\u119a2\u119b2\u119c2\u119d2\u119e1\u119f2\u11a02\u11a12\u11a22\u11a32\u11a42\u11a52\u11a62\u11a73\ud7b02\ud7b13\ud7b22\ud7b33\ud7b42\ud7b52\ud7b63\ud7b73\ud7b82\ud7b92\ud7ba2\ud7bb3\ud7bc2\ud7bd3\ud7be3\ud7bf2\ud7c03\ud7c12\ud7c22\ud7c32\ud7c42\ud7c52\ud7c63',
+    "\u11611\u11622\u11631\u11642\u11651\u11662\u11671\u11682\u11691\u116a2\u116b3\u116c2\u116d1\u116e1\u116f2\u11703\u11712\u11721\u11731\u11742\u11751\u11762\u11772\u11782\u11792\u117a2\u117b2\u117c2\u117d2\u117e2\u117f2\u11803\u11813\u11822\u11832\u11842\u11852\u11862\u11872\u11882\u11892\u118a2\u118b3\u118c3\u118d2\u118e2\u118f2\u11903\u11912\u11923\u11932\u11942\u11952\u11962\u11973\u11982\u11992\u119a2\u119b2\u119c2\u119d2\u119e1\u119f2\u11a02\u11a12\u11a22\u11a32\u11a42\u11a52\u11a62\u11a73\ud7b02\ud7b13\ud7b22\ud7b33\ud7b42\ud7b52\ud7b63\ud7b73\ud7b82\ud7b92\ud7ba2\ud7bb3\ud7bc2\ud7bd3\ud7be3\ud7bf2\ud7c03\ud7c12\ud7c22\ud7c32\ud7c42\ud7c52\ud7c63",
   jongseong:
-    '\u11a81\u11a92\u11aa2\u11ab1\u11ac2\u11ad2\u11ae1\u11af1\u11b02\u11b12\u11b22\u11b32\u11b42\u11b52\u11b62\u11b71\u11b81\u11b92\u11ba1\u11bb2\u11bc1\u11bd1\u11be1\u11bf1\u11c01\u11c11\u11c21\u11c32\u11c43\u11c52\u11c62\u11c72\u11c82\u11c92\u11ca2\u11cb2\u11cc3\u11cd2\u11ce2\u11cf3\u11d02\u11d13\u11d23\u11d33\u11d43\u11d52\u11d63\u11d72\u11d82\u11d92\u11da2\u11db2\u11dc2\u11dd2\u11de3\u11df2\u11e02\u11e12\u11e21\u11e32\u11e42\u11e52\u11e61\u11e72\u11e82\u11e92\u11ea2\u11eb1\u11ec2\u11ed3\u11ee2\u11ef2\u11f01\u11f12\u11f22\u11f32\u11f41\u11f52\u11f62\u11f72\u11f82\u11f91\u11fa2\u11fb2\u11fc2\u11fd2\u11fe2\u11ff2\ud7cb2\ud7cc2\ud7cd2\ud7ce3\ud7cf2\ud7d02\ud7d13\ud7d22\ud7d32\ud7d42\ud7d53\ud7d63\ud7d73\ud7d83\ud7d93\ud7da3\ud7db2\ud7dc3\ud7dd1\ud7de2\ud7df3\ud7e02\ud7e13\ud7e22\ud7e32\ud7e43\ud7e52\ud7e62\ud7e73\ud7e82\ud7e92\ud7ea2\ud7eb2\ud7ec3\ud7ed2\ud7ee2\ud7ef2\ud7f02\ud7f12\ud7f22\ud7f32\ud7f42\ud7f52\ud7f62\ud7f72\ud7f83\ud7f92\ud7fa2\ud7fb2',
+    "\u11a81\u11a92\u11aa2\u11ab1\u11ac2\u11ad2\u11ae1\u11af1\u11b02\u11b12\u11b22\u11b32\u11b42\u11b52\u11b62\u11b71\u11b81\u11b92\u11ba1\u11bb2\u11bc1\u11bd1\u11be1\u11bf1\u11c01\u11c11\u11c21\u11c32\u11c43\u11c52\u11c62\u11c72\u11c82\u11c92\u11ca2\u11cb2\u11cc3\u11cd2\u11ce2\u11cf3\u11d02\u11d13\u11d23\u11d33\u11d43\u11d52\u11d63\u11d72\u11d82\u11d92\u11da2\u11db2\u11dc2\u11dd2\u11de3\u11df2\u11e02\u11e12\u11e21\u11e32\u11e42\u11e52\u11e61\u11e72\u11e82\u11e92\u11ea2\u11eb1\u11ec2\u11ed3\u11ee2\u11ef2\u11f01\u11f12\u11f22\u11f32\u11f41\u11f52\u11f62\u11f72\u11f82\u11f91\u11fa2\u11fb2\u11fc2\u11fd2\u11fe2\u11ff2\ud7cb2\ud7cc2\ud7cd2\ud7ce3\ud7cf2\ud7d02\ud7d13\ud7d22\ud7d32\ud7d42\ud7d53\ud7d63\ud7d73\ud7d83\ud7d93\ud7da3\ud7db2\ud7dc3\ud7dd1\ud7de2\ud7df3\ud7e02\ud7e13\ud7e22\ud7e32\ud7e43\ud7e52\ud7e62\ud7e73\ud7e82\ud7e92\ud7ea2\ud7eb2\ud7ec3\ud7ed2\ud7ee2\ud7ef2\ud7f02\ud7f12\ud7f22\ud7f32\ud7f42\ud7f52\ud7f62\ud7f72\ud7f83\ud7f92\ud7fa2\ud7fb2",
 };
 
 const BRACKETS = [
-  {open: '\uff08', close: '\uff09'},
-  {open: '\uff5f', close: '\uff60'},
-  {open: '\uff3b', close: '\uff3d'},
-  {open: '\uff5b', close: '\uff5d'},
-  {open: '\u300c', close: '\u300d'},
-  {open: '\u300e', close: '\u300f'},
-  {open: '\u3016', close: '\u3017'},
-  {open: '\u3014', close: '\u3015'},
-  {open: '\u3018', close: '\u3019'},
+  {open: "\uff08", close: "\uff09"},
+  {open: "\uff5f", close: "\uff60"},
+  {open: "\uff3b", close: "\uff3d"},
+  {open: "\uff5b", close: "\uff5d"},
+  {open: "\u300c", close: "\u300d"},
+  {open: "\u300e", close: "\u300f"},
+  {open: "\u3016", close: "\u3017"},
+  {open: "\u3014", close: "\u3015"},
+  {open: "\u3018", close: "\u3019"},
 ];
 
 const DIGRAPH_NICHE_PAIRS = [
-  ['R', 'L'],
-  ['L', 'R'],
-  ['T', 'B'],
-  ['B', 'T'],
+  ["R", "L"],
+  ["L", "R"],
+  ["T", "B"],
+  ["B", "T"],
 ];
 
 // ---------- Edenia kana PUA chart (build_kana.py) ----------
@@ -278,8 +280,8 @@ function kanaHwSmallCp(i) {
 
 /** Random logical index in hiragana or katakana chart (phonetic-biased). */
 function randomKanaLogical(script /* 'hira' | 'kata' */) {
-  const base = script === 'kata' ? HIRAGANA_COUNT : 0;
-  const count = script === 'kata' ? KATAKANA_COUNT : HIRAGANA_COUNT;
+  const base = script === "kata" ? HIRAGANA_COUNT : 0;
+  const count = script === "kata" ? KATAKANA_COUNT : HIRAGANA_COUNT;
   // Prefer phonetic cells; occasionally length/gemination trailers.
   if (random() < 0.92) return base + randomInt(0, KANA_PHONETIC);
   return base + KANA_PHONETIC + randomInt(0, KANA_TRAILING);
@@ -290,13 +292,18 @@ function randomKanaLogical(script /* 'hira' | 'kata' */) {
  * Orientations are real cmap entries (no VS).
  */
 function kanaPuaChar({
-  script = random() < 0.45 ? 'kata' : 'hira',
+  script = random() < 0.45 ? "kata" : "hira",
   small = null,
   halfwidth = null,
   orient = null,
 } = {}) {
   const logical = randomKanaLogical(script);
-  const o = orient == null ? (random() < 0.55 ? 0 : randomInt(0, KANA_D4_COUNT)) : orient & 7;
+  const o =
+    orient == null
+      ? random() < 0.55
+        ? 0
+        : randomInt(0, KANA_D4_COUNT)
+      : orient & 7;
   const i = kanaPairIndex(logical, o);
   const useSmall = small == null ? random() < 0.18 : !!small;
   const useHw = halfwidth == null ? random() < 0.12 : !!halfwidth;
@@ -308,7 +315,7 @@ function kanaPuaChar({
 
 /** Build arrays of identity (o=0) full PUA cps for catalog samples. */
 function kanaPuaScriptRange(script) {
-  const base = script === 'kata' ? HIRAGANA_COUNT : 0;
+  const base = script === "kata" ? HIRAGANA_COUNT : 0;
   const out = [];
   for (let L = 0; L < KANA_PHONETIC; L++) {
     out.push(fromCodePoint(kanaFullCp(kanaPairIndex(base + L, 0))));
@@ -320,8 +327,8 @@ function precomputeCumulativeWeights(array) {
   const cumulativeWeights = [];
   let totalWeight = 0;
   for (const item of array) {
-    if (typeof item.weight != 'number' || item.weight < 0)
-      throw new Error('Weights must be non-negative numbers.');
+    if (typeof item.weight != "number" || item.weight < 0)
+      throw new Error("Weights must be non-negative numbers.");
     totalWeight += item.weight;
     cumulativeWeights.push(totalWeight);
   }
@@ -343,18 +350,18 @@ function randomItemPrecomputed(array, cumulativeWeights, totalWeight) {
 
 function loadCjkData() {
   const candidates = [
-    path.join(SCRIPT_DIR, 'data', 'decomposeCJK.json'),
-    path.join(REPO_ROOT, 'data', 'decomposeCJK.json'),
-    path.join(REPO_ROOT, 'Code', 'data', 'decomposeCJK.json'),
+    path.join(SCRIPT_DIR, "data", "decomposeCJK.json"),
+    path.join(REPO_ROOT, "data", "decomposeCJK.json"),
+    path.join(REPO_ROOT, "Code", "data", "decomposeCJK.json"),
   ];
   for (const p of candidates) {
     if (!fs.existsSync(p)) continue;
-    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    const raw = JSON.parse(fs.readFileSync(p, "utf8"));
     console.log(`CJK_DATA: ${raw.length} rows from ${p}`);
     return raw;
   }
   console.warn(
-    'CJK_DATA: decomposeCJK.json not found — sampling Unicode ranges',
+    "CJK_DATA: decomposeCJK.json not found — sampling Unicode ranges",
   );
   const rows = [];
   const pushRange = (a, b, w) => {
@@ -381,7 +388,7 @@ for (const ch of sampleRange(0x18b00, 0x18cff, 120))
 
 const {cumulativeWeights: CJK_WEIGHTS, totalWeight: CJK_TOTAL} =
   precomputeCumulativeWeights(CJK_DATA);
-console.log(CJK_DATA.length, 'CJK-set characters (Han+Tangut+Khitan)');
+console.log(CJK_DATA.length, "CJK-set characters (Han+Tangut+Khitan)");
 
 function getCJKCharacter() {
   return randomItemPrecomputed(CJK_DATA, CJK_WEIGHTS, CJK_TOTAL).character;
@@ -409,7 +416,7 @@ const jongseong = HANGUL_JAMO.jongseong
   .flatMap(([char, length]) => Array(HANGUL_WEIGHTS[length - 1]).fill(char));
 
 function maybeHangulVs() {
-  return random() < 0.35 ? randomItem(CHARACTERS.feHangulMirror) : '';
+  return random() < 0.35 ? randomItem(CHARACTERS.feHangulMirror) : "";
 }
 
 /**
@@ -424,14 +431,12 @@ function generateHangulSyllableJamo({
   let L = randomItem(choseong);
   let V = randomItem(jungseong);
   const wantT =
-    withFe04 ||
-    (withBatchim == null ? random() < 0.45 : !!withBatchim);
-  let T = wantT ? randomItem(jongseong) : '';
+    withFe04 || (withBatchim == null ? random() < 0.45 : !!withBatchim);
+  let T = wantT ? randomItem(jongseong) : "";
   if (withVs || random() < 0.4) {
-    L += maybeHangulVs() || (withVs ? vs(randomIntInclusive(1, 3)) : '');
-    V += maybeHangulVs() || (withVs ? vs(randomIntInclusive(1, 3)) : '');
-    if (T)
-      T += maybeHangulVs() || (withVs ? vs(randomIntInclusive(1, 3)) : '');
+    L += maybeHangulVs() || (withVs ? vs(randomIntInclusive(1, 3)) : "");
+    V += maybeHangulVs() || (withVs ? vs(randomIntInclusive(1, 3)) : "");
+    if (T) T += maybeHangulVs() || (withVs ? vs(randomIntInclusive(1, 3)) : "");
   }
   let s = L + V + T;
   // FE04 is a syllable-final mark after T (open syllables ignore it).
@@ -441,8 +446,7 @@ function generateHangulSyllableJamo({
 }
 
 function generateHangul(numberSyllables = 1, opts = {}) {
-  return [...Array(numberSyllables)]
-    .map(() => generateHangulSyllableJamo(opts))
+  return [...Array(numberSyllables)].map(() => generateHangulSyllableJamo(opts))
     .join``;
 }
 
@@ -457,26 +461,26 @@ function attachDakuten(base, n = 0) {
 }
 
 function cjkWithD4(ch) {
-  return ch + (random() < 0.5 ? randomItem(CHARACTERS.feD4) : '');
+  return ch + (random() < 0.5 ? randomItem(CHARACTERS.feD4) : "");
 }
 
 function cjkChuNom(ch) {
   if (random() >= 0.08) return ch;
-  return ch + '\u200b' + (random() < 0.5 ? CHARACTERS.ca : CHARACTERS.nhay);
+  return ch + "\u200b" + (random() < 0.5 ? CHARACTERS.ca : CHARACTERS.nhay);
 }
 
 function cjkHalfDigraph(a = getIdeographLike(), b = getIdeographLike()) {
   const [sideA, sideB] = randomItem(DIGRAPH_NICHE_PAIRS);
-  const d4a = random() < 0.4 ? randomItem(CHARACTERS.feD4) : '';
-  const d4b = random() < 0.4 ? randomItem(CHARACTERS.feD4) : '';
+  const d4a = random() < 0.4 ? randomItem(CHARACTERS.feD4) : "";
+  const d4b = random() < 0.4 ? randomItem(CHARACTERS.feD4) : "";
   return (
-    a +
-    d4a +
-    CHARACTERS.feOv +
-    CHARACTERS.feSquish[sideA] +
-    b +
-    d4b +
-    CHARACTERS.feSquish[sideB]
+    a
+    + d4a
+    + CHARACTERS.feOv
+    + CHARACTERS.feSquish[sideA]
+    + b
+    + d4b
+    + CHARACTERS.feSquish[sideB]
   );
 }
 
@@ -488,23 +492,22 @@ function yiSliceDigraph(
   a = randomItem(CHARACTERS.yi),
   b = randomItem(CHARACTERS.yi),
 ) {
-  const joiner =
-    random() < 0.5 ? CHARACTERS.feYiSliceH : CHARACTERS.feYiSliceV;
+  const joiner = random() < 0.5 ? CHARACTERS.feYiSliceH : CHARACTERS.feYiSliceV;
   return a + b + joiner;
 }
 
 function kanaSyllable(script) {
   const useKata =
-    script === 'katakana' || script === 'kata'
+    script === "katakana" || script === "kata"
       ? true
-      : script === 'hiragana' || script === 'hira'
+      : script === "hiragana" || script === "hira"
         ? false
         : random() < 0.45;
-  let s = kanaPuaChar({script: useKata ? 'kata' : 'hira'});
+  let s = kanaPuaChar({script: useKata ? "kata" : "hira"});
   // Yoon-ish: follow with a small (odd) PUA cell from the same script.
   if (random() < 0.12) {
     s += kanaPuaChar({
-      script: useKata ? 'kata' : 'hira',
+      script: useKata ? "kata" : "hira",
       small: true,
       orient: 0,
     });
@@ -512,11 +515,8 @@ function kanaSyllable(script) {
   // Occasional preceding small (sokuon-like).
   if (random() < 0.1) {
     s =
-      kanaPuaChar({
-        script: useKata ? 'kata' : 'hira',
-        small: true,
-        orient: 0,
-      }) + s;
+      kanaPuaChar({script: useKata ? "kata" : "hira", small: true, orient: 0})
+      + s;
   }
   if (random() < 0.2) s += randomItem(CHARACTERS.dakutenMarks);
   return s;
@@ -533,25 +533,24 @@ function kanaSliceDigraph(script) {
 
 function generateNumber(
   maxSigFigs,
-  digits = '0123456789abcdefghijklmnopqrstuvwxyz',
+  digits = "0123456789abcdefghijklmnopqrstuvwxyz",
 ) {
-  let result = '';
-  const [_0 = '0', _1 = '1'] = [...digits];
+  let result = "";
+  const [_0 = "0", _1 = "1"] = [...digits];
   const sigFigs = randomIntInclusive(1, maxSigFigs);
   const exponentDigits = randomIntInclusive(1, 3);
-  const mantissaSign = random() < 0.5 ? '-' : '';
-  const exponentSign = random() < 0.5 ? '-' : '';
+  const mantissaSign = random() < 0.5 ? "-" : "";
+  const exponentSign = random() < 0.5 ? "-" : "";
   let mantissa = [...Array(sigFigs)].map(() => randomItem(digits)).join``;
-  let exponent = [...Array(exponentDigits)]
-    .map(() => randomItem(digits))
+  let exponent = [...Array(exponentDigits)].map(() => randomItem(digits))
     .join``;
   if (random() < 0.5) {
     const index = randomInt(0, mantissa.length);
     mantissa = `${mantissa.slice(0, index)}.${mantissa.slice(index)}`;
     if (mantissa.startsWith`.`) mantissa = mantissa.replace(/^\./, `${_0}.`);
   }
-  mantissa = mantissa.replace(RegExp(`^${_0}+(?=[^.])`, 'g'), '');
-  let [integerPart = '', fractionPart = ''] = mantissa.split`.`;
+  mantissa = mantissa.replace(RegExp(`^${_0}+(?=[^.])`, "g"), "");
+  let [integerPart = "", fractionPart = ""] = mantissa.split`.`;
   integerPart = pipe(
     integerPart,
     reverseString,
@@ -559,9 +558,9 @@ function generateNumber(
     reverseString,
   );
   fractionPart = fractionPart.match(/.{3}|.*/g).join`,`;
-  integerPart = integerPart.replace(/^,/, '');
-  fractionPart = fractionPart.replace(/,$/, '');
-  mantissa = integerPart + (fractionPart ? '.' + fractionPart : '');
+  integerPart = integerPart.replace(/^,/, "");
+  fractionPart = fractionPart.replace(/,$/, "");
+  mantissa = integerPart + (fractionPart ? "." + fractionPart : "");
   result += mantissaSign + mantissa;
   if (random() < 0.1)
     result += `\xd7${_1}${_0}<sup>${exponentSign}${exponent}</sup>`;
@@ -584,12 +583,12 @@ function getWeightedLength() {
 
 /** Ruby `<rt>` from Hangul / Yi / Kana (not CJK — the three other scripts). */
 function generateRubyReading(numberSyllables = 1) {
-  const script = randomItem(['hangul', 'yi', 'kana']);
-  if (script === 'hangul') {
+  const script = randomItem(["hangul", "yi", "kana"]);
+  if (script === "hangul") {
     return generateHangul(numberSyllables, {withVs: random() < 0.35});
   }
-  if (script === 'yi') {
-    let s = '';
+  if (script === "yi") {
+    let s = "";
     for (let i = 0; i < numberSyllables; i++) {
       if (random() < 0.22) s += yiSliceDigraph();
       else s += yiWithD4();
@@ -597,8 +596,8 @@ function generateRubyReading(numberSyllables = 1) {
     }
     return s;
   }
-  const kind = random() < 0.55 ? 'hira' : 'kata';
-  let s = '';
+  const kind = random() < 0.55 ? "hira" : "kata";
+  let s = "";
   for (let i = 0; i < numberSyllables; i++) {
     if (random() < 0.18) s += kanaSliceDigraph(kind);
     else s += kanaSyllable(kind);
@@ -607,14 +606,14 @@ function generateRubyReading(numberSyllables = 1) {
 }
 
 function generateReading(cjkArray) {
-  let rubyResult = '';
-  let reading = '';
+  let rubyResult = "";
+  let reading = "";
   for (let [index, cjkChar] of entries(cjkArray)) {
     const readingLength = (getWeightedLength() % 3) + 1;
-    if (index > 0 && cjkChar != '\u3005')
+    if (index > 0 && cjkChar != "\u3005")
       reading =
-        USED_READINGS[cjkChar] ||
-        (USED_READINGS[cjkChar] = generateRubyReading(readingLength));
+        USED_READINGS[cjkChar]
+        || (USED_READINGS[cjkChar] = generateRubyReading(readingLength));
     else reading = reading || generateRubyReading(readingLength);
     rubyResult += `${cjkChar}<rt>${reading}</rt>`;
   }
@@ -632,8 +631,8 @@ const CHARACTER_CATEGORIES = {
 };
 
 function generateString(maxLength = 1000) {
-  let result = '';
-  let previousCategory = '';
+  let result = "";
+  let previousCategory = "";
   let addOkurigana = false;
 
   while ([...result].length <= maxLength) {
@@ -646,15 +645,15 @@ function generateString(maxLength = 1000) {
     const runLength = getWeightedLength();
 
     switch (category) {
-      case 'hangul': {
+      case "hangul": {
         let chunk = generateHangul(runLength, {withVs: random() < 0.5});
         if (random() < 0.2) chunk = attachDakuten(chunk);
         result += chunk;
         addOkurigana = false;
         break;
       }
-      case 'yi': {
-        let chunk = '';
+      case "yi": {
+        let chunk = "";
         for (let i = 0; i < ceil(runLength / 2); i++) {
           if (random() < 0.25) chunk += yiSliceDigraph();
           else chunk += yiWithD4();
@@ -664,13 +663,13 @@ function generateString(maxLength = 1000) {
         addOkurigana = false;
         break;
       }
-      case 'cjk': {
+      case "cjk": {
         let chars = Array(ceil(runLength / 2))
           .fill(null)
           .map((_, index) => {
             let character = getIdeographLike();
             for (let i = 1; i <= index; i++)
-              if (random() < 0.05 ** i) character += '\u3005';
+              if (random() < 0.05 ** i) character += "\u3005";
             character = cjkChuNom(character);
             if (random() < 0.25) character = cjkWithD4(character);
             return character;
@@ -685,9 +684,9 @@ function generateString(maxLength = 1000) {
         addOkurigana = true;
         break;
       }
-      case 'hiragana':
-      case 'katakana': {
-        let chunk = '';
+      case "hiragana":
+      case "katakana": {
+        let chunk = "";
         for (let i = 0; i < ceil(runLength / 2); i++) {
           if (random() < 0.2) chunk += kanaSliceDigraph(category);
           else chunk += kanaSyllable(category);
@@ -696,18 +695,17 @@ function generateString(maxLength = 1000) {
         addOkurigana = false;
         break;
       }
-      case 'number': {
+      case "number": {
         result += generateNumber(randomIntInclusive(1, 8), CHARACTERS.digits);
         if (random() < 0.1) result += randomItem(CHARACTERS.cjkUnits);
         addOkurigana = false;
         break;
       }
-      case 'acronym': {
-        const upperOrLower = random() < 0.5 ? 'toUpperCase' : 'toLowerCase';
+      case "acronym": {
+        const upperOrLower = random() < 0.5 ? "toUpperCase" : "toLowerCase";
         result += Array(randomInt(1, 4))
           .fill(null)
-          .map(() => randomItem(CHARACTERS.alphabet))
-          .join``[upperOrLower]();
+          .map(() => randomItem(CHARACTERS.alphabet)).join``[upperOrLower]();
         addOkurigana = false;
         break;
       }
@@ -716,22 +714,22 @@ function generateString(maxLength = 1000) {
     // Okurigana after CJK: Edenia hiragana PUA (not Bopomofo).
     if (addOkurigana && random() < 0.5) {
       const n = randomIntInclusive(1, 2);
-      let syllable = '';
-      for (let i = 0; i < n; i++) syllable += kanaSyllable('hira');
+      let syllable = "";
+      for (let i = 0; i < n; i++) syllable += kanaSyllable("hira");
       result += syllable;
     }
 
     let remainingLength = maxLength - [...result].length;
-    let lastAddedElement = 'content';
+    let lastAddedElement = "content";
     let usedBrackets = new Set();
     while (remainingLength > 2) {
       const addPunctuation =
-        random() < 0.05 && lastAddedElement != 'punctuation';
-      const addBracket = random() < 0.005 && lastAddedElement != 'bracket';
+        random() < 0.05 && lastAddedElement != "punctuation";
+      const addBracket = random() < 0.005 && lastAddedElement != "bracket";
       const addFormatting = random() < 0.0005;
       if (addPunctuation) {
         result += randomItem(CHARACTERS.midParagraphPunctuation);
-        lastAddedElement = 'punctuation';
+        lastAddedElement = "punctuation";
         remainingLength--;
       } else if (addBracket) {
         const availableBrackets = BRACKETS.filter(b => !usedBrackets.has(b));
@@ -746,7 +744,7 @@ function generateString(maxLength = 1000) {
             return bracketPair.open + innerContent + bracketPair.close;
           };
           result += nestBrackets(1);
-          lastAddedElement = 'bracket';
+          lastAddedElement = "bracket";
         }
       } else if (addFormatting) {
         const formatOptions = [
@@ -764,20 +762,20 @@ function generateString(maxLength = 1000) {
           );
           result += selectedFormat.format(generateString(segmentLength));
           remainingLength -= segmentLength + selectedFormat.length;
-          lastAddedElement = 'content';
+          lastAddedElement = "content";
         }
       } else break;
     }
 
     result = result
-      .replace(/<\/ruby><ruby>/g, '')
-      .replace(/[\0\ufffc\ufffd]|[\ud800-\udbff](?![\udc00-\udfff])/g, '');
+      .replace(/<\/ruby><ruby>/g, "")
+      .replace(/[\0\ufffc\ufffd]|[\ud800-\udbff](?![\udc00-\udfff])/g, "");
   }
   return result;
 }
 
 function catalogBlock(title, lines) {
-  return `## ${title}\n\n${lines.filter(Boolean).join('\n\n')}\n`;
+  return `## ${title}\n\n${lines.filter(Boolean).join("\n\n")}\n`;
 }
 
 function generateFeatureCatalog() {
@@ -786,15 +784,15 @@ function generateFeatureCatalog() {
   {
     const lines = [];
     lines.push(
-      '**Jamo × FE00–FE03 mirrors** (font: `edenia hangul`) — L/V/T each may take VS',
+      "**Jamo × FE00–FE03 mirrors** (font: `edenia hangul`) — L/V/T each may take VS",
     );
     lines.push(
       [...Array(12)]
         .map(() => generateHangulSyllableJamo({withVs: true}))
-        .join('　'),
+        .join("　"),
     );
     lines.push(
-      '**FE04 batchim top-swap** — same closed syllable ± `U+FE04` (GPOS raises T / lowers LV)',
+      "**FE04 batchim top-swap** — same closed syllable ± `U+FE04` (GPOS raises T / lowers LV)",
     );
     lines.push(
       [...Array(10)]
@@ -806,72 +804,71 @@ function generateFeatureCatalog() {
           const base = L + V + T;
           return `${base}　${base}${CHARACTERS.fe04}`;
         })
-        .join('　·　'),
+        .join("　·　"),
     );
-    lines.push(
-      '**Mirrors + FE04** (T required; FE04 after optional T×VS)',
-    );
+    lines.push("**Mirrors + FE04** (T required; FE04 after optional T×VS)");
     lines.push(
       [...Array(10)]
-        .map(() =>
-          generateHangulSyllableJamo({withVs: true, withFe04: true}),
-        )
-        .join('　'),
+        .map(() => generateHangulSyllableJamo({withVs: true, withFe04: true}))
+        .join("　"),
     );
-    lines.push('**Canonical sample** (FE03 on L/V/T + FE04)');
-    lines.push('ᄒ︃ᅮ︃ᆫ︂︄');
-    lines.push('**With combining marks / CGJ**');
+    lines.push("**Canonical sample** (FE03 on L/V/T + FE04)");
+    lines.push("ᄒ︃ᅮ︃ᆫ︂︄");
+    lines.push("**With combining marks / CGJ**");
     lines.push(
       [...Array(8)]
         .map(() =>
           attachDakuten(
-            generateHangulSyllableJamo({withVs: true, withFe04: random() < 0.5}),
+            generateHangulSyllableJamo({
+              withVs: true,
+              withFe04: random() < 0.5,
+            }),
             2,
           ),
         )
-        .join('　'),
+        .join("　"),
     );
     lines.push(
       `**Mark inventory** (${CHARACTERS.dakutenMarks.length} visible · shared_diacritics)`,
     );
     lines.push(
-      [...Array(24)].map(() => randomItem(CHARACTERS.dakutenMarks)).join('　'),
+      [...Array(24)].map(() => randomItem(CHARACTERS.dakutenMarks)).join("　"),
     );
-    sections.push(catalogBlock('Hangul — ligatures & diacritics', lines));
+    sections.push(catalogBlock("Hangul — ligatures & diacritics", lines));
   }
 
   {
     const lines = [];
-    lines.push('**D4 orientations FE00–FE07** (font: `edenia yi`)');
+    lines.push("**D4 orientations FE00–FE07** (font: `edenia yi`)");
     const base = sampleRange(0xa000, 0xa48c, 8);
     lines.push(
-      base.map(ch => CHARACTERS.feD4.map(v => ch + v).join('')).join('　'),
+      base.map(ch => CHARACTERS.feD4.map(v => ch + v).join("")).join("　"),
     );
-    lines.push('**Slice digraphs** `A B FE08` (H) / `A B FE09` (V)');
-    lines.push([...Array(10)].map(() => yiSliceDigraph()).join('　'));
-    lines.push('**Yi + combining marks**');
+    lines.push("**Slice digraphs** `A B FE08` (H) / `A B FE09` (V)");
+    lines.push([...Array(10)].map(() => yiSliceDigraph()).join("　"));
+    lines.push("**Yi + combining marks**");
     lines.push(
-      [...Array(6)].map(() => attachDakuten(yiWithD4(), 2)).join('　'),
+      [...Array(6)].map(() => attachDakuten(yiWithD4(), 2)).join("　"),
     );
-    sections.push(catalogBlock('Yi — orientations, slices, diacritics', lines));
+    sections.push(catalogBlock("Yi — orientations, slices, diacritics", lines));
   }
 
   {
     const lines = [];
     lines.push(
-      '**Edenia kana PUA** (not Unicode Hiragana/Katakana blocks) — font: `edenia kana`',
+      "**Edenia kana PUA** (not Unicode Hiragana/Katakana blocks) — font: `edenia kana`",
     );
     lines.push(
-      '`i = L×8+o` · full `U+E000+2i` · small `U+E000+2i+1` · halfwidth `U+ED00+2i` / `+1`',
+      "`i = L×8+o` · full `U+E000+2i` · small `U+E000+2i+1` · halfwidth `U+ED00+2i` / `+1`",
     );
     lines.push(
       `Chart: ${KANA_ROWS}×${KANA_COLS} hiragana + length/gemination (L=0…${HIRAGANA_COUNT - 1}), then katakana (L=${HIRAGANA_COUNT}…${KANA_LOGICAL_TOTAL - 1})`,
     );
-    lines.push('**Hiragana PUA row sample** (identity o=0, full)');
-    lines.push(kanaPuaScriptRange('hira').slice(0, 24).join(''));
-    lines.push('**Katakana PUA row sample** (identity o=0, full)');
-    lines.push(kanaPuaScriptRange('kata').slice(0, 24).join(''));
-    lines.push('**D4 orientations** (one logical × o=0…7, full then small)');
+    lines.push("**Hiragana PUA row sample** (identity o=0, full)");
+    lines.push(kanaPuaScriptRange("hira").slice(0, 24).join(""));
+    lines.push("**Katakana PUA row sample** (identity o=0, full)");
+    lines.push(kanaPuaScriptRange("kata").slice(0, 24).join(""));
+    lines.push("**D4 orientations** (one logical × o=0…7, full then small)");
     {
       const L = randomInt(0, KANA_PHONETIC);
       const row = [];
@@ -879,94 +876,104 @@ function generateFeatureCatalog() {
         const i = kanaPairIndex(L, o);
         row.push(fromCodePoint(kanaFullCp(i)) + fromCodePoint(kanaSmallCp(i)));
       }
-      lines.push(row.join('　'));
+      lines.push(row.join("　"));
     }
-    lines.push('**Halfwidth PUA** (`U+ED00…`)');
+    lines.push("**Halfwidth PUA** (`U+ED00…`)");
     lines.push(
       [...Array(12)]
         .map(() =>
           kanaPuaChar({
-            script: random() < 0.5 ? 'hira' : 'kata',
+            script: random() < 0.5 ? "hira" : "kata",
             halfwidth: true,
             small: random() < 0.3,
             orient: 0,
           }),
         )
-        .join(''),
+        .join(""),
     );
-    lines.push('**Plain + combining marks**');
+    lines.push("**Plain + combining marks**");
     lines.push(
       [...Array(16)]
         .map(() => {
-          let s = kanaSyllable(random() < 0.5 ? 'hiragana' : 'katakana');
+          let s = kanaSyllable(random() < 0.5 ? "hiragana" : "katakana");
           if (random() < 0.5) s += randomItem(CHARACTERS.dakutenMarks);
           return s;
         })
-        .join(''),
+        .join(""),
     );
-    lines.push('**Slice digraphs** `A B FE00` (H) / `A B FE01` (V) on PUA bases');
+    lines.push(
+      "**Slice digraphs** `A B FE00` (H) / `A B FE01` (V) on PUA bases",
+    );
     lines.push(
       [...Array(10)]
-        .map(() => kanaSliceDigraph(random() < 0.5 ? 'hiragana' : 'katakana'))
-        .join('　'),
+        .map(() => kanaSliceDigraph(random() < 0.5 ? "hiragana" : "katakana"))
+        .join("　"),
     );
-    lines.push('**Mark stack + CGJ skip**');
+    lines.push("**Mark stack + CGJ skip**");
     lines.push(
-      [...Array(8)]
-        .map(() => attachDakuten(kanaSyllable(), 3))
-        .join('　'),
+      [...Array(8)].map(() => attachDakuten(kanaSyllable(), 3)).join("　"),
     );
-    sections.push(catalogBlock('Kana — PUA chart, D4, slices & diacritics', lines));
+    sections.push(
+      catalogBlock("Kana — PUA chart, D4, slices & diacritics", lines),
+    );
   }
 
   {
     const lines = [];
     lines.push(
-      '**CJK set** = Han + **Tangut** + **Khitan** (`edenia cjk` / `edenia cjk h`)',
+      "**CJK set** = Han + **Tangut** + **Khitan** (`edenia cjk` / `edenia cjk h`)",
     );
-    lines.push('**Tangut sample**');
-    lines.push(sampleRange(0x17000, 0x187f7, 24).join(''));
-    lines.push('**Khitan Small Script sample**');
-    lines.push(sampleRange(0x18b00, 0x18cff, 24).join(''));
-    lines.push('**D4 FE00–FE07 on ideographs**');
+    lines.push("**Tangut sample**");
+    lines.push(sampleRange(0x17000, 0x187f7, 24).join(""));
+    lines.push("**Khitan Small Script sample**");
+    lines.push(sampleRange(0x18b00, 0x18cff, 24).join(""));
+    lines.push("**D4 FE00–FE07 on ideographs**");
     const ideos = [...Array(6)].map(() => getIdeographLike());
     lines.push(
-      ideos.map(ch => CHARACTERS.feD4.map(v => ch + v).join('')).join('　'),
+      ideos.map(ch => CHARACTERS.feD4.map(v => ch + v).join("")).join("　"),
     );
-    lines.push('**ca / nhay** (`U+16FF0` / `U+16FF1`)');
+    lines.push("**ca / nhay** (`U+16FF0` / `U+16FF1`)");
     lines.push(
       [...Array(10)]
         .map(() => {
           const ch = getIdeographLike();
-          return ch + CHARACTERS.ca + ' ' + ch + CHARACTERS.nhay;
+          return ch + CHARACTERS.ca + " " + ch + CHARACTERS.nhay;
         })
-        .join('　'),
+        .join("　"),
     );
     lines.push(
-      '**Half digraphs** `A FE0B FE0C–F` + `B FE0D–F` (needs `edenia cjk h`)',
+      "**Half digraphs** `A FE0B FE0C–F` + `B FE0D–F` (needs `edenia cjk h`)",
     );
-    const classic = cjkHalfDigraph('\u660e', '\u65e5');
+    const classic = cjkHalfDigraph("\u660e", "\u65e5");
     lines.push(
-      [classic, ...Array(11).fill(0).map(() => cjkHalfDigraph())].join('　'),
+      [
+        classic,
+        ...Array(11)
+          .fill(0)
+          .map(() => cjkHalfDigraph()),
+      ].join("　"),
     );
-    lines.push('**All niche pairings on 明/日 with FE00 no-op**');
+    lines.push("**All niche pairings on 明/日 with FE00 no-op**");
     const nicheLines = [];
     for (const [sa, sb] of DIGRAPH_NICHE_PAIRS) {
-      for (const d4 of ['', vs(0), vs(1), vs(2)]) {
+      for (const d4 of ["", vs(0), vs(1), vs(2)]) {
         nicheLines.push(
-          '\u660e' +
-            d4 +
-            CHARACTERS.feOv +
-            CHARACTERS.feSquish[sa] +
-            '\u65e5' +
-            vs(0) +
-            CHARACTERS.feSquish[sb],
+          "\u660e"
+            + d4
+            + CHARACTERS.feOv
+            + CHARACTERS.feSquish[sa]
+            + "\u65e5"
+            + vs(0)
+            + CHARACTERS.feSquish[sb],
         );
       }
     }
-    lines.push(nicheLines.join('　'));
+    lines.push(nicheLines.join("　"));
     sections.push(
-      catalogBlock('CJK set (Han · Tangut · Khitan) — compounds & marks', lines),
+      catalogBlock(
+        "CJK set (Han · Tangut · Khitan) — compounds & marks",
+        lines,
+      ),
     );
   }
 
@@ -976,11 +983,11 @@ function generateFeatureCatalog() {
       yiSliceDigraph(),
       kanaSliceDigraph(),
       cjkHalfDigraph(),
-      sampleRange(0x18b00, 0x18cff, 4).join(''),
-      sampleRange(0x17000, 0x17100, 4).join(''),
-    ].join('｜');
+      sampleRange(0x18b00, 0x18cff, 4).join(""),
+      sampleRange(0x17000, 0x17100, 4).join(""),
+    ].join("｜");
     sections.push(
-      catalogBlock('Mixed one-liner (all scripts)', [
+      catalogBlock("Mixed one-liner (all scripts)", [
         mix,
         attachDakuten(mix, 2),
       ]),
@@ -988,10 +995,10 @@ function generateFeatureCatalog() {
   }
 
   return (
-    '# Edenia feature catalog\n\n' +
-    '_Auto-generated ligature / compound / diacritic checklist. ' +
-    'Stack: Hangul → Kana → Yi → `edenia cjk h` → `edenia cjk`._\n\n' +
-    sections.join('\n')
+    "# Edenia feature catalog\n\n"
+    + "_Auto-generated ligature / compound / diacritic checklist. "
+    + "Stack: Hangul → Kana → Yi → `edenia cjk h` → `edenia cjk`._\n\n"
+    + sections.join("\n")
   );
 }
 
@@ -1017,54 +1024,54 @@ function generateMarkdown(numLines) {
     }
   };
 
-  let result = '';
-  let previousCategory = '';
+  let result = "";
+  let previousCategory = "";
   const headings = generateIndent(5);
   const orderedListCounters = {};
 
   for (let i = 0; i < numLines; i++) {
-    let content = '';
+    let content = "";
     let category = getWeightedCategory(LINE_CATEGORIES, true, previousCategory);
     previousCategory = category;
-    if (i == 0) category = 'heading';
-    if (i > 0 && random() < 0.25) category = 'paragraph';
+    if (i == 0) category = "heading";
+    if (i > 0 && random() < 0.25) category = "paragraph";
 
     switch (category) {
-      case 'paragraph': {
+      case "paragraph": {
         content = `${generateString(randomIntInclusive(256, 4096))}${randomItem(
           CHARACTERS.endParagraphPunctuation,
         )}\n`;
         break;
       }
-      case 'heading': {
+      case "heading": {
         const headingLevel = headings.next().value + 1;
-        content = `${'#'.repeat(headingLevel)} ${generateString(
+        content = `${"#".repeat(headingLevel)} ${generateString(
           randomIntInclusive(32, 256),
         )}\n`;
         break;
       }
-      case 'quote': {
+      case "quote": {
         const quoteIndentSequence = generateIndent(2);
         for (let j = 0; j < randomInt(1, 5); j++) {
           const quoteIndentLevel = quoteIndentSequence.next().value;
-          content += `${'> '.repeat(quoteIndentLevel)}> ${generateString(
+          content += `${"> ".repeat(quoteIndentLevel)}> ${generateString(
             randomIntInclusive(128, 1024),
           )}${randomItem(CHARACTERS.endParagraphPunctuation)}\n`;
         }
         break;
       }
-      case 'list': {
-        const listType = randomItem('-+');
+      case "list": {
+        const listType = randomItem("-+");
         const listIndentSequence = generateIndent(6);
         for (let j = 0; j < randomInt(1, 10); j++) {
           const listIndentLevel = listIndentSequence.next().value;
-          content += `${'  '.repeat(listIndentLevel)}${listType} ${generateString(
+          content += `${"  ".repeat(listIndentLevel)}${listType} ${generateString(
             randomIntInclusive(64, 512),
           )}\n`;
         }
         break;
       }
-      case 'ordered_list': {
+      case "ordered_list": {
         const listIndentSequence = generateIndent(6);
         let previousIndentLevel = -1;
         for (let j = 0; j < randomInt(1, 10); j++) {
@@ -1072,7 +1079,7 @@ function generateMarkdown(numLines) {
           if (listIndentLevel > previousIndentLevel)
             orderedListCounters[listIndentLevel] = 1;
           const counter = orderedListCounters[listIndentLevel] || 1;
-          content += `${'  '.repeat(listIndentLevel)}${counter}. ${generateString(
+          content += `${"  ".repeat(listIndentLevel)}${counter}. ${generateString(
             randomIntInclusive(64, 512),
           )}\n`;
           orderedListCounters[listIndentLevel] = counter + 1;
@@ -1084,27 +1091,31 @@ function generateMarkdown(numLines) {
         break;
       }
     }
-    result += content + '\n\n';
+    result += content + "\n\n";
   }
-  return result.replace(/\n{3,}/g, '\n\n').trim();
+  return result.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function main() {
   const parts = [];
-  parts.push('---');
-  parts.push('title: Edenian script test');
+  parts.push("---");
+  parts.push("title: Edenian script test");
   parts.push(`generated: ${new Date().toISOString()}`);
-  parts.push('---\n');
+  parts.push("---\n");
 
   if (!ARGS.proseOnly) parts.push(generateFeatureCatalog());
   if (!ARGS.catalogOnly) {
-    parts.push('\n# Random prose\n');
+    parts.push("\n# Random prose\n");
     parts.push(generateMarkdown(ARGS.lines));
   }
 
-  const text = parts.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+  const text =
+    parts
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim() + "\n";
   fs.mkdirSync(path.dirname(ARGS.out), {recursive: true});
-  fs.writeFileSync(ARGS.out, text, 'utf8');
+  fs.writeFileSync(ARGS.out, text, "utf8");
   console.log(`wrote ${ARGS.out} (${[...text].length} code points)`);
 }
 
