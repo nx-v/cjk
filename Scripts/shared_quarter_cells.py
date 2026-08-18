@@ -228,9 +228,7 @@ def quarter_niche_windows(
     out: Dict[str, Tuple[float, float, float, float]] = {}
     for slot in quarter_slots_for_face(face):
         _cp, _sel, suf, b0, b1 = slot
-        out[suf] = _quarter_slot_rect(
-            float(target_upem), axis=axis, band0=b0, band1=b1
-        )
+        out[suf] = _quarter_slot_rect(float(target_upem), axis=axis, band0=b0, band1=b1)
     return out
 
 
@@ -259,9 +257,7 @@ def _translate_ink_to_quarter_center(
     target_upem: int,
 ) -> Tuple[TTGlyph, int, int]:
     upem = float(target_upem)
-    x0, y0, x1, y1 = _quarter_slot_rect(
-        upem, axis=axis, band0=band0, band1=band1
-    )
+    x0, y0, x1, y1 = _quarter_slot_rect(upem, axis=axis, band0=band0, band1=band1)
     dst_cx = (x0 + x1) / 2.0
     dst_cy = (y0 + y1) / 2.0
     try:
@@ -443,18 +439,14 @@ def add_quarter_forms(
         if src_th in glyphs:
             _put(
                 th,
-                copy_named_glyph(
-                    src_th, glyphs=glyphs, metrics=metrics, advance=adv
-                ),
+                copy_named_glyph(src_th, glyphs=glyphs, metrics=metrics, advance=adv),
             )
         else:
             _clip(name, "q4th")
         if src_bh in glyphs:
             _put(
                 bh,
-                copy_named_glyph(
-                    src_bh, glyphs=glyphs, metrics=metrics, advance=adv
-                ),
+                copy_named_glyph(src_bh, glyphs=glyphs, metrics=metrics, advance=adv),
             )
         elif th in glyphs:
             _put(
@@ -809,9 +801,7 @@ def install_quarter_cell_gsub(
         gsub.ScriptList.ScriptRecord = []
         gsub.ScriptList.ScriptCount = 0
 
-    existing_scripts = {
-        sr.ScriptTag for sr in (gsub.ScriptList.ScriptRecord or [])
-    }
+    existing_scripts = {sr.ScriptTag for sr in (gsub.ScriptList.ScriptRecord or [])}
     script_tags: List[str] = []
     for line in COMPOSITION_LANGUAGE_SYSTEMS:
         parts = line.replace(";", "").split()

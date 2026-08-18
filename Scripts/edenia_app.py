@@ -78,7 +78,9 @@ def available_cjk_variants() -> List[str]:
 
 
 def _compact_jamo(ranges) -> List[dict]:
-    return [{"cp": e["cp"], "ch": e["ch"], "s": e["short"]} for e in assigned_cps(ranges)]
+    return [
+        {"cp": e["cp"], "ch": e["ch"], "s": e["short"]} for e in assigned_cps(ranges)
+    ]
 
 
 def _combining_marks(limit: int = 48) -> List[dict]:
@@ -181,9 +183,7 @@ class EdeniaHandler(SimpleHTTPRequestHandler):
         if path == "/app.css":
             return self._send_file(WEB_DIR / "app.css", "text/css; charset=utf-8")
         if path == "/app.js":
-            return self._send_file(
-                WEB_DIR / "app.js", "text/javascript; charset=utf-8"
-            )
+            return self._send_file(WEB_DIR / "app.js", "text/javascript; charset=utf-8")
         if path == "/api/data.json":
             body = json.dumps(build_data(), ensure_ascii=False).encode("utf-8")
             return self._send_bytes(body, "application/json; charset=utf-8")
@@ -199,9 +199,7 @@ class EdeniaHandler(SimpleHTTPRequestHandler):
                 self.send_error(404, f"missing {src.name} — build that face first")
                 return
             text = rewrite_css(src.read_text(encoding="utf-8"), folder)
-            return self._send_bytes(
-                text.encode("utf-8"), "text/css; charset=utf-8"
-            )
+            return self._send_bytes(text.encode("utf-8"), "text/css; charset=utf-8")
         if path.startswith("/fonts/"):
             rest = path[len("/fonts/") :]
             parts = rest.split("/", 1)

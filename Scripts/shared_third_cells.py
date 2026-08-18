@@ -162,9 +162,7 @@ def _translate_ink_to_third_center(
     target_upem: int,
 ) -> Tuple[TTGlyph, int, int]:
     upem = float(target_upem)
-    x0, y0, x1, y1 = _third_slot_rect(
-        upem, axis=axis, band0=band0, band1=band1
-    )
+    x0, y0, x1, y1 = _third_slot_rect(upem, axis=axis, band0=band0, band1=band1)
     dst_cx = (x0 + x1) / 2.0
     dst_cy = (y0 + y1) / 2.0
     try:
@@ -341,9 +339,7 @@ def add_third_forms(
         )
         _put(
             m,
-            boolean_subtract_named(
-                mb, b, glyphs=glyphs, metrics=metrics, advance=adv
-            ),
+            boolean_subtract_named(mb, b, glyphs=glyphs, metrics=metrics, advance=adv),
         )
         _put(
             cr,
@@ -359,9 +355,7 @@ def add_third_forms(
         )
         _put(
             c,
-            boolean_subtract_named(
-                lc, l, glyphs=glyphs, metrics=metrics, advance=adv
-            ),
+            boolean_subtract_named(lc, l, glyphs=glyphs, metrics=metrics, advance=adv),
         )
         added.append(name)
     return added
@@ -466,9 +460,7 @@ def prepare_third_cells(
         target_upem=target_upem,
     )
     third_windows = {
-        suf: _third_slot_rect(
-            float(target_upem), axis=axis, band0=b0, band1=b1
-        )
+        suf: _third_slot_rect(float(target_upem), axis=axis, band0=b0, band1=b1)
         for _cp, _sel, suf, axis, b0, b1 in THIRD_VS_SLOTS
     }
     propagate_d4_niches(
@@ -556,9 +548,7 @@ def install_third_cell_gsub(
         gsub.ScriptList.ScriptCount = 0
 
     # Ensure common script tags exist.
-    existing_scripts = {
-        sr.ScriptTag for sr in (gsub.ScriptList.ScriptRecord or [])
-    }
+    existing_scripts = {sr.ScriptTag for sr in (gsub.ScriptList.ScriptRecord or [])}
     script_tags: List[str] = []
     for line in COMPOSITION_LANGUAGE_SYSTEMS:
         parts = line.replace(";", "").split()

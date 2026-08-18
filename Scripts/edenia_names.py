@@ -67,9 +67,7 @@ def cjk_variant_from_token(token: str) -> str:
     """``base`` / ``h`` / ``t`` / ``q`` / ``qv`` / ``qh`` → face suffix."""
     key = str(token).strip().lower()
     if key not in _CJK_FACE_TOKEN:
-        raise ValueError(
-            f"unknown CJK face {token!r}; use base, h, t, q, qv, qh"
-        )
+        raise ValueError(f"unknown CJK face {token!r}; use base, h, t, q, qv, qh")
     return _CJK_FACE_TOKEN[key]
 
 
@@ -143,7 +141,9 @@ def resolve_cjk_variants(args: argparse.Namespace) -> tuple[str, ...]:
     faces = getattr(args, "faces", None)
     base_only = getattr(args, "base_only", False)
     if base_only and (faces or extras):
-        raise ValueError("--base-only cannot be combined with --faces / --h / --t / --q")
+        raise ValueError(
+            "--base-only cannot be combined with --faces / --h / --t / --q"
+        )
     if base_only:
         return ("",)
     if faces:

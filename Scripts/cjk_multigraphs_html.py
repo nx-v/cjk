@@ -67,7 +67,9 @@ def write_html(
 
     abs_font = os.path.abspath(font_dir)
     try:
-        rel_font = os.path.relpath(abs_font, os.path.dirname(os.path.abspath(path))).replace("\\", "/")
+        rel_font = os.path.relpath(
+            abs_font, os.path.dirname(os.path.abspath(path))
+        ).replace("\\", "/")
     except ValueError:
         rel_font = abs_font.replace("\\", "/")
 
@@ -695,7 +697,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     ap.add_argument("-o", "--output", default=DEFAULT_OUT)
     ap.add_argument("--font-dir", default=CJK_OUT)
     ap.add_argument("--font-size", type=int, default=96)
-    ap.add_argument("--limit", type=int, default=4096, help="CJK sample pool for default seeds")
+    ap.add_argument(
+        "--limit", type=int, default=4096, help="CJK sample pool for default seeds"
+    )
     ap.add_argument(
         "--range",
         action="append",
