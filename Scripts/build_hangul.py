@@ -132,7 +132,7 @@ PS_SYLL = PS_HANGULS
 LOCAL_SCALE = 1.0
 # Uniform Y translate after UPM fit (target-upem units). Malgun Hangul sits
 # high vs CJK/kana/Yi (typo mid ~380); negative shifts down to match.
-MALGUN_Y_SHIFT = -45
+MALGUN_Y_SHIFT = -40
 # Extra Y scale about the ideographic center after UPM fit (1.0 = none).
 # Malgun Hangul syllables are ~935 tall vs CJK median ~901 → ~0.96.
 MALGUN_Y_SCALE = 0.875
@@ -3025,7 +3025,8 @@ def write_css(
                     from shared_diacritics import combining_mark_codepoints_from_font
 
                     cps_for_ur = list(
-                        set(cps_for_ur) | set(combining_mark_codepoints_from_font(font_path))
+                        set(cps_for_ur)
+                        | set(combining_mark_codepoints_from_font(font_path))
                     )
                 except Exception as exc:
                     print(f"  [!] hangul mark unicode-range: {exc}", flush=True)

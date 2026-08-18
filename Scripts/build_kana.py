@@ -87,6 +87,7 @@ from shared_half_cells import (
     ideographic_bounds,
     ideographic_center,
     orientation_form_names,
+    rebuild_sideways_from_r90,
     variant_glyph_name,
     variant_transform,
 )
@@ -971,9 +972,9 @@ def make_halfwidth_r90_glyph(
 ) -> Tuple[TTGlyph, int, int]:
     """Halfwidth r90/r270 source: CAPE Height 0.5, then rotate 90°.
 
-    Upright halfwidth is X-squeezed. Sideways forms must Y-squeeze the
-    unsqueezed outline first so after r90 they are wide-and-short (half
-    height → half width), not tall-and-narrow.
+    Upright halfwidth is X-squeezed (narrow + tall, advance ½em). Rotating
+    that outline makes it ~1em wide in a ½em advance (overlap). Y-squeeze
+    the unsqueezed source first so after r90 the glyph stays ½em wide.
     """
     baked, adv, _ = _bake_simple(src_glyph, advance, glyph_set)
     half_adv = otRound(target_upem * HALF_WIDTH_FACTOR)
@@ -1030,12 +1031,20 @@ def replace_halfwidth_r90(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     glyph_set: Dict[str, TTGlyph],
+    glyph_order: Optional[List[str]] = None,
     size_factor: float = 1.0,
+    pivot: Optional[Tuple[float, float]] = None,
 ) -> None:
-    """Overwrite ``.r90`` (r270 / r90mx / r90my stay composites of it)."""
+    """Install Y-squeezed ``.r90`` and re-bake r270 / r90mx / r90my from it.
+
+    D4 sideways forms are baked outlines, not live composites — replacing
+    ``.r90`` alone leaves the others as a 90° turn of the X-squeezed identity.
+    """
     r90 = variant_glyph_name(hw_name, "r90")
     if r90 not in glyphs:
-        return
+        if glyph_order is None:
+            return
+        glyph_order.append(r90)
     hstem = _fixed_horizontal_stem(src_glyph, float(src_advance))
     g, adv, lsb = make_halfwidth_r90_glyph(
         src_glyph,
@@ -1047,6 +1056,14 @@ def replace_halfwidth_r90(
     )
     glyphs[r90] = g
     metrics[r90] = (adv, lsb)
+    rebuild_sideways_from_r90(
+        hw_name,
+        target_upem=target_upem,
+        glyphs=glyphs,
+        metrics=metrics,
+        pivot=pivot if pivot is not None else halfwidth_center(target_upem, size_factor),
+        modes=YI_ORIENTATION_MODES,
+    )
 
 
 def make_halfwidth_kana_glyph(
@@ -1508,6 +1525,20 @@ def build_pankana_font(
             glyphs[hw_base] = hw_g
             metrics[hw_base] = (hw_adv, hw_lsb)
             hw_full_bases.append(hw_base)
+            hw_pivot = halfwidth_center(target_upem)
+            # Y-squeezed r90 before D4 so r270/r90mx/r90my are not a rotate of
+            # the X-squeezed identity (~1em ink in a ½em advance).
+            replace_halfwidth_r90(
+                hw_base,
+                glyphs[base],
+                f_adv,
+                target_upem,
+                glyphs=glyphs,
+                metrics=metrics,
+                glyph_set=glyphs,
+                glyph_order=glyph_order,
+                pivot=hw_pivot,
+            )
             add_d4_variant_glyphs(
                 hw_base,
                 advance=hw_adv,
@@ -1518,16 +1549,15 @@ def build_pankana_font(
                 metrics=metrics,
                 modes=YI_ORIENTATION_MODES,
                 anchor="cell",
-                pivot=halfwidth_center(target_upem),
+                pivot=hw_pivot,
             )
-            replace_halfwidth_r90(
+            rebuild_sideways_from_r90(
                 hw_base,
-                glyphs[base],
-                f_adv,
-                target_upem,
+                target_upem=target_upem,
                 glyphs=glyphs,
                 metrics=metrics,
-                glyph_set=glyphs,
+                pivot=hw_pivot,
+                modes=YI_ORIENTATION_MODES,
             )
 
             sm_adv, _sm_lsb = metrics[sm_base]
@@ -1544,6 +1574,19 @@ def build_pankana_font(
             glyphs[hw_sm] = hwsg
             metrics[hw_sm] = (hws_adv, hws_lsb)
             hw_small_bases.append(hw_sm)
+            hw_sm_pivot = halfwidth_center(target_upem, SMALL_WIDTH_FACTOR)
+            replace_halfwidth_r90(
+                hw_sm,
+                glyphs[sm_base],
+                sm_adv,
+                target_upem,
+                glyphs=glyphs,
+                metrics=metrics,
+                glyph_set=glyphs,
+                glyph_order=glyph_order,
+                size_factor=SMALL_WIDTH_FACTOR,
+                pivot=hw_sm_pivot,
+            )
             add_d4_variant_glyphs(
                 hw_sm,
                 advance=hws_adv,
@@ -1554,17 +1597,15 @@ def build_pankana_font(
                 metrics=metrics,
                 modes=YI_ORIENTATION_MODES,
                 anchor="cell",
-                pivot=halfwidth_center(target_upem, SMALL_WIDTH_FACTOR),
+                pivot=hw_sm_pivot,
             )
-            replace_halfwidth_r90(
+            rebuild_sideways_from_r90(
                 hw_sm,
-                glyphs[sm_base],
-                sm_adv,
-                target_upem,
+                target_upem=target_upem,
                 glyphs=glyphs,
                 metrics=metrics,
-                glyph_set=glyphs,
-                size_factor=SMALL_WIDTH_FACTOR,
+                pivot=hw_sm_pivot,
+                modes=YI_ORIENTATION_MODES,
             )
             for orient in range(D4_COUNT):
                 hfname = form_name_for_orient(hw_base, orient)

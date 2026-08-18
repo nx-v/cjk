@@ -1240,6 +1240,55 @@ def add_d4_variant_glyphs(
     return installed
 
 
+def rebuild_sideways_from_r90(
+    base_name: str,
+    *,
+    target_upem: int,
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    pivot: Optional[Tuple[float, float]] = None,
+    modes: Optional[Sequence[TransformMode]] = None,
+) -> None:
+    """Re-bake r270 / r90mx / r90my from the current ``.r90`` outline.
+
+    ``add_d4_variant_glyphs`` bakes those from r90 (``allow_2x2=False``), so
+    replacing ``.r90`` later does not update them. Call this after any r90
+    rewrite (halfwidth Y-squeeze-then-rotate).
+    """
+    r90_name = variant_glyph_name(base_name, "r90")
+    if r90_name not in glyphs or r90_name not in metrics:
+        return
+    parent_glyph = glyphs[r90_name]
+    parent_adv, parent_lsb = int(metrics[r90_name][0]), int(metrics[r90_name][1])
+    cell_mid = pivot if pivot is not None else ideographic_center(target_upem)
+    use_modes = modes if modes is not None else TRANSFORM_MODES
+    wanted = {
+        suffix
+        for _vs, _r, _fx, _fy, suffix in use_modes
+        if suffix in SIDEWAYS_FROM_R90
+    }
+    for suffix in wanted:
+        m_name = variant_glyph_name(base_name, suffix)
+        if m_name not in glyphs:
+            continue
+        rel_rot, rel_fx, rel_fy = SIDEWAYS_FROM_R90[suffix]
+        m_glyph, m_adv, m_lsb = make_composite_variant(
+            r90_name,
+            target_upem,
+            rot90_quarters=rel_rot,
+            flip_x=rel_fx,
+            flip_y=rel_fy,
+            advance=parent_adv,
+            lsb=parent_lsb,
+            base_glyph=parent_glyph,
+            glyph_set=glyphs,
+            center=cell_mid,
+            allow_2x2=False,
+        )
+        glyphs[m_name] = m_glyph
+        metrics[m_name] = (int(m_adv), int(m_lsb))
+
+
 def vs_glyph_name(vs_cp: int) -> str:
     match vs_cp:
         case _ if vs_cp == STACK_MARK_CP:
