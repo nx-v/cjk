@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
+from typing import Iterable
+
 # CSS / name-table families (spaces allowed).
 FAMILY_KANA = "edenia kana"
 FAMILY_YI = "edenia yi"
@@ -45,6 +48,114 @@ CJK_FACE_CSS_ORDER: tuple[str, ...] = ("q", "qv", "qh", "t", "h", "")
 
 # Longer suffixes first so ``qh``/``qv`` are not parsed as ``q``/``h``.
 _CJK_FACE_SUFFIXES: tuple[str, ...] = ("qh", "qv", "q", "h", "t")
+
+# CLI tokens → variant suffix (``""`` is the identity / base face).
+_CJK_FACE_TOKEN: dict[str, str] = {
+    "base": "",
+    "none": "",
+    "plain": "",
+    "id": "",
+    "h": "h",
+    "t": "t",
+    "q": "q",
+    "qv": "qv",
+    "qh": "qh",
+}
+
+
+def cjk_variant_from_token(token: str) -> str:
+    """``base`` / ``h`` / ``t`` / ``q`` / ``qv`` / ``qh`` → face suffix."""
+    key = str(token).strip().lower()
+    if key not in _CJK_FACE_TOKEN:
+        raise ValueError(
+            f"unknown CJK face {token!r}; use base, h, t, q, qv, qh"
+        )
+    return _CJK_FACE_TOKEN[key]
+
+
+def ordered_cjk_variants(variants: Iterable[str]) -> tuple[str, ...]:
+    """Dedupe and order like :data:`CJK_FACE_BUILD_ORDER`."""
+    want = set(variants)
+    unknown = want - set(CJK_FACE_VARIANTS)
+    if unknown:
+        raise ValueError(f"unknown CJK variants: {sorted(unknown)}")
+    return tuple(v for v in CJK_FACE_BUILD_ORDER if v in want)
+
+
+def add_cjk_variant_arguments(parser: argparse.ArgumentParser) -> None:
+    """``--base-only``, ``--faces``, and ``--h`` / ``--t`` / ``--q`` / ``--qv`` / ``--qh``."""
+    g = parser.add_argument_group("CJK faces")
+    g.add_argument(
+        "--base-only",
+        action="store_true",
+        help="Build only identity/base faces (no h/t/q/qv/qh)",
+    )
+    g.add_argument(
+        "--faces",
+        metavar="LIST",
+        help="Exact comma list: base,h,t,q,qv,qh (overrides --h/--t/…)",
+    )
+    g.add_argument(
+        "--h",
+        dest="want_h",
+        action="store_true",
+        help="Include half-cell faces (implies base)",
+    )
+    g.add_argument(
+        "--t",
+        dest="want_t",
+        action="store_true",
+        help="Include third-cell faces (implies base)",
+    )
+    g.add_argument(
+        "--q",
+        dest="want_q",
+        action="store_true",
+        help="Include 2×2 / L faces (implies base)",
+    )
+    g.add_argument(
+        "--qv",
+        dest="want_qv",
+        action="store_true",
+        help="Include vertical quarter faces (implies base)",
+    )
+    g.add_argument(
+        "--qh",
+        dest="want_qh",
+        action="store_true",
+        help="Include horizontal quarter faces (implies base)",
+    )
+
+
+def resolve_cjk_variants(args: argparse.Namespace) -> tuple[str, ...]:
+    """Selected CJK suffixes from CLI flags (default: all)."""
+    extras = [
+        v
+        for v, flag in (
+            ("h", getattr(args, "want_h", False)),
+            ("t", getattr(args, "want_t", False)),
+            ("q", getattr(args, "want_q", False)),
+            ("qv", getattr(args, "want_qv", False)),
+            ("qh", getattr(args, "want_qh", False)),
+        )
+        if flag
+    ]
+    faces = getattr(args, "faces", None)
+    base_only = getattr(args, "base_only", False)
+    if base_only and (faces or extras):
+        raise ValueError("--base-only cannot be combined with --faces / --h / --t / --q")
+    if base_only:
+        return ("",)
+    if faces:
+        if extras:
+            raise ValueError("use either --faces or --h/--t/--q/--qv/--qh, not both")
+        got = [cjk_variant_from_token(p) for p in str(faces).split(",") if p.strip()]
+        if not got:
+            raise ValueError("--faces is empty")
+        return ordered_cjk_variants(got)
+    if extras:
+        return ordered_cjk_variants(["", *extras])
+    return CJK_FACE_BUILD_ORDER
 
 
 def family_cjk(face_id: str) -> str:

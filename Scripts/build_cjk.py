@@ -106,9 +106,12 @@ from edenia_names import (
     CJK_FACE_VARIANTS,
     CSS_CJK,
     STACK_CJK_TAIL,
+    add_cjk_variant_arguments,
     cjk_face_id,
     family_cjk,
+    ordered_cjk_variants,
     ps_cjk,
+    resolve_cjk_variants,
     split_cjk_face_id,
 )
 from sync_edenian_fonts import sync_dist_to_plugin
@@ -1294,48 +1297,56 @@ def _build_bucket_master_state(
     sources: Dict[str, SourceFont],
     target_upem: int,
     *,
+    variants: Sequence[str] = CJK_FACE_BUILD_ORDER,
     timings: Optional[Dict[str, float]] = None,
 ) -> Optional[Dict]:
     """Import + niche clips for one bucket; return pickle-able master glyf state."""
+    want = set(variants)
+    with_d4 = bool(want - {""})
     glyph_order, glyphs, metrics, cmap, base_names = _import_bucket_glyphs(
-        entries, sources, target_upem, with_d4=True, timings=timings
+        entries, sources, target_upem, with_d4=with_d4, timings=timings
     )
     if not base_names:
         return None
 
     in_dir = os.path.dirname(next(iter(sources.keys()))) if sources else IN_DIR
-    t0 = time.perf_counter()
-    prepare_squish_vs_access(
-        cjk_bases=base_names,
-        glyph_order=glyph_order,
-        glyphs=glyphs,
-        metrics=metrics,
-        cmap=cmap,
-        target_upem=target_upem,
-        liga_rules=[],
-        uvs_rows=[],
-        width_factor=SQUISH_FACTOR,
-        height_factor=SQUISH_FACTOR,
-        in_dir=in_dir,
-    )
-    if timings is not None:
-        timings["halves"] = time.perf_counter() - t0
-    t0 = time.perf_counter()
-    prepare_third_cells(
-        cjk_bases=base_names,
-        glyph_order=glyph_order,
-        glyphs=glyphs,
-        metrics=metrics,
-        cmap=cmap,
-        target_upem=target_upem,
-    )
-    if timings is not None:
-        timings["thirds"] = time.perf_counter() - t0
+    need_halves = bool(want & {"h", "q"})
+    if need_halves:
+        t0 = time.perf_counter()
+        prepare_squish_vs_access(
+            cjk_bases=base_names,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            cmap=cmap,
+            target_upem=target_upem,
+            liga_rules=[],
+            uvs_rows=[],
+            width_factor=SQUISH_FACTOR,
+            height_factor=SQUISH_FACTOR,
+            in_dir=in_dir,
+        )
+        if timings is not None:
+            timings["halves"] = time.perf_counter() - t0
+    if "t" in want:
+        t0 = time.perf_counter()
+        prepare_third_cells(
+            cjk_bases=base_names,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            cmap=cmap,
+            target_upem=target_upem,
+        )
+        if timings is not None:
+            timings["thirds"] = time.perf_counter() - t0
     for qface, qkey in (
         (QUARTER_FACE_GRID, "q"),
         (QUARTER_FACE_V, "qv"),
         (QUARTER_FACE_H, "qh"),
     ):
+        if qkey not in want:
+            continue
         t0 = time.perf_counter()
         prepare_quarter_cells(
             face=qface,
@@ -1532,24 +1543,19 @@ def _build_all_bucket_faces(
     write_ttf: bool = True,
     write_woff2: bool = True,
     hint: bool = True,
+    variants: Sequence[str] = CJK_FACE_BUILD_ORDER,
 ) -> List[Tuple[str, Optional[Tuple[str, int, List[int]]]]]:
-    """Build six faces for one bucket (tests / single-bucket use)."""
+    """Build selected faces for one bucket (tests / single-bucket use)."""
     from shared_hinting import autohint_ttf
 
+    variants = ordered_cjk_variants(variants)
     bucket_hex = f"{bucket_id:X}"
     os.makedirs(out_dir, exist_ok=True)
-    empty_row = [
-        ("", None),
-        ("h", None),
-        ("q", None),
-        ("qv", None),
-        ("qh", None),
-        ("t", None),
-    ]
+    empty_row = [(v, None) for v in variants]
     times: Dict[str, float] = {}
     t_all = time.perf_counter()
     state = _build_bucket_master_state(
-        entries, sources, target_upem, timings=times
+        entries, sources, target_upem, variants=variants, timings=times
     )
     if state is None:
         return empty_row
@@ -1557,7 +1563,7 @@ def _build_all_bucket_faces(
     rows: List[Tuple[str, Optional[Tuple[str, int, List[int]]]]] = []
     ttf_paths: List[str] = []
     t0 = time.perf_counter()
-    for variant in CJK_FACE_BUILD_ORDER:
+    for variant in variants:
         face, out_path = _build_face_ttf_from_state(
             bucket_id, variant, state, out_dir
         )
@@ -1566,7 +1572,7 @@ def _build_all_bucket_faces(
             ttf_paths.append(out_path)
     times["faces"] = time.perf_counter() - t0
 
-    workers = max(1, min(len(CJK_FACE_BUILD_ORDER), len(ttf_paths)))
+    workers = max(1, min(len(variants), len(ttf_paths)))
     try:
         t0 = time.perf_counter()
         if hint and ttf_paths:
@@ -1599,8 +1605,9 @@ def build_bucket_faces(
     write_ttf: bool = True,
     write_woff2: bool = True,
     hint: bool = True,
+    variants: Sequence[str] = CJK_FACE_BUILD_ORDER,
 ) -> List[Tuple[str, int, List[int]]]:
-    """Build every face for one bucket sequentially (tests / single-bucket use)."""
+    """Build selected faces for one bucket sequentially (tests / single-bucket use)."""
     built: List[Tuple[str, int, List[int]]] = []
     for _variant, face in _build_all_bucket_faces(
         bucket_id,
@@ -1611,6 +1618,7 @@ def build_bucket_faces(
         write_ttf=write_ttf,
         write_woff2=write_woff2,
         hint=hint,
+        variants=variants,
     ):
         if face is not None:
             built.append(face)
@@ -1626,6 +1634,7 @@ _WORKER_UPEM: Optional[int] = None
 _WORKER_WRITE_TTF: bool = True
 _WORKER_WRITE_WOFF2: bool = True
 _WORKER_HINT: bool = True
+_WORKER_VARIANTS: Tuple[str, ...] = CJK_FACE_BUILD_ORDER
 
 
 def compress_woff2(ttf_path: str, woff2_path: Optional[str] = None) -> str:
@@ -1671,16 +1680,18 @@ def _init_build_worker(
     write_ttf: bool,
     write_woff2: bool,
     hint: bool = True,
+    variants: Tuple[str, ...] = CJK_FACE_BUILD_ORDER,
 ) -> None:
     """Load source fonts once per process worker."""
     global _WORKER_SOURCES, _WORKER_OUT_DIR, _WORKER_CACHE_DIR, _WORKER_UPEM
-    global _WORKER_WRITE_TTF, _WORKER_WRITE_WOFF2, _WORKER_HINT
+    global _WORKER_WRITE_TTF, _WORKER_WRITE_WOFF2, _WORKER_HINT, _WORKER_VARIANTS
     _WORKER_OUT_DIR = out_dir
     _WORKER_CACHE_DIR = cache_dir
     _WORKER_UPEM = target_upem
     _WORKER_WRITE_TTF = write_ttf
     _WORKER_WRITE_WOFF2 = write_woff2
     _WORKER_HINT = hint
+    _WORKER_VARIANTS = tuple(variants)
     _WORKER_SOURCES = {
         p: SourceFont(p, local_scale=s, weightor=w) for p, s, w in font_entries
     }
@@ -1702,7 +1713,10 @@ def _master_cache_task(
         if os.path.isfile(cache_path):
             return bucket_id, True
         state = _build_bucket_master_state(
-            entries, _WORKER_SOURCES, _WORKER_UPEM
+            entries,
+            _WORKER_SOURCES,
+            _WORKER_UPEM,
+            variants=_WORKER_VARIANTS,
         )
         if state is None:
             return bucket_id, False
@@ -1941,7 +1955,17 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
-    base_fam = family_cjk_variant("")
+    built_vars = [
+        parsed[1]
+        for fid, *_ in ordered
+        if (parsed := parse_cjk_face_id(fid)) is not None
+    ]
+    stack_variant = ""
+    if built_vars and "" not in built_vars:
+        stack_variant = next(
+            (v for v in CJK_FACE_CSS_ORDER if v in built_vars), built_vars[0]
+        )
+    base_fam = family_cjk_variant(stack_variant)
     fontlist_path = os.path.join(out_dir, "fontlist.css")
     fontlist = f"""/* src/scss/index.scss — Edenia CJK pigeonhole font stack */
 /* Base family only. Digraphs/thirds/quarters: 'edenia cjk h' / t / q / qv / qh. */
@@ -1961,8 +1985,13 @@ body {{
     print(f"Wrote {fontlist_path}")
 
 
-def regenerate_css_from_dist(out_dir: str) -> None:
+def regenerate_css_from_dist(
+    out_dir: str,
+    *,
+    variants: Optional[Sequence[str]] = None,
+) -> None:
     """Rewrite edenia-cjk.css / fontlist.css from existing ``*.woff2`` / ``*.ttf``."""
+    want = set(ordered_cjk_variants(variants)) if variants is not None else None
     seen: Dict[str, None] = {}
     built: List[Tuple[str, int, List[int]]] = []
     for name in sorted(os.listdir(out_dir)):
@@ -1976,6 +2005,8 @@ def regenerate_css_from_dist(out_dir: str) -> None:
             continue
         bucket_id, variant = parsed
         if variant not in CJK_FACE_VARIANTS:
+            continue
+        if want is not None and variant not in want:
             continue
         seen[face_id] = None
         built.append((face_id, 0, []))
@@ -1998,9 +2029,12 @@ def build_all(
     write_ttf: bool = True,
     write_woff2: bool = True,
     hint: bool = True,
+    variants: Sequence[str] = CJK_FACE_BUILD_ORDER,
 ) -> None:
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
+    variants = ordered_cjk_variants(variants)
+    labels = ["base" if v == "" else v for v in variants]
     font_entries = resolve_priority_fonts(in_dir)
     if not font_entries:
         print("No priority fonts found in", in_dir, file=sys.stderr)
@@ -2024,8 +2058,9 @@ def build_all(
     )
     print(f"Output formats: {fmt_note}")
     print(
-        "Faces/bucket: q/qv/qh, t, h, base (CSS); "
-        "four stages: master glyf → TTF → hint → WOFF2 (all parallel)"
+        "Faces: "
+        + ", ".join(labels)
+        + "; four stages: master glyf → TTF → hint → WOFF2 (all parallel)"
     )
 
     sources_list = [
@@ -2061,7 +2096,7 @@ def build_all(
     workers = max(1, jobs)
     bucket_ids = sorted(buckets.keys())
     n_buckets = len(bucket_ids)
-    n_variants = len(CJK_FACE_BUILD_ORDER)
+    n_variants = len(variants)
     n_faces = n_buckets * n_variants
     print(
         f"\nBuilding {n_faces} faces "
@@ -2091,6 +2126,7 @@ def build_all(
                 write_ttf,
                 write_woff2,
                 hint,
+                variants,
             ),
         ) as executor:
             master_jobs = [(bid, buckets[bid]) for bid in bucket_ids]
@@ -2108,7 +2144,7 @@ def build_all(
             face_jobs = [
                 (bid, variant)
                 for bid in bucket_ids
-                for variant in CJK_FACE_BUILD_ORDER
+                for variant in variants
             ]
             t0 = time.perf_counter()
             print(
@@ -2203,7 +2239,7 @@ def parse_args() -> argparse.Namespace:
         dest="jobs",
         type=int,
         default=max(1, os.cpu_count() or 4),
-        help="Parallel workers per stage (default: all CPUs); 4 stages: master→TTF→hint→WOFF2",
+        help="Parallel workers per stage (default: all CPUs); 4 stages: master TTF, hint, WOFF2",
     )
     p.add_argument(
         "--css-only",
@@ -2222,13 +2258,24 @@ def parse_args() -> argparse.Namespace:
         help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
     add_no_hint_argument(p)
+    add_cjk_variant_arguments(p)
     return p.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
+    try:
+        variants = resolve_cjk_variants(args)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        sys.exit(2)
     if args.css_only:
-        regenerate_css_from_dist(args.out_dir)
+        regenerate_css_from_dist(
+            args.out_dir,
+            variants=None
+            if variants == CJK_FACE_BUILD_ORDER
+            else variants,
+        )
     else:
         build_all(
             args.in_dir,
@@ -2238,4 +2285,5 @@ if __name__ == "__main__":
             write_ttf=not args.woff2_only,
             write_woff2=not args.ttf_only,
             hint=not args.no_hint,
+            variants=variants,
         )

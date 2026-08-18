@@ -57,6 +57,7 @@ from edenia_names import (
     PLUGIN_ID,
     STACK_CJK_TAIL,
 )
+from sync_edenian_fonts import woff2_names_from_css_dir
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
@@ -145,15 +146,28 @@ def load_css(kind: str, *, local: bool) -> str:
 
 
 def sync_woff2(dest_root: Path) -> int:
-    """Copy hangul/yi/kana/cjk .woff2 into dest_root/{folder}/."""
+    """Copy hangul/yi/kana/cjk .woff2 into dest_root/{folder}/.
+
+    CJK copies follow ``edenia-cjk.css`` so unused niche faces stay out of the plugin.
+    """
     n = 0
     for folder in BAKE_FOLDERS:
         src_dir = DIST_DIR / folder
         dst_dir = dest_root / folder
         dst_dir.mkdir(parents=True, exist_ok=True)
+        allow = woff2_names_from_css_dir(src_dir) if folder == "cjk" else None
         for src in sorted(src_dir.glob("*.woff2")):
+            if allow is not None and src.name not in allow:
+                continue
             shutil.copy2(src, dst_dir / src.name)
             n += 1
+        if allow is not None:
+            for stale in dst_dir.glob("*.woff2"):
+                if stale.name not in allow:
+                    try:
+                        stale.unlink()
+                    except OSError:
+                        pass
     try:
         shown = dest_root.relative_to(REPO_ROOT)
     except ValueError:

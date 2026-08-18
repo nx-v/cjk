@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Edenia composer</title>
+  <link rel="stylesheet" href="/css/hangul.css"/>
+  <link rel="stylesheet" href="/css/yi.css"/>
+  <link rel="stylesheet" href="/css/kana.css"/>
+  <link rel="stylesheet" href="/css/cjk.css"/>
+  <link rel="stylesheet" href="/app.css"/>
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div>
+        <h1>Edenia composer</h1>
+        <p class="lead">Type in the pane. Build CJK niches / Hangul / Yi / Kana sequences on the left, then insert. Fonts lazy-load by unicode-range — no Obsidian plugin.</p>
+      </div>
+      <div class="tools">
+        <div class="field">
+          <label for="face">CJK face</label>
+          <select id="face">
+            <option value="">base (ca/nhay)</option>
+            <option value="h">h halves</option>
+            <option value="t">t thirds</option>
+            <option value="q">q 2×2</option>
+            <option value="qv">qv vertical</option>
+            <option value="qh">qh horizontal</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="size">Size</label>
+          <input id="size" type="range" min="16" max="72" value="28"/>
+        </div>
+        <button type="button" id="btnCopy">Copy text</button>
+        <button type="button" id="btnHex">Copy hex</button>
+        <button type="button" class="ghost" id="btnClear">Clear</button>
+      </div>
+    </header>
+    <main class="work">
+      <aside class="composer">
+        <div class="tabs" id="tabs">
+          <button type="button" data-tab="cjk" class="active">CJK</button>
+          <button type="button" data-tab="hangul">Hangul</button>
+          <button type="button" data-tab="yi">Yi</button>
+          <button type="button" data-tab="kana">Kana</button>
+          <button type="button" data-tab="marks">Marks</button>
+        </div>
+        <p id="bootWarn" class="warn" hidden></p>
+
+        <section class="pane active" id="pane-cjk">
+          <p class="hint">Up to four characters + D4. Pick H/V/grid, then a template. Insert uses that face’s GSUB.</p>
+          <div class="chars" id="cjkChars"></div>
+          <div class="field">
+            <label for="axis">Axis</label>
+            <select id="axis">
+              <option value="v">V — top → bottom</option>
+              <option value="h">H — left → right</option>
+              <option value="g">G — 2×2 grid</option>
+            </select>
+          </div>
+          <div id="templates"></div>
+          <div class="preview-mini" id="cjkPreview"></div>
+          <div class="meta" id="cjkMeta"></div>
+          <div class="row">
+            <button type="button" class="primary" id="btnInsertCjk">Insert into editor</button>
+          </div>
+        </section>
+
+        <section class="pane" id="pane-hangul">
+          <p class="hint">L × FE01–03 × V × FE01–03 × optional T × FE01–03 × FE04. Type hangul too; this builds jamo VS runs.</p>
+          <div class="field"><label for="hangL">Choseong</label><select id="hangL"></select></div>
+          <div class="field"><label for="hangLv">L VS</label>
+            <select id="hangLv"><option value="0">id</option><option value="1">FE01</option><option value="2">FE02</option><option value="3">FE03</option></select>
+          </div>
+          <div class="field"><label for="hangV">Jungseong</label><select id="hangV"></select></div>
+          <div class="field"><label for="hangVv">V VS</label>
+            <select id="hangVv"><option value="0">id</option><option value="1">FE01</option><option value="2">FE02</option><option value="3">FE03</option></select>
+          </div>
+          <label><input type="checkbox" id="hangWantT" checked/> batchim</label>
+          <div class="field"><label for="hangT">Jongseong</label><select id="hangT"></select></div>
+          <div class="field"><label for="hangTv">T VS</label>
+            <select id="hangTv"><option value="0">id</option><option value="1">FE01</option><option value="2">FE02</option><option value="3">FE03</option></select>
+          </div>
+          <label><input type="checkbox" id="hangSwap"/> FE04 top-swap</label>
+          <div class="preview-mini" id="hangPreview" style="font-family:'edenia hangul','edenia hanguls'"></div>
+          <div class="row"><button type="button" class="primary" id="btnInsertHang">Insert Hangul</button></div>
+        </section>
+
+        <section class="pane" id="pane-yi">
+          <p class="hint">Yi + FE00–FE07 orientation. Digraph: A (D4)? + B (D4)? + FE08 (H) or FE09 (V).</p>
+          <div class="chars">
+            <div class="char-card">
+              <div class="idx">A</div>
+              <input id="yiA" placeholder="A1B8 or ꆘ" spellcheck="false"/>
+              <select id="yiAo"></select>
+            </div>
+            <div class="char-card">
+              <div class="idx">B (slice)</div>
+              <input id="yiB" placeholder="optional" spellcheck="false"/>
+              <select id="yiBo"></select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="yiSlice">Slice</label>
+            <select id="yiSlice">
+              <option value="">none (single)</option>
+              <option value="H">H FE08 top+bot</option>
+              <option value="V">V FE09 left+right</option>
+            </select>
+          </div>
+          <div class="preview-mini" id="yiPreview" style="font-family:'edenia yi'"></div>
+          <div class="row"><button type="button" class="primary" id="btnInsertYi">Insert Yi</button></div>
+        </section>
+
+        <section class="pane" id="pane-kana">
+          <p class="hint">Edenia kana is PUA (U+E000 full/small, U+ED00 halfwidth), not Unicode hiragana. Slices: FE00 H / FE01 V.</p>
+          <div class="field"><label for="kanaA">A (hex / paste PUA)</label><input id="kanaA" placeholder="E000" spellcheck="false"/></div>
+          <div class="field"><label for="kanaB">B (slice pair)</label><input id="kanaB" placeholder="optional" spellcheck="false"/></div>
+          <div class="field">
+            <label for="kanaSlice">Slice</label>
+            <select id="kanaSlice">
+              <option value="">none</option>
+              <option value="H">H FE00</option>
+              <option value="V">V FE01</option>
+            </select>
+          </div>
+          <div class="preview-mini" id="kanaPreview" style="font-family:'edenia kana'"></div>
+          <div class="row"><button type="button" class="primary" id="btnInsertKana">Insert Kana</button></div>
+        </section>
+
+        <section class="pane" id="pane-marks">
+          <p class="hint">CJK ca/nhay sit in a 1/4 niche on the <strong>base</strong> face. Hangul/Yi/Kana combining marks cycle TR→CR→BR→TM→BM→TL→CL→BL; CGJ skips a slot.</p>
+          <div class="mark-btns" id="cjkMarks"></div>
+          <div class="field"><label for="combining">Combining mark (Hangul/Yi/Kana)</label><select id="combining"></select></div>
+          <div class="row">
+            <button type="button" id="btnCgj">Insert CGJ</button>
+            <button type="button" class="primary" id="btnMark">Insert mark</button>
+          </div>
+        </section>
+      </aside>
+      <section class="stage">
+        <div id="editor" contenteditable="true" spellcheck="false" data-placeholder="Type here, or insert a composed sequence from the left."></div>
+        <div class="status">
+          <span id="statusLeft">ready</span>
+          <span id="statusRight"></span>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
