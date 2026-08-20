@@ -12,7 +12,7 @@
  *                combining marks (shared_diacritics inventory) + CGJ
  *   Yi:          base × FE01–FE07; digraph A FE08 FE00 B FE09 (etc.);
  *                same combining-mark + CGJ slot cycle
- *   Kana:        BMP PUA U+E000… (full/small D4) + halfwidth U+ED00…;
+ *   Kana:        BMP PUA U+E000… (full/small D4) + halfwidth U+F0000… (SPUA-A);
  *                slices FE00 overlay + FE08–FE0F; combining marks + CGJ slot skip
  *                (not Unicode Hiragana/Katakana/Kana Extended blocks)
  *   CJK (+Tangut/Khitan): D4 FE01–FE07 on h; base ca/nhay
@@ -179,7 +179,7 @@ function getWeightedCategory(
 
 const CHARACTERS = {
   // Edenia kana lives in BMP PUA / SPUA — not U+3040…/U+30A0… blocks.
-  //   i = L*8 + o;  full=E000+2i; small=E000+2i+1; hw=ED00+2i / +1
+  //   i = L*8 + o;  full=E000+2i; small=E000+2i+1; hw=F0000+2i / +1
   // Chart: 17×6 hiragana + length/gemination, then 17×6 katakana + marks.
   yi: [...inclusiveRange(0xa000, 0xa48c)].map(fromCodePoint),
   tangut: [
@@ -258,7 +258,7 @@ const DIGRAPH_NICHE_PAIRS = [
 
 // ---------- Edenia kana PUA chart (build_kana.py) ----------
 const KANA_PUA_START = 0xe000;
-const KANA_HW_PUA_START = 0xed00;
+const KANA_HW_PUA_START = 0xf0000;
 const KANA_D4_COUNT = 8;
 const KANA_ROWS = 17;
 const KANA_COLS = 6;
@@ -867,7 +867,7 @@ function generateFeatureCatalog() {
       "**Edenia kana PUA** (not Unicode Hiragana/Katakana blocks) — font: `edenia kana` / slices: `edenia kana h`",
     );
     lines.push(
-      "`i = L×8+o` · full `U+E000+2i` · small `U+E000+2i+1` · halfwidth `U+ED00+2i` / `+1`",
+      "`i = L×8+o` · full `U+E000+2i` · small `U+E000+2i+1` · halfwidth `U+F0000+2i` / `+1`",
     );
     lines.push(
       `Chart: ${KANA_ROWS}×${KANA_COLS} hiragana + length/gemination (L=0…${HIRAGANA_COUNT - 1}), then katakana (L=${HIRAGANA_COUNT}…${KANA_LOGICAL_TOTAL - 1})`,
@@ -886,7 +886,7 @@ function generateFeatureCatalog() {
       }
       lines.push(row.join("　"));
     }
-    lines.push("**Halfwidth PUA** (`U+ED00…`)");
+    lines.push("**Halfwidth SPUA-A** (`U+F0000…`)");
     lines.push(
       [...Array(12)]
         .map(() =>

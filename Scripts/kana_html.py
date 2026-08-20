@@ -8,8 +8,8 @@ Encoding (matches ``build_kana``)::
     i        = L * 8 + o
     full[i]  = U+E000 + 2*i     # even
     small[i] = U+E000 + 2*i + 1 # odd
-    hw_full[i]  = U+ED00 + 2*i
-    hw_small[i] = U+ED00 + 2*i + 1
+    hw_full[i]  = U+F0000 + 2*i
+    hw_small[i] = U+F0000 + 2*i + 1
 
 Orientations are real PUA codepoints (not VS). Combining slices use FE00 overlay + FE08–FE0F.
 After each script block: length (h U+301C / k U+30FC) and gemination
@@ -42,6 +42,7 @@ from build_kana import (
     VOWELS,
     chart_source_cps,
     full_cp,
+    HW_PUA_START,
     hw_full_cp,
     hw_small_cp,
     pair_index,
@@ -281,7 +282,7 @@ h2 {{
 <p class="meta">
   {n:,} logical ({HIRAGANA_COUNT} hiragana + {n - HIRAGANA_COUNT} katakana,
   phonetic rows + length/gemination each) · {D4_COUNT} D4 orientations as PUA
-  (even=full, odd=small @ U+E000…; halfwidth @ U+ED00…) · slices FE00/FE08–F ·
+  (even=full, odd=small @ U+E000…; halfwidth @ U+{HW_PUA_START:05X}…) · slices FE00/FE08–F ·
   dakuten {len(marks)} (sample).<br/>
   Orientation gallery: {n_orient:,} · pairwise slices: {n_pair:,} each mode
   (on demand). Diacritics optional: 1–{DAKUTEN_SLOT_COUNT} marks →
@@ -305,8 +306,8 @@ h2 {{
     <select id="sizeMode">
       <option value="full">full (even)</option>
       <option value="small">small (odd)</option>
-      <option value="hw">halfwidth (U+ED00 even)</option>
-      <option value="hw-small">halfwidth small (U+ED00 odd)</option>
+      <option value="hw">halfwidth (U+{HW_PUA_START:05X} even)</option>
+      <option value="hw-small">halfwidth small (U+{HW_PUA_START:05X} odd)</option>
     </select>
   </label>
   <label>Slice

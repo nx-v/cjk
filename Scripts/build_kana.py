@@ -5,16 +5,16 @@ Build ``edenia kana`` (PUA D4 cmap + smalls + dakuten) and pigeonholed
 
 Encoding
 --------
-BMP PUA ``U+E000``..``U+F8FF`` (6400 CPs)::
+BMP PUA ``U+E000``..``U+F8FF`` (full/small, 6400 CPs)::
 
     i        = L * 8 + o          # L = 0..399, o = 0..7 (D4_MODES order)
     full[i]  = 0xE000 + 2 * i     # even — full-size oriented form
     small[i] = 0xE000 + 2 * i + 1 # odd  — small: ideo-scale + Weight once, D4 @ ideo
 
-Halfwidth companions (same ``i``) in SPUA-A::
+Halfwidth companions (same ``i``) in Supplementary PUA-A::
 
-    hw_full[i]  = 0xED00 + 2 * i
-    hw_small[i] = 0xED00 + 2 * i + 1
+    hw_full[i]  = 0xF0000 + 2 * i
+    hw_small[i] = 0xF0000 + 2 * i + 1
 
 CAPE Width ``0.5`` holds the pre-squeeze stem thicknesses (match full-width
 kana). Combining slices use the half-em cell (FE08–FE0F) plus FE00 overlay.
@@ -135,7 +135,8 @@ SMALL_WIDTH_FACTOR = 0.75
 SMALL_WEIGHT_FACTOR = 1.0 / SMALL_WIDTH_FACTOR
 # Halfwidth: CAPE Width 0.5, stems held at the pre-squeeze (fixed) values.
 HALF_WIDTH_FACTOR = 0.5
-HW_PUA_START = 0xED00
+HW_PUA_START = 0xF0000  # Supplementary Private Use Area-A
+HW_PUA_LAST = 0xFFFFD  # last assigned SPUA-A code point
 # FlopDesignFONT is CFF (cubics). TrueType glyf needs quads.
 CU2QU_MAX_ERR = 0.5
 
@@ -2095,7 +2096,8 @@ def build_pankana_font(
                 {
                     cp >> 8
                     for cp in cmap
-                    if 0xE000 <= cp <= 0xF9FF
+                    if (PUA_START <= cp <= PUA_END)
+                    or (HW_PUA_START <= cp <= HW_PUA_LAST)
                 }
             )
             for bucket_id in pages:
@@ -2214,6 +2216,21 @@ def build_all(
     )
     if built:
         write_css(out_dir, built)
+        keep_names = {f"{fid}.woff2" for fid, *_ in built}
+        keep_names |= {f"{fid}.ttf" for fid, *_ in built}
+        for name in os.listdir(out_dir):
+            stem, ext = os.path.splitext(name)
+            if ext.lower() not in {".woff2", ".ttf"}:
+                continue
+            if stem != PS_NAME and parse_h_bucket_face_id(stem) is None:
+                continue
+            if name in keep_names:
+                continue
+            try:
+                os.remove(os.path.join(out_dir, name))
+            except OSError:
+                continue
+            print(f"  Removed stale {name}", flush=True)
     for face_id, variant, count, _cps in built:
         print(
             f"  {family_kana_variant(variant)} / {face_id}: {count} glyphs",

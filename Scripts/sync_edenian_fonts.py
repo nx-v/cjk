@@ -5,7 +5,8 @@ stays current after each build. Layout matches update_obsidian_theme_fonts
 ``sync_woff2(PLUGIN_DIR / PLUGIN_ASSET)``.
 
 CJK ``.woff2`` copies follow ``edenia-cjk.css`` (so ``--base-only`` / ``--faces``
-do not push unused niche files into the plugin).
+do not push unused niche files into the plugin). Yi/kana pigeonholes follow
+their CSS the same way.
 """
 
 from __future__ import annotations
@@ -46,7 +47,7 @@ def sync_dist_to_plugin(folder: str, src_dir: str | Path | None = None) -> int:
         return 0
     dst = PLUGIN_PANFONTS / folder
     dst.mkdir(parents=True, exist_ok=True)
-    allow = woff2_names_from_css_dir(src) if folder == "cjk" else None
+    allow = woff2_names_from_css_dir(src) if folder in ("cjk", "yi", "kana") else None
     n = 0
     for path in sorted(src.iterdir()):
         if not path.is_file():
