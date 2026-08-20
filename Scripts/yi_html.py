@@ -2,6 +2,7 @@
 """Build an HTML gallery of Yi orientations × slices × dakuten.
 
 Inventory: NuosuSIL Yi syllables / radicals present in ``edenia yi``.
+Slices render from ``edenia yi h`` (CSS stack: h then base).
 
 Combinations (rendered on demand):
 
@@ -175,7 +176,7 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
   button.danger {{ background: #4a2a2a; border-color: #6a3a3a; }}
   #status {{ font-size: 13px; color: #8af; margin: 8px 0 16px; min-height: 1.2em; }}
   #out {{
-    font-family: 'edenia yi', serif;
+    font-family: 'edenia yi h', 'edenia yi', serif;
     font-size: {font_size}px;
     line-height: 1.35;
     display: flex; flex-wrap: wrap; gap: 2px;

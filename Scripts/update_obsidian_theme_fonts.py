@@ -49,7 +49,9 @@ from edenia_names import (
     FAMILY_HANGUL,
     FAMILY_HANGULS,
     FAMILY_KANA,
+    FAMILY_KANA_H,
     FAMILY_YI,
+    FAMILY_YI_H,
     PLUGIN_ASSET,
     PLUGIN_CLASS,
     PLUGIN_DIR_NAME,
@@ -202,7 +204,8 @@ _FE0_TOKEN = re.compile(
     re.I,
 )
 # Script faces without unicode-range claim every cmap glyph (including FE*),
-# which steals CJK D4. Bases only for Hangul; Kana/Yi keep their FE slices.
+# which steals CJK D4. Hangul lists FE04 only; Yi/Kana base omit overlay/slices
+# (those live on the ``h`` faces).
 _SCRIPT_UNICODE_RANGE = {
     # FE04 must be listed: Hangul top-swap is GPOS on vs05 and does not
     # cluster when FE04 is outside unicode-range (unlike FE00–FE03 mirrors).
@@ -210,8 +213,10 @@ _SCRIPT_UNICODE_RANGE = {
         "U+1100-11FF, U+A960-A97C, U+D7B0-D7FB, U+302E-302F, U+FE04"
     ),
     FAMILY_HANGULS: "U+AC00-D7A3, U+3130-318F",
-    FAMILY_YI: "U+A000-A4C6, U+FE00-FE0F",
-    FAMILY_KANA: "U+E000-F8FF, U+FF9E-FF9F, U+FE00, U+FE08-FE0F",
+    FAMILY_YI: "U+A000-A4C6, U+FE01-FE07",
+    FAMILY_YI_H: "U+A000-A4C6, U+FE00-FE0F",
+    FAMILY_KANA: "U+E000-F8FF, U+FF9E-FF9F",
+    FAMILY_KANA_H: "U+E000-F8FF, U+FF9E-FF9F, U+FE00, U+FE08-FE0F",
 }
 
 # Combining marks (dakuten) must be in unicode-range or Blink shows tofu.
@@ -292,7 +297,7 @@ def _script_unicode_range(family: str, ur: str | None) -> str | None:
         if cleaned and ("U+300-" in cleaned or "U+0300-" in cleaned):
             cleaned = _SCRIPT_UNICODE_RANGE.get(family)
         return cleaned
-    if family in (FAMILY_YI, FAMILY_KANA):
+    if family in (FAMILY_YI, FAMILY_YI_H, FAMILY_KANA, FAMILY_KANA_H):
         base = ur or _SCRIPT_UNICODE_RANGE.get(family) or ""
         return _with_dakuten_unicode_range(base)
     if ur:
@@ -348,7 +353,8 @@ def build_stack_block(*, pancjk_families: list[str]) -> str:
         raise ValueError("no edenia cjk families found in CSS")
     scripts = (
         f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", '
-        f'"{FAMILY_KANA}", "{FAMILY_YI}"'
+        f'"{FAMILY_KANA_H}", "{FAMILY_KANA}", '
+        f'"{FAMILY_YI_H}", "{FAMILY_YI}"'
     )
     cjk = ", ".join(css_family_token(n) for n in pancjk_families)
     fallbacks = "FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2"
@@ -356,8 +362,8 @@ def build_stack_block(*, pancjk_families: list[str]) -> str:
     return "\n".join(
         [
             MARK_STACK_BEGIN,
-            "/* Hangul/Kana/Yi before CJK; script unicode-range keeps FE*",
-            "   with the right face. CJK lists FE00–FE0F (overlay, D4, slices). */",
+            "/* Hangul/Kana/Yi before CJK; h (slices) before base.",
+            "   unicode-range keeps FE* on the right face. CJK lists FE00–FE0F. */",
             "body {",
             f"  --font-text-theme: {stack};",
             f"  --font-interface-theme: {stack};",

@@ -7,7 +7,9 @@ from typing import Iterable
 
 # CSS / name-table families (spaces allowed).
 FAMILY_KANA = "edenia kana"
+FAMILY_KANA_H = "edenia kana h"
 FAMILY_YI = "edenia yi"
+FAMILY_YI_H = "edenia yi h"
 FAMILY_HANGUL = "edenia hangul"
 FAMILY_HANGULS = "edenia hanguls"
 
@@ -43,7 +45,8 @@ CJK_FACE_BUILD_ORDER: tuple[str, ...] = ("", "h", "q", "qv", "qh", "t")
 # shared ``edenia cjk`` family (base) only — pin ``edenia cjk h`` / ``t`` /
 # ``q`` / ``qv`` / ``qh`` for niche GSUB. CJK unicode-range lists FE00–FE0F
 # (overlay, D4, halves, triangles); Hangul/Kana/Yi faces restrict unicode-range
-# so bare cmap FE* does not steal those selectors.
+# so bare cmap FE* does not steal those selectors. Yi/Kana ``h`` is the slice
+# family (pigeonholed like CJK ``h``); base keeps D4 / PUA without FE00/FE08–F.
 CJK_FACE_CSS_ORDER: tuple[str, ...] = ("q", "qv", "qh", "t", "h", "")
 
 # Longer suffixes first so ``qh``/``qv`` are not parsed as ``q``/``h``.
@@ -210,10 +213,55 @@ def split_cjk_face_id(face_id: str) -> tuple[str, str]:
     return face_id, ""
 
 
-# Stack after Latin: Hangul / Kana / Yi before CJK. Script faces use
-# unicode-range so FE00–FE09 GSUB is not stolen; CJK lists D4 + digraph VS.
+def family_yi_variant(variant: str = "") -> str:
+    """``''`` → ``edenia yi``; ``h`` → ``edenia yi h``."""
+    if variant and variant != "h":
+        raise ValueError(f"Yi face variant must be '' or 'h', got {variant!r}")
+    return FAMILY_YI_H if variant == "h" else FAMILY_YI
+
+
+def family_kana_variant(variant: str = "") -> str:
+    """``''`` → ``edenia kana``; ``h`` → ``edenia kana h``."""
+    if variant and variant != "h":
+        raise ValueError(f"Kana face variant must be '' or 'h', got {variant!r}")
+    return FAMILY_KANA_H if variant == "h" else FAMILY_KANA
+
+
+def h_bucket_face_id(bucket_id: int) -> str:
+    """Pigeonhole slice-face stem: ``A0h``, ``E0h`` (CJK-style ``{page:02X}h``)."""
+    return f"{bucket_id:02X}h"
+
+
+def parse_h_bucket_face_id(face_id: str) -> int | None:
+    """``A0h`` → ``0xA0``; non-bucket stems (``edenia-yi``) → ``None``."""
+    if len(face_id) < 3 or not face_id.endswith("h"):
+        return None
+    core = face_id[:-1]
+    if not core or any(c not in "0123456789abcdefABCDEF" for c in core):
+        return None
+    return int(core, 16)
+
+
+def ps_yi(face_id: str) -> str:
+    """PostScript name: base ``edenia-yi``, slice files ``edenia-yi-A0h``."""
+    if not face_id or face_id == PS_YI:
+        return PS_YI
+    return f"{PS_YI}-{face_id}"
+
+
+def ps_kana(face_id: str) -> str:
+    """PostScript name: base ``edenia-kana``, slice files ``edenia-kana-E0h``."""
+    if not face_id or face_id == PS_KANA:
+        return PS_KANA
+    return f"{PS_KANA}-{face_id}"
+
+
+# Stack after Latin: Hangul / Kana / Yi before CJK. Script ``h`` (slices)
+# before base, matching CJK. unicode-range keeps FE* on the right face.
 STACK_CJK_TAIL = (
-    f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", "{FAMILY_KANA}", "{FAMILY_YI}", '
+    f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", '
+    f'"{FAMILY_KANA_H}", "{FAMILY_KANA}", '
+    f'"{FAMILY_YI_H}", "{FAMILY_YI}", '
     "FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2"
 )
 

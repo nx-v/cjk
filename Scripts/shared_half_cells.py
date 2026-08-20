@@ -2,7 +2,9 @@
 
 Encoding
 --------
-* One font (``panyi``) covering the whole Yi inventory.
+* Base font (``edenia yi``) covering the whole inventory (D4, dakuten).
+  Combining slices live in pigeonholed ``edenia yi h`` faces (one 256-CP
+  page each), same split as CJK base vs ``h``.
 * Standalones: NuosuSIL is monospace (shared advance). Every glyph gets the
   **same** ``sx`` from that advance and the **same** ``sy`` from the tallest
   ink height (no CAPE Width — that is kana-only). Y is centered in the padded
@@ -32,11 +34,12 @@ Encoding
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import os
 import random
 from dataclasses import dataclass
-from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Set, Tuple
 
 from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
@@ -1461,6 +1464,58 @@ def inject_slice_selectors(
     return names
 
 
+TTF_GLYPH_LIMIT = 65535
+
+
+def close_component_names(
+    keep: Set[str], glyphs: Dict[str, TTGlyph]
+) -> Set[str]:
+    """Expand ``keep`` with TrueType composite component names."""
+    stack = list(keep)
+    out = set(keep)
+    while stack:
+        name = stack.pop()
+        glyph = glyphs.get(name)
+        if glyph is None:
+            continue
+        try:
+            if not glyph.isComposite():
+                continue
+            comps = glyph.components
+        except Exception:
+            continue
+        for comp in comps:
+            child = getattr(comp, "glyphName", None)
+            if child and child not in out:
+                out.add(child)
+                stack.append(child)
+    return out
+
+
+def subset_glyph_tables(
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    cmap: Dict[int, str],
+    keep: Set[str],
+    *,
+    copy_glyphs: bool = True,
+) -> Tuple[List[str], Dict[str, TTGlyph], Dict[str, Tuple[int, int]], Dict[int, str]]:
+    """Copy (or alias) a named subset of glyf / hmtx / cmap."""
+    keep = close_component_names(keep, glyphs)
+    order = [n for n in glyph_order if n in keep]
+    for name in keep:
+        if name not in order and name in glyphs:
+            order.append(name)
+    if copy_glyphs:
+        out_glyphs = {n: copy.deepcopy(glyphs[n]) for n in order if n in glyphs}
+    else:
+        out_glyphs = {n: glyphs[n] for n in order if n in glyphs}
+    out_metrics = {n: metrics[n] for n in order if n in metrics}
+    out_cmap = {cp: name for cp, name in cmap.items() if name in out_glyphs}
+    return order, out_glyphs, out_metrics, out_cmap
+
+
 def slice_overlay_liga_map(
     forms: Sequence[str],
     *,
@@ -1476,6 +1531,8 @@ def slice_overlay_liga_map(
     """
     name_of = form_name if form_name is not None else slice_form_name
     vs01 = vs_glyph_name(TRANSFORM_MODES[0][0]) if include_vs01 else None
+    if vs01 is not None and vs01 not in glyphs:
+        vs01 = None
     ov = OV_SELECTOR_NAME
     liga: Dict[Tuple[str, ...], str] = {}
     for form in forms:

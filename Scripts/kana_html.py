@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Build an HTML gallery of edenia kana chart × D4 × smalls × slices × dakuten.
 
+Slices need ``edenia kana h`` (with ``edenia kana`` as fallback for D4/dakuten).
+
 Encoding (matches ``build_kana``)::
 
     i        = L * 8 + o
@@ -200,10 +202,6 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
         "SLOT_COUNT": DAKUTEN_SLOT_COUNT,
     }
 
-    font_bust = 0
-    if os.path.isfile(KANA_FONT):
-        font_bust = int(os.path.getmtime(KANA_FONT))
-
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(
@@ -214,14 +212,6 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
 <title>edenia kana — chart × D4 × smalls × slices × dakuten</title>
 <link rel="stylesheet" href="./edenia-kana.css"/>
 <style>
-@font-face {{
-  font-family: 'edenia-kana-local';
-  src: url("./edenia-kana.woff2?v={font_bust}") format("woff2"),
-       url("./edenia-kana.ttf?v={font_bust}") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: block;
-}}
 :root {{ color-scheme: dark; --fs: {font_size}px; }}
 * {{ box-sizing: border-box; }}
 body {{
@@ -246,7 +236,7 @@ button:hover {{ background: #355a48; }}
 button.danger {{ background: #4a2a2a; border-color: #6a3a3a; }}
 #status {{ font-size: 13px; color: #8af; margin: 8px 0 16px; min-height: 1.2em; }}
 #out {{
-  font-family: edenia-kana-local, 'edenia kana', sans-serif;
+  font-family: 'edenia kana h', 'edenia kana', sans-serif;
   font-size: var(--fs);
   line-height: 1.35;
   display: flex; flex-wrap: wrap; gap: 2px;
@@ -272,7 +262,7 @@ h2 {{
   grid-template-columns: auto repeat({n_cols}, minmax(2.2em, 1fr));
   gap: 2px 4px;
   width: 100%;
-  font-family: edenia-kana-local, 'edenia kana', sans-serif;
+  font-family: 'edenia kana h', 'edenia kana', sans-serif;
   font-size: var(--fs);
   margin-bottom: 12px;
 }}

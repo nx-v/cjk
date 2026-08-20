@@ -847,7 +847,7 @@ function generateFeatureCatalog() {
 
   {
     const lines = [];
-    lines.push("**D4 orientations** bare + FE01–FE07 (font: `edenia yi`)");
+    lines.push("**D4 orientations** bare + FE01–FE07 (font: `edenia yi`; slices: `edenia yi h`)");
     const base = sampleRange(0xa000, 0xa48c, 8);
     lines.push(
       base.map(ch => ["", ...CHARACTERS.feD4].map(v => ch + v).join("")).join("　"),
@@ -864,7 +864,7 @@ function generateFeatureCatalog() {
   {
     const lines = [];
     lines.push(
-      "**Edenia kana PUA** (not Unicode Hiragana/Katakana blocks) — font: `edenia kana`",
+      "**Edenia kana PUA** (not Unicode Hiragana/Katakana blocks) — font: `edenia kana` / slices: `edenia kana h`",
     );
     lines.push(
       "`i = L×8+o` · full `U+E000+2i` · small `U+E000+2i+1` · halfwidth `U+ED00+2i` / `+1`",

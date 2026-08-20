@@ -112,7 +112,7 @@ main.work {
   font-size: 1.45rem;
   background: var(--slot);
   border-radius: 6px;
-  font-family: "edenia hangul", "edenia hanguls", "edenia kana", "edenia yi", "edenia cjk";
+  font-family: "edenia hangul", "edenia hanguls", "edenia kana h", "edenia kana", "edenia yi h", "edenia yi", "edenia cjk";
 }
 .tpl-group-label { font-size: 0.72rem; color: var(--muted); margin: 0.2rem 0; }
 .tpl-grid {
@@ -231,7 +231,7 @@ main.work {
   font-size: var(--editor-size);
   line-height: 1.45;
   font-family:
-    "edenia hangul", "edenia hanguls", "edenia kana", "edenia yi",
+    "edenia hangul", "edenia hanguls", "edenia kana h", "edenia kana", "edenia yi h", "edenia yi",
     var(--cjk), Georgia, serif;
   font-feature-settings: "liga" 1, "rlig" 1, "ccmp" 1, "rclt" 1, "ljmo" 1, "vjmo" 1, "tjmo" 1;
   outline: none;

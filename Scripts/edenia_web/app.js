@@ -84,7 +84,7 @@ const TEMPLATES = {
 
 const HANGUL_VS = [null, 0xfe01, 0xfe02, 0xfe03];
 const STACK =
-  '"edenia hangul", "edenia hanguls", "edenia kana", "edenia yi"';
+  '"edenia hangul", "edenia hanguls", "edenia kana h", "edenia kana", "edenia yi h", "edenia yi"';
 
 const cjkState = {
   chars: [
@@ -574,13 +574,13 @@ async function main() {
     document.getElementById(id).addEventListener("input", renderYi)
   );
   document.getElementById("btnInsertYi").addEventListener("click", () => {
-    insertText(yiSeq().text, "edenia yi");
+    insertText(yiSeq().text, (DATA.FAMILIES && DATA.FAMILIES.yi_h) || "edenia yi h");
   });
   ["kanaA", "kanaB", "kanaSlice"].forEach((id) =>
     document.getElementById(id).addEventListener("input", renderKana)
   );
   document.getElementById("btnInsertKana").addEventListener("click", () => {
-    insertText(kanaSeq(), "edenia kana");
+    insertText(kanaSeq(), (DATA.FAMILIES && DATA.FAMILIES.kana_h) || "edenia kana h");
   });
   document.getElementById("btnCgj").addEventListener("click", () => {
     insertText("\u034f");

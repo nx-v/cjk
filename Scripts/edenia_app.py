@@ -33,7 +33,9 @@ from edenia_names import (
     FAMILY_HANGUL,
     FAMILY_HANGULS,
     FAMILY_KANA,
+    FAMILY_KANA_H,
     FAMILY_YI,
+    FAMILY_YI_H,
     family_cjk_variant,
 )
 from cjk_diacritics import (
@@ -150,7 +152,9 @@ def build_data() -> dict:
             "hangul": FAMILY_HANGUL,
             "hanguls": FAMILY_HANGULS,
             "kana": FAMILY_KANA,
+            "kana_h": FAMILY_KANA_H,
             "yi": FAMILY_YI,
+            "yi_h": FAMILY_YI_H,
         },
         "CJK_MARK_SLOTS": [
             {

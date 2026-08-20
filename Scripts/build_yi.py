@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """
-Build one Yi font (``edenia yi``) covering the whole inventory.
+Build Yi fonts: ``edenia yi`` (D4 + dakuten) and pigeonholed ``edenia yi h``
+(D4 + FE00 overlay + FE08–FE0F slices), matching CJK base vs ``h``.
 
 Contents
 --------
 * Standalone forms at real Unicode CPs (full CJK width) plus D4 orientations:
 
       yi + VS02..VS08 / FE01..FE07   →   oriented variant
-      (bare yi = identity; U+FE00 = overlay)
+      (bare yi = identity; U+FE00 = overlay, on the ``h`` face)
 
-* Combining slices (full cell advance) + overlay::
+* Combining slices live on ``edenia yi h`` (full cell advance) + overlay::
 
       A FE08          →  A.top
       A FE08 FE00 B FE09  →  A.top.ov + B.bot
       FE08–FE0B halves; FE0C–FE0F triangles
+
+  ``h`` is one file per ``cp>>8`` page so D4 × 8 slices × overlays stay
+  under the TTF 65535-glyph cap.
 
   Standalone fit: shared ``sx`` from NuosuSIL monospace advance → em,
   shared ``sy`` from inventory max ink height, Y centered in padded typo box,
@@ -28,7 +32,7 @@ from __future__ import annotations
 
 import argparse
 import os
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
@@ -47,6 +51,15 @@ from shared_diacritics import (
     resolve_dakuten_mark_font_stack,
     yi_forms_for_dakuten,
 )
+from edenia_names import (
+    CSS_YI,
+    FAMILY_YI,
+    PS_YI,
+    family_yi_variant,
+    h_bucket_face_id,
+    parse_h_bucket_face_id,
+    ps_yi,
+)
 from shared_half_cells import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
@@ -54,6 +67,7 @@ from shared_half_cells import (
     NUOSU_FILENAME,
     STANDALONE_CELL_SCALE,
     STANDALONE_VERT_PAD,
+    TTF_GLYPH_LIMIT,
     YI_ORIENTATION_MODES,
     YiInventory,
     add_d4_variant_glyphs,
@@ -64,6 +78,7 @@ from shared_half_cells import (
     orientation_form_names,
     record_glyph,
     resolve_nuosu_path,
+    subset_glyph_tables,
     variant_glyph_name,
     uvs_selector_for_mode,
     vs_glyph_name,
@@ -73,7 +88,6 @@ from yi_slice import (
     inject_slice_marks,
     install_slice_gsub,
 )
-from edenia_names import CSS_YI, FAMILY_YI, PS_YI
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
 from shared_hinting import add_no_hint_argument
@@ -93,12 +107,13 @@ def glyph_name_for_cp(cp: int) -> str:
     return f"u{cp:04X}" if cp <= 0xFFFF else f"u{cp:05X}"
 
 
-def _inject_vs(
+def _inject_d4_vs(
     glyph_order: List[str],
     glyphs: Dict,
     metrics: Dict,
     cmap: Dict[int, str],
 ) -> None:
+    """Cmap PUA E000–E007 + FE01–FE07 for D4 (not overlay / slices)."""
     for mode_i, (vs_cp, _rot, _fx, _fy, _suffix) in enumerate(YI_ORIENTATION_MODES):
         vname = vs_glyph_name(vs_cp)
         if vname not in glyphs:
@@ -109,13 +124,27 @@ def _inject_vs(
         uvs = uvs_selector_for_mode(mode_i)
         if uvs is not None:
             cmap[uvs] = vname
-    inject_slice_marks(glyph_order, glyphs, metrics, cmap, pua=True)
+
+
+def _inject_vs(
+    glyph_order: List[str],
+    glyphs: Dict,
+    metrics: Dict,
+    cmap: Dict[int, str],
+    *,
+    slices: bool = True,
+) -> None:
+    _inject_d4_vs(glyph_order, glyphs, metrics, cmap)
+    if slices:
+        inject_slice_marks(glyph_order, glyphs, metrics, cmap, pua=True)
 
 
 def install_yi_gsub(
-    font, yi_bases: Sequence[str], glyphs: Dict, glyph_order: Sequence[str]
+    font, yi_bases: Sequence[str], glyphs: Dict, glyph_order: Sequence[str],
+    *,
+    slices: bool = True,
 ) -> None:
-    """Install orientation VS ligas + FE00/FE08–F slice (``ccmp``/``rlig``/``liga``)."""
+    """Install orientation VS ligas; optionally FE00/FE08–F slice ligas."""
     if not yi_bases:
         return
 
@@ -194,7 +223,121 @@ def install_yi_gsub(
     full_forms: List[str] = []
     for yi in yi_bases:
         full_forms.extend(orientation_form_names(yi, modes=YI_ORIENTATION_MODES))
-    install_slice_gsub(font, full_forms, glyphs=glyphs, glyph_order=glyph_order)
+    if slices:
+        install_slice_gsub(font, full_forms, glyphs=glyphs, glyph_order=glyph_order)
+
+
+def _dakuten_keep_names(
+    glyph_order: Sequence[str], mark_names: Sequence[str]
+) -> Set[str]:
+    keep = {n for n in mark_names if n}
+    keep.update(n for n in glyph_order if ".mk" in n)
+    return keep
+
+
+def _save_yi_face(
+    *,
+    face_id: str,
+    variant: str,
+    glyph_order: List[str],
+    glyphs: Dict,
+    metrics: Dict[str, Tuple[int, int]],
+    cmap: Dict[int, str],
+    uvs_rows: List[Tuple[int, int, Optional[str]]],
+    yi_names: Sequence[str],
+    mark_names: Sequence[str],
+    mark_cps: Sequence[int],
+    base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
+    out_dir: str,
+    target_upem: int,
+    write_ttf: bool,
+    write_woff2: bool,
+    hint: bool,
+    slices: bool,
+) -> Tuple[str, str, int, List[int]]:
+    n_glyphs = len(glyphs)
+    if n_glyphs > TTF_GLYPH_LIMIT:
+        raise RuntimeError(
+            f"{face_id}: {n_glyphs} glyphs exceeds TTF uint16 max ({TTF_GLYPH_LIMIT})"
+        )
+    family = family_yi_variant(variant)
+    ps = ps_yi(face_id)
+    out_path = os.path.join(out_dir, f"{face_id}.ttf")
+    ascent = otRound(target_upem * 0.88)
+    descent = otRound(target_upem * -0.12)
+    print(
+        f"  Assembling {family} / {face_id} "
+        f"({n_glyphs - 1} glyphs, {len(yi_names)} Yi CPs)...",
+        flush=True,
+    )
+    fb = FontBuilder(target_upem, isTTF=True)
+    fb.setupGlyphOrder(glyph_order)
+    fb.setupGlyf(glyphs)
+    fb.setupHorizontalMetrics(metrics)
+    fb.setupHorizontalHeader(ascent=ascent, descent=descent)
+    if uvs_rows:
+        fb.setupCharacterMap(cmap, uvs=uvs_rows)
+    else:
+        fb.setupCharacterMap(cmap)
+    fb.setupNameTable(
+        {
+            "familyName": family,
+            "styleName": "Regular",
+            "uniqueFontIdentifier": ps,
+            "fullName": family,
+            "psName": ps,
+            "version": "Version 1.000",
+        }
+    )
+    fb.setupOS2(
+        sTypoAscender=ascent,
+        sTypoDescender=descent,
+        sTypoLineGap=0,
+        usWinAscent=ascent,
+        usWinDescent=abs(descent),
+        achVendID="pYi ",
+    )
+    fb.setupPost()
+
+    gsub_note = "orientations + FE00/FE08–F slice" if slices else "orientations"
+    print(f"  Compiling GSUB ({gsub_note})...", flush=True)
+    install_yi_gsub(fb.font, yi_names, glyphs, glyph_order, slices=slices)
+
+    face_anchors = {k: v for k, v in base_anchors.items() if k in glyphs}
+    face_marks = [n for n in mark_names if n in glyphs]
+    if face_marks and face_anchors:
+        print(f"  Compiling GSUB (dakuten slots {DAKUTEN_SLOT_CYCLE})...", flush=True)
+        install_dakuten_slot_gsub(
+            fb.font,
+            mark_cps,
+            glyphs=glyphs,
+            glyph_order=glyph_order,
+            base_names=list(face_anchors),
+        )
+        print("  Compiling GPOS (dakuten mark @ CJK corners)...", flush=True)
+        install_dakuten_gpos(
+            fb.font,
+            base_anchors=face_anchors,
+            mark_cps=mark_cps,
+            mark_names=face_marks,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+        )
+
+    os.makedirs(out_dir, exist_ok=True)
+    fb.save(out_path)
+    from shared_hinting import autohint_ttf
+
+    autohint_ttf(out_path, enabled=hint)
+    if write_woff2:
+        print(f"  Compressing {face_id}.woff2...", flush=True)
+        woff2.compress(out_path, out_path.replace(".ttf", ".woff2"))
+    if not write_ttf:
+        try:
+            os.remove(out_path)
+        except OSError:
+            pass
+    return face_id, variant, n_glyphs - 1, sorted(cmap.keys())
 
 
 def build_panyi_font(
@@ -205,12 +348,12 @@ def build_panyi_font(
     write_ttf: bool = True,
     write_woff2: bool = True,
     hint: bool = True,
-) -> Tuple[str, int, List[int]]:
-    """Build the single ``edenia yi`` font (standalones + D4 + FE08–FE0F slices)."""
+    variants: Sequence[str] = ("", "h"),
+) -> List[Tuple[str, str, int, List[int]]]:
+    """Build ``edenia yi`` and/or pigeonholed ``edenia yi h`` slice faces."""
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
-
-    out_path = os.path.join(out_dir, f"{PS_NAME}.ttf")
+    want = {v for v in variants}
 
     print("  Recording source outlines...", flush=True)
     tt = TTFont(inv.source_path, fontNumber=0)
@@ -258,6 +401,7 @@ def build_panyi_font(
     metrics: Dict[str, Tuple[int, int]] = {".notdef": (target_upem // 2, 0)}
     cmap: Dict[int, str] = {}
     yi_names: List[str] = []
+    yi_cps: Dict[str, int] = {}
     uvs_rows: List[Tuple[int, int, Optional[str]]] = []
 
     print("  Installing standalones + VS01..VS08 orientations...", flush=True)
@@ -271,6 +415,7 @@ def build_panyi_font(
         metrics[sa_name] = (sa_adv, sa_lsb)
         cmap[cp] = sa_name
         yi_names.append(sa_name)
+        yi_cps[sa_name] = cp
         add_d4_variant_glyphs(
             sa_name,
             advance=sa_adv,
@@ -286,24 +431,8 @@ def build_panyi_font(
             build_d4_uvs_entries(cp, sa_name, glyphs=glyphs, modes=YI_ORIENTATION_MODES)
         )
 
-    print(
-        "  Installing FE08–FE0F combining slices "
-        "(identity clip; D4 via propagate)...",
-        flush=True,
-    )
-    add_slice_halves(
-        yi_names,
-        glyph_order=glyph_order,
-        glyphs=glyphs,
-        metrics=metrics,
-        target_upem=target_upem,
-        modes=YI_ORIENTATION_MODES,
-    )
-
-    _inject_vs(glyph_order, glyphs, metrics, cmap)
-
     if not yi_names:
-        return out_path, 0, []
+        return []
 
     mark_names: List[str] = []
     mark_cps: List[int] = []
@@ -341,80 +470,92 @@ def build_panyi_font(
     except FileNotFoundError as exc:
         print(f"  Skipping dakuten marks: {exc}", flush=True)
 
-    ascent = otRound(target_upem * 0.88)
-    descent = otRound(target_upem * -0.12)
+    _inject_d4_vs(glyph_order, glyphs, metrics, cmap)
 
-    print(
-        f"  Assembling font ({len(glyphs) - 1} glyphs, {len(yi_names)} Yi CPs)...",
-        flush=True,
-    )
-    fb = FontBuilder(target_upem, isTTF=True)
-    fb.setupGlyphOrder(glyph_order)
-    fb.setupGlyf(glyphs)
-    fb.setupHorizontalMetrics(metrics)
-    fb.setupHorizontalHeader(ascent=ascent, descent=descent)
-    # Empty uvs=[] still emits cmap format-14; Chromium OTS rejects that.
-    if uvs_rows:
-        fb.setupCharacterMap(cmap, uvs=uvs_rows)
-    else:
-        fb.setupCharacterMap(cmap)
-    fb.setupNameTable(
-        {
-            "familyName": FAMILY_NAME,
-            "styleName": "Regular",
-            "uniqueFontIdentifier": PS_NAME,
-            "fullName": FAMILY_NAME,
-            "psName": PS_NAME,
-            "version": "Version 1.000",
-        }
-    )
-    fb.setupOS2(
-        sTypoAscender=ascent,
-        sTypoDescender=descent,
-        sTypoLineGap=0,
-        usWinAscent=ascent,
-        usWinDescent=abs(descent),
-        achVendID="pYi ",
-    )
-    fb.setupPost()
-
-    print("  Compiling GSUB (orientations + FE00/FE08–F slice)...", flush=True)
-    install_yi_gsub(fb.font, yi_names, glyphs, glyph_order)
-
-    if mark_names and base_anchors:
-        print(f"  Compiling GSUB (dakuten slots {DAKUTEN_SLOT_CYCLE})...", flush=True)
-        install_dakuten_slot_gsub(
-            fb.font,
-            mark_cps,
-            glyphs=glyphs,
-            glyph_order=glyph_order,
-            base_names=list(base_anchors),
-        )
-        print("  Compiling GPOS (dakuten mark @ CJK corners)...", flush=True)
-        install_dakuten_gpos(
-            fb.font,
-            base_anchors=base_anchors,
-            mark_cps=mark_cps,
-            mark_names=mark_names,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-        )
-
+    built: List[Tuple[str, str, int, List[int]]] = []
     os.makedirs(out_dir, exist_ok=True)
-    fb.save(out_path)
-    from shared_hinting import autohint_ttf
 
-    autohint_ttf(out_path, enabled=hint)
-    if write_woff2:
-        print("  Compressing WOFF2...", flush=True)
-        woff2.compress(out_path, out_path.replace(".ttf", ".woff2"))
-    if not write_ttf:
-        try:
-            os.remove(out_path)
-        except OSError:
-            pass
+    if "" in want:
+        built.append(
+            _save_yi_face(
+                face_id=PS_NAME,
+                variant="",
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+                cmap=cmap,
+                uvs_rows=uvs_rows,
+                yi_names=yi_names,
+                mark_names=mark_names,
+                mark_cps=mark_cps,
+                base_anchors=base_anchors,
+                out_dir=out_dir,
+                target_upem=target_upem,
+                write_ttf=write_ttf,
+                write_woff2=write_woff2,
+                hint=hint,
+                slices=False,
+            )
+        )
 
-    return out_path, len(glyphs) - 1, sorted(cmap.keys())
+    if "h" in want:
+        buckets: Dict[int, List[str]] = {}
+        for name in yi_names:
+            cp = yi_cps[name]
+            buckets.setdefault(cp >> 8, []).append(name)
+        dakuten_keep = _dakuten_keep_names(glyph_order, mark_names)
+        vs_keep = {n for n in glyph_order if n.startswith("vs")}
+        for bucket_id in sorted(buckets):
+            bases = buckets[bucket_id]
+            keep: Set[str] = {".notdef", *dakuten_keep, *vs_keep}
+            for base in bases:
+                keep.update(
+                    orientation_form_names(base, modes=YI_ORIENTATION_MODES)
+                )
+            go, gl, mt, cm = subset_glyph_tables(
+                glyph_order, glyphs, metrics, cmap, keep
+            )
+            print(
+                f"  Installing FE08–FE0F slices on {h_bucket_face_id(bucket_id)} "
+                f"({len(bases)} Yi CPs)...",
+                flush=True,
+            )
+            add_slice_halves(
+                bases,
+                glyph_order=go,
+                glyphs=gl,
+                metrics=mt,
+                target_upem=target_upem,
+                modes=YI_ORIENTATION_MODES,
+            )
+            inject_slice_marks(go, gl, mt, cm, pua=True)
+            base_cps = {yi_cps[n] for n in bases}
+            face_uvs = [
+                row for row in uvs_rows if row[0] in base_cps and row[2] in gl
+            ]
+            built.append(
+                _save_yi_face(
+                    face_id=h_bucket_face_id(bucket_id),
+                    variant="h",
+                    glyph_order=go,
+                    glyphs=gl,
+                    metrics=mt,
+                    cmap=cm,
+                    uvs_rows=face_uvs,
+                    yi_names=bases,
+                    mark_names=mark_names,
+                    mark_cps=mark_cps,
+                    base_anchors=base_anchors,
+                    out_dir=out_dir,
+                    target_upem=target_upem,
+                    write_ttf=write_ttf,
+                    write_woff2=write_woff2,
+                    hint=hint,
+                    slices=True,
+                )
+            )
+
+    return built
 
 
 def unicode_range_css(codepoints: Sequence[int]) -> str:
@@ -439,57 +580,108 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
     return ", ".join(runs)
 
 
-def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
-    css_path = os.path.join(out_dir, CSS_YI)
-    # Keep FE00–FE0F in-range for overlay, D4, and combining slices.
-    # Combining marks must be listed or Blink drops them (tofu after syllables).
-    cps_for_ur = {cp for cp in codepoints if not (0xFE00 <= cp <= 0xFE0F)}
-    cps_for_ur |= set(range(0xFE00, 0xFE10))
-    for stem_name in (f"{PS_NAME}.woff2", f"{PS_NAME}.ttf"):
-        font_path = os.path.join(out_dir, stem_name)
-        if not os.path.isfile(font_path):
-            continue
-        try:
-            from shared_diacritics import combining_mark_codepoints_from_font
+YI_BASE_FE = set(range(0xFE01, 0xFE08))
+YI_H_FE = set(range(0xFE00, 0xFE10))
+YI_PUA_SELECTORS = set(range(0xE000, 0xE011))
 
-            cps_for_ur |= set(combining_mark_codepoints_from_font(font_path))
-        except Exception as exc:
-            print(f"  [!] yi mark unicode-range: {exc}", flush=True)
-        break
-    ur = unicode_range_css(cps_for_ur)
-    lines = [
-        "/* Auto-generated single Yi font */",
+
+def _css_cps_for_yi_face(
+    codepoints: Sequence[int], variant: str, *, mark_cps: Sequence[int]
+) -> List[int]:
+    fe = YI_H_FE if variant == "h" else YI_BASE_FE
+    cps = {
+        cp
+        for cp in codepoints
+        if cp not in YI_PUA_SELECTORS and not (0xFE00 <= cp <= 0xFE0F)
+    }
+    cps |= fe
+    cps |= set(mark_cps)
+    return sorted(cps)
+
+
+def write_css(
+    out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]
+) -> None:
+    """Write edenia-yi.css: ``h`` pigeonholes then the base face."""
+    css_path = os.path.join(out_dir, CSS_YI)
+    mark_cps: set[int] = set()
+    for face_id, _variant, _n, _cps in built:
+        for stem_name in (f"{face_id}.woff2", f"{face_id}.ttf"):
+            font_path = os.path.join(out_dir, stem_name)
+            if not os.path.isfile(font_path):
+                continue
+            try:
+                from shared_diacritics import combining_mark_codepoints_from_font
+
+                mark_cps |= set(combining_mark_codepoints_from_font(font_path))
+            except Exception as exc:
+                print(f"  [!] yi mark unicode-range ({face_id}): {exc}", flush=True)
+            break
+        if mark_cps:
+            break
+
+    def _face_sort(item: Tuple[str, str, int, List[int]]) -> Tuple[int, int, str]:
+        face_id, variant, _n, _cps = item
+        if variant == "h":
+            bid = parse_h_bucket_face_id(face_id)
+            return (0, bid if bid is not None else 0, face_id)
+        return (1, 0, face_id)
+
+    lines: List[str] = [
+        "/* Auto-generated Edenia Yi: 'edenia yi h' (slices, pigeonholed)",
+        "   then 'edenia yi' (D4 + dakuten). Pin h for FE00/FE08–F GSUB. */",
         "",
-        "@font-face {",
-        f"  font-family: '{FAMILY_NAME}';",
-        format_src_line(
-            dist_rel("yi", f"{PS_NAME}.woff2"),
-            fmt="woff2",
-            local=(
-                (f"./{PS_NAME}.woff2", "woff2"),
-                (f"./{PS_NAME}.ttf", "truetype"),
-            ),
-            indent="  ",
-        ),
-        "  font-weight: normal;",
-        "  font-style: normal;",
     ]
-    if ur:
-        lines.append(f"  unicode-range: {ur};")
-    lines += [
-        "  font-display: swap;",
-        "}",
-        "",
-    ]
+
+    def _emit(family: str, face_id: str, unicode_range: str) -> None:
+        lines.append("@font-face {")
+        lines.append(f"  font-family: '{family}';")
+        lines.append(
+            format_src_line(
+                dist_rel("yi", f"{face_id}.woff2"),
+                fmt="woff2",
+                local=(
+                    (f"./{face_id}.woff2", "woff2"),
+                    (f"./{face_id}.ttf", "truetype"),
+                ),
+                indent="  ",
+            )
+        )
+        if unicode_range:
+            lines.append(f"  unicode-range: {unicode_range};")
+        lines.extend(
+            [
+                "  font-weight: normal;",
+                "  font-style: normal;",
+                "  font-display: swap;",
+                "}",
+                "",
+            ]
+        )
+
+    for face_id, variant, _n, codepoints in sorted(built, key=_face_sort):
+        ur = unicode_range_css(
+            _css_cps_for_yi_face(codepoints, variant, mark_cps=sorted(mark_cps))
+        )
+        _emit(family_yi_variant(variant), face_id, ur)
+
     with open(css_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
+    has_h = any(v == "h" for _fid, v, _n, _cps in built)
+    has_base = any(v == "" for _fid, v, _n, _cps in built)
+    stack_parts: List[str] = []
+    if has_h:
+        stack_parts.append(f"'{family_yi_variant('h')}'")
+    if has_base:
+        stack_parts.append(f"'{family_yi_variant('')}'")
+    stack = ", ".join(stack_parts) or f"'{FAMILY_NAME}'"
     fontlist_path = os.path.join(out_dir, f"{PS_NAME}-fontlist.css")
     with open(fontlist_path, "w", encoding="utf-8") as f:
         f.write(
-            "/* Yi font family */\n"
-            f":root {{\n  --font-edenia-yi: '{FAMILY_NAME}';\n}}\n"
+            "/* Yi font families (h = slices; base = D4 + dakuten) */\n"
+            f":root {{\n  --font-edenia-yi: {stack};\n}}\n"
         )
     print(f"Wrote {fontlist_path}")
 
@@ -503,6 +695,7 @@ def build_all(
     write_ttf: bool = True,
     write_woff2: bool = True,
     hint: bool = True,
+    variants: Sequence[str] = ("", "h"),
 ) -> None:
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
@@ -523,16 +716,20 @@ def build_all(
 
     print(
         "  Orientations: VS01..VS08 / FE01..FE07 "
-        "(bare = identity; FE00 = overlay)"
+        "(bare = identity; FE00 = overlay on h)"
     )
-    print("  Slice: U+FE08–FE0B halves, U+FE0C–FE0F triangles")
+    print("  Slice (h face): U+FE08–FE0B halves, U+FE0C–FE0F triangles")
     print(
         "  Dakuten: mkanaplus + Nexsevka + JuliaMono + Constructium + "
         "Droid Sans + Arial Unicode MS + Gentium \\p{M} @ CJK corners "
         f"({DAKUTEN_SLOT_CYCLE}; CGJ skips a slot; fixed H, L/R/mid align; "
         "all D4 incl. r90my)"
     )
-    print(f"  Output: single font '{FAMILY_NAME}'")
+    print(
+        f"  Output: '{FAMILY_NAME}'"
+        + (" + pigeonholed 'edenia yi h'" if "h" in variants else "")
+        + (" --base-only" if variants == ("",) or list(variants) == [""] else "")
+    )
     fmt_note = (
         "ttf+woff2"
         if write_ttf and write_woff2
@@ -541,23 +738,32 @@ def build_all(
     print(f"  Formats: {fmt_note}")
 
     os.makedirs(out_dir, exist_ok=True)
-    path, count, cps = build_panyi_font(
+    built = build_panyi_font(
         inv,
         out_dir,
         target_upem,
         write_ttf=write_ttf,
         write_woff2=write_woff2,
         hint=hint,
+        variants=variants,
     )
-    if count:
-        write_css(out_dir, cps)
-    print(f"\nDone: {path} ({count} glyphs)", flush=True)
+    if built:
+        write_css(out_dir, built)
+    for face_id, variant, count, _cps in built:
+        print(
+            f"  {family_yi_variant(variant)} / {face_id}: {count} glyphs",
+            flush=True,
+        )
+    print(f"\nDone: {len(built)} Yi face(s)", flush=True)
     sync_dist_to_plugin("yi", out_dir)
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build the single edenia yi font (D4 + FE08–FE0F slice + dakuten)"
+        description=(
+            "Build edenia yi (D4 + dakuten) and edenia yi h "
+            "(pigeonholed FE00/FE08–F slices)"
+        )
     )
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
     p.add_argument("--out", dest="out_dir", default=OUT_DIR)
@@ -567,6 +773,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Use only the first N inventory codepoints (smoke test)",
+    )
+    p.add_argument(
+        "--base-only",
+        action="store_true",
+        help="Build only the identity/D4 face (skip slice h pigeonholes)",
     )
     fmt = p.add_mutually_exclusive_group()
     fmt.add_argument(
@@ -586,6 +797,7 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
+    variants: Tuple[str, ...] = ("",) if args.base_only else ("", "h")
     build_all(
         args.in_dir,
         args.out_dir,
@@ -594,4 +806,5 @@ if __name__ == "__main__":
         write_ttf=not args.woff2_only,
         write_woff2=not args.ttf_only,
         hint=not args.no_hint,
+        variants=variants,
     )

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Build the single ``edenia kana`` font (PUA D4 cmap + smalls + FE00/FE08–F slices + dakuten).
+Build ``edenia kana`` (PUA D4 cmap + smalls + dakuten) and pigeonholed
+``edenia kana h`` (FE00 overlay + FE08–FE0F slices), matching CJK base vs ``h``.
 
 Encoding
 --------
@@ -40,7 +41,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
@@ -77,6 +78,7 @@ from shared_diacritics import (
 )
 from shared_half_cells import (
     DEFAULT_UPEM,
+    TTF_GLYPH_LIMIT,
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,
     YI_ORIENTATION_MODES,
@@ -89,6 +91,7 @@ from shared_half_cells import (
     ideographic_center,
     orientation_form_names,
     rebuild_sideways_from_r90,
+    subset_glyph_tables,
     variant_glyph_name,
     variant_transform,
 )
@@ -102,7 +105,15 @@ from yi_slice import (
     inject_slice_marks,
     install_slice_gsub,
 )
-from edenia_names import CSS_KANA, FAMILY_KANA, PS_KANA
+from edenia_names import (
+    CSS_KANA,
+    FAMILY_KANA,
+    PS_KANA,
+    family_kana_variant,
+    h_bucket_face_id,
+    parse_h_bucket_face_id,
+    ps_kana,
+)
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
 from shared_hinting import add_no_hint_argument
@@ -1300,59 +1311,414 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
     return ", ".join(runs)
 
 
-def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
-    css_path = os.path.join(out_dir, CSS_KANA)
-    # Overlay + combining slices; omit FE01–FE07 (CJK/Yi D4).
-    # Combining marks must be listed or Blink drops them (tofu after kana).
-    cps_for_ur = {cp for cp in codepoints if not (0xFE00 <= cp <= 0xFE0F)}
-    cps_for_ur |= {0xFE00} | set(range(0xFE08, 0xFE10))
-    for stem_name in (f"{PS_NAME}.woff2", f"{PS_NAME}.ttf"):
-        font_path = os.path.join(out_dir, stem_name)
-        if not os.path.isfile(font_path):
-            continue
-        try:
-            from shared_diacritics import combining_mark_codepoints_from_font
+KANA_H_FE = {0xFE00} | set(range(0xFE08, 0xFE10))
 
-            cps_for_ur |= set(combining_mark_codepoints_from_font(font_path))
-        except Exception as exc:
-            print(f"  [!] kana mark unicode-range: {exc}", flush=True)
-        break
-    ur = unicode_range_css(cps_for_ur)
-    lines = [
-        "/* Auto-generated single kana font (PUA D4 + smalls + halfwidth + slices) */",
+
+def _css_cps_for_kana_face(
+    codepoints: Sequence[int], variant: str, *, mark_cps: Sequence[int]
+) -> List[int]:
+    cps = {cp for cp in codepoints if not (0xFE00 <= cp <= 0xFE0F)}
+    if variant == "h":
+        cps |= KANA_H_FE
+    cps |= set(mark_cps)
+    return sorted(cps)
+
+
+def write_css(
+    out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]
+) -> None:
+    """Write edenia-kana.css: ``h`` pigeonholes then the base face."""
+    css_path = os.path.join(out_dir, CSS_KANA)
+    mark_cps: set[int] = set()
+    for face_id, _variant, _n, _cps in built:
+        for stem_name in (f"{face_id}.woff2", f"{face_id}.ttf"):
+            font_path = os.path.join(out_dir, stem_name)
+            if not os.path.isfile(font_path):
+                continue
+            try:
+                from shared_diacritics import combining_mark_codepoints_from_font
+
+                mark_cps |= set(combining_mark_codepoints_from_font(font_path))
+            except Exception as exc:
+                print(f"  [!] kana mark unicode-range ({face_id}): {exc}", flush=True)
+            break
+        if mark_cps:
+            break
+
+    def _face_sort(item: Tuple[str, str, int, List[int]]) -> Tuple[int, int, str]:
+        face_id, variant, _n, _cps = item
+        if variant == "h":
+            bid = parse_h_bucket_face_id(face_id)
+            return (0, bid if bid is not None else 0, face_id)
+        return (1, 0, face_id)
+
+    lines: List[str] = [
+        "/* Auto-generated Edenia kana: 'edenia kana h' (slices, pigeonholed)",
+        "   then 'edenia kana' (PUA D4 + dakuten). Pin h for FE00/FE08–F.",
+        "   Kana must not claim FE01–FE07 (CJK/Yi D4). */",
         "",
-        "@font-face {",
-        f"  font-family: '{FAMILY_NAME}';",
-        format_src_line(
-            dist_rel("kana", f"{PS_NAME}.woff2"),
-            fmt="woff2",
-            local=(
-                (f"./{PS_NAME}.woff2", "woff2"),
-                (f"./{PS_NAME}.ttf", "truetype"),
-            ),
-            indent="  ",
-        ),
-        "  font-weight: normal;",
-        "  font-style: normal;",
     ]
-    if ur:
-        lines.append(f"  unicode-range: {ur};")
-    lines += [
-        "  font-display: swap;",
-        "}",
-        "",
-    ]
+
+    def _emit(family: str, face_id: str, unicode_range: str) -> None:
+        lines.append("@font-face {")
+        lines.append(f"  font-family: '{family}';")
+        lines.append(
+            format_src_line(
+                dist_rel("kana", f"{face_id}.woff2"),
+                fmt="woff2",
+                local=(
+                    (f"./{face_id}.woff2", "woff2"),
+                    (f"./{face_id}.ttf", "truetype"),
+                ),
+                indent="  ",
+            )
+        )
+        if unicode_range:
+            lines.append(f"  unicode-range: {unicode_range};")
+        lines.extend(
+            [
+                "  font-weight: normal;",
+                "  font-style: normal;",
+                "  font-display: swap;",
+                "}",
+                "",
+            ]
+        )
+
+    for face_id, variant, _n, codepoints in sorted(built, key=_face_sort):
+        ur = unicode_range_css(
+            _css_cps_for_kana_face(codepoints, variant, mark_cps=sorted(mark_cps))
+        )
+        _emit(family_kana_variant(variant), face_id, ur)
+
     with open(css_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
+    has_h = any(v == "h" for _fid, v, _n, _cps in built)
+    has_base = any(v == "" for _fid, v, _n, _cps in built)
+    stack_parts: List[str] = []
+    if has_h:
+        stack_parts.append(f"'{family_kana_variant('h')}'")
+    if has_base:
+        stack_parts.append(f"'{family_kana_variant('')}'")
+    stack = ", ".join(stack_parts) or f"'{FAMILY_NAME}'"
     fontlist_path = os.path.join(out_dir, f"{PS_NAME}-fontlist.css")
     with open(fontlist_path, "w", encoding="utf-8") as f:
         f.write(
-            "/* Kana font family */\n"
-            f":root {{\n  --font-edenia-kana: '{FAMILY_NAME}';\n}}\n"
+            "/* Kana font families (h = slices; base = PUA D4 + dakuten) */\n"
+            f":root {{\n  --font-edenia-kana: {stack};\n}}\n"
         )
     print(f"Wrote {fontlist_path}")
+
+
+def _add_kana_slices(
+    *,
+    full_bases: Sequence[str],
+    small_bases: Sequence[str],
+    hw_full_bases: Sequence[str],
+    hw_small_bases: Sequence[str],
+    glyph_order: List[str],
+    glyphs: Dict,
+    metrics: Dict[str, Tuple[int, int]],
+    target_upem: int,
+) -> None:
+    """Bake combining slices + overlays for bases present in ``glyphs``."""
+    full_pairs = [
+        (f, s)
+        for f, s in zip(full_bases, small_bases)
+        if f in glyphs and s in glyphs
+    ]
+    full = [f for f, _s in full_pairs]
+    small = [s for _f, s in full_pairs]
+    if not full:
+        full = [b for b in full_bases if b in glyphs]
+    hw_full = [b for b in hw_full_bases if b in glyphs]
+    hw_small = [b for b in hw_small_bases if b in glyphs]
+    if full:
+        print(
+            "  Installing FE08–FE0F combining slices on full forms "
+            "(identity clip; D4 via propagate)...",
+            flush=True,
+        )
+        add_slice_halves(
+            full,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+            modes=YI_ORIENTATION_MODES,
+        )
+    if small and full:
+        print(
+            "  Small slice halves: ideo-scale + Weight "
+            "(match bodies; keep half-planes)...",
+            flush=True,
+        )
+        n_sm_halves = add_small_slice_halves_from_full(
+            small,
+            full,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+            modes=YI_ORIENTATION_MODES,
+        )
+        print(f"  Small slice halves: {n_sm_halves}", flush=True)
+        ov_sm: List[str] = []
+        for b in small:
+            for form in orientation_form_names(b, modes=YI_ORIENTATION_MODES):
+                ov_sm.append(form)
+                for suf in SLICE_SUFFIXES:
+                    n = half_glyph_name(form, suf)
+                    if n in glyphs:
+                        ov_sm.append(n)
+        add_overlay_forms(
+            ov_sm, glyph_order=glyph_order, glyphs=glyphs, metrics=metrics
+        )
+        sm_half_pin: List[str] = []
+        for b in small:
+            for form in orientation_form_names(b, modes=YI_ORIENTATION_MODES):
+                for half in SLICE_SUFFIXES:
+                    sm_half_pin.append(half_glyph_name(form, half))
+        apply_small_floor_pin(
+            sm_half_pin,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+        )
+    hw_cell = target_upem * HALF_WIDTH_FACTOR
+    if hw_full or hw_small:
+        print(
+            f"  Halfwidth slice halves (cell {hw_cell:g}, "
+            f"CAPE Width {HALF_WIDTH_FACTOR:g}, fixed stems)...",
+            flush=True,
+        )
+    if hw_full:
+        add_slice_halves(
+            hw_full,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+            modes=YI_ORIENTATION_MODES,
+            cell_width=hw_cell,
+        )
+    if hw_small:
+        add_slice_halves(
+            hw_small,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+            modes=YI_ORIENTATION_MODES,
+            cell_width=hw_cell,
+        )
+
+
+def _install_kana_dakuten_layout(
+    font,
+    *,
+    full_bases: Sequence[str],
+    small_bases: Sequence[str],
+    glyph_order: List[str],
+    glyphs: Dict,
+    mark_names: Sequence[str],
+    mark_cps: Sequence[int],
+    base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
+) -> None:
+    if not mark_names or not base_anchors:
+        return
+    small_forms: List[str] = []
+    for b in small_bases:
+        if b not in glyphs:
+            continue
+        small_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
+    full_forms_dak: List[str] = []
+    for b in full_bases:
+        if b not in glyphs:
+            continue
+        full_forms_dak.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
+    if small_forms:
+        print(
+            "  Compiling GSUB (dakuten .mk→.mk.sm after small bases)...",
+            flush=True,
+        )
+        install_dakuten_mark_variant_gsub(
+            font,
+            mark_cps,
+            glyphs=glyphs,
+            glyph_order=glyph_order,
+            base_names=small_forms,
+            variant="sm",
+        )
+        print(
+            f"  Compiling GSUB (dakuten .sm slots {DAKUTEN_SLOT_CYCLE})...",
+            flush=True,
+        )
+        install_dakuten_slot_gsub(
+            font,
+            mark_cps,
+            glyphs=glyphs,
+            glyph_order=glyph_order,
+            base_names=small_forms,
+            variant="sm",
+        )
+    if full_forms_dak:
+        print(
+            f"  Compiling GSUB (dakuten slots {DAKUTEN_SLOT_CYCLE})...",
+            flush=True,
+        )
+        install_dakuten_slot_gsub(
+            font,
+            mark_cps,
+            glyphs=glyphs,
+            glyph_order=glyph_order,
+            base_names=full_forms_dak,
+        )
+    face_anchors = {k: v for k, v in base_anchors.items() if k in glyphs}
+    face_marks = [n for n in mark_names if n in glyphs]
+    if face_marks and face_anchors:
+        print("  Compiling GPOS (dakuten @ contour slots)...", flush=True)
+        install_dakuten_gpos(
+            font,
+            base_anchors=face_anchors,
+            mark_cps=mark_cps,
+            mark_names=face_marks,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+        )
+
+
+def _save_kana_face(
+    *,
+    face_id: str,
+    variant: str,
+    glyph_order: List[str],
+    glyphs: Dict,
+    metrics: Dict[str, Tuple[int, int]],
+    cmap: Dict[int, str],
+    full_bases: Sequence[str],
+    small_bases: Sequence[str],
+    hw_full_bases: Sequence[str],
+    hw_small_bases: Sequence[str],
+    mark_names: Sequence[str],
+    mark_cps: Sequence[int],
+    base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
+    out_dir: str,
+    target_upem: int,
+    write_ttf: bool,
+    write_woff2: bool,
+    hint: bool,
+    slices: bool,
+) -> Tuple[str, str, int, List[int]]:
+    n_glyphs = len(glyphs)
+    if n_glyphs > TTF_GLYPH_LIMIT:
+        raise RuntimeError(
+            f"{face_id}: {n_glyphs} glyphs exceeds TTF uint16 max ({TTF_GLYPH_LIMIT})"
+        )
+    family = family_kana_variant(variant)
+    ps = ps_kana(face_id)
+    out_path = os.path.join(out_dir, f"{face_id}.ttf")
+    ascent = otRound(target_upem * TYPO_ASCENDER_FRAC)
+    descent = otRound(target_upem * TYPO_DESCENDER_FRAC)
+    n_logical = sum(1 for b in full_bases if b in glyphs)
+    print(
+        f"  Assembling {family} / {face_id} "
+        f"({n_glyphs - 1} glyphs, {n_logical} logical)...",
+        flush=True,
+    )
+    fb = FontBuilder(target_upem, isTTF=True)
+    fb.setupGlyphOrder(glyph_order)
+    fb.setupGlyf(glyphs)
+    fb.setupHorizontalMetrics(metrics)
+    fb.setupHorizontalHeader(ascent=ascent, descent=descent)
+    fb.setupCharacterMap(cmap)
+    fb.setupNameTable(
+        {
+            "familyName": family,
+            "styleName": "Regular",
+            "uniqueFontIdentifier": ps,
+            "fullName": family,
+            "psName": ps,
+            "version": "Version 1.000",
+        }
+    )
+    fb.setupOS2(
+        sTypoAscender=ascent,
+        sTypoDescender=descent,
+        sTypoLineGap=0,
+        usWinAscent=ascent,
+        usWinDescent=abs(descent),
+        achVendID="pKa ",
+    )
+    fb.setupPost()
+
+    if slices:
+        full_forms: List[str] = []
+        for b in full_bases:
+            if b in glyphs:
+                full_forms.extend(
+                    orientation_form_names(b, modes=YI_ORIENTATION_MODES)
+                )
+        for b in small_bases:
+            if b in glyphs:
+                full_forms.extend(
+                    orientation_form_names(b, modes=YI_ORIENTATION_MODES)
+                )
+        if full_forms:
+            print("  Compiling GSUB (FE00 overlay + FE08–F slice)...", flush=True)
+            install_slice_gsub(
+                fb.font,
+                full_forms,
+                glyphs=glyphs,
+                glyph_order=glyph_order,
+            )
+        hw_forms: List[str] = []
+        for b in hw_full_bases:
+            if b in glyphs:
+                hw_forms.extend(
+                    orientation_form_names(b, modes=YI_ORIENTATION_MODES)
+                )
+        for b in hw_small_bases:
+            if b in glyphs:
+                hw_forms.extend(
+                    orientation_form_names(b, modes=YI_ORIENTATION_MODES)
+                )
+        if hw_forms:
+            print("  Compiling GSUB (halfwidth FE00/FE08–F slice)...", flush=True)
+            install_slice_gsub(
+                fb.font,
+                hw_forms,
+                glyphs=glyphs,
+                glyph_order=glyph_order,
+            )
+
+    _install_kana_dakuten_layout(
+        fb.font,
+        full_bases=full_bases,
+        small_bases=small_bases,
+        glyph_order=glyph_order,
+        glyphs=glyphs,
+        mark_names=mark_names,
+        mark_cps=mark_cps,
+        base_anchors=base_anchors,
+    )
+
+    os.makedirs(out_dir, exist_ok=True)
+    fb.save(out_path)
+    from shared_hinting import autohint_ttf
+
+    autohint_ttf(out_path, enabled=hint)
+    if write_woff2:
+        print(f"  Compressing {face_id}.woff2...", flush=True)
+        woff2.compress(out_path, out_path.replace(".ttf", ".woff2"))
+    if not write_ttf:
+        try:
+            os.remove(out_path)
+        except OSError:
+            pass
+    return face_id, variant, n_glyphs - 1, sorted(cmap.keys())
 
 
 def build_pankana_font(
@@ -1364,11 +1730,12 @@ def build_pankana_font(
     write_ttf: bool = True,
     write_woff2: bool = True,
     hint: bool = True,
-) -> Tuple[str, int, List[int]]:
+    variants: Sequence[str] = ("", "h"),
+) -> List[Tuple[str, str, int, List[int]]]:
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
+    want = {v for v in variants}
 
-    out_path = os.path.join(out_dir, f"{PS_NAME}.ttf")
     source_cps = chart_source_cps()
     if limit is not None:
         source_cps = source_cps[: max(0, limit)]
@@ -1615,95 +1982,12 @@ def build_pankana_font(
             + (", ".join(f"{name}={n}" for name, n in src_counts.items()) or "none"),
             flush=True,
         )
-        print(
-            "  Installing FE08–FE0F combining slices on full forms "
-            "(identity clip; D4 via propagate)...",
-            flush=True,
-        )
-        add_slice_halves(
-            full_bases,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-            target_upem=target_upem,
-            modes=YI_ORIENTATION_MODES,
-        )
-        print(
-            "  Small slice halves: ideo-scale + Weight (match bodies; keep half-planes)...",
-            flush=True,
-        )
-        n_sm_halves = add_small_slice_halves_from_full(
-            small_bases,
-            full_bases,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-            target_upem=target_upem,
-            modes=YI_ORIENTATION_MODES,
-        )
-        print(f"  Small slice halves: {n_sm_halves}", flush=True)
-        ov_sm: List[str] = []
-        for b in small_bases:
-            for form in orientation_form_names(b, modes=YI_ORIENTATION_MODES):
-                ov_sm.append(form)
-                for suf in SLICE_SUFFIXES:
-                    n = half_glyph_name(form, suf)
-                    if n in glyphs:
-                        ov_sm.append(n)
-        add_overlay_forms(
-            ov_sm, glyph_order=glyph_order, glyphs=glyphs, metrics=metrics
-        )
-
-        hw_cell = target_upem * HALF_WIDTH_FACTOR
-        print(
-            f"  Halfwidth slice halves (cell {hw_cell:g}, "
-            f"CAPE Width {HALF_WIDTH_FACTOR:g}, fixed stems)...",
-            flush=True,
-        )
-        add_slice_halves(
-            hw_full_bases,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-            target_upem=target_upem,
-            modes=YI_ORIENTATION_MODES,
-            cell_width=hw_cell,
-        )
-        add_slice_halves(
-            hw_small_bases,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-            target_upem=target_upem,
-            modes=YI_ORIENTATION_MODES,
-            cell_width=hw_cell,
-        )
-        print(
-            f"  Halfwidth: {len(hw_full_bases)} full + {len(hw_small_bases)} small "
-            f"@ U+{HW_PUA_START:05X}",
-            flush=True,
-        )
-
-        # Floor-pin halves only (bodies already pinned before D4).
-        sm_half_pin: List[str] = []
-        for b in small_bases:
-            for form in orientation_form_names(b, modes=YI_ORIENTATION_MODES):
-                for half in SLICE_SUFFIXES:
-                    sm_half_pin.append(half_glyph_name(form, half))
-        apply_small_floor_pin(
-            sm_half_pin,
-            glyphs=glyphs,
-            metrics=metrics,
-            target_upem=target_upem,
-        )
         pivot = small_ideo_center(target_upem)
         print(
             f"  Small D4 pivot (post-scale ideo center): "
             f"({pivot[0]:.1f}, {pivot[1]:.1f})",
             flush=True,
         )
-
-        inject_slice_marks(glyph_order, glyphs, metrics, cmap)
 
         mark_names: List[str] = []
         mark_cps: List[int] = []
@@ -1775,142 +2059,83 @@ def build_pankana_font(
         except FileNotFoundError as exc:
             print(f"  Skipping dakuten marks: {exc}", flush=True)
 
-        ascent = otRound(target_upem * TYPO_ASCENDER_FRAC)
-        descent = otRound(target_upem * TYPO_DESCENDER_FRAC)
-
-        print(
-            f"  Assembling font ({len(glyphs) - 1} glyphs, "
-            f"{len(full_bases)} logical)...",
-            flush=True,
-        )
-        fb = FontBuilder(target_upem, isTTF=True)
-        fb.setupGlyphOrder(glyph_order)
-        fb.setupGlyf(glyphs)
-        fb.setupHorizontalMetrics(metrics)
-        fb.setupHorizontalHeader(ascent=ascent, descent=descent)
-        fb.setupCharacterMap(cmap)
-        fb.setupNameTable(
-            {
-                "familyName": FAMILY_NAME,
-                "styleName": "Regular",
-                "uniqueFontIdentifier": PS_NAME,
-                "fullName": FAMILY_NAME,
-                "psName": PS_NAME,
-                "version": "Version 1.000",
-            }
-        )
-        fb.setupOS2(
-            sTypoAscender=ascent,
-            sTypoDescender=descent,
-            sTypoLineGap=0,
-            usWinAscent=ascent,
-            usWinDescent=abs(descent),
-            achVendID="pKa ",
-        )
-        fb.setupPost()
-
-        print("  Compiling GSUB (FE00 overlay + FE08–F slice)...", flush=True)
-        full_forms: List[str] = []
-        for b in full_bases:
-            full_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
-        for b in small_bases:
-            full_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
-        install_slice_gsub(
-            fb.font,
-            full_forms,
-            glyphs=glyphs,
-            glyph_order=glyph_order,
-        )
-        hw_forms: List[str] = []
-        for b in hw_full_bases:
-            hw_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
-        for b in hw_small_bases:
-            hw_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
-        if hw_forms:
-            print("  Compiling GSUB (halfwidth FE00/FE08–F slice)...", flush=True)
-            install_slice_gsub(
-                fb.font,
-                hw_forms,
-                glyphs=glyphs,
-                glyph_order=glyph_order,
-            )
-
-        if mark_names and base_anchors:
-            # Scaled marks after small bases, then sm / full slot cycles.
-            small_forms: List[str] = []
-            for b in small_bases:
-                small_forms.extend(
-                    orientation_form_names(b, modes=YI_ORIENTATION_MODES)
-                )
-            full_forms_dak: List[str] = []
-            for b in full_bases:
-                full_forms_dak.extend(
-                    orientation_form_names(b, modes=YI_ORIENTATION_MODES)
-                )
-
-            print(
-                "  Compiling GSUB (dakuten .mk→.mk.sm after small bases)...",
-                flush=True,
-            )
-            install_dakuten_mark_variant_gsub(
-                fb.font,
-                mark_cps,
-                glyphs=glyphs,
-                glyph_order=glyph_order,
-                base_names=small_forms,
-                variant="sm",
-            )
-            print(
-                f"  Compiling GSUB (dakuten .sm slots {DAKUTEN_SLOT_CYCLE})...",
-                flush=True,
-            )
-            install_dakuten_slot_gsub(
-                fb.font,
-                mark_cps,
-                glyphs=glyphs,
-                glyph_order=glyph_order,
-                base_names=small_forms,
-                variant="sm",
-            )
-            print(
-                f"  Compiling GSUB (dakuten slots {DAKUTEN_SLOT_CYCLE})...",
-                flush=True,
-            )
-            install_dakuten_slot_gsub(
-                fb.font,
-                mark_cps,
-                glyphs=glyphs,
-                glyph_order=glyph_order,
-                base_names=full_forms_dak,
-            )
-            print(
-                "  Compiling GPOS (dakuten @ contour slots)...",
-                flush=True,
-            )
-            install_dakuten_gpos(
-                fb.font,
-                base_anchors=base_anchors,
-                mark_cps=mark_cps,
-                mark_names=mark_names,
-                glyph_order=glyph_order,
-                glyphs=glyphs,
-            )
-
+        built: List[Tuple[str, str, int, List[int]]] = []
         os.makedirs(out_dir, exist_ok=True)
-        fb.save(out_path)
-        from shared_hinting import autohint_ttf
+        save_kw = dict(
+            full_bases=full_bases,
+            small_bases=small_bases,
+            hw_full_bases=hw_full_bases,
+            hw_small_bases=hw_small_bases,
+            mark_names=mark_names,
+            mark_cps=mark_cps,
+            base_anchors=base_anchors,
+            out_dir=out_dir,
+            target_upem=target_upem,
+            write_ttf=write_ttf,
+            write_woff2=write_woff2,
+            hint=hint,
+        )
+        if "" in want:
+            built.append(
+                _save_kana_face(
+                    face_id=PS_NAME,
+                    variant="",
+                    glyph_order=glyph_order,
+                    glyphs=glyphs,
+                    metrics=metrics,
+                    cmap=cmap,
+                    slices=False,
+                    **save_kw,
+                )
+            )
 
-        autohint_ttf(out_path, enabled=hint)
-        if write_woff2:
-            print("  Compressing WOFF2...", flush=True)
-            woff2.compress(out_path, out_path.replace(".ttf", ".woff2"))
-        if not write_ttf:
-            try:
-                os.remove(out_path)
-            except OSError:
-                pass
+        if "h" in want:
+            dakuten_keep = {n for n in glyph_order if ".mk" in n}
+            pages = sorted(
+                {
+                    cp >> 8
+                    for cp in cmap
+                    if 0xE000 <= cp <= 0xF9FF
+                }
+            )
+            for bucket_id in pages:
+                keep: Set[str] = {".notdef", *dakuten_keep}
+                for cp, name in cmap.items():
+                    if (cp >> 8) == bucket_id:
+                        keep.add(name)
+                go, gl, mt, cm = subset_glyph_tables(
+                    glyph_order, glyphs, metrics, cmap, keep
+                )
+                print(
+                    f"  Slice face {h_bucket_face_id(bucket_id)} "
+                    f"({sum(1 for cp in cm if (cp >> 8) == bucket_id)} CPs)...",
+                    flush=True,
+                )
+                _add_kana_slices(
+                    full_bases=full_bases,
+                    small_bases=small_bases,
+                    hw_full_bases=hw_full_bases,
+                    hw_small_bases=hw_small_bases,
+                    glyph_order=go,
+                    glyphs=gl,
+                    metrics=mt,
+                    target_upem=target_upem,
+                )
+                inject_slice_marks(go, gl, mt, cm)
+                built.append(
+                    _save_kana_face(
+                        face_id=h_bucket_face_id(bucket_id),
+                        variant="h",
+                        glyph_order=go,
+                        glyphs=gl,
+                        metrics=mt,
+                        cmap=cm,
+                        slices=True,
+                        **save_kw,
+                    )
+                )
 
-        return out_path, len(glyphs) - 1, sorted(cmap.keys())
+        return built
     finally:
         flop.close()
         mkana.close()
@@ -1930,6 +2155,7 @@ def build_all(
     write_ttf: bool = True,
     write_woff2: bool = True,
     hint: bool = True,
+    variants: Sequence[str] = ("", "h"),
 ) -> None:
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
@@ -1956,12 +2182,18 @@ def build_all(
         f"{small_ideo_center(DEFAULT_UPEM)}; "
         f"slice full first; halves ideo-scale + floor-pin"
     )
-    print("  Slice: U+FE00 overlay, U+FE08–FE0B halves, U+FE0C–FE0F triangles")
+    print(
+        f"  Slice (h face): U+FE00 overlay, U+FE08–FE0B halves, "
+        "U+FE0C–FE0F triangles (pigeonholed like CJK h)"
+    )
     print(
         "  Dakuten: contour GPOS (near ink, inside ideo cell; "
         f"{DAKUTEN_SLOT_CYCLE}; CGJ U+034F skips a slot)"
     )
-    print(f"  Output: single font '{FAMILY_NAME}'")
+    print(
+        f"  Output: '{FAMILY_NAME}'"
+        + (" + pigeonholed 'edenia kana h'" if "h" in variants else "")
+    )
     fmt_note = (
         "ttf+woff2"
         if write_ttf and write_woff2
@@ -1970,7 +2202,7 @@ def build_all(
     print(f"  Formats: {fmt_note}")
 
     os.makedirs(out_dir, exist_ok=True)
-    path, count, cps = build_pankana_font(
+    built = build_pankana_font(
         in_dir,
         out_dir,
         target_upem,
@@ -1978,16 +2210,25 @@ def build_all(
         write_ttf=write_ttf,
         write_woff2=write_woff2,
         hint=hint,
+        variants=variants,
     )
-    if count:
-        write_css(out_dir, cps)
-    print(f"\nDone: {path} ({count} glyphs)", flush=True)
+    if built:
+        write_css(out_dir, built)
+    for face_id, variant, count, _cps in built:
+        print(
+            f"  {family_kana_variant(variant)} / {face_id}: {count} glyphs",
+            flush=True,
+        )
+    print(f"\nDone: {len(built)} kana face(s)", flush=True)
     sync_dist_to_plugin("kana", out_dir)
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build edenia kana (PUA D4 + smalls + halfwidth + FE00/FE08–F slices + dakuten)"
+        description=(
+            "Build edenia kana (PUA D4 + dakuten) and edenia kana h "
+            "(pigeonholed FE00/FE08–F slices)"
+        )
     )
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
     p.add_argument("--out", dest="out_dir", default=OUT_DIR)
@@ -1997,6 +2238,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Use only the first N logical chart cells (smoke test)",
+    )
+    p.add_argument(
+        "--base-only",
+        action="store_true",
+        help="Build only the PUA D4 face (skip slice h pigeonholes)",
     )
     fmt = p.add_mutually_exclusive_group()
     fmt.add_argument(
@@ -2016,6 +2262,7 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
+    variants: Tuple[str, ...] = ("",) if args.base_only else ("", "h")
     build_all(
         args.in_dir,
         args.out_dir,
@@ -2024,4 +2271,5 @@ if __name__ == "__main__":
         write_ttf=not args.woff2_only,
         write_woff2=not args.ttf_only,
         hint=not args.no_hint,
+        variants=variants,
     )

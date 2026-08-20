@@ -233,8 +233,9 @@ def add_slice_halves(
     limit: Optional[int] = None,
     cell_width: Optional[float] = None,
     slice_adv_name: str = SLICE_ADV_NAME,
+    overlays: bool = True,
 ) -> List[str]:
-    """Bake identity slices + D4 copies; add ``.ov`` overlays.
+    """Bake identity slices + D4 copies; optionally add ``.ov`` overlays.
 
     ``slice_adv_name`` is ignored (combining slices keep the cell advance).
     ``base_names`` are identity glyph names (not pre-expanded orientations).
@@ -292,19 +293,20 @@ def add_slice_halves(
                     if name not in added:
                         added.append(name)
 
-    ov_sources: List[str] = []
-    for form in forms:
-        ov_sources.append(form)
-        for suf in SLICE_SUFFIXES:
-            sliced = half_glyph_name(form, suf)
-            if sliced in glyphs:
-                ov_sources.append(sliced)
-    add_overlay_forms(
-        ov_sources,
-        glyph_order=glyph_order,
-        glyphs=glyphs,
-        metrics=metrics,
-    )
+    if overlays:
+        ov_sources: List[str] = []
+        for form in forms:
+            ov_sources.append(form)
+            for suf in SLICE_SUFFIXES:
+                sliced = half_glyph_name(form, suf)
+                if sliced in glyphs:
+                    ov_sources.append(sliced)
+        add_overlay_forms(
+            ov_sources,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+        )
     return added
 
 
