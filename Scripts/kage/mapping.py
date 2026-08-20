@@ -70,9 +70,9 @@ glyph. Variants are the two-codepoint GSUB ligature::
     <han / hangul / tangut / yi>  <VS0n>
 
 No Supplementary PUA marker. VS01..VS08 (U+E000..U+E007) are also
-cmap'd into every bucket font as zero-width marks. UVS mirrors them at
-U+FE00..FE07. ``U+FE08`` overlays the preceding pair (prior glyphs
-zero-width; last keeps advance; chain with more FE08).
+cmap'd into every bucket font as zero-width marks. UVS mirrors orientations
+at U+FE01..FE07 (identity is the bare character). ``U+FE00`` overlays the
+preceding glyph (zero-width ``.ov``; next glyph keeps advance).
 
 The 8 unique square symmetries (dihedral group D4); geometric duplicates
 such as ``mxy === r180`` are omitted:

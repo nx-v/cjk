@@ -10,12 +10,14 @@
  * Encoding (matches Scripts/*_html.py / build_*):
  *   Hangul jamo: L/V/T × FE00–FE03; T + FE04 batchim swap; bangjeom;
  *                combining marks (shared_diacritics inventory) + CGJ
- *   Yi:          base × FE00–FE07; digraph A B FE08 (H) / FE09 (V);
+ *   Yi:          base × FE01–FE07; digraph A FE08 FE00 B FE09 (etc.);
  *                same combining-mark + CGJ slot cycle
  *   Kana:        BMP PUA U+E000… (full/small D4) + halfwidth U+ED00…;
- *                slices FE00/FE01; combining marks + CGJ slot skip
+ *                slices FE00 overlay + FE08–FE0F; combining marks + CGJ slot skip
  *                (not Unicode Hiragana/Katakana/Kana Extended blocks)
- *   CJK (+Tangut/Khitan): D4 FE00–FE07; digraph A FE0B FE0C–F + B FE0D–F;
+ *   CJK (+Tangut/Khitan): D4 FE01–FE07 on h; base ca/nhay
+ *                         CJK FE00–FE0F MARK (4 pos × id/mx/my/mxy);
+ *                         digraph A FE08 FE00 B FE09 (etc.) on h;
  *                         ca/nhay U+16FF0/16FF1 only (no combining marks)
  *
  * Combining marks = ``\p{M}`` baked into Hangul/Yi/Kana (see
@@ -200,19 +202,19 @@ const CHARACTERS = {
   digits: [..."0123456789\u218a\u218b"],
   alphabet: [..."ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"],
 
-  feD4: [...inclusiveRange(0xfe00, 0xfe07)].map(fromCodePoint),
+  feD4: [...inclusiveRange(0xfe01, 0xfe07)].map(fromCodePoint),
   feHangulMirror: [...inclusiveRange(0xfe00, 0xfe03)].map(fromCodePoint),
   fe04: fromCodePoint(0xfe04),
-  feYiSliceH: fromCodePoint(0xfe08),
-  feYiSliceV: fromCodePoint(0xfe09),
-  feKanaSliceH: fromCodePoint(0xfe00),
-  feKanaSliceV: fromCodePoint(0xfe01),
-  feOv: fromCodePoint(0xfe0b),
+  feOv: fromCodePoint(0xfe00),
   feSquish: {
-    R: fromCodePoint(0xfe0c),
-    L: fromCodePoint(0xfe0d),
-    T: fromCodePoint(0xfe0e),
-    B: fromCodePoint(0xfe0f),
+    T: fromCodePoint(0xfe08),
+    B: fromCodePoint(0xfe09),
+    L: fromCodePoint(0xfe0a),
+    R: fromCodePoint(0xfe0b),
+    TL: fromCodePoint(0xfe0c),
+    BR: fromCodePoint(0xfe0d),
+    TR: fromCodePoint(0xfe0e),
+    BL: fromCodePoint(0xfe0f),
   },
   ca: fromCodePoint(0x16ff0),
   nhay: fromCodePoint(0x16ff1),
@@ -244,10 +246,14 @@ const BRACKETS = [
 ];
 
 const DIGRAPH_NICHE_PAIRS = [
-  ["R", "L"],
-  ["L", "R"],
   ["T", "B"],
   ["B", "T"],
+  ["L", "R"],
+  ["R", "L"],
+  ["TL", "BR"],
+  ["BR", "TL"],
+  ["TR", "BL"],
+  ["BL", "TR"],
 ];
 
 // ---------- Edenia kana PUA chart (build_kana.py) ----------
@@ -466,34 +472,40 @@ function cjkWithD4(ch) {
 
 function cjkChuNom(ch) {
   if (random() >= 0.08) return ch;
-  return ch + "\u200b" + (random() < 0.5 ? CHARACTERS.ca : CHARACTERS.nhay);
+  const slot = random() < 0.35 ? "" : randomItem(
+    [...inclusiveRange(0xfe00, 0xfe0f)].map(fromCodePoint),
+  );
+  return ch + slot + (random() < 0.5 ? CHARACTERS.ca : CHARACTERS.nhay);
 }
 
-function cjkHalfDigraph(a = getIdeographLike(), b = getIdeographLike()) {
+function combiningSliceDigraph(a, b, {withD4 = false} = {}) {
   const [sideA, sideB] = randomItem(DIGRAPH_NICHE_PAIRS);
-  const d4a = random() < 0.4 ? randomItem(CHARACTERS.feD4) : "";
-  const d4b = random() < 0.4 ? randomItem(CHARACTERS.feD4) : "";
+  const d4a = withD4 && random() < 0.4 ? randomItem(CHARACTERS.feD4) : "";
+  const d4b = withD4 && random() < 0.4 ? randomItem(CHARACTERS.feD4) : "";
   return (
     a
     + d4a
-    + CHARACTERS.feOv
     + CHARACTERS.feSquish[sideA]
+    + CHARACTERS.feOv
     + b
     + d4b
     + CHARACTERS.feSquish[sideB]
   );
 }
 
+function cjkHalfDigraph(a = getIdeographLike(), b = getIdeographLike()) {
+  return combiningSliceDigraph(a, b, {withD4: true});
+}
+
 function yiWithD4(ch = randomItem(CHARACTERS.yi)) {
-  return ch + randomItem(CHARACTERS.feD4);
+  return ch + (random() < 0.5 ? randomItem(CHARACTERS.feD4) : "");
 }
 
 function yiSliceDigraph(
   a = randomItem(CHARACTERS.yi),
   b = randomItem(CHARACTERS.yi),
 ) {
-  const joiner = random() < 0.5 ? CHARACTERS.feYiSliceH : CHARACTERS.feYiSliceV;
-  return a + b + joiner;
+  return combiningSliceDigraph(a, b, {withD4: true});
 }
 
 function kanaSyllable(script) {
@@ -522,13 +534,9 @@ function kanaSyllable(script) {
   return s;
 }
 
-/** Kana half-plane slice: A B FE00 (H) / FE01 (V) — PUA bases. */
+/** Kana combining slice: A FE08 FE00 B FE09 (etc.) — PUA bases. */
 function kanaSliceDigraph(script) {
-  const a = kanaSyllable(script);
-  const b = kanaSyllable(script);
-  const joiner =
-    random() < 0.5 ? CHARACTERS.feKanaSliceH : CHARACTERS.feKanaSliceV;
-  return a + b + joiner;
+  return combiningSliceDigraph(kanaSyllable(script), kanaSyllable(script));
 }
 
 function generateNumber(
@@ -839,12 +847,12 @@ function generateFeatureCatalog() {
 
   {
     const lines = [];
-    lines.push("**D4 orientations FE00–FE07** (font: `edenia yi`)");
+    lines.push("**D4 orientations** bare + FE01–FE07 (font: `edenia yi`)");
     const base = sampleRange(0xa000, 0xa48c, 8);
     lines.push(
-      base.map(ch => CHARACTERS.feD4.map(v => ch + v).join("")).join("　"),
+      base.map(ch => ["", ...CHARACTERS.feD4].map(v => ch + v).join("")).join("　"),
     );
-    lines.push("**Slice digraphs** `A B FE08` (H) / `A B FE09` (V)");
+    lines.push("**Slice digraphs** `A FE08 FE00 B FE09` (halves / triangles)");
     lines.push([...Array(10)].map(() => yiSliceDigraph()).join("　"));
     lines.push("**Yi + combining marks**");
     lines.push(
@@ -902,7 +910,7 @@ function generateFeatureCatalog() {
         .join(""),
     );
     lines.push(
-      "**Slice digraphs** `A B FE00` (H) / `A B FE01` (V) on PUA bases",
+      "**Slice digraphs** `A FE08 FE00 B FE09` (halves / triangles) on PUA bases",
     );
     lines.push(
       [...Array(10)]
@@ -927,22 +935,25 @@ function generateFeatureCatalog() {
     lines.push(sampleRange(0x17000, 0x187f7, 24).join(""));
     lines.push("**Khitan Small Script sample**");
     lines.push(sampleRange(0x18b00, 0x18cff, 24).join(""));
-    lines.push("**D4 FE00–FE07 on ideographs**");
+    lines.push("**D4** bare + FE01–FE07 on ideographs");
     const ideos = [...Array(6)].map(() => getIdeographLike());
     lines.push(
-      ideos.map(ch => CHARACTERS.feD4.map(v => ch + v).join("")).join("　"),
+      ideos.map(ch => ["", ...CHARACTERS.feD4].map(v => ch + v).join("")).join("　"),
     );
-    lines.push("**ca / nhay** (`U+16FF0` / `U+16FF1`)");
+    lines.push("**ca / nhay** (`U+16FF0` / `U+16FF1`) — base face `CJK FE00–F MARK`");
     lines.push(
       [...Array(10)]
         .map(() => {
           const ch = getIdeographLike();
-          return ch + CHARACTERS.ca + " " + ch + CHARACTERS.nhay;
+          const slot = randomItem(
+            ["", ...[...inclusiveRange(0xfe00, 0xfe0f)].map(fromCodePoint)],
+          );
+          return ch + slot + CHARACTERS.ca + " " + ch + slot + CHARACTERS.nhay;
         })
         .join("　"),
     );
     lines.push(
-      "**Half digraphs** `A FE0B FE0C–F` + `B FE0D–F` (needs `edenia cjk h`)",
+      "**Slice digraphs** `A FE08 FE00 B FE09` (halves / triangles; needs `edenia cjk h`)",
     );
     const classic = cjkHalfDigraph("\u660e", "\u65e5");
     lines.push(
@@ -953,17 +964,16 @@ function generateFeatureCatalog() {
           .map(() => cjkHalfDigraph()),
       ].join("　"),
     );
-    lines.push("**All niche pairings on 明/日 with FE00 no-op**");
+    lines.push("**All niche pairings on 明/日** (bare / FE01–FE03)");
     const nicheLines = [];
     for (const [sa, sb] of DIGRAPH_NICHE_PAIRS) {
-      for (const d4 of ["", vs(0), vs(1), vs(2)]) {
+      for (const d4 of ["", vs(1), vs(2), vs(3)]) {
         nicheLines.push(
           "\u660e"
             + d4
-            + CHARACTERS.feOv
             + CHARACTERS.feSquish[sa]
+            + CHARACTERS.feOv
             + "\u65e5"
-            + vs(0)
             + CHARACTERS.feSquish[sb],
         );
       }

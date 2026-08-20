@@ -89,7 +89,7 @@
         </section>
 
         <section class="pane" id="pane-yi">
-          <p class="hint">Yi + FE00–FE07 orientation. Digraph: A (D4)? + B (D4)? + FE08 (H) or FE09 (V).</p>
+          <p class="hint">Yi + FE01–FE07 orientation (bare = identity). Digraph: A FE08 FE00 B FE09 (top+bot), FE0A/B left+right, FE0C–F triangles.</p>
           <div class="chars">
             <div class="char-card">
               <div class="idx">A</div>
@@ -106,8 +106,10 @@
             <label for="yiSlice">Slice</label>
             <select id="yiSlice">
               <option value="">none (single)</option>
-              <option value="H">H FE08 top+bot</option>
-              <option value="V">V FE09 left+right</option>
+              <option value="TB">FE08 FE00 / FE09 top+bot</option>
+              <option value="LR">FE0A FE00 / FE0B left+right</option>
+              <option value="TLBR">FE0C FE00 / FE0D tl+br Δ</option>
+              <option value="TRBL">FE0E FE00 / FE0F tr+bl Δ</option>
             </select>
           </div>
           <div class="preview-mini" id="yiPreview" style="font-family:'edenia yi'"></div>
@@ -115,15 +117,17 @@
         </section>
 
         <section class="pane" id="pane-kana">
-          <p class="hint">Edenia kana is PUA (U+E000 full/small, U+ED00 halfwidth), not Unicode hiragana. Slices: FE00 H / FE01 V.</p>
+          <p class="hint">Edenia kana is PUA (U+E000 full/small, U+ED00 halfwidth), not Unicode hiragana. Slices: FE00 overlay + FE08–FE0F.</p>
           <div class="field"><label for="kanaA">A (hex / paste PUA)</label><input id="kanaA" placeholder="E000" spellcheck="false"/></div>
           <div class="field"><label for="kanaB">B (slice pair)</label><input id="kanaB" placeholder="optional" spellcheck="false"/></div>
           <div class="field">
             <label for="kanaSlice">Slice</label>
             <select id="kanaSlice">
               <option value="">none</option>
-              <option value="H">H FE00</option>
-              <option value="V">V FE01</option>
+              <option value="TB">FE08 FE00 / FE09 top+bot</option>
+              <option value="LR">FE0A FE00 / FE0B left+right</option>
+              <option value="TLBR">FE0C FE00 / FE0D tl+br Δ</option>
+              <option value="TRBL">FE0E FE00 / FE0F tr+bl Δ</option>
             </select>
           </div>
           <div class="preview-mini" id="kanaPreview" style="font-family:'edenia kana'"></div>
@@ -131,7 +135,11 @@
         </section>
 
         <section class="pane" id="pane-marks">
-          <p class="hint">CJK ca/nhay sit in a 1/4 niche on the <strong>base</strong> face. Hangul/Yi/Kana combining marks cycle TR→CR→BR→TM→BM→TL→CL→BL; CGJ skips a slot.</p>
+          <p class="hint">CJK ca/nhay sit in a 1/4 niche on the <strong>base</strong> face. FE00–FE0F on the CJK select position × id/mx/my/mxy (FE00 = right upright, optional). Hangul/Yi/Kana combining marks cycle TR→CR→BR→TM→BM→TL→CL→BL; CGJ skips a slot.</p>
+          <div class="field">
+            <label for="cjkMarkSlot">ca/nhay slot (base face)</label>
+            <select id="cjkMarkSlot"></select>
+          </div>
           <div class="mark-btns" id="cjkMarks"></div>
           <div class="field"><label for="combining">Combining mark (Hangul/Yi/Kana)</label><select id="combining"></select></div>
           <div class="row">

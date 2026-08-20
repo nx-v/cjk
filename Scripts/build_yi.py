@@ -7,19 +7,20 @@ Contents
 * Standalone forms at real Unicode CPs (full CJK width) plus D4 orientations:
 
       yi + VS02..VS08 / FE01..FE07   →   oriented variant
-      (VS01 / FE00 = identity, no subst)
+      (bare yi = identity; U+FE00 = overlay)
+
+* Combining slices (full cell advance) + overlay::
+
+      A FE08          →  A.top
+      A FE08 FE00 B FE09  →  A.top.ov + B.bot
+      FE08–FE0B halves; FE0C–FE0F triangles
 
   Standalone fit: shared ``sx`` from NuosuSIL monospace advance → em,
   shared ``sy`` from inventory max ink height, Y centered in padded typo box,
   horizontal stems at 125% (Y-only Weight), then ~98% ideographic inset.
 
-* Slice overlays via FE08–FE09 (half-plane clips + shared ``sliceAdv`` advance):
-
-      A B FE08  →  A.top  + B.bot   sliceAdv   # horizontal
-      A B FE09  →  A.left + B.right sliceAdv   # vertical
-
 * Dakuten marks (shared stack ``\\p{M}`` minus letter / overlay / oversized):
-  GPOS ``mark`` at fixed CJK corners on VS01..VS07 forms and ``sliceAdv``.
+  GPOS ``mark`` at fixed CJK corners on VS01..VS07 forms.
   Successive marks fill TR → BR → TL → BL. No left-squish ``.dk`` forms.
 """
 
@@ -68,9 +69,6 @@ from shared_half_cells import (
     vs_glyph_name,
 )
 from yi_slice import (
-    SLICE_ADV_NAME,
-    SLICE_H_CP,
-    SLICE_V_CP,
     add_slice_halves,
     inject_slice_marks,
     install_slice_gsub,
@@ -107,14 +105,17 @@ def _inject_vs(
             glyph_order.append(vname)
             glyphs[vname] = empty_glyph()
             metrics[vname] = (0, 0)
-        cmap[uvs_selector_for_mode(mode_i)] = vname
-    inject_slice_marks(glyph_order, glyphs, metrics, cmap)
+        cmap[vs_cp] = vname
+        uvs = uvs_selector_for_mode(mode_i)
+        if uvs is not None:
+            cmap[uvs] = vname
+    inject_slice_marks(glyph_order, glyphs, metrics, cmap, pua=True)
 
 
 def install_yi_gsub(
     font, yi_bases: Sequence[str], glyphs: Dict, glyph_order: Sequence[str]
 ) -> None:
-    """Install orientation VS ligas + FE08–FE09 slice (``ccmp``/``rlig``/``liga``)."""
+    """Install orientation VS ligas + FE00/FE08–F slice (``ccmp``/``rlig``/``liga``)."""
     if not yi_bases:
         return
 
@@ -205,7 +206,7 @@ def build_panyi_font(
     write_woff2: bool = True,
     hint: bool = True,
 ) -> Tuple[str, int, List[int]]:
-    """Build the single ``edenia yi`` font (standalones + D4 + FE08–FE09 slices)."""
+    """Build the single ``edenia yi`` font (standalones + D4 + FE08–FE0F slices)."""
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
 
@@ -286,8 +287,8 @@ def build_panyi_font(
         )
 
     print(
-        "  Installing FE08–FE09 slice halves "
-        "(bake id+r90; composite other D4 forms)...",
+        "  Installing FE08–FE0F combining slices "
+        "(identity clip; D4 via propagate)...",
         flush=True,
     )
     add_slice_halves(
@@ -324,10 +325,7 @@ def build_panyi_font(
             cmap=cmap,
         )
         dakuten_bases = yi_forms_for_dakuten(yi_names, modes=YI_ORIENTATION_MODES)
-        # Marks attach to full forms and to shared sliceAdv (after FE0x expansion).
         anchor_bases = list(dakuten_bases)
-        if SLICE_ADV_NAME in glyphs:
-            anchor_bases.append(SLICE_ADV_NAME)
         base_anchors = collect_dakuten_base_anchors(
             anchor_bases,
             glyphs=glyphs,
@@ -380,7 +378,7 @@ def build_panyi_font(
     )
     fb.setupPost()
 
-    print("  Compiling GSUB (orientations + FE08–FE09 slice)...", flush=True)
+    print("  Compiling GSUB (orientations + FE00/FE08–F slice)...", flush=True)
     install_yi_gsub(fb.font, yi_names, glyphs, glyph_order)
 
     if mark_names and base_anchors:
@@ -443,10 +441,10 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 def write_css(out_dir: str, codepoints: Sequence[int]) -> None:
     css_path = os.path.join(out_dir, CSS_YI)
-    # Keep FE00–FE09 in-range for Yi D4 + digraph slices; omit FE0A–FE0F.
+    # Keep FE00–FE0F in-range for overlay, D4, and combining slices.
     # Combining marks must be listed or Blink drops them (tofu after syllables).
-    cps_for_ur = {cp for cp in codepoints if not (0xFE0A <= cp <= 0xFE0F)}
-    cps_for_ur |= set(range(0xFE00, 0xFE0A))
+    cps_for_ur = {cp for cp in codepoints if not (0xFE00 <= cp <= 0xFE0F)}
+    cps_for_ur |= set(range(0xFE00, 0xFE10))
     for stem_name in (f"{PS_NAME}.woff2", f"{PS_NAME}.ttf"):
         font_path = os.path.join(out_dir, stem_name)
         if not os.path.isfile(font_path):
@@ -524,18 +522,15 @@ def build_all(
         print(f"Yi inventory: {inv.count} glyphs from {NUOSU_FILENAME}")
 
     print(
-        "  Orientations: VS01..VS08 / FE00..FE07 "
-        "(transform id+r90, no stem-normalize; other D4 = composites)"
+        "  Orientations: VS01..VS08 / FE01..FE07 "
+        "(bare = identity; FE00 = overlay)"
     )
-    print(
-        f"  Slice: U+{SLICE_H_CP:04X}..U+{SLICE_V_CP:04X} "
-        "(H / V half-planes + shared sliceAdv)"
-    )
+    print("  Slice: U+FE08–FE0B halves, U+FE0C–FE0F triangles")
     print(
         "  Dakuten: mkanaplus + Nexsevka + JuliaMono + Constructium + "
         "Droid Sans + Arial Unicode MS + Gentium \\p{M} @ CJK corners "
         f"({DAKUTEN_SLOT_CYCLE}; CGJ skips a slot; fixed H, L/R/mid align; "
-        "all D4 incl. r90my + sliceAdv)"
+        "all D4 incl. r90my)"
     )
     print(f"  Output: single font '{FAMILY_NAME}'")
     fmt_note = (
@@ -562,7 +557,7 @@ def build_all(
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build the single edenia yi font (D4 + FE08–FE09 slice + dakuten)"
+        description="Build the single edenia yi font (D4 + FE08–FE0F slice + dakuten)"
     )
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
     p.add_argument("--out", dest="out_dir", default=OUT_DIR)

@@ -31,7 +31,7 @@ Successive marks fill slots via GSUB cycling (corners then edge midpoints)::
 Interleaved CGJ skips the following slot.
 
 Bases include Yi identity + all D4 orientations (VS02..VS08 / FE01..FE07,
-including ``r90my``) and shared ``sliceAdv`` after FE08–FE09 expansion.
+including ``r90my``). Combining slices keep the cell advance (no ``sliceAdv``).
 No left-squish forms.
 """
 

@@ -527,7 +527,7 @@ function buildSequence(tpl, chars) {{
     }}
     if (i < tpl.slots.length - 1) {{
       chunk += String.fromCodePoint(ov) + String.fromCodePoint(vs);
-      d += " + FE0B + " + slot;
+      d += " + FE00 + " + slot;
     }} else {{
       chunk += String.fromCodePoint(vs);
       d += " + " + slot;

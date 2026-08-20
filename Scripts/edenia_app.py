@@ -38,6 +38,7 @@ from edenia_names import (
 )
 from cjk_diacritics import (
     CORE_MARK_CPS,
+    MARK_SLOT_VS,
     OV_SELECTOR_CP,
     SQUISH_BOT_CP,
     SQUISH_LEFT_CP,
@@ -48,8 +49,16 @@ from cjk_diacritics_html import BASE_ORIENT_LABEL, BASE_ORIENT_VS
 from shared_quarter_cells import GRID_VS_SLOTS, QUARTER_VS_SLOTS_H, QUARTER_VS_SLOTS_V
 from shared_third_cells import THIRD_VS_SLOTS
 from hangul_html import L_RANGES, T_RANGES, V_RANGES, assigned_cps
-from yi_slice import SLICE_H_CP, SLICE_V_CP
-from build_kana import KANA_SLICE_H_CP, KANA_SLICE_V_CP
+from yi_slice import (
+    SLICE_BL_CP,
+    SLICE_BOT_CP,
+    SLICE_BR_CP,
+    SLICE_LEFT_CP,
+    SLICE_RIGHT_CP,
+    SLICE_TL_CP,
+    SLICE_TOP_CP,
+    SLICE_TR_CP,
+)
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 WEB_DIR = SCRIPT_DIR / "edenia_web"
@@ -143,6 +152,15 @@ def build_data() -> dict:
             "kana": FAMILY_KANA,
             "yi": FAMILY_YI,
         },
+        "CJK_MARK_SLOTS": [
+            {
+                "cp": cp,
+                "pos": pos,
+                "mirror": mirror or "id",
+                "label": f"FE{cp - 0xFE00:02X} {pos} {mirror or 'id'}",
+            }
+            for cp, _sel, pos, mirror in MARK_SLOT_VS
+        ],
         "CJK_MARKS": [
             {"cp": 0x16FF0, "ch": chr(0x16FF0), "label": "ca"},
             {"cp": 0x16FF1, "ch": chr(0x16FF1), "label": "nhay"},
@@ -153,8 +171,24 @@ def build_data() -> dict:
             "T": _compact_jamo(T_RANGES),
             "SWAP": 0xFE04,
         },
-        "YI": {"SLICE_H": SLICE_H_CP, "SLICE_V": SLICE_V_CP},
-        "KANA": {"SLICE_H": KANA_SLICE_H_CP, "SLICE_V": KANA_SLICE_V_CP},
+        "YI": {
+            "OV": OV_SELECTOR_CP,
+            "SLICE": {
+                "TB": [SLICE_TOP_CP, SLICE_BOT_CP],
+                "LR": [SLICE_LEFT_CP, SLICE_RIGHT_CP],
+                "TLBR": [SLICE_TL_CP, SLICE_BR_CP],
+                "TRBL": [SLICE_TR_CP, SLICE_BL_CP],
+            },
+        },
+        "KANA": {
+            "OV": OV_SELECTOR_CP,
+            "SLICE": {
+                "TB": [SLICE_TOP_CP, SLICE_BOT_CP],
+                "LR": [SLICE_LEFT_CP, SLICE_RIGHT_CP],
+                "TLBR": [SLICE_TL_CP, SLICE_BR_CP],
+                "TRBL": [SLICE_TR_CP, SLICE_BL_CP],
+            },
+        },
         "COMBINING": _combining_marks(),
         "CORE_MARKS": list(CORE_MARK_CPS),
     }

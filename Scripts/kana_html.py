@@ -9,7 +9,7 @@ Encoding (matches ``build_kana``)::
     hw_full[i]  = U+ED00 + 2*i
     hw_small[i] = U+ED00 + 2*i + 1
 
-Orientations are real PUA codepoints (not VS). Slices use FE00 / FE01.
+Orientations are real PUA codepoints (not VS). Combining slices use FE00 overlay + FE08–FE0F.
 After each script block: length (h U+301C / k U+30FC) and gemination
 (h U+309D / k U+30FD), all D4.
 
@@ -36,8 +36,6 @@ from build_kana import (
     HIRAGANA_COUNT,
     HIRAGANA_PHONETIC_COUNT,
     HIRAGANA_ROWS,
-    KANA_SLICE_H_CP,
-    KANA_SLICE_V_CP,
     KATAKANA_ROWS,
     VOWELS,
     chart_source_cps,
@@ -54,7 +52,17 @@ from shared_diacritics import (
     dakuten_count_options_html,
     dakuten_skip_options_html,
 )
-from shared_half_cells import YI_ORIENTATION_MODES
+from yi_slice import (
+    SLICE_BL_CP,
+    SLICE_BOT_CP,
+    SLICE_BR_CP,
+    SLICE_LEFT_CP,
+    SLICE_RIGHT_CP,
+    SLICE_TL_CP,
+    SLICE_TOP_CP,
+    SLICE_TR_CP,
+)
+from shared_half_cells import OV_SELECTOR_CP, YI_ORIENTATION_MODES
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "kana", "all-kana.html")
@@ -67,9 +75,11 @@ ORIENT_LABEL = [
 ]
 
 SLICE_MODES = [
-    {"id": "none", "cp": None, "label": "none"},
-    {"id": "H", "cp": KANA_SLICE_H_CP, "label": "H FE00 (top+bot)"},
-    {"id": "V", "cp": KANA_SLICE_V_CP, "label": "V FE01 (left+right)"},
+    {"id": "none", "a": None, "b": None, "label": "none"},
+    {"id": "TB", "a": SLICE_TOP_CP, "b": SLICE_BOT_CP, "label": "FE08 FE00 / FE09 (top+bot)"},
+    {"id": "LR", "a": SLICE_LEFT_CP, "b": SLICE_RIGHT_CP, "label": "FE0A FE00 / FE0B (left+right)"},
+    {"id": "TLBR", "a": SLICE_TL_CP, "b": SLICE_BR_CP, "label": "FE0C FE00 / FE0D (tl+br Δ)"},
+    {"id": "TRBL", "a": SLICE_TR_CP, "b": SLICE_BL_CP, "label": "FE0E FE00 / FE0F (tr+bl Δ)"},
 ]
 
 
@@ -175,6 +185,7 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
         "MARKS": marks,
         "ORIENT_LABEL": ORIENT_LABEL,
         "SLICE_MODES": SLICE_MODES,
+        "OV": OV_SELECTOR_CP,
         "CONSONANTS": [c or "∅" for c in CONSONANTS],
         "ROW_LABELS": row_labels,
         "VOWELS": list(VOWELS),
@@ -280,7 +291,7 @@ h2 {{
 <p class="meta">
   {n:,} logical ({HIRAGANA_COUNT} hiragana + {n - HIRAGANA_COUNT} katakana,
   phonetic rows + length/gemination each) · {D4_COUNT} D4 orientations as PUA
-  (even=full, odd=small @ U+E000…; halfwidth @ U+ED00…) · slices FE00 / FE01 ·
+  (even=full, odd=small @ U+E000…; halfwidth @ U+ED00…) · slices FE00/FE08–F ·
   dakuten {len(marks)} (sample).<br/>
   Orientation gallery: {n_orient:,} · pairwise slices: {n_pair:,} each mode
   (on demand). Diacritics optional: 1–{DAKUTEN_SLOT_COUNT} marks →
@@ -524,11 +535,17 @@ function renderOrientations(indices) {{
 }}
 
 function sliceText(ai, ao, bi, bo, mode) {{
-  let text = kanaChar(ai, ao) + kanaChar(bi, bo);
-  let tag = tagFor(ai, ao) + '+' + tagFor(bi, bo);
-  if (mode.cp != null) {{
-    text += String.fromCodePoint(mode.cp);
-    tag += '+' + mode.id;
+  let text = kanaChar(ai, ao);
+  let tag = tagFor(ai, ao);
+  if (mode.a != null) {{
+    text += String.fromCodePoint(mode.a) + String.fromCodePoint(DATA.OV);
+    tag += '+FE' + (mode.a - 0xFE00).toString(16).toUpperCase().padStart(2, '0') + '+FE00';
+  }}
+  text += kanaChar(bi, bo);
+  tag += '+' + tagFor(bi, bo);
+  if (mode.b != null) {{
+    text += String.fromCodePoint(mode.b);
+    tag += '+FE' + (mode.b - 0xFE00).toString(16).toUpperCase().padStart(2, '0');
   }}
   text += markSuffix();
   tag += markTag();
@@ -556,8 +573,8 @@ function renderSlice(ai, ao, bi, bo) {{
 function renderSlicesForA(ai, ao) {{
   clearOut();
   let mode = currentSlice();
-  if (mode.cp == null) {{
-    setStatus('Pick FE00 or FE01 slice mode first');
+  if (mode.a == null) {{
+    setStatus('Pick a slice mode first');
     return;
   }}
   out.appendChild(heading('A=' + tagFor(ai, ao) + ' × every B · ' + mode.label));
@@ -608,7 +625,7 @@ function renderEverything() {{
     }}
   }}
   for (let mode of DATA.SLICE_MODES) {{
-    if (mode.cp == null) continue;
+    if (mode.a == null) continue;
     out.appendChild(heading('All pairwise ' + mode.label + ' (identity×identity)'));
     for (let ai = 0; ai < DATA.KANA.length; ai++) {{
       for (let bi = 0; bi < DATA.KANA.length; bi++) {{

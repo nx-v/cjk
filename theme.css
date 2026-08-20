@@ -3143,7 +3143,7 @@ SOFTWARE.
 
 /* === BEGIN auto pan font stack (update_obsidian_theme_fonts.py) === */
 /* Hangul/Kana/Yi before CJK; script unicode-range keeps FE*
-   with the right face. CJK lists FE00–07 (D4) + FE0B–F (digraphs). */
+   with the right face. CJK lists FE00–FE0F (overlay, D4, slices). */
 body {
   --font-text-theme: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hangul", "edenia hanguls", "edenia kana", "edenia yi", "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace;
   --font-interface-theme: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hangul", "edenia hanguls", "edenia kana", "edenia yi", "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace;

@@ -41,8 +41,8 @@ CJK_FACE_VARIANTS: tuple[str, ...] = ("", "h", "t", "q", "qv", "qh")
 CJK_FACE_BUILD_ORDER: tuple[str, ...] = ("", "h", "q", "qv", "qh", "t")
 # @font-face emission order (niche faces before base). Body stacks use the
 # shared ``edenia cjk`` family (base) only — pin ``edenia cjk h`` / ``t`` /
-# ``q`` / ``qv`` / ``qh`` for niche GSUB. CJK unicode-range lists FE00–FE07
-# (D4) and FE0B–FE0F (digraphs); Hangul/Kana/Yi faces restrict unicode-range
+# ``q`` / ``qv`` / ``qh`` for niche GSUB. CJK unicode-range lists FE00–FE0F
+# (overlay, D4, halves, triangles); Hangul/Kana/Yi faces restrict unicode-range
 # so bare cmap FE* does not steal those selectors.
 CJK_FACE_CSS_ORDER: tuple[str, ...] = ("q", "qv", "qh", "t", "h", "")
 

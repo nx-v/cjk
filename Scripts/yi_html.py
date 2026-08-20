@@ -6,7 +6,8 @@ Inventory: NuosuSIL Yi syllables / radicals present in ``edenia yi``.
 Combinations (rendered on demand):
 
   * Every Yi × {{∅, FE01..FE07}} orientation
-  * Slice pairs: A × B × {{FE08 horizontal, FE09 vertical}}
+  * Slice pairs: A FE08 FE00 B FE09 (top+bot), A FE0A FE00 B FE0B (left+right),
+    triangles FE0C–FE0F
   * Optional dakuten marks (0–8; TR→CR→BR→TM→BM→TL→CL→BL; CGJ skips a slot)
 
 Usage
@@ -23,7 +24,23 @@ from shared_diacritics import (
     dakuten_count_options_html,
     dakuten_skip_options_html,
 )
-from shared_half_cells import TransformMode
+from shared_half_cells import (
+    OV_SELECTOR_CP,
+    YI_ORIENTATION_MODES,
+    load_inventory,
+    resolve_nuosu_path,
+    uvs_selector_for_mode,
+)
+from yi_slice import (
+    SLICE_BL_CP,
+    SLICE_BOT_CP,
+    SLICE_BR_CP,
+    SLICE_LEFT_CP,
+    SLICE_RIGHT_CP,
+    SLICE_TL_CP,
+    SLICE_TOP_CP,
+    SLICE_TR_CP,
+)
 
 import argparse
 import json
@@ -33,35 +50,28 @@ from typing import List
 
 from fontTools.ttLib import TTFont
 
-from shared_half_cells import (
-    YI_ORIENTATION_MODES,
-    load_inventory,
-    resolve_nuosu_path,
-    uvs_selector_for_mode,
-)
-from yi_slice import SLICE_H_CP, SLICE_V_CP
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "yi", "all-yi-vs.html")
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
 YI_FONT = os.path.join(SCRIPT_DIR, "dist", "yi", "edenia-yi.woff2")
 JULIAMONO = os.path.join(SCRIPT_DIR, "src", "JuliaMono-Regular.ttf")
 
-# Orientation UVS: FE00 = identity (omit), FE01..FE07 = non-id.
-ORIENT_VS: List[int | None] = [None] + [
-    uvs_selector_for_mode(i)
-    for i, (_vs, _r, _fx, _fy, suffix) in enumerate[TransformMode](YI_ORIENTATION_MODES)
-    if suffix is not None
+# Orientation UVS: bare = identity, FE01..FE07 = non-id.
+ORIENT_VS: List[int | None] = [
+    uvs_selector_for_mode(i) for i, _mode in enumerate(YI_ORIENTATION_MODES)
 ]
 ORIENT_MARK = ["", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷"]
-ORIENT_LABEL = ["id"] + [
-    suffix for _vs, _r, _fx, _fy, suffix in YI_ORIENTATION_MODES if suffix is not None
+ORIENT_LABEL = [
+    ("id" if suffix is None else suffix)
+    for _vs, _r, _fx, _fy, suffix in YI_ORIENTATION_MODES
 ]
 
 SLICE_MODES = [
-    {"id": "none", "cp": None, "label": "none"},
-    {"id": "H", "cp": SLICE_H_CP, "label": "H FE08 (top+bot)"},
-    {"id": "V", "cp": SLICE_V_CP, "label": "V FE09 (left+right)"},
+    {"id": "none", "a": None, "b": None, "label": "none"},
+    {"id": "TB", "a": SLICE_TOP_CP, "b": SLICE_BOT_CP, "label": "FE08 FE00 / FE09 (top+bot)"},
+    {"id": "LR", "a": SLICE_LEFT_CP, "b": SLICE_RIGHT_CP, "label": "FE0A FE00 / FE0B (left+right)"},
+    {"id": "TLBR", "a": SLICE_TL_CP, "b": SLICE_BR_CP, "label": "FE0C FE00 / FE0D (tl+br Δ)"},
+    {"id": "TRBL", "a": SLICE_TR_CP, "b": SLICE_BL_CP, "label": "FE0E FE00 / FE0F (tr+bl Δ)"},
 ]
 
 
@@ -124,6 +134,7 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
         "ORIENT_MARK": ORIENT_MARK,
         "ORIENT_LABEL": ORIENT_LABEL,
         "SLICE_MODES": SLICE_MODES,
+        "OV": OV_SELECTOR_CP,
         "n": n,
         "n_orient": n_orient,
         "n_pair": n_pair,
@@ -189,8 +200,8 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
 <body>
 <h1>edenia yi — Yi × orientations × slices × dakuten</h1>
 <p class="meta">
-  {n:,} Yi · {len(ORIENT_VS)} orientations (FE00 id / FE01..FE07) ·
-  slices FE08 horizontal / FE09 vertical · dakuten {len(marks)} (sample).<br/>
+  {n:,} Yi · {len(ORIENT_VS)} orientations (bare / FE01..FE07) ·
+  slices FE08–FE0F + FE00 overlay · dakuten {len(marks)} (sample).<br/>
   Orientation gallery: {n_orient:,} · pairwise slices: {n_pair:,} each mode
   (on demand). Diacritics optional: 1–{DAKUTEN_SLOT_COUNT} marks →
   {DAKUTEN_SLOT_CYCLE}; CGJ skips a slot.
@@ -376,11 +387,17 @@ function renderOrientations(indices) {{
 }}
 
 function sliceText(ai, ao, bi, bo, mode) {{
-  let text = yiPiece(ai, ao) + yiPiece(bi, bo);
-  let tag = tagFor(ai, ao) + '+' + tagFor(bi, bo);
-  if (mode.cp != null) {{
-    text += String.fromCodePoint(mode.cp);
-    tag += '+' + mode.id;
+  let text = yiPiece(ai, ao);
+  let tag = tagFor(ai, ao);
+  if (mode.a != null) {{
+    text += String.fromCodePoint(mode.a) + String.fromCodePoint(DATA.OV);
+    tag += '+FE' + (mode.a - 0xFE00).toString(16).toUpperCase().padStart(2, '0') + '+FE00';
+  }}
+  text += yiPiece(bi, bo);
+  tag += '+' + tagFor(bi, bo);
+  if (mode.b != null) {{
+    text += String.fromCodePoint(mode.b);
+    tag += '+FE' + (mode.b - 0xFE00).toString(16).toUpperCase().padStart(2, '0');
   }}
   text += markSuffix();
   tag += markTag();
@@ -408,8 +425,8 @@ function renderSlice(ai, ao, bi, bo) {{
 function renderSlicesForA(ai, ao) {{
   clearOut();
   let mode = currentSlice();
-  if (mode.cp == null) {{
-    setStatus('Pick FE08 or FE09 slice mode first');
+  if (mode.a == null) {{
+    setStatus('Pick a slice mode first');
     return;
   }}
   out.appendChild(heading('A=' + tagFor(ai, ao) + ' × every B · ' + mode.label));
@@ -436,7 +453,7 @@ function renderEverything() {{
     }}
   }}
   for (let mode of DATA.SLICE_MODES) {{
-    if (mode.cp == null) continue;
+    if (mode.a == null) continue;
     out.appendChild(heading('All pairwise ' + mode.label + ' (identity×identity)'));
     for (let ai = 0; ai < DATA.YI.length; ai++) {{
       for (let bi = 0; bi < DATA.YI.length; bi++) {{

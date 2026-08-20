@@ -1,11 +1,11 @@
-"""CJK third-cell niches (VS17–VS26) + FE0B zero-width overlay.
+"""CJK third-cell niches (VS17–VS26) + FE00 zero-width overlay.
 
 Encoding
 --------
 * Standard CJK (etc.) code points are used as-is.
 * ``VS17``–``VS26`` (``U+E0100``–``U+E0109``) select which third niche the
   preceding base occupies.
-* ``FE0B`` (and PUA ``U+E008``) makes the preceding form zero-width
+* ``FE00`` (and PUA ``U+E008``) makes the preceding form zero-width
   (``.ov``) for trigraph / digraph stacking — same as half-cell overlays.
 * Access is GSUB ``ccmp``/``rlig``/``liga`` only — no cmap-14 UVS.
 
@@ -55,13 +55,12 @@ from shared_half_cells import (
     variant_glyph_name,
     HALF_PLANE_INF_FRAC,
     propagate_d4_niches,
+    OV_PUA_CP,
+    OV_SELECTOR_CP,
+    OV_SELECTOR_NAME,
 )
 
-# FE0B zero-width overlay (same glyph name as half-cell digraphs).
-OV_SELECTOR_CP = 0xFE0B
-OV_SELECTOR_NAME = "vsOv"
-# Blink drops Default_Ignorable VS before GSUB; PUA mirror keeps liga alive.
-OV_PUA_CP = 0xE008
+# FE00 zero-width overlay (same glyph name as half-cell digraphs).
 
 # ---------- VS17–VS26 ----------
 
@@ -366,15 +365,15 @@ def third_vs_liga_map(
     *,
     glyphs: Dict[str, TTGlyph],
 ) -> Dict[Tuple[str, ...], str]:
-    """``base + VS17..VS26`` / ``FE0B`` → third niche and/or zero-width ``.ov``.
+    """``base + VS17..VS26`` / ``FE00`` → third niche and/or zero-width ``.ov``.
 
     Mirrors half-cell overlay spelling::
 
-        base FE0B              → base.ov
+        base FE00              → base.ov
         base VS17              → base.t3t
-        base FE0B VS17         → base.t3t.ov   (either FE0B↔VS order)
-        base.t3t FE0B          → base.t3t.ov
-        (+ optional FE00 no-op after the base)
+        base FE00 VS17         → base.t3t.ov   (either FE00↔VS order)
+        base.t3t FE00          → base.t3t.ov
+        (+ optional PUA VS01 no-op after the base)
     """
     from shared_half_cells import vs_glyph_name
 
@@ -417,11 +416,11 @@ def prepare_third_cells(
     cmap: Dict[int, str],
     target_upem: int = 1000,
 ) -> List[str]:
-    """Install VS17–26 + FE0B marks, bake third niches and ``.ov`` overlays.
+    """Install VS17–26 + FE00 marks, bake third niches and ``.ov`` overlays.
 
     Returns the form list that accepts third-cell VS (identity + D4).
     """
-    # FE0B (+ PUA mirror) zero-width overlay selector.
+    # FE00 (+ PUA mirror) zero-width overlay selector.
     if OV_SELECTOR_NAME not in glyphs:
         glyph_order.append(OV_SELECTOR_NAME)
         glyphs[OV_SELECTOR_NAME] = empty_glyph()
@@ -499,7 +498,7 @@ def install_third_cell_gsub(
     bases: Sequence[str],
     glyphs: Dict[str, TTGlyph],
 ) -> int:
-    """Append third-cell VS + FE0B overlay ligatures to existing ``GSUB``."""
+    """Append third-cell VS + FE00 overlay ligatures to existing ``GSUB``."""
     from fontTools.ttLib import newTable
     from fontTools.ttLib.tables import otTables as ot
 
@@ -507,7 +506,7 @@ def install_third_cell_gsub(
     if not liga:
         return 0
 
-    # Longer ligatures before shorter (FE0B+VS before VS alone).
+    # Longer ligatures before shorter (FE00+VS before VS alone).
     by_len: Dict[int, Dict[Tuple[str, ...], str]] = {}
     for comps, out in liga.items():
         by_len.setdefault(len(comps), {})[comps] = out

@@ -11,8 +11,8 @@ Six faces per bucket (filename / family stem = ``{hex}`` / ``{hex}h`` /
 
     (none)  base forms + ca/nhay (all mark orientations); mark niche = 1/4
                 (base occupies 3/4)
-    h       base forms + D4 + half-cell slices (FE0B–FE0F)
-    t       base forms + D4 + third-cell niches (VS17–VS26; FE0B zero-width)
+    h       base forms + D4 + half-cell slices (FE00 overlay, FE08–FE0F)
+    t       base forms + D4 + third-cell niches (VS17–VS26; FE00 zero-width)
     q       2×2 corners + L 3/4 (VS41–48), derived from ``h`` halves
     qv      vertical quarter niches (VS13–14, VS27–33), derived from ``h``
     qh      horizontal quarter niches (VS15–16, VS34–40), derived from ``h``
@@ -68,6 +68,8 @@ from cjk_diacritics import (
 )
 from shared_half_cells import (
     NUOSU_FILENAME,
+    OV_SELECTOR_CP,
+    OV_SELECTOR_NAME,
     TRANSFORM_MODES,
     UVS_BASE,
     UVS_LAST,
@@ -612,7 +614,15 @@ def _import_bucket_glyphs(
             glyph_order.append(vname)
             glyphs[vname] = empty_glyph()
             metrics[vname] = (0, 0)
-        cmap[uvs_selector_for_mode(mode_i)] = vname
+        uvs = uvs_selector_for_mode(mode_i)
+        if uvs is not None:
+            cmap[uvs] = vname
+        cmap[vs_cp] = vname
+    if OV_SELECTOR_NAME not in glyphs:
+        glyph_order.append(OV_SELECTOR_NAME)
+        glyphs[OV_SELECTOR_NAME] = empty_glyph()
+        metrics[OV_SELECTOR_NAME] = (0, 0)
+    cmap[OV_SELECTOR_CP] = OV_SELECTOR_NAME
 
     return glyph_order, glyphs, metrics, cmap, base_names
 
@@ -692,7 +702,7 @@ def build_bucket_font(
                 mark_niche_frac=MARK_NICHE_FRAC,
             )
             if mark_state is None:
-                # No Plangothic — still emit FE0C–F niches at 3/4 for consistency.
+                # No Plangothic — still emit FE08–F slice niches at 3/4.
                 squishable = prepare_squish_vs_access(
                     cjk_bases=base_names,
                     glyph_order=glyph_order,
@@ -936,9 +946,8 @@ def derive_face_from_half(
     """Slice ``q`` / ``qv`` / ``qh`` from a completed half-cell TTF.
 
     ``qv`` splits top/bottom halves; ``qh`` splits left/right; ``q`` uses all
-    four halves for 2×2 corners and L 3/4. ``q`` keeps half-cell GSUB and
     appends VS41–48; ``qv``/``qh`` rebuild D4 + their own quarter ligas
-    (FE0C–F mean different niches than on ``h``).
+    (``qv`` FE08–9 / ``qh`` FE0A–B overlap half-cell CPs on ``h``).
     """
     if variant not in QUARTER_FACES:
         raise ValueError(
@@ -1173,15 +1182,18 @@ def _filter_face_cmap(
         "qh": set(range(0xE0111, 0xE0118)),
         "q": set(range(0xE0118, 0xE0120)),
     }.get(variant, set())
-    fe_ok = set(range(0xFE00, 0xFE08)) | {0xFE0B, 0xE008}
-    if variant in ("", "h", "q"):
-        fe_ok |= set(range(0xFE0C, 0xFE10)) | set(range(0xE009, 0xE00D))
+    fe_ok = {OV_SELECTOR_CP, 0xE008}
+    if variant in ("h", "t", "q", "qv", "qh"):
+        fe_ok |= set(range(0xFE01, 0xFE08)) | set(range(VS_BASE, VS_LAST + 1))
+    if variant in ("h", "q"):
+        fe_ok |= set(range(0xFE08, 0xFE10)) | set(range(0xE009, 0xE011))
     elif variant == "qv":
-        fe_ok |= {0xFE0C, 0xFE0D}
+        fe_ok |= {0xFE08, 0xFE09}
     elif variant == "qh":
-        fe_ok |= {0xFE0E, 0xFE0F}
+        fe_ok |= {0xFE0A, 0xFE0B}
     if variant == "":
-        fe_ok |= set(SIDE_SELECTOR_CPS) | set(MARK_CPS)
+        fe_ok |= set(range(0xFE00, 0xFE10)) | set(range(0xE008, 0xE018))
+        fe_ok |= set(MARK_CPS)
     out: Dict[int, str] = {}
     for cp, name in cmap.items():
         if name in base_set or cp in fe_ok or cp in vs_page:
@@ -1827,9 +1839,8 @@ def unicode_range_for_bucket(
     """CSS ``unicode-range`` for one bucket face.
 
     Ideograph cps from the bucket, plus CJK VS when ``include_fe0`` (default):
-    ``U+FE00–FE07`` (D4) and ``U+FE0B–FE0F`` (digraph niches). Blink drops
-    unclaimed Default_Ignorables, so both sets must be listed. ``FE08–FE0A``
-    stay out so Yi digraph/slice selectors are not claimed by CJK.
+    ``U+FE00–FE0F`` (base: ca/nhay slots; ``h``: overlay + D4 + slices).
+    Blink drops unclaimed Default_Ignorables, so the sets must be listed.
 
     Niche faces also list their VS17+ page (``t`` E0100–E0109, ``qv``
     E010A–E0110, ``qh`` E0111–E0117, ``q`` E0118–E011F) even when
@@ -1839,8 +1850,8 @@ def unicode_range_for_bucket(
     """
     side_sels = set(SIDE_SELECTOR_CPS)
     fe0_sels = set(range(0xFE00, 0xFE10))
-    # D4 (FE00–FE07) + digraph niches (FE0B–FE0F); not FE08–FE0A (Yi).
-    fe0_cjk = set(range(0xFE00, 0xFE08)) | set(range(0xFE0B, 0xFE10))
+    # Overlay (FE00) + D4 (FE01–FE07) + slices (FE08–FE0F).
+    fe0_cjk = set(range(0xFE00, 0xFE10))
     vs17_page = set(range(0xE0100, 0xE01F0))
     bucket_cps = {
         cp
@@ -1901,7 +1912,7 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     """Write edenia-cjk.css (@font-face) and fontlist.css (CSS-safe stack).
 
     Each variant shares one family (``edenia cjk`` / ``… h`` / ``… t`` / …)
-    with per-bucket ``unicode-range`` (ideographs + ``U+FE00–FE07,FE0B–FE0F``). Niche
+    with per-bucket ``unicode-range`` (ideographs + ``U+FE00–FE0F``). Niche
     GSUB is selected with ``font-family: 'edenia cjk h'`` (etc.).
     """
     from edenia_names import family_cjk_variant
@@ -1910,7 +1921,7 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     lines: List[str] = [
         "/* Auto-generated Edenia CJK pigeonhole @font-face rules */",
         "/* Shared families: 'edenia cjk' / q / qv / qh / t / h.",
-        "   Per-file unicode-range = bucket ideographs + U+FE00-FE07, U+FE0B-FE0F",
+        "   Per-file unicode-range = bucket ideographs + U+FE00-FE0F",
         "   plus that face's VS17+ page. Digraphs: 'edenia cjk h'. */",
         "",
     ]

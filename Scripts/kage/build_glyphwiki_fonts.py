@@ -1,16 +1,16 @@
-"""Build GlyphWiki PUA ligature fonts (D4 + FE08 overlay per SPUA marker).
+"""Build GlyphWiki PUA ligature fonts (D4 + FE00 overlay per SPUA marker).
 
 Each output TTF corresponds to one Supplementary PUA marker and contains:
 
 * 6 400 BMP PUA selector glyphs (U+E000..U+F8FF, zero-width)
 * 6 400 × 8 = 51 200 rendered outlines (identity + 7 unique D4 variants)
-* FE08 overlay ``.ov`` forms (identity first; D4 variants if under 64k)
+* FE00 overlay ``.ov`` forms (identity first; D4 variants if under 64k)
 
 GSUB:
 
 * ``marker + pua`` → identity outline
 * ``identity + VS02..VS08`` / FE01..FE07 → D4 variant outlines
-* ``A B FE08`` → ``A.ov`` (0-advance) + ``B`` (chain with more FE08)
+* ``A FE00`` → ``A.ov`` (0-advance); ``A FE00 B`` stacks on ``B``
 
 Rendering uses the in-tree KAGE Serif renderer (filled SVG paths), then
 Cu2Qu for TrueType. Contours are normalized to clockwise winding so
@@ -524,7 +524,7 @@ def build_marker_font(
             vs_sel = pua_glyph_name(vs_pua)
             rlig_rules.append(f"  sub {identity_name} {vs_sel} by {m_name};")
 
-    # FE08 overlay mark + .ov forms (identity first; D4 if under budget).
+    # FE00 overlay mark + .ov forms (identity first; D4 if under budget).
     # post format 2.0 stores 258+extraNameIndex as uint16, so all-custom
     # name fonts must stay under ~65278 glyphs (not the full 65535 maxp).
     inject_stack_mark(glyph_order, glyphs, metrics, cmap)
@@ -611,14 +611,14 @@ def group_mappings_by_marker(
 
 
 def unicode_range_for_marker(marker: int) -> str:
-    """CSS unicode-range: SPUA marker + BMP PUA + UVS FE00..FE07 + FE08.
+    """CSS unicode-range: SPUA marker + BMP PUA + UVS FE01..FE07 + FE00 overlay.
 
-    Marker + BMP PUA must share a face for ligatures. FE08 must be listed so
+    Marker + BMP PUA must share a face for ligatures. FE00 must be listed so
     the overlay mark loads from this face (not a sibling in a stack).
     """
     return (
         f"U+{marker:X}, U+{BMP_PUA_START:X}-{BMP_PUA_END:X}, "
-        f"U+{UVS_BASE:X}-{UVS_LAST:X}, U+{STACK_MARK_CP:X}"
+        f"U+{STACK_MARK_CP:X}, U+{UVS_BASE:X}-{UVS_LAST:X}"
     )
 
 

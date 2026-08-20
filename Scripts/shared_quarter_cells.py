@@ -8,7 +8,7 @@ Encoding
 * **Horizontal face** (``qh``): X-axis bands via VS15–16 + VS34–40.
   Label “top”/“bottom” on the horizontal face maps to **left**/**right**
   (r90 CCW: top→left, bottom→right).
-* ``FE0B`` (and PUA ``U+E008``) → zero-width ``.ov`` for stacking.
+* ``FE00`` (and PUA ``U+E008``) → zero-width ``.ov`` for stacking.
 * GSUB ``ccmp``/``rlig``/``liga`` only — no cmap-14 UVS.
 
 Grid (``q``) — 2×2; L for a corner is the 3/4 that includes that corner
@@ -29,8 +29,8 @@ Vertical (``qv``) — axis Y, bands 0=bottom … 3=top
 ======= ========== ========================= ========
 VS      Code point Niche                     Suffix
 ======= ========== ========================= ========
-VS13    U+FE0C     top half                  ``q4th``
-VS14    U+FE0D     bottom half               ``q4bh``
+VS13    U+FE08     top half                  ``q4th``
+VS14    U+FE09     bottom half               ``q4bh``
 VS27    U+E010A    top quarter               ``q4t``
 VS28    U+E010B    near-top quarter          ``q4nt``
 VS29    U+E010C    near-bottom quarter       ``q4nb``
@@ -44,8 +44,8 @@ Horizontal (``qh``) — axis X, same suffixes (top→left, bottom→right)
 ======= ========== ========================= ========
 VS      Code point Niche                     Suffix
 ======= ========== ========================= ========
-VS15    U+FE0E     top half (= left half)    ``q4th``
-VS16    U+FE0F     bottom half (= right)     ``q4bh``
+VS15    U+FE0A     top half (= left half)    ``q4th``
+VS16    U+FE0B     bottom half (= right)     ``q4bh``
 VS34    U+E0111    top quarter (= left)      ``q4t``
 VS35    U+E0112    near-top (= near-left)    ``q4nt``
 VS36    U+E0113    near-bottom (= near-right)``q4nb``
@@ -88,12 +88,12 @@ from shared_half_cells import (
     variant_glyph_name,
     HALF_PLANE_INF_FRAC,
     propagate_d4_niches,
+    OV_PUA_CP,
+    OV_SELECTOR_CP,
+    OV_SELECTOR_NAME,
 )
 
-# FE0B zero-width overlay.
-OV_SELECTOR_CP = 0xFE0B
-OV_SELECTOR_NAME = "vsOv"
-OV_PUA_CP = 0xE008
+# FE00 zero-width overlay.
 
 # Four bands along the niche axis.
 QUARTER_BANDS = 4
@@ -104,8 +104,8 @@ QuarterSlot = Tuple[int, str, str, int, int]
 
 # Vertical face: Y axis. band 0 = bottom, band 3 = top.
 QUARTER_VS_SLOTS_V: Tuple[QuarterSlot, ...] = (
-    (0xFE0C, "vs13", "q4th", 2, 3),  # top half
-    (0xFE0D, "vs14", "q4bh", 0, 1),  # bottom half
+    (0xFE08, "vs13", "q4th", 2, 3),  # top half
+    (0xFE09, "vs14", "q4bh", 0, 1),  # bottom half
     (0xE010A, "vs27", "q4t", 3, 3),  # top quarter
     (0xE010B, "vs28", "q4nt", 2, 2),  # near-top
     (0xE010C, "vs29", "q4nb", 1, 1),  # near-bottom
@@ -118,8 +118,8 @@ QUARTER_VS_SLOTS_V: Tuple[QuarterSlot, ...] = (
 # Horizontal face: X axis. top→left (low X), bottom→right (high X).
 # band 0 = left, band 3 = right.
 QUARTER_VS_SLOTS_H: Tuple[QuarterSlot, ...] = (
-    (0xFE0E, "vs15", "q4th", 0, 1),  # top half → left half
-    (0xFE0F, "vs16", "q4bh", 2, 3),  # bottom half → right half
+    (0xFE0A, "vs15", "q4th", 0, 1),  # top half → left half
+    (0xFE0B, "vs16", "q4bh", 2, 3),  # bottom half → right half
     (0xE0111, "vs34", "q4t", 0, 0),  # top quarter → left
     (0xE0112, "vs35", "q4nt", 1, 1),  # near-top → near-left
     (0xE0113, "vs36", "q4nb", 2, 2),  # near-bottom → near-right
@@ -612,7 +612,7 @@ def quarter_vs_liga_map(
     face: str,
     glyphs: Dict[str, TTGlyph],
 ) -> Dict[Tuple[str, ...], str]:
-    """``base + VS`` / ``FE0B`` → quarter niche and/or zero-width ``.ov``."""
+    """``base + VS`` / ``FE00`` → quarter niche and/or zero-width ``.ov``."""
     from shared_half_cells import vs_glyph_name
 
     slots = quarter_slots_for_face(face)
@@ -656,7 +656,7 @@ def prepare_quarter_cells(
     cmap: Dict[int, str],
     target_upem: int = 1000,
 ) -> List[str]:
-    """Install face VS + FE0B, bake quarter niches and ``.ov`` overlays."""
+    """Install face VS + FE00, bake quarter niches and ``.ov`` overlays."""
     slots = quarter_slots_for_face(face)
 
     if OV_SELECTOR_NAME not in glyphs:
@@ -754,7 +754,7 @@ def install_quarter_cell_gsub(
     bases: Sequence[str],
     glyphs: Dict[str, TTGlyph],
 ) -> int:
-    """Append quarter-cell VS + FE0B overlay ligatures to ``GSUB``."""
+    """Append quarter-cell VS + FE00 overlay ligatures to ``GSUB``."""
     from fontTools.ttLib import newTable
     from fontTools.ttLib.tables import otTables as ot
 

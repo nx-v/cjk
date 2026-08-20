@@ -162,7 +162,7 @@ function buildCjkSequence(tpl, chars) {
     }
     if (i < tpl.slots.length - 1) {
       chunk += String.fromCodePoint(ov) + String.fromCodePoint(vs);
-      d += " + FE0B + " + slot;
+      d += " + FE00 + " + slot;
     } else {
       chunk += String.fromCodePoint(vs);
       d += " + " + slot;
@@ -396,10 +396,11 @@ function yiSeq() {
   if (!slice) return a;
   const b = yiChunk("yiB", "yiBo");
   if (!b.text) return a;
-  const scp = slice === "H" ? DATA.YI.SLICE_H : DATA.YI.SLICE_V;
+  const pair = DATA.YI.SLICE[slice];
+  const ov = DATA.YI.OV || DATA.OV;
   return {
-    text: a.text + b.text + String.fromCodePoint(scp),
-    debug: a.debug + " · " + b.debug + " + " + slice,
+    text: a.text + String.fromCodePoint(pair[0]) + String.fromCodePoint(ov) + b.text + String.fromCodePoint(pair[1]),
+    debug: a.debug + " · FE" + (pair[0] - 0xfe00).toString(16).toUpperCase().padStart(2, "0") + " FE00 · " + b.debug + " + FE" + (pair[1] - 0xfe00).toString(16).toUpperCase().padStart(2, "0"),
   };
 }
 
@@ -414,9 +415,13 @@ function kanaSeq() {
   let text = String.fromCodePoint(a);
   const slice = document.getElementById("kanaSlice").value;
   if (slice) {
+    const pair = DATA.KANA.SLICE[slice];
+    const ov = DATA.KANA.OV || DATA.OV;
+    text += String.fromCodePoint(pair[0]) + String.fromCodePoint(ov);
     const b = parseCp(document.getElementById("kanaB").value);
-    if (b != null) text += String.fromCodePoint(b);
-    text += String.fromCodePoint(slice === "H" ? DATA.KANA.SLICE_H : DATA.KANA.SLICE_V);
+    if (b != null) {
+      text += String.fromCodePoint(b) + String.fromCodePoint(pair[1]);
+    }
   }
   return text;
 }
@@ -496,6 +501,15 @@ function bootUi() {
   });
   document.getElementById("yiA").value = "A1B8";
 
+  const slotSel = document.getElementById("cjkMarkSlot");
+  if (slotSel && DATA.CJK_MARK_SLOTS) {
+    DATA.CJK_MARK_SLOTS.forEach((s, i) => {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = s.label;
+      slotSel.appendChild(opt);
+    });
+  }
   const mk = document.getElementById("cjkMarks");
   DATA.CJK_MARKS.forEach((m) => {
     const b = document.createElement("button");
@@ -504,7 +518,13 @@ function bootUi() {
     b.addEventListener("click", () => {
       document.getElementById("face").value = "";
       applyFace();
-      insertText(String.fromCodePoint(m.cp), cjkFamily(""));
+      const slot = DATA.CJK_MARK_SLOTS && DATA.CJK_MARK_SLOTS[+slotSel.value];
+      let text = "";
+      if (slot && !(slot.pos === "right" && slot.mirror === "id")) {
+        text += String.fromCodePoint(slot.cp);
+      }
+      text += String.fromCodePoint(m.cp);
+      insertText(text, cjkFamily(""));
     });
     mk.appendChild(b);
   });

@@ -2,11 +2,11 @@
 """Refresh Obsidian theme.css Edenia font blocks from GitHub CDN or local dist.
 
 CJK faces share ``edenia cjk`` / ``edenia cjk h`` / … with per-bucket
-``unicode-range``. Each CJK face must list ``U+FE00–FE07`` (D4) and
-``U+FE0B–FE0F`` (digraphs) or Blink drops those Default_Ignorables.
+``unicode-range``. Each CJK face must list ``U+FE00–FE0F`` (overlay, D4,
+halves, triangles) or Blink drops those Default_Ignorables.
 Hangul / Kana / Yi faces get script ``unicode-range`` so bare cmap FE*
-does not steal selectors from later faces; Yi keeps ``FE00–FE09``, Kana
-``FE00–FE01`` for slices.
+does not steal selectors from later faces; Yi keeps ``FE00–FE0F``, Kana
+``FE00`` + ``FE08–FE0F`` for overlay/slices.
 
 Default: font files via **jsDelivr**.
 
@@ -195,8 +195,8 @@ def css_family_token(name: str) -> str:
     return name
 
 
-# CJK: D4 (FE00–FE07) + digraph niches (FE0B–FE0F). Not FE08–FE0A (Yi).
-_FE0_CJK_RANGE = "U+FE00-FE07, U+FE0B-FE0F"
+# CJK: overlay + D4 + slices (FE00–FE0F).
+_FE0_CJK_RANGE = "U+FE00-FE0F"
 _FE0_TOKEN = re.compile(
     r"(?:,\s*)?U\+FE0[0-9A-Fa-f](?:\s*-\s*FE0[0-9A-Fa-f])?",
     re.I,
@@ -210,8 +210,8 @@ _SCRIPT_UNICODE_RANGE = {
         "U+1100-11FF, U+A960-A97C, U+D7B0-D7FB, U+302E-302F, U+FE04"
     ),
     FAMILY_HANGULS: "U+AC00-D7A3, U+3130-318F",
-    FAMILY_YI: "U+A000-A4C6, U+FE00-FE09",
-    FAMILY_KANA: "U+E000-F8FF, U+FF9E-FF9F, U+FE00-FE01",
+    FAMILY_YI: "U+A000-A4C6, U+FE00-FE0F",
+    FAMILY_KANA: "U+E000-F8FF, U+FF9E-FF9F, U+FE00, U+FE08-FE0F",
 }
 
 # Combining marks (dakuten) must be in unicode-range or Blink shows tofu.
@@ -266,7 +266,7 @@ def _strip_fe0_from_unicode_range(ur: str) -> str:
 
 
 def _ensure_fe0_unicode_range(ur: str) -> str:
-    """Ensure CJK faces claim D4 (FE00–FE07) and digraph VS (FE0B–FE0F)."""
+    """Ensure CJK faces claim overlay / D4 / slices (FE00–FE0F)."""
     ur = _strip_fe0_from_unicode_range(ur)
     return f"{ur}, {_FE0_CJK_RANGE}" if ur else _FE0_CJK_RANGE
 
@@ -301,7 +301,7 @@ def _script_unicode_range(family: str, ur: str | None) -> str | None:
 
 
 def pancjk_stack_families(css: str) -> list[str]:
-    """Body stack CJK families: ``h`` first (digraph/FE0B–F GSUB), then base."""
+    """Body stack CJK families: ``h`` first (digraph/FE00+FE08–F GSUB), then base."""
     families = pancjk_families_from_css(css)
     out: list[str] = []
     for name in ("edenia cjk h", "edenia cjk"):
@@ -357,7 +357,7 @@ def build_stack_block(*, pancjk_families: list[str]) -> str:
         [
             MARK_STACK_BEGIN,
             "/* Hangul/Kana/Yi before CJK; script unicode-range keeps FE*",
-            "   with the right face. CJK lists FE00–07 (D4) + FE0B–F (digraphs). */",
+            "   with the right face. CJK lists FE00–FE0F (overlay, D4, slices). */",
             "body {",
             f"  --font-text-theme: {stack};",
             f"  --font-interface-theme: {stack};",

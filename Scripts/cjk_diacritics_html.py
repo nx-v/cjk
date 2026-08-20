@@ -3,16 +3,19 @@
 
 Encoding (matches ``cjk_diacritics`` / ``build_cjk``)::
 
-    Base face (``edenia cjk``) — ca/nhay; mark niche = 1/4 of the cell::
+    Base face (``edenia cjk``) — ca/nhay in a 1/4 niche; FE00–FE0F on the
+    clipped CJK select position × axis-mirror (id / mx / my / mxy)::
 
-      CJK (D4)? FE0C MARK → base ``.dk``  + mark right
-      CJK (D4)? FE0D MARK → base ``.dkl`` + mark left
-      CJK (D4)? FE0E MARK → base ``.dkb`` (top)    + mark bottom
-      CJK (D4)? FE0F MARK → base ``.dkt`` (bottom) + mark top
+      CJK MARK            → right, upright (FE00 no-op)
+      CJK FE00 MARK       → right, upright
+      CJK FE01 MARK       → right, mx
+      CJK FE04 MARK       → left, upright
+      CJK FE08 MARK       → up, upright
+      CJK FE0C MARK       → down, upright
 
     Half digraphs use the ``h`` face (``edenia cjk h``)::
 
-      A (D4)? FE0B FE0C–F   B (D4)? FE0D–F
+      A (D4)? FE08 FE00   B (D4)? FE09
 
     Third / quarter stacks: see ``cjk_multigraphs_html.py`` (faces ``t`` / ``q`` / ``qv`` / ``qh``).
 
@@ -38,11 +41,16 @@ from collections import defaultdict
 from build_cjk import CHAR_RANGES, IN_DIR, OUT_DIR as CJK_OUT
 from cjk_diacritics import (
     CORE_MARK_CPS,
+    MARK_SLOT_VS,
     OV_SELECTOR_CP,
+    SQUISH_BL_CP,
     SQUISH_BOT_CP,
+    SQUISH_BR_CP,
     SQUISH_LEFT_CP,
     SQUISH_RIGHT_CP,
+    SQUISH_TL_CP,
     SQUISH_TOP_CP,
+    SQUISH_TR_CP,
 )
 from shared_half_cells import TRANSFORM_MODES, uvs_selector_for_mode
 
@@ -68,7 +76,7 @@ NAMED_RANGES: Dict[str, Tuple[Tuple[int, int], ...]] = {
     "ALL": tuple((a, b) for a, b, _n in CHAR_RANGES),
 }
 
-# Base + marks: full D4. FE00 = identity no-op liga (helps FE0B–FE0F follow).
+# Base + marks: CJK D4 is h-face only. Identity is the bare character.
 BASE_ORIENT_VS: List[Optional[int]] = [
     uvs_selector_for_mode(i) for i, _mode in enumerate(TRANSFORM_MODES)
 ]
@@ -76,24 +84,37 @@ BASE_ORIENT_LABEL = [
     ("id" if suffix is None else suffix)
     for _vs, _r, _fx, _fy, suffix in TRANSFORM_MODES
 ]
-MARK_ORIENT_VS: List[Optional[int]] = list(BASE_ORIENT_VS)
-MARK_ORIENT_LABEL = list(BASE_ORIENT_LABEL)
+MARK_MIRROR_LABEL = ("id", "mx", "my", "mxy")
+MARK_SLOT_ROWS = [
+    {
+        "cp": cp,
+        "sel": sel,
+        "pos": pos,
+        "mirror": (mirror or "id"),
+        "label": f"FE{cp - 0xFE00:02X} {pos} {mirror or 'id'}",
+    }
+    for cp, sel, pos, mirror in MARK_SLOT_VS
+]
 
 MARK_LABEL = {
     0x16FF0: "ca",
     0x16FF1: "nhay",
 }
 
-# Opposing half niches: first (FE0B + FE0C–F) zero-width, second (FE0D–F) advance.
-# Labels match squishPiece keys (R=FE0C/.dk, L=FE0D/.dkl, T=FE0E/.dkb, B=FE0F/.dkt).
+# Opposing slice niches: first (FE08–F + FE00) zero-width, second keeps advance.
+# Labels match squishPiece keys (R=FE0A/.dk, L=FE0B/.dkl, T=FE08/.dkb, B=FE09/.dkt).
 DIGRAPH_NICHE_PAIRS: Tuple[Tuple[str, str], ...] = (
-    ("R", "L"),  # FE0C (.dk left)   + FE0D (.dkl right)
-    ("L", "R"),  # FE0D (.dkl right)  + FE0C (.dk left)
-    ("T", "B"),  # FE0E (.dkb top)    + FE0F (.dkt bottom)
-    ("B", "T"),  # FE0F (.dkt bottom) + FE0E (.dkb top)
+    ("R", "L"),  # FE0A (.dk left)   + FE0B (.dkl right)
+    ("L", "R"),  # FE0B (.dkl right)  + FE0A (.dk left)
+    ("T", "B"),  # FE08 (.dkb top)    + FE09 (.dkt bottom)
+    ("B", "T"),  # FE09 (.dkt bottom) + FE08 (.dkb top)
+    ("TL", "BR"),  # FE0C + FE0D
+    ("BR", "TL"),
+    ("TR", "BL"),  # FE0E + FE0F
+    ("BL", "TR"),
 )
 
-# Canonical demo digraph (cross-bucket 66 + 65): 明 FE0B FE0C + 日 FE0D.
+# Canonical demo digraph (cross-bucket 66 + 65): 明 FE0A FE00 + 日 FE0B.
 DIGRAPH_SEED_CPS: Tuple[Tuple[int, int], ...] = ((0x660E, 0x65E5),)  # 明日
 
 # Opposing D4 labels (second orient faces the first).
@@ -342,7 +363,7 @@ def write_html(
     cjk = assigned_cps(ranges, limit=limit)
     n = len(cjk)
     n_base_o = len(BASE_ORIENT_VS)
-    n_mark_o = len(MARK_ORIENT_VS)
+    n_slots = len(MARK_SLOT_ROWS)
 
     mark_cps: List[int] = list(CORE_MARK_CPS)
 
@@ -351,9 +372,9 @@ def write_html(
     n_cross = sum(1 for _a, _b, cross in pairs if cross)
     # Galleries (on-demand counts)
     n_plain = n
-    n_with_mark = n * n_marks
-    n_base_vs_mark = n * n_base_o * n_marks
-    n_mark_vs = n * n_marks * n_mark_o
+    n_with_mark = n * n_marks * n_slots
+    n_base_vs_mark = n * n_slots * n_marks
+    n_mark_vs = n_with_mark
     n_digraph = len(pairs) * len(DIGRAPH_NICHE_PAIRS) * n_base_o
     total = n_plain + n_with_mark + n_base_vs_mark + n_mark_vs + n_digraph
 
@@ -377,13 +398,16 @@ def write_html(
         "MARKS": marks,
         "BASE_ORIENT_VS": BASE_ORIENT_VS,
         "BASE_ORIENT_LABEL": BASE_ORIENT_LABEL,
-        "MARK_ORIENT_VS": MARK_ORIENT_VS,
-        "MARK_ORIENT_LABEL": MARK_ORIENT_LABEL,
+        "MARK_SLOTS": MARK_SLOT_ROWS,
         "OV_SEL": OV_SELECTOR_CP,
         "SQUISH_R": SQUISH_RIGHT_CP,
         "SQUISH_L": SQUISH_LEFT_CP,
         "SQUISH_T": SQUISH_TOP_CP,
         "SQUISH_B": SQUISH_BOT_CP,
+        "SQUISH_TL": SQUISH_TL_CP,
+        "SQUISH_BR": SQUISH_BR_CP,
+        "SQUISH_TR": SQUISH_TR_CP,
+        "SQUISH_BL": SQUISH_BL_CP,
         "DIGRAPH_PAIRS": [{"a": a, "b": b, "cross": cross} for a, b, cross in pairs],
         "DIGRAPH_NICHES": [{"a": a, "b": b} for a, b in DIGRAPH_NICHE_PAIRS],
         "OPPOSING_ORIENT_OI": opposing_oi,
@@ -464,9 +488,9 @@ h2 {{
   <h1>edenia cjk — CJK × VS × marks × squish digraphs</h1>
   <p class="meta">
     Range: {range_note} · {n:,} characters embedded<br/>
-    Base VS: identity / FE01..FE07 (full D4)<br/>
-    ca/nhay: <code>CJK FE0C–F MARK</code> on base face (mark niche = 1/4)<br/>
-    Squish digraph: <code>A FE0B FE0C–F</code> + <code>B FE0D–F</code> on <code>edenia cjk h</code><br/>
+    Base VS (h face): identity / FE01..FE07 (full D4)<br/>
+    ca/nhay (base face): <code>CJK FE00–FE0F MARK</code> — 4 positions × id/mx/my/mxy<br/>
+    Squish digraph: <code>A FE08 FE00 B FE09</code> on <code>edenia cjk h</code><br/>
     Niche composer: <code>multigraph-cjk.html</code> (<code>edenia cjk h/t/q/qv/qh</code>)<br/>
     Digraph pairs: {len(pairs)} ({n_cross} cross-bucket) · gallery ≈ {total:,}
   </p>
@@ -480,25 +504,22 @@ h2 {{
     <label>Base orient
       <select id="baseOrient"></select>
     </label>
-    <label>Mark niche
-      <select id="nicheSel"></select>
+    <label>Mark slot
+      <select id="slotSel"></select>
     </label>
     <label>Mark
       <select id="markSel"></select>
     </label>
-    <label>Mark orient
-      <select id="markOrient"></select>
-    </label>
-    <button type="button" id="btnSlice">Render slice</button>
+    <button type="button" id="btnSlice">Render marked</button>
     <button type="button" id="btnPlain">Plain CJK</button>
     <button type="button" id="btnMarks">+ ca/nhay</button>
-    <button type="button" id="btnDk">FE0C .dk</button>
-    <button type="button" id="btnDkl">FE0D .dkl</button>
-    <button type="button" id="btnDkt">FE0E .dkb (top)</button>
-    <button type="button" id="btnDkb">FE0F .dkt (bottom)</button>
+    <button type="button" id="btnDk">FE00 right</button>
+    <button type="button" id="btnDkl">FE04 left</button>
+    <button type="button" id="btnDkt">FE08 up</button>
+    <button type="button" id="btnDkb">FE0C down</button>
     <button type="button" id="btnDigraph">Squish digraphs</button>
-    <button type="button" id="btnBaseGrid">Base VS × mark</button>
-    <button type="button" id="btnMarkGrid">Mark D4 grid</button>
+    <button type="button" id="btnBaseGrid">All 16 slots × mark</button>
+    <button type="button" id="btnMarkGrid">Mirrors at position</button>
     <button type="button" id="btnEverything" class="danger">Render everything</button>
   </div>
 </header>
@@ -512,10 +533,9 @@ const out = document.getElementById('out');
 const status = document.getElementById('status');
 const idxStart = document.getElementById('idxStart');
 const idxCount = document.getElementById('idxCount');
-const nicheSel = document.getElementById('nicheSel');
+const slotSel = document.getElementById('slotSel');
 const baseOrient = document.getElementById('baseOrient');
 const markSel = document.getElementById('markSel');
-const markOrient = document.getElementById('markOrient');
 
 function fillOrient(sel, labels, vs) {{
   labels.forEach((lab, i) => {{
@@ -539,22 +559,20 @@ function fillMarks(sel) {{
     sel.appendChild(o);
   }});
 }}
-function fillNiches(sel) {{
-  for (const [side, lab] of [['R','FE0C .dk (left)'],['L','FE0D .dkl (right)'],['T','FE0E .dkb (top)'],['B','FE0F .dkt (bottom)']]) {{
+function fillSlots(sel) {{
+  (DATA.MARK_SLOTS || []).forEach((slot, i) => {{
     const o = document.createElement('option');
-    o.value = side;
-    o.textContent = lab;
+    o.value = String(i);
+    o.textContent = slot.label;
     sel.appendChild(o);
-  }}
+  }});
 }}
 fillOrient(baseOrient, DATA.BASE_ORIENT_LABEL, DATA.BASE_ORIENT_VS);
-fillOrient(markOrient, DATA.MARK_ORIENT_LABEL, DATA.MARK_ORIENT_VS);
 fillMarks(markSel);
-fillNiches(nicheSel);
+fillSlots(slotSel);
 baseOrient.value = '0';
-markOrient.value = '0';
 markSel.value = 'all';
-nicheSel.value = 'R';
+slotSel.value = '0';
 
 function vsChar(vs) {{ return vs == null ? '' : String.fromCodePoint(vs); }}
 function sliceIndices() {{
@@ -568,9 +586,12 @@ function markList() {{
   if (markSel.value === 'all') return DATA.MARKS.map((_, i) => i);
   return [+markSel.value];
 }}
-function selectedNiche() {{
-  const s = nicheSel.value;
-  return (s === 'R' || s === 'L' || s === 'T' || s === 'B') ? s : 'R';
+function selectedSlot() {{
+  return DATA.MARK_SLOTS[+slotSel.value] || DATA.MARK_SLOTS[0];
+}}
+function slotIndexFor(pos, mirror) {{
+  const want = mirror || 'id';
+  return (DATA.MARK_SLOTS || []).findIndex(s => s.pos === pos && s.mirror === want);
 }}
 function d4Sel(oi) {{
   const fe = DATA.BASE_ORIENT_VS[oi];
@@ -581,50 +602,43 @@ function cjkPiece(idx, baseOi) {{
   const c = DATA.CJK[idx];
   return c.ch + d4Sel(baseOi);
 }}
-function markPiece(mi, markOi) {{
-  const m = DATA.MARKS[mi];
-  // No mark FE00 no-op liga — omit identity D4 so vs01 is not left hanging.
-  const d4 = (DATA.MARK_ORIENT_LABEL[markOi] || 'id') === 'id' ? '' : d4Sel(markOi);
-  return m.ch + d4;
+function markPiece(mi) {{
+  return DATA.MARKS[mi].ch;
+}}
+function slotPiece(slot) {{
+  if (!slot || (slot.pos === 'right' && slot.mirror === 'id')) return '';
+  return String.fromCodePoint(slot.cp);
 }}
 function squishPiece(side) {{
-  const sel = side === 'R' ? DATA.SQUISH_R
-    : side === 'L' ? DATA.SQUISH_L
-    : side === 'T' ? DATA.SQUISH_T
-    : side === 'B' ? DATA.SQUISH_B
-    : null;
+  const sel = {{
+    R: DATA.SQUISH_R, L: DATA.SQUISH_L, T: DATA.SQUISH_T, B: DATA.SQUISH_B,
+    TL: DATA.SQUISH_TL, BR: DATA.SQUISH_BR, TR: DATA.SQUISH_TR, BL: DATA.SQUISH_BL,
+  }}[side];
   return sel != null ? String.fromCodePoint(sel) : '';
 }}
-function markedCjk(idx, baseOi, mi, markOi, side) {{
-  // Niche VS selects half; bare MARK also auto-squishes to .dk via liga.
-  return cjkPiece(idx, baseOi) + squishPiece(side) + markPiece(mi, markOi);
+function markedCjk(idx, mi, slot) {{
+  return DATA.CJK[idx].ch + slotPiece(slot) + markPiece(mi);
 }}
 function digraphFirst(idx, oi, side) {{
   return cjkPiece(idx, oi)
-    + String.fromCodePoint(DATA.OV_SEL)
-    + squishPiece(side);
+    + squishPiece(side)
+    + String.fromCodePoint(DATA.OV_SEL);
 }}
 function digraphSecond(idx, oi, side) {{
   return cjkPiece(idx, oi) + squishPiece(side);
 }}
 function squishHex(side) {{
-  const sel = side === 'R' ? DATA.SQUISH_R
-    : side === 'L' ? DATA.SQUISH_L
-    : side === 'T' ? DATA.SQUISH_T
-    : side === 'B' ? DATA.SQUISH_B
-    : null;
+  const sel = {{
+    R: DATA.SQUISH_R, L: DATA.SQUISH_L, T: DATA.SQUISH_T, B: DATA.SQUISH_B,
+    TL: DATA.SQUISH_TL, BR: DATA.SQUISH_BR, TR: DATA.SQUISH_TR, BL: DATA.SQUISH_BL,
+  }}[side];
   return sel != null ? sel.toString(16).toUpperCase() : side;
 }}
-function tagFor(idx, baseOi, mi, markOi, side) {{
+function tagFor(idx, mi, slot) {{
   const c = DATA.CJK[idx];
-  const bo = DATA.BASE_ORIENT_LABEL[baseOi] || 'id';
-  let t = c.short + (bo === 'id' ? '' : '.' + bo);
-  if (side) t += '[' + side + ']';
-  if (mi != null) {{
-    const m = DATA.MARKS[mi];
-    const mo = DATA.MARK_ORIENT_LABEL[markOi] || 'id';
-    t += '+' + m.label + (mo === 'id' ? '' : '.' + mo);
-  }}
+  let t = c.short;
+  if (slot) t += '[' + slot.label + ']';
+  if (mi != null) t += '+' + DATA.MARKS[mi].label;
   return t;
 }}
 function digraphTag(ia, oia, sa, ib, oib, sb, cross) {{
@@ -633,7 +647,7 @@ function digraphTag(ia, oia, sa, ib, oib, sb, cross) {{
   const vb = DATA.BASE_ORIENT_VS[oib];
   let left = a.cp.toString(16).toUpperCase();
   if (va != null) left += ' FE' + (va - 0xFE00).toString(16).toUpperCase().padStart(2, '0');
-  left += ' FE0B ' + squishHex(sa);
+  left += ' FE00 ' + squishHex(sa);
   let right = b.cp.toString(16).toUpperCase();
   if (vb != null) right += ' FE' + (vb - 0xFE00).toString(16).toUpperCase().padStart(2, '0');
   right += ' ' + squishHex(sb);
@@ -681,10 +695,14 @@ function clearOut() {{ out.replaceChildren(); }}
 function setStatus(s) {{ status.textContent = s; }}
 
 const SQUISH_LABEL = {{
-  R: 'FE0C /.dk',
-  L: 'FE0D /.dkl',
-  T: 'FE0E /.dkb (top)',
-  B: 'FE0F /.dkt (bottom)',
+  R: 'FE0A /.dk',
+  L: 'FE0B /.dkl',
+  T: 'FE08 /.dkb (top)',
+  B: 'FE09 /.dkt (bottom)',
+  TL: 'FE0C /.tl',
+  BR: 'FE0D /.br',
+  TR: 'FE0E /.tr',
+  BL: 'FE0F /.bl',
 }};
 
 function renderPlain(indices) {{
@@ -699,17 +717,17 @@ function renderPlain(indices) {{
   setStatus('Rendered ' + n.toLocaleString() + ' plain cells');
 }}
 
-function renderMarks(indices, baseOi, markIndices, markOi, side) {{
-  const niche = side || selectedNiche();
+function renderMarks(indices, markIndices, slot) {{
+  const use = slot || selectedSlot();
   clearOut();
   out.appendChild(heading(
-    'CJK + ' + SQUISH_LABEL[niche] + ' + ca/nhay (base face, mark = 1/4)'));
+    'CJK + ' + use.label + ' + ca/nhay (base face, mark = 1/4)'));
   let n = 0;
   for (const i of indices) {{
     for (const mi of markIndices) {{
-      const text = markedCjk(i, baseOi, mi, markOi, niche);
+      const text = markedCjk(i, mi, use);
       out.appendChild(cell(
-        text, tagFor(i, baseOi, mi, markOi, niche),
+        text, tagFor(i, mi, use),
         DATA.CJK[i].cp, DATA.FACE_BASE));
       n++;
     }}
@@ -717,15 +735,16 @@ function renderMarks(indices, baseOi, markIndices, markOi, side) {{
   setStatus('Rendered ' + n.toLocaleString() + ' mark cells');
 }}
 
-function renderSquish(indices, baseOi, side) {{
+function renderSquish(indices, slot) {{
+  const use = slot || selectedSlot();
   clearOut();
   out.appendChild(heading(
-    'CJK squish (' + SQUISH_LABEL[side] + ') — base face mark niche'));
+    'CJK occupancy (' + use.label + ') — base face, no mark'));
   let n = 0;
   for (const i of indices) {{
-    const text = cjkPiece(i, baseOi) + squishPiece(side);
+    const text = DATA.CJK[i].ch + slotPiece(use);
     out.appendChild(cell(
-      text, tagFor(i, baseOi, null, 0, side),
+      text, tagFor(i, null, use),
       DATA.CJK[i].cp, DATA.FACE_BASE));
     n++;
   }}
@@ -738,7 +757,7 @@ function renderDigraphs(orientOi) {{
   const niches = DATA.DIGRAPH_NICHES || [];
   const opp = DATA.OPPOSING_ORIENT_OI || [];
   out.appendChild(heading(
-    'Half digraphs (face h) — FE0B(+niche) + opposing niche'));
+    'Half digraphs (face h) — FE00(+niche) + opposing niche'));
   let n = 0;
   for (const p of pairs) {{
     const oia = orientOi;
@@ -784,41 +803,41 @@ function renderDigraphGrid() {{
 }}
 
 function renderBaseGrid(indices, markIndices) {{
-  const niche = selectedNiche();
   clearOut();
-  out.appendChild(heading('Base VS1–8 × ' + SQUISH_LABEL[niche] + ' × mark'));
+  out.appendChild(heading('All 16 ca/nhay slots × mark (base face)'));
   let n = 0;
   for (const i of indices) {{
-    for (let bo = 0; bo < DATA.BASE_ORIENT_VS.length; bo++) {{
+    for (const slot of DATA.MARK_SLOTS) {{
       for (const mi of markIndices) {{
-        const text = markedCjk(i, bo, mi, 0, niche);
+        const text = markedCjk(i, mi, slot);
         out.appendChild(cell(
-          text, tagFor(i, bo, mi, 0, niche),
+          text, tagFor(i, mi, slot),
           DATA.CJK[i].cp, DATA.FACE_BASE));
         n++;
       }}
     }}
   }}
-  setStatus('Rendered ' + n.toLocaleString() + ' base-orient × mark cells');
+  setStatus('Rendered ' + n.toLocaleString() + ' slot × mark cells');
 }}
 
-function renderMarkGrid(indices, baseOi, markIndices) {{
-  const niche = selectedNiche();
+function renderMarkGrid(indices, markIndices) {{
+  const pos = selectedSlot().pos;
   clearOut();
-  out.appendChild(heading('Mark D4 grid · ' + SQUISH_LABEL[niche]));
+  out.appendChild(heading('Mirrors at ' + pos + ' (id / mx / my / mxy)'));
   let n = 0;
   for (const i of indices) {{
     for (const mi of markIndices) {{
-      for (let mo = 0; mo < DATA.MARK_ORIENT_VS.length; mo++) {{
-        const text = markedCjk(i, baseOi, mi, mo, niche);
+      for (const slot of DATA.MARK_SLOTS) {{
+        if (slot.pos !== pos) continue;
+        const text = markedCjk(i, mi, slot);
         out.appendChild(cell(
-          text, tagFor(i, baseOi, mi, mo, niche),
+          text, tagFor(i, mi, slot),
           DATA.CJK[i].cp, DATA.FACE_BASE));
         n++;
       }}
     }}
   }}
-  setStatus('Rendered ' + n.toLocaleString() + ' mark-orient cells');
+  setStatus('Rendered ' + n.toLocaleString() + ' mark-mirror cells');
 }}
 
 function renderEverything() {{
@@ -831,26 +850,17 @@ function renderEverything() {{
       DATA.CJK[i].ch, DATA.CJK[i].short, DATA.CJK[i].cp, DATA.FACE_BASE));
     n++;
   }}
-  for (const side of ['R', 'L', 'T', 'B']) {{
-    out.appendChild(heading('ca/nhay · ' + SQUISH_LABEL[side]));
+  for (const slot of DATA.MARK_SLOTS) {{
+    if (slot.mirror !== 'id') continue;
+    out.appendChild(heading('ca/nhay · ' + slot.label));
     for (const i of indices) {{
       for (let mi = 0; mi < DATA.MARKS.length; mi++) {{
         out.appendChild(cell(
-          markedCjk(i, 0, mi, 0, side),
-          tagFor(i, 0, mi, 0, side),
+          markedCjk(i, mi, slot),
+          tagFor(i, mi, slot),
           DATA.CJK[i].cp, DATA.FACE_BASE));
         n++;
       }}
-    }}
-  }}
-  for (const side of ['R', 'L', 'T', 'B']) {{
-    out.appendChild(heading(SQUISH_LABEL[side]));
-    for (const i of indices) {{
-      out.appendChild(cell(
-        cjkPiece(i, 0) + squishPiece(side),
-        tagFor(i, 0, null, 0, side),
-        DATA.CJK[i].cp, DATA.FACE_BASE));
-      n++;
     }}
   }}
   out.appendChild(heading('Half digraphs (face h, id ↔ r180)'));
@@ -875,34 +885,34 @@ function renderEverything() {{
 document.getElementById('btnPlain').onclick = () =>
   renderPlain(sliceIndices());
 document.getElementById('btnMarks').onclick = () =>
-  renderMarks(sliceIndices(), +baseOrient.value, markList(), +markOrient.value);
+  renderMarks(sliceIndices(), markList());
 document.getElementById('btnDk').onclick = () => {{
-  nicheSel.value = 'R';
-  renderSquish(sliceIndices(), +baseOrient.value, 'R');
+  slotSel.value = String(Math.max(0, slotIndexFor('right', 'id')));
+  renderMarks(sliceIndices(), markList());
 }};
 document.getElementById('btnDkl').onclick = () => {{
-  nicheSel.value = 'L';
-  renderSquish(sliceIndices(), +baseOrient.value, 'L');
+  slotSel.value = String(Math.max(0, slotIndexFor('left', 'id')));
+  renderMarks(sliceIndices(), markList());
 }};
 document.getElementById('btnDkt').onclick = () => {{
-  nicheSel.value = 'T';
-  renderSquish(sliceIndices(), +baseOrient.value, 'T');
+  slotSel.value = String(Math.max(0, slotIndexFor('up', 'id')));
+  renderMarks(sliceIndices(), markList());
 }};
 document.getElementById('btnDkb').onclick = () => {{
-  nicheSel.value = 'B';
-  renderSquish(sliceIndices(), +baseOrient.value, 'B');
+  slotSel.value = String(Math.max(0, slotIndexFor('down', 'id')));
+  renderMarks(sliceIndices(), markList());
 }};
 document.getElementById('btnDigraph').onclick = () =>
   renderDigraphs(+baseOrient.value);
 document.getElementById('btnSlice').onclick = () =>
-  renderMarks(sliceIndices(), +baseOrient.value, markList(), +markOrient.value);
+  renderMarks(sliceIndices(), markList());
 document.getElementById('btnBaseGrid').onclick = () =>
   renderBaseGrid(sliceIndices(), markList());
 document.getElementById('btnMarkGrid').onclick = () =>
-  renderMarkGrid(sliceIndices(), +baseOrient.value, markList());
+  renderMarkGrid(sliceIndices(), markList());
 document.getElementById('btnEverything').onclick = renderEverything;
 
-renderMarks(sliceIndices(), 0, markList(), 0, 'R');
+renderMarks(sliceIndices(), markList());
 </script>
 </body>
 </html>

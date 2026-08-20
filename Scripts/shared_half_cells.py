@@ -11,7 +11,7 @@ Encoding
   anisotropic stretch, then uniformly downscaled to ``STANDALONE_CELL_SCALE``
   (~98%) about the ideographic center.
 * Orientations: D4 square symmetries on **VS01..VS08** (``U+E000``..``U+E007``,
-  UVS ``U+FE00``..``U+FE07``), including ``r90my``. Pipeline for the two
+  UVS ``U+FE01``..``U+FE07``; identity is the bare character), including ``r90my``. Pipeline for the two
   outline sources: **transform / reorient first**, then stem-normalize
   (``id`` = identity; ``r90`` = rotate from the un-normalized upright).
   Stem normalize probes targets pseudorandomly, then binary-searches toward
@@ -21,11 +21,11 @@ Encoding
   id; ``r270`` / ``r90mx`` / ``r90my`` ← r90). After each outline and each
   composite, ink is re-pinned to the padded CJK floor, then downscaled ~98%
   about the ideographic center.
-* Overlay (GlyphWiki / build_cjk): **``U+FE08``** superimposes preceding
-  glyphs into one cell — everything but the **last** glyph before ``FE08``
-  becomes zero-advance (``.ov``); the last keeps the em advance.
-* panyi slice overlays use ``U+FE08``/``U+FE09`` instead (see ``yi_slice``):
-  horizontal / vertical half-plane joins.
+* Overlay: **``U+FE00``** on the preceding glyph makes it zero-advance
+  (``.ov``) so the next glyph stacks in the same cell.
+* Combining slices (kanji / kana / Yi): ``U+FE08``–``U+FE0B`` half-planes
+  and ``U+FE0C``–``U+FE0F`` diagonal triangles. D4 orientations stay on
+  ``U+FE01``–``U+FE07`` (identity is the bare character).
 * No side-by-side digraph compounds. Full D4 (8 modes) remains available for
   build_cjk / GlyphWiki via ``TRANSFORM_MODES``.
 """
@@ -81,9 +81,56 @@ VS_BASE = 0xE000
 VS_COUNT = MirrorVS.MODE_COUNT
 VS_LAST = VS_BASE + VS_COUNT - 1  # U+E007
 
-UVS_BASE = 0xFE00  # VS1..VS8 → identity..r90my
-UVS_LAST = UVS_BASE + VS_COUNT - 1  # U+FE07
-STACK_MARK_CP = 0xFE08  # Unicode VS9 — superimpose (not a D4 mode)
+# FE00 overlay; FE01–FE07 = r90..r90my. Identity has no FE* selector.
+OV_SELECTOR_CP = 0xFE00
+OV_SELECTOR_NAME = "vsOv"
+OV_PUA_CP = 0xE008
+STACK_MARK_CP = OV_SELECTOR_CP  # alias — GlyphWiki / older call sites
+UVS_BASE = 0xFE01  # r90 .. r90my
+UVS_LAST = 0xFE07
+
+# Combining slices: preceding glyph occupies that niche.
+# (cp, selector glyph name, suffix)
+SliceSlot = Tuple[int, str, str]
+SLICE_VS_SLOTS: Tuple[SliceSlot, ...] = (
+    (0xFE08, "vsTop", "top"),
+    (0xFE09, "vsBot", "bot"),
+    (0xFE0A, "vsLeft", "left"),
+    (0xFE0B, "vsRight", "right"),
+    (0xFE0C, "vsTL", "tl"),  # top-left triangle (anti-diagonal)
+    (0xFE0D, "vsBR", "br"),  # bottom-right triangle
+    (0xFE0E, "vsTR", "tr"),  # top-right triangle (main diagonal)
+    (0xFE0F, "vsBL", "bl"),  # bottom-left triangle
+)
+SLICE_HALF_SLOTS: Tuple[SliceSlot, ...] = SLICE_VS_SLOTS[:4]
+SLICE_TRI_SLOTS: Tuple[SliceSlot, ...] = SLICE_VS_SLOTS[4:]
+HALF_SUFFIXES: Tuple[str, ...] = ("top", "bot", "left", "right")
+TRI_SUFFIXES: Tuple[str, ...] = ("tl", "br", "tr", "bl")
+SLICE_SUFFIXES: Tuple[str, ...] = HALF_SUFFIXES + TRI_SUFFIXES
+# PUA mirrors of overlay + eight slices (Blink drops unlisted VS before GSUB).
+# E000–E007 remain D4; E008 = overlay; E009–E010 = FE08–FE0F.
+SLICE_PUA_SLOTS: Tuple[Tuple[int, str], ...] = (
+    (OV_PUA_CP, OV_SELECTOR_NAME),
+    (0xE009, "vsTop"),
+    (0xE00A, "vsBot"),
+    (0xE00B, "vsLeft"),
+    (0xE00C, "vsRight"),
+    (0xE00D, "vsTL"),
+    (0xE00E, "vsBR"),
+    (0xE00F, "vsTR"),
+    (0xE010, "vsBL"),
+)
+SLICE_PUA_CPS: Tuple[int, ...] = tuple(cp for cp, _n in SLICE_PUA_SLOTS)
+SLICE_LABELS: Dict[str, FrozenSet[str]] = {
+    "top": frozenset({"tl", "tr"}),
+    "bot": frozenset({"bl", "br"}),
+    "left": frozenset({"tl", "bl"}),
+    "right": frozenset({"tr", "br"}),
+    "tl": frozenset({"tl", "tr", "bl"}),
+    "br": frozenset({"tr", "br", "bl"}),
+    "tr": frozenset({"tl", "tr", "br"}),
+    "bl": frozenset({"tl", "bl", "br"}),
+}
 
 DEFAULT_UPEM = 1000
 # Optional inset of the shared advance box inside the CJK cell (uniform).
@@ -1298,21 +1345,23 @@ def rebuild_sideways_from_r90(
 
 def vs_glyph_name(vs_cp: int) -> str:
     match vs_cp:
-        case _ if vs_cp == STACK_MARK_CP:
-            return "vsStack"
+        case _ if vs_cp == OV_SELECTOR_CP:
+            return OV_SELECTOR_NAME
         case _ if VS_BASE <= vs_cp <= VS_LAST:
             return f"vs{vs_cp - VS_BASE + 1:02d}"
         case _:
-            raise ValueError(f"not a Yi VS/stack codepoint: U+{vs_cp:04X}")
+            raise ValueError(f"not a Yi VS/overlay codepoint: U+{vs_cp:04X}")
 
 
 def stack_glyph_name() -> str:
-    return "vsStack"
+    return OV_SELECTOR_NAME
 
 
-def uvs_selector_for_mode(mode_index: int) -> int:
-    """Unicode VS1..VS8 (U+FE00..) for D4 mode index 0..7."""
-    return UVS_BASE + mode_index
+def uvs_selector_for_mode(mode_index: int) -> Optional[int]:
+    """FE01–FE07 for D4 mode 1–7. Identity (mode 0) has no FE* selector."""
+    if mode_index <= 0:
+        return None
+    return 0xFE00 + mode_index
 
 
 def build_d4_uvs_entries(
@@ -1335,8 +1384,9 @@ def build_d4_uvs_entries(
         if suffix is None:
             continue
         vname = variant_glyph_name(base_glyph, suffix)
-        if vname in glyphs:
-            rows.append((base_cp, uvs_selector_for_mode(mode_i), vname))
+        sel = uvs_selector_for_mode(mode_i)
+        if vname in glyphs and sel is not None:
+            rows.append((base_cp, sel, vname))
     return rows
 
 
@@ -1345,8 +1395,12 @@ def variant_glyph_name(base_name: str, suffix: str) -> str:
 
 
 def overlay_glyph_name(base_name: str) -> str:
-    """Zero-advance form of ``base_name`` for FE08 superposition."""
+    """Zero-advance form of ``base_name`` for FE00 superposition."""
     return f"{base_name}.ov"
+
+
+def slice_form_name(base_name: str, suffix: str) -> str:
+    return f"{base_name}.{suffix}"
 
 
 def orientation_form_names(
@@ -1367,15 +1421,88 @@ def inject_stack_mark(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     cmap: Dict[int, str],
+    *,
+    pua: bool = True,
 ) -> str:
-    """Ensure FE08 stack mark glyph exists (zero-width) and is cmap'd."""
+    """Ensure FE00 overlay mark exists (zero-width) and is cmap'd."""
     sname = stack_glyph_name()
     if sname not in glyphs:
         glyph_order.append(sname)
         glyphs[sname] = empty_glyph()
         metrics[sname] = (0, 0)
-    cmap[STACK_MARK_CP] = sname
+    cmap[OV_SELECTOR_CP] = sname
+    if pua:
+        cmap[OV_PUA_CP] = sname
     return sname
+
+
+def inject_slice_selectors(
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    cmap: Dict[int, str],
+    *,
+    pua: bool = False,
+    slots: Sequence[SliceSlot] = SLICE_VS_SLOTS,
+) -> List[str]:
+    """Cmap FE00 overlay + slice VS (and optional PUA mirrors)."""
+    names = [inject_stack_mark(glyph_order, glyphs, metrics, cmap, pua=pua)]
+    for cp, gname, _suf in slots:
+        if gname not in glyphs:
+            glyph_order.append(gname)
+            glyphs[gname] = empty_glyph()
+            metrics[gname] = (0, 0)
+        cmap[cp] = gname
+        names.append(gname)
+    if pua:
+        for pua_cp, gname in SLICE_PUA_SLOTS:
+            if gname in glyphs:
+                cmap[pua_cp] = gname
+    return names
+
+
+def slice_overlay_liga_map(
+    forms: Sequence[str],
+    *,
+    glyphs: Dict[str, TTGlyph],
+    slots: Sequence[SliceSlot] = SLICE_VS_SLOTS,
+    form_name: Optional[Callable[[str, str], str]] = None,
+    include_vs01: bool = True,
+) -> Dict[Tuple[str, ...], str]:
+    """``base + FE00/FE08–F`` → overlay and/or slice (either order).
+
+    Longer sequences (overlay+slice) are included so the caller can sort by
+    length. Optional ``vs01`` (PUA identity) prefixes keep ``base E000 FE08``.
+    """
+    name_of = form_name if form_name is not None else slice_form_name
+    vs01 = vs_glyph_name(TRANSFORM_MODES[0][0]) if include_vs01 else None
+    ov = OV_SELECTOR_NAME
+    liga: Dict[Tuple[str, ...], str] = {}
+    for form in forms:
+        if form not in glyphs:
+            continue
+        form_ov = overlay_glyph_name(form)
+        if form_ov in glyphs and ov in glyphs:
+            liga[(form, ov)] = form_ov
+            if vs01 is not None:
+                liga[(form, vs01, ov)] = form_ov
+        for _cp, sel_name, suf in slots:
+            out = name_of(form, suf)
+            if out not in glyphs or sel_name not in glyphs:
+                continue
+            liga[(form, sel_name)] = out
+            if vs01 is not None:
+                liga[(form, vs01, sel_name)] = out
+            out_ov = overlay_glyph_name(out)
+            if out_ov not in glyphs or ov not in glyphs:
+                continue
+            liga[(form, ov, sel_name)] = out_ov
+            liga[(form, sel_name, ov)] = out_ov
+            if vs01 is not None:
+                liga[(form, vs01, ov, sel_name)] = out_ov
+                liga[(form, vs01, sel_name, ov)] = out_ov
+            liga[(out, ov)] = out_ov
+    return liga
 
 
 def add_overlay_forms(
@@ -1420,69 +1547,22 @@ def install_overlay_gsub(
     glyph_order: Sequence[str],
     max_stack: int = 8,
 ) -> int:
-    """Install FE08 overlay lookups into ``font`` GSUB (create or append).
+    """Install ``glyph + FE00 → glyph.ov`` ligatures into ``font`` GSUB.
 
-    ``A B FE08`` → ``A.ov`` (0-advance) + ``B`` (keeps advance); FE08 consumed.
-    Longer stacks (``A B FE08 C FE08`` …) work by repeating the zero+consume
-    pair in the feature list (``max_stack`` times).
-
-    Requires ``.ov`` forms already present for entries in ``full_forms``.
-    Returns number of feature-attached lookup slots added.
+    ``max_stack`` is kept for call-site compatibility and ignored — each
+    preceding glyph is zeroed independently, so ``A FE00 B FE00 C`` stacks
+    without repeating lookups.
     """
-    from fontTools.otlLib.builder import (  # local import keeps module import light
-        buildLigatureSubstSubtable,
-        buildLookup,
-        buildSingleSubstSubtable,
-    )
+    del max_stack, glyph_order
     from fontTools.ttLib import newTable
     from fontTools.ttLib.tables import otTables as ot
 
-    order_index = {n: i for i, n in enumerate(glyph_order)}
-
-    def _gid_sort(names: Sequence[str]) -> List[str]:
-        return sorted(set(names), key=lambda n: order_index.get(n, 10**9))
-
-    def _coverage(names: Sequence[str]) -> ot.Coverage:
-        cov = ot.Coverage()
-        cov.glyphs = list(names)
-        return cov
-
-    forms = _gid_sort([n for n in full_forms if n in glyphs])
-    overlayable = _gid_sort([n for n in forms if overlay_glyph_name(n) in glyphs])
-    if not overlayable:
+    liga = slice_overlay_liga_map(
+        full_forms, glyphs=glyphs, slots=(), include_vs01=False
+    )
+    if not liga:
         return 0
-
-    stack = stack_glyph_name()
-    if stack not in glyphs:
-        return 0
-
-    # 1) A' with lookahead B FE08 → A.ov  (stack not consumed yet)
-    overlay_single = {name: overlay_glyph_name(name) for name in overlayable}
-    single_sub = buildSingleSubstSubtable(overlay_single)
-    single_lu = buildLookup([single_sub])
-    single_lu.LookupType = 1
-
-    st = ot.ChainContextSubst()
-    st.Format = 3
-    st.BacktrackGlyphCount = 0
-    st.BacktrackCoverage = []
-    st.InputGlyphCount = 1
-    st.InputCoverage = [_coverage(overlayable)]
-    st.LookAheadGlyphCount = 2
-    st.LookAheadCoverage = [_coverage(forms), _coverage([stack])]
-    st.SubstCount = 1
-    rec = ot.SubstLookupRecord()
-    rec.SequenceIndex = 0
-    rec.LookupListIndex = 0  # patched
-    st.SubstLookupRecord = [rec]
-    chain_lu = buildLookup([st])
-    chain_lu.LookupType = 6
-
-    # 2) B + FE08 → B  (consume stack; runs after zeroing)
-    consume_map = {(name, stack): name for name in forms}
-    consume_sub = buildLigatureSubstSubtable(consume_map)
-    consume_lu = buildLookup([consume_sub])
-    consume_lu.LookupType = 4
+    lookup = build_chunked_ligature_subst_lookup(liga)
 
     if "GSUB" in font:
         gsub = font["GSUB"].table
@@ -1529,20 +1609,9 @@ def install_overlay_gsub(
         gsub.LookupList.Lookup = []
         gsub.LookupList.LookupCount = 0
 
-    base = gsub.LookupList.LookupCount
-    # Order: chain, nested single, consume. Feature only lists chain + consume
-    # (repeated so A B FE08 C FE08 … can apply multiple times).
-    chain_index = base
-    single_index = base + 1
-    consume_index = base + 2
-    st.SubstLookupRecord[0].LookupListIndex = single_index
-    gsub.LookupList.Lookup.extend([chain_lu, single_lu, consume_lu])
+    li = gsub.LookupList.LookupCount
+    gsub.LookupList.Lookup.append(lookup)
     gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
-
-    feature_lookup_idxs: List[int] = []
-    for _ in range(max(1, max_stack)):
-        feature_lookup_idxs.append(chain_index)
-        feature_lookup_idxs.append(consume_index)
 
     tag_to_fr = {fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])}
     for tag in COMPOSITION_FEATURE_TAGS:
@@ -1568,12 +1637,10 @@ def install_overlay_gsub(
                     ls.FeatureIndex = fi
                     ls.FeatureCount = len(fi)
         idxs = list(fr.Feature.LookupListIndex or [])
-        for li in feature_lookup_idxs:
-            idxs.append(li)
+        idxs.append(li)
         fr.Feature.LookupListIndex = idxs
         fr.Feature.LookupCount = len(idxs)
-
-    return len(feature_lookup_idxs)
+    return 1
 
 
 # Shared across build_yi / build_cjk / GlyphWiki.
@@ -1774,6 +1841,7 @@ def propagate_d4_niches(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
     labels: Optional[Dict[str, FrozenSet[str]]] = None,
+    center: Optional[Tuple[float, float]] = None,
 ) -> None:
     """Fill D4 × niche glyphs from identity clips: ``R(clip(g, R⁻¹(W)))``.
 
@@ -1781,7 +1849,8 @@ def propagate_d4_niches(
     oriented form is a cell-centered D4 of the matching identity niche —
     no second pathops clip of the rotated outline.
     """
-    center = ideographic_center(target_upem)
+    if center is None:
+        center = ideographic_center(target_upem)
     for base in identity_bases:
         if base not in glyphs:
             continue
@@ -2091,7 +2160,7 @@ def clip_glyph_to_rect(
 ) -> TTGlyph:
     """Intersect ``glyph`` with axis-aligned ``(x0, y0, x1, y1)`` — no scale.
 
-    Used for CJK half / third / quarter niches and Yi FE08/FE09 slices: ink
+    Used for CJK half / third / quarter niches and combining slices: ink
     outside the band is dropped; ink inside keeps its original size and place.
     Complementary bands are ``boolean_subtract`` / ``boolean_union``, not a
     second clip.
@@ -2110,6 +2179,81 @@ def clip_glyph_to_rect(
     except Exception:
         return empty_glyph()
     return _pathops_to_ttglyph(out)
+
+
+def _polygon_pathops(points: Sequence[Tuple[float, float]]):
+    import pathops
+
+    p = pathops.Path()
+    x0, y0 = points[0]
+    p.moveTo(float(x0), float(y0))
+    for x, y in points[1:]:
+        p.lineTo(float(x), float(y))
+    p.close()
+    return p
+
+
+def clip_glyph_to_polygon(
+    glyph: TTGlyph,
+    points: Sequence[Tuple[float, float]],
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> TTGlyph:
+    """Intersect ``glyph`` with a closed polygon (no scale)."""
+    import pathops
+
+    if len(points) < 3:
+        raise ValueError("polygon clip needs at least 3 points")
+    src = _ttglyph_to_pathops(glyph, glyph_set)
+    clip = _polygon_pathops(points)
+    try:
+        out = pathops.op(src, clip, pathops.PathOp.INTERSECTION, fix_winding=True)
+    except Exception:
+        return empty_glyph()
+    return _pathops_to_ttglyph(out)
+
+
+def triangle_clip_points(
+    kind: str,
+    *,
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+    inf: float,
+) -> Tuple[Tuple[float, float], ...]:
+    """Huge triangle covering one diagonal half-plane of the cell.
+
+    ``tl``/``br`` share the anti-diagonal (TR–BL); ``tr``/``bl`` share the
+    main diagonal (TL–BR). ``inf`` extends the clip past cell-overflow ink.
+    """
+    match kind:
+        case "tl":
+            return (
+                (x0 - inf, y1 + inf),
+                (x1 + inf, y1 + inf),
+                (x0 - inf, y0 - inf),
+            )
+        case "br":
+            return (
+                (x1 + inf, y0 - inf),
+                (x1 + inf, y1 + inf),
+                (x0 - inf, y0 - inf),
+            )
+        case "tr":
+            return (
+                (x0 - inf, y1 + inf),
+                (x1 + inf, y1 + inf),
+                (x1 + inf, y0 - inf),
+            )
+        case "bl":
+            return (
+                (x0 - inf, y1 + inf),
+                (x0 - inf, y0 - inf),
+                (x1 + inf, y0 - inf),
+            )
+        case _:
+            raise ValueError(f"unknown triangle {kind!r}")
 
 
 def make_niche_slice_glyph(
