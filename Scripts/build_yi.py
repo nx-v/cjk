@@ -9,6 +9,10 @@ Contents
       yi + VS02..VS08 / FE01..FE07   →   oriented variant
       (VS01 / FE00 = identity, no subst)
 
+  Standalone fit: shared ``sx`` from NuosuSIL monospace advance → em,
+  shared ``sy`` from inventory max ink height, Y centered in padded typo box,
+  horizontal stems at 125% (Y-only Weight), then ~98% ideographic inset.
+
 * Slice overlays via FE08–FE09 (half-plane clips + shared ``sliceAdv`` advance):
 
       A B FE08  →  A.top  + B.bot   sliceAdv   # horizontal
@@ -47,6 +51,8 @@ from shared_half_cells import (
     COMPOSITION_LANGUAGE_SYSTEMS,
     DEFAULT_UPEM,
     NUOSU_FILENAME,
+    STANDALONE_CELL_SCALE,
+    STANDALONE_VERT_PAD,
     YI_ORIENTATION_MODES,
     YiInventory,
     add_d4_variant_glyphs,
@@ -80,6 +86,9 @@ OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "yi")
 
 FAMILY_NAME = FAMILY_YI
 PS_NAME = PS_YI
+
+# After shared sx/sy fit: uniform horizontal-stem Weight (Y-only CAPE).
+YI_HORIZONTAL_STEM_WEIGHT = 1.4
 
 
 def glyph_name_for_cp(cp: int) -> str:
@@ -213,10 +222,14 @@ def build_panyi_font(
     finally:
         tt.close()
 
+    sx = target_upem / float(inv.source_advance)
+    sy = target_upem / float(inv.source_max_height)
     print(
         f"  Scaling {len(recs)} standalones "
-        f"(sx {inv.source_advance}→{target_upem}, "
-        f"sy maxH {inv.source_max_height:.0f}→{target_upem})...",
+        f"(sx {inv.source_advance}→{target_upem} = {sx:.4g}×, "
+        f"sy maxH {inv.source_max_height:.0f}→{target_upem} = {sy:.4g}×, "
+        f"horizontal stems ×{YI_HORIZONTAL_STEM_WEIGHT:g}, "
+        f"cell {STANDALONE_CELL_SCALE:g}, vert pad {STANDALONE_VERT_PAD:g})...",
         flush=True,
     )
     standalones: Dict[int, Tuple] = {}
@@ -227,7 +240,8 @@ def build_panyi_font(
             source_advance=inv.source_advance,
             source_center_y=inv.source_center_y,
             source_max_height=inv.source_max_height,
-            widen=0.0,  # CAPE Weightor is kana-only
+            widen=0.0,  # CAPE Width is kana-only
+            horizontal_weight=YI_HORIZONTAL_STEM_WEIGHT,
         )
         if sa is not None:
             standalones[idx] = sa
@@ -265,6 +279,7 @@ def build_panyi_font(
             glyphs=glyphs,
             metrics=metrics,
             modes=YI_ORIENTATION_MODES,
+            anchor="cell",
         )
         uvs_rows.extend(
             build_d4_uvs_entries(cp, sa_name, glyphs=glyphs, modes=YI_ORIENTATION_MODES)

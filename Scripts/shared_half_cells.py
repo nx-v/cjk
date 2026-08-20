@@ -5,9 +5,9 @@ Encoding
 * One font (``panyi``) covering the whole Yi inventory.
 * Standalones: NuosuSIL is monospace (shared advance). Every glyph gets the
   **same** ``sx`` from that advance and the **same** ``sy`` from the tallest
-  ink height (no CAPE Width — that is kana-only). Y is fitted to the CJK
-  typo box (floor-pin), then horizontal strokes are Weight-boldened to
-  ``STANDALONE_HORIZONTAL_WEIGHT`` (110%) to recover thickness lost in the
+  ink height (no CAPE Width — that is kana-only). Y is centered in the padded
+  CJK typo box, then horizontal strokes are Weight-boldened to
+  ``STANDALONE_HORIZONTAL_WEIGHT`` (125%) to recover thickness lost in the
   anisotropic stretch, then uniformly downscaled to ``STANDALONE_CELL_SCALE``
   (~98%) about the ideographic center.
 * Orientations: D4 square symmetries on **VS01..VS08** (``U+E000``..``U+E007``,
@@ -103,8 +103,8 @@ STANDALONE_VERT_PAD = 0.05
 # ideographic center so Yi ink occupies ~98% of the cell (still centered).
 STANDALONE_CELL_SCALE = 0.98
 # Anisotropic CJK-cell fit (shared sx ≠ sy) thins horizontal strokes.
-# Y-only Weight-mode factor after that fit (1.10 = 110% horizontal stem).
-STANDALONE_HORIZONTAL_WEIGHT = 1.10
+# Y-only Weight-mode factor after that fit (1.25 = 125% horizontal stem).
+STANDALONE_HORIZONTAL_WEIGHT = 1.25
 # Legacy: was an extra shrink on scaled niche composites. Half / third /
 # quarter niches are now **slices** (clip, no stretch); this constant is
 # unused by that path and kept only for any external callers.
@@ -1090,13 +1090,20 @@ def add_d4_variant_glyphs(
         pinned, pinned_adv, _ = pin_glyph_ink_to_cjk_floor(
             glyph, adv, target_upem, glyph_set=glyphs
         )
-        return scale_glyph_in_ideographic_cell(
+        g, a, l = scale_glyph_in_ideographic_cell(
             pinned,
             pinned_adv,
             target_upem,
             scale=STANDALONE_CELL_SCALE,
             glyph_set=glyphs,
         )
+        g = center_glyph_ink_x(g, target_upem)
+        try:
+            g.recalcBounds(glyphs if g.isComposite() else None)
+            l = int(g.xMin)
+        except Exception:
+            pass
+        return g, int(a), int(l)
 
     def _composite_from(
         parent_name: str,
@@ -2334,6 +2341,40 @@ def center_glyph_in_cell(
     return apply_transform(rec, Transform(1, 0, 0, 1, sx, sy))
 
 
+def center_glyph_ink_x(
+    glyph: TTGlyph,
+    target_upem: int,
+    *,
+    center_x: Optional[float] = None,
+) -> TTGlyph:
+    """Translate so ink bbox center X matches the ideographic midline."""
+    try:
+        glyph.recalcBounds(None)
+        x_min, x_max = float(glyph.xMin), float(glyph.xMax)
+    except Exception:
+        return glyph
+    cx = float(center_x if center_x is not None else ideographic_center(target_upem)[0])
+    dx = cx - (x_min + x_max) / 2.0
+    if abs(dx) < 0.5:
+        return glyph
+    rec = RecordingPen()
+    glyph.draw(rec, None)
+    return apply_transform(rec, Transform(1, 0, 0, 1, dx, 0))
+
+
+def center_glyph_ink_in_cell(
+    glyph: TTGlyph,
+    target_upem: int,
+    *,
+    pad: float = STANDALONE_VERT_PAD,
+) -> TTGlyph:
+    """Center ink bbox in the padded ideographic cell (X midline + typo inset Y)."""
+    bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
+    cx, _ = ideographic_center(target_upem)
+    cy = (bottom + top) / 2.0
+    return center_glyph_in_cell(glyph, target_upem, center=(cx, cy))
+
+
 @dataclass(frozen=True)
 class YiInventory:
     source_path: str
@@ -2607,16 +2648,20 @@ def _fit_glyph_to_cjk_height(
     target_upem: int,
     *,
     pad: float = STANDALONE_VERT_PAD,
+    align: str = "floor",
 ) -> TTGlyph:
     """Match ink to a vertically padded CJK typo box.
 
-    * Taller than the padded box → squash Y to that height, bottom on the floor.
-    * Shorter (or equal) → translate so the ink bottom sits on the floor.
+    * Taller than the padded box → squash Y to that height.
+    * Shorter (or equal) → ``align="floor"`` pins the ink bottom to the padded
+      floor; ``align="center"`` centers ink mid-Y in the padded cell.
 
-    ``pad`` is a fraction of em inset from typo ascent/descent so Yi does not
-    hang on the raw -0.12em descent (which sits below typical CJK ink).
+    ``pad`` is a fraction of em inset from typo ascent/descent.
     """
-    bottom, _top, cell_h = cjk_padded_floor(target_upem, pad=pad)
+    if align not in ("floor", "center"):
+        raise ValueError(f"align must be 'floor' or 'center', got {align!r}")
+    bottom, top, cell_h = cjk_padded_floor(target_upem, pad=pad)
+    cell_mid_y = (bottom + top) / 2.0
     try:
         glyph.recalcBounds(None)
         y0, y1 = float(glyph.yMin), float(glyph.yMax)
@@ -2629,9 +2674,17 @@ def _fit_glyph_to_cjk_height(
     glyph.draw(rec, None)
     if h > cell_h + 1e-6:
         sy = cell_h / h
-        # y' = bottom + sy·(y - y0)
+        ink_mid = (y0 + y1) / 2.0
+        if align == "center":
+            # y' = cell_mid + sy·(y - ink_mid)
+            ty = cell_mid_y - sy * ink_mid
+            return apply_transform(rec, Transform(1, 0, 0, sy, 0, ty))
+        # floor: y' = bottom + sy·(y - y0)
         return apply_transform(rec, Transform(1, 0, 0, sy, 0, bottom - sy * y0))
-    dy = bottom - y0
+    if align == "center":
+        dy = cell_mid_y - (y0 + y1) / 2.0
+    else:
+        dy = bottom - y0
     if abs(dy) < 1e-6:
         return glyph
     return apply_transform(rec, Transform(1, 0, 0, 1, 0, dy))
@@ -2774,18 +2827,19 @@ def make_standalone_glyph(
     widen: float = STANDALONE_CONTOUR_WIDEN,
     vert_pad: float = STANDALONE_VERT_PAD,
     cell_scale: float = STANDALONE_CELL_SCALE,
+    horizontal_weight: float = STANDALONE_HORIZONTAL_WEIGHT,
     stroke_weight: Optional[float] = None,  # unused; kept for call-site compat
 ) -> Optional[GlyphMetrics]:
     """Shared ``sx`` from advance, shared ``sy`` from inventory max ink height.
 
-    X is placed from the monospace advance center (side bearings preserved).
-    Optional CAPE Width ``widen`` is kana-oriented and defaults to ``0`` (off)
-    for Yi / CJK standalones. Then Y is fitted to a padded CJK typo box:
-    squash if taller, otherwise pin the ink bottom to the padded floor.
-    Horizontal stems are then Weight-boldened to
-    ``STANDALONE_HORIZONTAL_WEIGHT`` (Y-only offset, outer box restored).
-    Finally uniform ``cell_scale`` (~98%) about the ideographic center keeps
-    the syllable inset and centered.
+    ``sx = cell / source_advance`` — one factor for the whole inventory, mapping
+    the monospace advance box to the ideographic em. ``sy`` uses the tallest ink
+    height the same way. Ink bbox center is mapped to the ideographic midline; Y
+    is then fitted inside the padded typo box (squash if taller, else centered).
+    Horizontal stems are Weight-boldened uniformly (Y-only offset, outer box
+    restored) by ``horizontal_weight`` (default 125%). Finally uniform
+    ``cell_scale`` (~98%) about the ideographic center keeps the syllable
+    inset and centered.
     """
     del stroke_weight
     del source_center_y  # retained for call-site compat / inventory symmetry
@@ -2795,6 +2849,8 @@ def make_standalone_glyph(
     if bounds is None:
         return None
     _x0, y0, _x1, y1 = bounds
+    x0 = float(_x0)
+    x1 = float(_x1)
     cell = target_upem * (1.0 - 2.0 * pad)
     scale_x = cell / float(source_advance)
     scale_y = cell / float(source_max_height)
@@ -2803,7 +2859,7 @@ def make_standalone_glyph(
         rec,
         scale_x=scale_x,
         scale_y=scale_y,
-        src_cx=source_advance / 2.0,
+        src_cx=(x0 + x1) / 2.0,
         src_cy=(y0 + y1) / 2.0,
         dst_cx=dst_cx,
         dst_cy=dst_cy,
@@ -2817,16 +2873,19 @@ def make_standalone_glyph(
             advance=float(target_upem),
             center_x=dst_cx,
         )
-    glyph = _fit_glyph_to_cjk_height(glyph, target_upem, pad=vert_pad)
-    if abs(STANDALONE_HORIZONTAL_WEIGHT - 1.0) > 1e-9:
+    glyph = _fit_glyph_to_cjk_height(
+        glyph, target_upem, pad=vert_pad, align="center"
+    )
+    if abs(horizontal_weight - 1.0) > 1e-9:
         try:
             glyph, _hadv, _hlsb = bolden_horizontal_ttglyph(
                 glyph,
-                STANDALONE_HORIZONTAL_WEIGHT,
+                horizontal_weight,
                 advance=float(target_upem),
             )
         except Exception:
             pass
+    glyph = center_glyph_ink_in_cell(glyph, target_upem, pad=vert_pad)
     return scale_glyph_in_ideographic_cell(
         glyph, target_upem, target_upem, scale=cell_scale
     )

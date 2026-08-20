@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 from fontTools.pens.basePen import BasePen
+from fontTools.pens.recordingPen import RecordingPen
+from fontTools.pens.reverseContourPen import ReverseContourPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
@@ -473,6 +475,60 @@ def estimate_horizontal_stem(
 # ── OffsetCurve stand-in (contour-normal) ───────────────────────────────────
 
 
+def _outer_contour_area(glyph: TTGlyph) -> float:
+    """Signed area of the largest-|area| contour (Y-up shoelace)."""
+    try:
+        if glyph.isComposite() or glyph.numberOfContours <= 0:
+            return 0.0
+        coords = glyph.coordinates
+        ends = list(glyph.endPtsOfContours)
+    except Exception:
+        return 0.0
+    areas: List[float] = []
+    start = 0
+    for end in ends:
+        pts = [coords[i] for i in range(start, end + 1)]
+        start = end + 1
+        if len(pts) < 3:
+            continue
+        a = 0.0
+        n = len(pts)
+        for i in range(n):
+            x1, y1 = float(pts[i][0]), float(pts[i][1])
+            x2, y2 = float(pts[(i + 1) % n][0]), float(pts[(i + 1) % n][1])
+            a += x1 * y2 - x2 * y1
+        areas.append(0.5 * a)
+    if not areas:
+        return 0.0
+    return max(areas, key=abs)
+
+
+def ensure_cape_expand_winding(glyph: TTGlyph) -> TTGlyph:
+    """Make the outer contour CCW so CAPE Weight offsets expand fill.
+
+    TrueType sources are usually outer-CW. Y-only horizontal-stem Weight then
+    thins horizontals and fattens verticals unless winding is normalized first.
+    """
+    if glyph.isComposite() or glyph.numberOfContours <= 0:
+        return glyph
+    if _outer_contour_area(glyph) >= 0:
+        return glyph
+    rec = RecordingPen()
+    rev = ReverseContourPen(rec)
+    try:
+        glyph.draw(rev, None)
+    except TypeError:
+        glyph.draw(rev)
+    pen = TTGlyphPen(None)
+    rec.replay(pen)
+    out = pen.glyph()
+    try:
+        out.recalcBounds(None)
+    except Exception:
+        pass
+    return out
+
+
 def _unit(dx: float, dy: float) -> Point:
     L = math.hypot(dx, dy)
     if L < 1e-12:
@@ -874,13 +930,18 @@ def bolden_horizontal_ttglyph(
     advance: Optional[float] = None,
     stem: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Y-only Weight-mode bolden; returns ``(glyph, advance, lsb)``."""
+    """Y-only Weight-mode bolden for **horizontal** strokes.
+
+    Requires outer-CCW winding (see ``ensure_cape_expand_winding``); otherwise
+    the offset axis is inverted and vertical stems bold instead.
+    """
     if advance is None:
         try:
             glyph.recalcBounds(None)
             advance = float(max(glyph.xMax, 0)) + 100.0
         except Exception:
             advance = 1000.0
+    glyph = ensure_cape_expand_winding(glyph)
     layer = layer_from_ttglyph(glyph, advance)
     adv0 = layer.width
     apply_horizontal_weight(layer, factor, stem=stem)
