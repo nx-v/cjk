@@ -32,6 +32,7 @@ import concurrent.futures
 import copy
 import os
 import pickle
+import re
 import shutil
 import sys
 import tempfile
@@ -81,6 +82,7 @@ from shared_half_cells import (
     is_yi_cp,
     load_inventory,
     make_standalone_glyph,
+    normalize_axes_to_average_ideo,
     record_glyph,
     uvs_selector_for_mode,
     variant_glyph_name,
@@ -146,7 +148,9 @@ CSS_FAMILY = "edenia cjk"
 # local_scale = target_ink / native_ink; weightor = target_stem / (stem * scale).
 # After import: undersized glyphs grow uniformly to this average (geometric
 # scale → thicker strokes). Overflow is geometric shrink into the ideo box
-# (→ thinner). No CAPE stem hold on this path.
+# (→ thinner). New Gulim + Microsoft YaHei then stretch/squash X and Y
+# independently so each glyph's ink W and H match this mean (still geometric;
+# no CAPE stem hold). Other sources keep the uniform grow.
 AVERAGE_IDEO_INK = 874.0  # square target width/height @ 1000 UPM
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("NGULIM.ttf", 1.22, 1.2),
@@ -169,6 +173,8 @@ PRIORITY_FONTS: List[Tuple[str, float, float]] = [
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
 FONT_LOCAL_SCALE: Dict[str, float] = {name: scale for name, scale, _w in PRIORITY_FONTS}
 FONT_WEIGHTOR: Dict[str, float] = {name: w for name, _scale, w in PRIORITY_FONTS}
+# Independent X/Y normalize to AVERAGE_IDEO_INK (stretch and squash).
+AXIS_NORMALIZE_FONTS = frozenset({"ngulim.ttf", "msyh.ttc"})
 
 # ---------- Unicode ranges (inclusive) ----------
 
@@ -204,6 +210,59 @@ def ranges_to_set(ranges: Iterable[Tuple[int, int, str]]) -> Set[int]:
     for start, end, _name in ranges:
         s.update(range(start, end + 1))
     return s
+
+
+_RANGE_PAIR = re.compile(
+    r"(?:U\+)?([0-9A-Fa-f]+)\s*(?:-|\.\.|–|—)\s*(?:U\+)?([0-9A-Fa-f]+)",
+    re.I,
+)
+_RANGE_ONE = re.compile(r"(?:U\+)?([0-9A-Fa-f]+)$", re.I)
+
+
+def parse_unicode_range_spec(spec: str) -> List[Tuple[int, int]]:
+    """``U+2F00-9FFF`` / ``4E00-4FFF`` / ``4E`` (bucket) / ``U+4E00`` (one CP)."""
+    raw = spec.strip()
+    if not raw:
+        raise argparse.ArgumentTypeError("empty --range")
+    out: List[Tuple[int, int]] = []
+    for part in re.split(r"\s*,\s*", raw):
+        part = part.strip()
+        if not part:
+            continue
+        compact = part.replace(" ", "")
+        m = _RANGE_PAIR.fullmatch(compact) or _RANGE_PAIR.fullmatch(part)
+        if m:
+            a, b = int(m.group(1), 16), int(m.group(2), 16)
+            if a > b:
+                a, b = b, a
+            out.append((a, b))
+            continue
+        m = _RANGE_ONE.fullmatch(compact)
+        if m:
+            token = m.group(1)
+            n = int(token, 16)
+            if len(token) <= 3:
+                start = n << 8
+                out.append((start, start + 0xFF))
+            else:
+                out.append((n, n))
+            continue
+        raise argparse.ArgumentTypeError(
+            f"bad --range {part!r}; try U+2F00-9FFF, 4E00-4FFF, or 4E"
+        )
+    if not out:
+        raise argparse.ArgumentTypeError(f"bad --range {spec!r}")
+    return out
+
+
+def codepoints_from_range_specs(
+    spans: Sequence[Sequence[Tuple[int, int]]],
+) -> Set[int]:
+    cps: Set[int] = set()
+    for spec in spans:
+        for start, end in spec:
+            cps.update(range(start, end + 1))
+    return cps
 
 
 def font_cmap(tt: TTFont) -> Dict[int, str]:
@@ -289,6 +348,7 @@ class SourceFont:
         self.path = path
         self.local_scale = float(local_scale)
         self.weightor = float(weightor)
+        self.axis_normalize = os.path.basename(path).casefold() in AXIS_NORMALIZE_FONTS
         self.tt = TTFont(path, fontNumber=0)
         self.upem = int(self.tt["head"].unitsPerEm)
         self.cmap = font_cmap(self.tt)
@@ -315,9 +375,11 @@ class SourceFont:
         ``weightor`` then boldens/lightens via CAPE Weightor Weight mode only
         (bounds preserved). Width-mode CAPE is not used for CJK niches.
         Mirrors also flip about that same contour center.
-        Undersized glyphs grow uniformly until W or H hits the average
-        ideograph ink (geometric scale → thicker). Overflow then shrinks
-        geometrically into the padded cell (→ thinner).
+        New Gulim / Microsoft YaHei then stretch or squash X and Y independently
+        so ink width and height match the average ideograph (geometric; stems
+        scale with the axis). Other sources: undersized glyphs grow uniformly
+        until W or H hits that average. Overflow then shrinks geometrically
+        into the padded cell.
         """
         if is_empty_outline(self.tt, src_name):
             return None
@@ -400,19 +462,28 @@ class SourceFont:
                     file=sys.stderr,
                 )
 
-        # Undersized → uniform geometric grow until W or H hits average
-        # ideograph ink (strokes thicken). Overflow → geometric shrink into
-        # the padded cell (strokes thin). No CAPE stem hold.
+        # New Gulim / YaHei: independent X/Y to mean W and H (stretch or
+        # squash). Everyone else: uniform grow until W or H hits the mean.
+        # Overflow then shrinks geometrically into the padded cell.
         cell_adv = advance if advance > 0 else target_upem
         avg = AVERAGE_IDEO_INK * (float(target_upem) / float(DEFAULT_UPEM))
-        glyph, advance, lsb = grow_undersize_to_average_ideo(
-            glyph,
-            cell_adv,
-            target_upem,
-            avg_width=avg,
-            avg_height=avg,
-            align_y="source",
-        )
+        if self.axis_normalize:
+            glyph, advance, lsb = normalize_axes_to_average_ideo(
+                glyph,
+                cell_adv,
+                target_upem,
+                avg_width=avg,
+                avg_height=avg,
+            )
+        else:
+            glyph, advance, lsb = grow_undersize_to_average_ideo(
+                glyph,
+                cell_adv,
+                target_upem,
+                avg_width=avg,
+                avg_height=avg,
+                align_y="source",
+            )
         cell_adv = advance if advance > 0 else target_upem
         glyph, advance, lsb = fit_glyph_to_ideographic_cell(
             glyph,
@@ -2069,6 +2140,7 @@ def build_all(
     hint: bool = True,
     hint_base_only: bool = False,
     variants: Sequence[str] = CJK_FACE_BUILD_ORDER,
+    cp_filter: Optional[Set[int]] = None,
 ) -> None:
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
@@ -2080,7 +2152,19 @@ def build_all(
         sys.exit(1)
 
     target = ranges_to_set(CHAR_RANGES)
-    print(f"Target range size: {len(target)} codepoints")
+    if cp_filter is not None:
+        before = len(target)
+        target &= cp_filter
+        print(
+            f"Target range size: {len(target)} codepoints "
+            f"(--range; {before} inventory, {len(cp_filter)} requested)",
+            flush=True,
+        )
+        if not target:
+            print("No inventory codepoints in --range.", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print(f"Target range size: {len(target)} codepoints")
     print(f"Source fonts: {len(font_entries)}")
     for path, scale, weightor in font_entries:
         notes: List[str] = []
@@ -2088,6 +2172,8 @@ def build_all(
             notes.append(f"local_scale {scale:g}")
         if abs(weightor - 1.0) > 1e-9:
             notes.append(f"weightor {weightor:g}")
+        if os.path.basename(path).casefold() in AXIS_NORMALIZE_FONTS:
+            notes.append("axis-normalize mean W×H")
         if notes:
             print(f"  {', '.join(notes)}: {os.path.basename(path)}")
     fmt_note = (
@@ -2139,6 +2225,12 @@ def build_all(
     n_buckets = len(bucket_ids)
     n_variants = len(variants)
     n_faces = n_buckets * n_variants
+    if cp_filter is not None:
+        print(
+            "  --range buckets: "
+            + ", ".join(f"{bid:X}" for bid in bucket_ids),
+            flush=True,
+        )
     print(
         f"\nBuilding {n_faces} faces "
         f"({n_variants} variants × {n_buckets} buckets, {workers} workers, "
@@ -2253,14 +2345,22 @@ def build_all(
         shutil.rmtree(cache_dir, ignore_errors=True)
 
     built.sort(key=lambda t: _face_sort_key(t[0]))
-    write_css(out_dir, built)
+    if cp_filter is not None:
+        print(
+            "  --range: merging CSS from all faces in dist "
+            "(other buckets kept)",
+            flush=True,
+        )
+        regenerate_css_from_dist(out_dir, variants=None)
+    else:
+        write_css(out_dir, built)
+        sync_dist_to_plugin(CJK_FOLDER, out_dir)
 
     print(
         f"\nDone: {written} fonts, {glyph_total} glyphs, "
         f"{skipped} empty skipped, UPM={target_upem}, jobs={workers}",
         flush=True,
     )
-    sync_dist_to_plugin(CJK_FOLDER, out_dir)
 
 
 def parse_args() -> argparse.Namespace:
@@ -2288,6 +2388,18 @@ def parse_args() -> argparse.Namespace:
         "--css-only",
         action="store_true",
         help="Only regenerate edenia-cjk.css / fontlist.css from existing fonts",
+    )
+    p.add_argument(
+        "--range",
+        dest="ranges",
+        action="append",
+        type=parse_unicode_range_spec,
+        metavar="SPAN",
+        help=(
+            "Rebuild only these Unicode spans (repeatable, comma-ok). "
+            "Examples: U+2F00-9FFF, 4E00-4FFF, 4E (one 256-CP bucket). "
+            "Intersected with the CJK inventory; CSS is merged from dist."
+        ),
     )
     fmt = p.add_mutually_exclusive_group()
     fmt.add_argument(
@@ -2328,4 +2440,9 @@ if __name__ == "__main__":
             hint=not args.no_hint,
             hint_base_only=bool(args.hint_base_only),
             variants=variants,
+            cp_filter=(
+                codepoints_from_range_specs(args.ranges)
+                if args.ranges
+                else None
+            ),
         )

@@ -2932,9 +2932,9 @@ def fit_glyph_to_ideographic_cell(
     return out, int(target_upem), lsb
 
 
-def _uniform_scale_about_ink_center(glyph: TTGlyph, factor: float) -> TTGlyph:
-    """Isotropic geometric scale about ink mid (stems scale with size)."""
-    if abs(factor - 1.0) < 1e-3:
+def _scale_xy_about_ink_center(glyph: TTGlyph, sx: float, sy: float) -> TTGlyph:
+    """Geometric scale about ink mid; axes are independent (stems scale with size)."""
+    if abs(sx - 1.0) < 1e-3 and abs(sy - 1.0) < 1e-3:
         return glyph
     try:
         glyph.recalcBounds(None)
@@ -2944,8 +2944,13 @@ def _uniform_scale_about_ink_center(glyph: TTGlyph, factor: float) -> TTGlyph:
         return glyph
     rec = _recording_from_glyph(glyph, None)
     return apply_transform(
-        rec, Transform(factor, 0, 0, factor, cx * (1.0 - factor), cy * (1.0 - factor))
+        rec, Transform(sx, 0, 0, sy, cx * (1.0 - sx), cy * (1.0 - sy))
     )
+
+
+def _uniform_scale_about_ink_center(glyph: TTGlyph, factor: float) -> TTGlyph:
+    """Isotropic geometric scale about ink mid (stems scale with size)."""
+    return _scale_xy_about_ink_center(glyph, factor, factor)
 
 
 def grow_undersize_to_average_ideo(
@@ -3000,6 +3005,71 @@ def grow_undersize_to_average_ideo(
         return src, adv, lsb
 
     src = _uniform_scale_about_ink_center(src, s)
+    try:
+        src.recalcBounds(None)
+        lsb = int(src.xMin)
+    except Exception:
+        pass
+    return src, adv, lsb
+
+
+def normalize_axes_to_average_ideo(
+    glyph: TTGlyph,
+    advance: int,
+    target_upem: int,
+    *,
+    avg_width: float,
+    avg_height: float,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    pad: float = STANDALONE_VERT_PAD,
+) -> GlyphMetrics:
+    """Independent X/Y geometric scale so ink W and H match the averages.
+
+    Stretch or squash each axis separately about the ink center
+    (``sx = avg_w / ink_w``, ``sy = avg_h / ink_h``). Each factor is clamped
+    so the result still fits the padded ideographic cell. Stems scale with
+    the axis (no CAPE). Hairline / empty axes are left alone.
+    """
+    bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
+    inset = float(target_upem) * max(pad, 0.0)
+    x0, x1 = inset, float(target_upem) - inset
+    adv = int(advance if advance > 0 else target_upem)
+
+    src = glyph
+    try:
+        if glyph.isComposite():
+            src, adv, _ = _bake_transformed_glyph(
+                glyph, Transform(), adv, glyph_set=glyph_set
+            )
+    except Exception:
+        pass
+
+    try:
+        src.recalcBounds(None)
+        sx0 = float(src.xMin)
+        sy0 = float(src.yMin)
+        sx1 = float(src.xMax)
+        sy1 = float(src.yMax)
+        lsb = int(src.xMin)
+    except Exception:
+        return src, adv, int(getattr(src, "xMin", 0) or 0)
+
+    sw = sx1 - sx0
+    sh = sy1 - sy0
+    tw = max(x1 - x0, 1.0)
+    th = max(top - bottom, 1.0)
+    sx = 1.0
+    sy = 1.0
+    if sw > 1e-3:
+        sx = float(avg_width) / sw
+        sx = min(sx, tw / sw)
+    if sh > 1e-3:
+        sy = float(avg_height) / sh
+        sy = min(sy, th / sh)
+    if abs(sx - 1.0) < 1e-3 and abs(sy - 1.0) < 1e-3:
+        return src, adv, lsb
+
+    src = _scale_xy_about_ink_center(src, sx, sy)
     try:
         src.recalcBounds(None)
         lsb = int(src.xMin)
