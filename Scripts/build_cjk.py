@@ -182,8 +182,8 @@ FONT_WEIGHTOR: Dict[str, float] = {name: w for name, _scale, w in PRIORITY_FONTS
 #   else            → independent axis normalize
 # Radical CPs always skip axis stretch (uniform grow unless also < leave).
 AXIS_NORMALIZE_FONTS = frozenset({"ngulim.ttf", "msyh.ttc"})
-AXIS_NORMALIZE_LEAVE_FRAC = 0.75
-AXIS_NORMALIZE_SPARSE_FRAC = 0.875
+AXIS_NORMALIZE_LEAVE_FRAC = 0.8
+AXIS_NORMALIZE_SPARSE_FRAC = 0.9
 
 
 def is_cjk_radical_cp(cp: int) -> bool:

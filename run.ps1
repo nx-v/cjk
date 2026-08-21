@@ -29,10 +29,10 @@ if ($CjkBaseOnly) {
 & $py "$scripts/hangul_html.py"
 & $py "$scripts/yi_html.py"
 & $py "$scripts/kana_html.py"
-& $py "$scripts/build_hangul.py" --woff2-only
-& $py "$scripts/build_yi.py" --woff2-only
-& $py "$scripts/build_kana.py" --woff2-only
-& $py "$scripts/build_cjk.py" --woff2-only --hint-base-only -j 61 @cjkFaceArgs
+# & $py "$scripts/build_hangul.py" --woff2-only
+# & $py "$scripts/build_yi.py" --woff2-only
+# & $py "$scripts/build_kana.py" --woff2-only
+# & $py "$scripts/build_cjk.py" --woff2-only --hint-base-only -j 61 @cjkFaceArgs
 & $py "$scripts/build_cjk.py" --css-only @cjkFaceArgs
 # & $py "$scripts/edenia_app.py"
 & $py "$scripts/sync_edenian_fonts.py"
