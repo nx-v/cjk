@@ -14,8 +14,9 @@ Slots (same GSUB cycle as ``shared_diacritics.DAKUTEN_SLOTS``)::
 
 Each slot is the support of the outline in that direction, then offset
 outward by a gap plus the mark's half-extent so the mark body does not
-overlap the kana. Mark GPOS pins the mark **center** (glyphs are already
-centered at origin).
+overlap the kana. Centers are then pushed further until neighboring marks
+also clear each other. Mark GPOS pins the mark **center** (glyphs are already
+centered at origin). Marks stay full size on small / halfwidth forms too.
 """
 
 from __future__ import annotations
@@ -52,7 +53,10 @@ KANA_SLOT_DIRS: Dict[str, Tuple[float, float]] = {
 }
 
 # Air gap between kana ink and the mark body, as a fraction of mark height.
-KANA_MARK_GAP_FRAC = 0.18
+KANA_MARK_GAP_FRAC = 0.28
+# Minimum center-to-center separation between marks (fraction of mark height)
+# so adjacent slot footprints do not overlap.
+KANA_MARK_SEP_FRAC = 1.08
 
 
 def kana_d4_form_names(bases: Sequence[str]) -> List[str]:
@@ -171,8 +175,9 @@ def kana_slot_anchors(
 ) -> Optional[Dict[str, Tuple[int, int]]]:
     """Eight unique coordinates just outside this glyph's ink.
 
-    ``mark_scale`` matches the GPOS mark variant (``1`` full, small factor
-    for ``.mk.sm``) so the reserved footprint is the mark that will attach.
+    Marks are always full-size (``mark_scale`` reserved for callers that still
+    pass it; kana builds use ``1.0``). Each center is pushed outward until its
+    footprint clears the kana and every previously placed mark.
     """
     try:
         if glyph.isComposite():
@@ -195,21 +200,38 @@ def kana_slot_anchors(
     mark_h = float(target_upem) * DAKUTEN_MARK_HEIGHT_FRAC * float(mark_scale)
     half = mark_h * 0.5
     gap = mark_h * KANA_MARK_GAP_FRAC
+    min_sep = mark_h * KANA_MARK_SEP_FRAC
+    min_sep_sq = min_sep * min_sep
+    step = max(1.0, mark_h * 0.05)
 
     out: Dict[str, Tuple[int, int]] = {}
     used: set[Tuple[int, int]] = set()
+    placed: List[Tuple[float, float]] = []
     for slot, _suf in DAKUTEN_SLOTS:
         ux, uy = KANA_SLOT_DIRS[slot]
         sx, sy = _support_point(points, ux, uy)
         # Axis-aligned mark box extent along ``u``.
         extent = half * (abs(ux) + abs(uy))
         dist = gap + extent
-        cx, cy = sx + ux * dist, sy + uy * dist
-        ax, ay = otRound(cx), otRound(cy)
-        while (ax, ay) in used:
-            dist += 1.0
-            ax, ay = otRound(sx + ux * dist), otRound(sy + uy * dist)
+        cx = cy = 0.0
+        ax = ay = 0
+        for _ in range(512):
+            cx, cy = sx + ux * dist, sy + uy * dist
+            ax, ay = otRound(cx), otRound(cy)
+            if (ax, ay) in used:
+                dist += step
+                continue
+            conflict = False
+            for px, py in placed:
+                dx, dy = cx - px, cy - py
+                if dx * dx + dy * dy < min_sep_sq:
+                    conflict = True
+                    break
+            if not conflict:
+                break
+            dist += step
         used.add((ax, ay))
+        placed.append((cx, cy))
         out[slot] = (ax, ay)
     return out
 

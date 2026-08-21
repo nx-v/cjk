@@ -77,10 +77,8 @@ from shared_diacritics import (
     DAKUTEN_SLOT_CYCLE,
     DAKUTEN_SLOTS,
     add_dakuten_mark_glyphs,
-    add_dakuten_mark_scale_variants,
     dakuten_mark_stack_label,
     install_dakuten_gpos,
-    install_dakuten_mark_variant_gsub,
     install_dakuten_slot_gsub,
     load_dakuten_marks_from_stack,
     resolve_dakuten_mark_font_stack,
@@ -1348,59 +1346,24 @@ def _install_kana_dakuten_layout(
         return
     # Recompute from this face's outlines so overlay/slice ligatures (and
     # mixed-source stacks) get their own 8 slots, not the identity's.
-    small_forms = kana_coord_liga_names(
-        [*small_bases, *hw_small_bases], glyphs=glyphs
-    )
-    full_forms_dak = kana_coord_liga_names(
-        [*full_bases, *hw_full_bases], glyphs=glyphs
+    # Full-size marks on every form (small kana do not use scaled .mk.sm).
+    all_forms = kana_coord_liga_names(
+        [*full_bases, *small_bases, *hw_full_bases, *hw_small_bases],
+        glyphs=glyphs,
     )
     face_anchors = {k: v for k, v in base_anchors.items() if k in glyphs}
     face_anchors.update(
         collect_kana_dakuten_anchors(
-            full_forms_dak,
+            all_forms,
             glyphs=glyphs,
             glyph_set=glyphs,
             target_upem=target_upem,
             mark_scale=1.0,
         )
     )
-    face_anchors.update(
-        collect_kana_dakuten_anchors(
-            small_forms,
-            glyphs=glyphs,
-            glyph_set=glyphs,
-            target_upem=target_upem,
-            mark_scale=SMALL_WIDTH_FACTOR,
-        )
-    )
     if not face_anchors:
         return
-    if small_forms:
-        print(
-            "  Compiling GSUB (dakuten .mk→.mk.sm after small bases)...",
-            flush=True,
-        )
-        install_dakuten_mark_variant_gsub(
-            font,
-            mark_cps,
-            glyphs=glyphs,
-            glyph_order=glyph_order,
-            base_names=small_forms,
-            variant="sm",
-        )
-        print(
-            f"  Compiling GSUB (dakuten .sm slots {DAKUTEN_SLOT_CYCLE})...",
-            flush=True,
-        )
-        install_dakuten_slot_gsub(
-            font,
-            mark_cps,
-            glyphs=glyphs,
-            glyph_order=glyph_order,
-            base_names=small_forms,
-            variant="sm",
-        )
-    if full_forms_dak:
+    if all_forms:
         print(
             f"  Compiling GSUB (dakuten slots {DAKUTEN_SLOT_CYCLE})...",
             flush=True,
@@ -1410,7 +1373,7 @@ def _install_kana_dakuten_layout(
             mark_cps,
             glyphs=glyphs,
             glyph_order=glyph_order,
-            base_names=full_forms_dak,
+            base_names=all_forms,
         )
     face_marks = [n for n in mark_names if n in glyphs]
     if face_marks and face_anchors:
@@ -1906,16 +1869,6 @@ def build_pankana_font(
                 metrics=metrics,
                 cmap=cmap,
             )
-            sm_mark_names = add_dakuten_mark_scale_variants(
-                mark_cps,
-                glyph_order=glyph_order,
-                glyphs=glyphs,
-                metrics=metrics,
-                scale=SMALL_WIDTH_FACTOR,
-                weight_factor=SMALL_WEIGHT_FACTOR,
-                variant="sm",
-            )
-            mark_names = list(mark_names) + list(sm_mark_names)
 
             base_anchors = collect_kana_dakuten_anchors(
                 kana_d4_form_names(full_bases),
@@ -1930,7 +1883,7 @@ def build_pankana_font(
                     glyphs=glyphs,
                     glyph_set=glyphs,
                     target_upem=target_upem,
-                    mark_scale=SMALL_WIDTH_FACTOR,
+                    mark_scale=1.0,
                 )
             )
             base_anchors.update(
@@ -1948,13 +1901,13 @@ def build_pankana_font(
                     glyphs=glyphs,
                     glyph_set=glyphs,
                     target_upem=target_upem,
-                    mark_scale=SMALL_WIDTH_FACTOR,
+                    mark_scale=1.0,
                 )
             )
             print(
                 f"  Dakuten: {len(mark_cps)} marks × {len(DAKUTEN_SLOTS)} slots "
-                f"(outside ink after D4; full/hw + small/hw-small .sm @ "
-                f"{SMALL_WIDTH_FACTOR:g}), "
+                f"(full-size outside ink after D4; full/small/hw; "
+                f"no mark-scale), "
                 f"{len(base_anchors)} bases",
                 flush=True,
             )
@@ -2086,8 +2039,8 @@ def build_all(
         "U+FE0C–FE0F triangles (pigeonholed like CJK h)"
     )
     print(
-        "  Dakuten: contour GPOS (near ink, inside ideo cell; "
-        f"{DAKUTEN_SLOT_CYCLE}; CGJ U+034F skips a slot)"
+        "  Dakuten: full-size marks outside ink after D4 "
+        f"({DAKUTEN_SLOT_CYCLE}; CGJ U+034F skips a slot; no .mk.sm scale)"
     )
     print(
         f"  Output: '{FAMILY_NAME}'"

@@ -3022,6 +3022,7 @@ def normalize_axes_to_average_ideo(
     avg_height: float,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     pad: float = STANDALONE_VERT_PAD,
+    sparse_frac: float = 0.75,
 ) -> GlyphMetrics:
     """Independent X/Y geometric scale so ink W and H match the averages.
 
@@ -3029,6 +3030,11 @@ def normalize_axes_to_average_ideo(
     (``sx = avg_w / ink_w``, ``sy = avg_h / ink_h``). Each factor is clamped
     so the result still fits the padded ideographic cell. Stems scale with
     the axis (no CAPE). Hairline / empty axes are left alone.
+
+    Few-stroke / intentionally sparse axes (ink below ``sparse_frac`` of the
+    average on that axis — e.g. 一 short, 丨 narrow) are **not stretched**;
+    they may still squash if they overflow the cell. Callers can follow with
+    ``grow_undersize_to_average_ideo`` for overall-small glyphs.
     """
     bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
     inset = float(target_upem) * max(pad, 0.0)
@@ -3058,14 +3064,22 @@ def normalize_axes_to_average_ideo(
     sh = sy1 - sy0
     tw = max(x1 - x0, 1.0)
     th = max(top - bottom, 1.0)
+    avg_w = float(avg_width)
+    avg_h = float(avg_height)
+    sparse = max(0.0, min(1.0, float(sparse_frac)))
     sx = 1.0
     sy = 1.0
     if sw > 1e-3:
-        sx = float(avg_width) / sw
-        sx = min(sx, tw / sw)
+        # Sparse width (sticks / radicals): squash only, never stretch.
+        if sw < avg_w * sparse:
+            sx = min(1.0, tw / sw)
+        else:
+            sx = min(avg_w / sw, tw / sw)
     if sh > 1e-3:
-        sy = float(avg_height) / sh
-        sy = min(sy, th / sh)
+        if sh < avg_h * sparse:
+            sy = min(1.0, th / sh)
+        else:
+            sy = min(avg_h / sh, th / sh)
     if abs(sx - 1.0) < 1e-3 and abs(sy - 1.0) < 1e-3:
         return src, adv, lsb
 
