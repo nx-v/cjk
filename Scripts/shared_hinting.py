@@ -41,13 +41,19 @@ def add_jobs_argument(parser: argparse.ArgumentParser) -> None:
         "--jobs",
         "-j",
         dest="jobs",
-        type=int,
+        type=_parse_jobs,
         default=max(1, os.cpu_count() or 4),
         help=(
             "Parallel workers per stage (default: all CPUs); "
-            "stages: face TTF, hint, WOFF2"
+            "stages: face TTF, hint, WOFF2. ``-j -61`` is the same as ``-j 61``."
         ),
     )
+
+
+def _parse_jobs(value: str) -> int:
+    """Worker count; negative is abs (``-j -61`` → 61, not one worker)."""
+    n = int(value)
+    return max(1, abs(n))
 
 
 def add_hint_mode_arguments(parser: argparse.ArgumentParser) -> None:

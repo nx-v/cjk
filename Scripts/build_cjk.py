@@ -121,7 +121,7 @@ from edenia_names import (
 )
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
-from shared_hinting import add_hint_mode_arguments
+from shared_hinting import add_hint_mode_arguments, _parse_jobs
 
 # ---------- Directories ----------
 
@@ -153,7 +153,7 @@ CSS_FAMILY = "edenia cjk"
 # no CAPE stem hold). Other sources keep the uniform grow.
 AVERAGE_IDEO_INK = 874.0  # square target width/height @ 1000 UPM
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("NGULIM.ttf", 1.22, 1.2),
+    ("NGULIM.ttf", 1.25, 1.2),
     ("Han-Nom Gothic 1.32.otf", 0.95, 1.05),
     ("msyh.ttc", 0.95, 1.05),
     ("LXGWClearGothic-Regular.ttf", 1.0, 1.0),
@@ -2220,15 +2220,14 @@ def build_all(
     used_paths = sorted(set(owner.values()))
     params_by_path = {p: (s, w) for p, s, w in font_entries}
     used_entries = [(p, *params_by_path.get(p, (1.0, 1.0))) for p in used_paths]
-    workers = max(1, jobs)
+    workers = max(1, abs(jobs))
     bucket_ids = sorted(buckets.keys())
     n_buckets = len(bucket_ids)
     n_variants = len(variants)
     n_faces = n_buckets * n_variants
     if cp_filter is not None:
         print(
-            "  --range buckets: "
-            + ", ".join(f"{bid:X}" for bid in bucket_ids),
+            "  --range buckets: " + ", ".join(f"{bid:X}" for bid in bucket_ids),
             flush=True,
         )
     print(
@@ -2347,8 +2346,7 @@ def build_all(
     built.sort(key=lambda t: _face_sort_key(t[0]))
     if cp_filter is not None:
         print(
-            "  --range: merging CSS from all faces in dist "
-            "(other buckets kept)",
+            "  --range: merging CSS from all faces in dist " "(other buckets kept)",
             flush=True,
         )
         regenerate_css_from_dist(out_dir, variants=None)
@@ -2380,9 +2378,12 @@ def parse_args() -> argparse.Namespace:
         "--jobs",
         "-j",
         dest="jobs",
-        type=int,
+        type=_parse_jobs,
         default=max(1, os.cpu_count() or 4),
-        help="Parallel workers per stage (default: all CPUs); 4 stages: master TTF, hint, WOFF2",
+        help=(
+            "Parallel workers per stage (default: all CPUs); 4 stages: "
+            "master TTF, hint, WOFF2. ``-j -61`` is the same as ``-j 61``."
+        ),
     )
     p.add_argument(
         "--css-only",
@@ -2441,8 +2442,6 @@ if __name__ == "__main__":
             hint_base_only=bool(args.hint_base_only),
             variants=variants,
             cp_filter=(
-                codepoints_from_range_specs(args.ranges)
-                if args.ranges
-                else None
+                codepoints_from_range_specs(args.ranges) if args.ranges else None
             ),
         )
