@@ -66,8 +66,10 @@ except ImportError:  # Scripts.* import style
 from cape_weightor import (
     apply_width,
     bolden_horizontal_ttglyph,
+    bolden_ttglyph,
     estimate_horizontal_stem,
     estimate_vertical_stem,
+    heighten_ttglyph,
     layer_from_ttglyph,
     offset_layer,
     ttglyph_from_layer,
@@ -2073,7 +2075,7 @@ def boolean_union_glyphs(
 
     acc = None
     for glyph in parts:
-        piece = _ttglyph_to_pathops(glyph, glyph_set)
+        piece = _prepare_pathops_for_slice(glyph, glyph_set)
         if acc is None:
             acc = piece
             continue
@@ -2083,7 +2085,7 @@ def boolean_union_glyphs(
             continue
     if acc is None:
         return empty_glyph()
-    return _pathops_to_ttglyph(acc)
+    return _pathops_to_ttglyph(_pathops_strip_artefacts(acc))
 
 
 def boolean_subtract_glyphs(
@@ -2094,19 +2096,18 @@ def boolean_subtract_glyphs(
 ) -> TTGlyph:
     """Boolean **difference** ``minuend − subtrahend``.
 
-    The minuend is artefact-stripped first so complements of a clip match the
-    cleaned intersection (``full − clip(full)``). The subtrahend is left as-is
-    (already a slice).
+    Both operands are artefact-stripped first; the result is stripped again so
+    difference crumbs (specks / hairline slivers) do not survive into niches.
     """
     import pathops
 
     a = _prepare_pathops_for_slice(minuend, glyph_set)
-    b = _ttglyph_to_pathops(subtrahend, glyph_set)
+    b = _prepare_pathops_for_slice(subtrahend, glyph_set)
     try:
         out = pathops.op(a, b, pathops.PathOp.DIFFERENCE, fix_winding=True)
     except Exception:
         return empty_glyph()
-    return _pathops_to_ttglyph(out)
+    return _pathops_to_ttglyph(_pathops_strip_artefacts(out))
 
 
 def _lsb_of(glyph: TTGlyph) -> int:
@@ -2215,17 +2216,19 @@ def half_plane_rect(
 
 
 def _pathops_strip_artefacts(path, *, upem: int = DEFAULT_UPEM):
-    """Drop specks, empty loops, and runaway spike contours before a clip.
+    """Drop specks, empty loops, hairlines, and runaway spike contours.
 
-    Stem offset / composites leave needle contours and crumbs that pathops
-    intersection turns into visible slivers. Legitimate CJK/Yi strokes stay
-    inside ~1em; artefacts shoot far outside or have near-zero area.
+    Stem offset / pathops clip leave needle contours and crumbs that render as
+    floating dots and slivers. Legitimate CJK/Yi strokes stay inside ~1em and
+    have real thickness; artefacts are near-zero area, paper-thin, or shoot
+    far outside the cell.
     """
     import pathops
 
     pad = float(upem) * 2.0
-    min_area = 8.0
-    min_span = 2.0
+    min_area = max(16.0, float(upem) * 0.02)
+    min_span = 2.5
+    min_thickness = 3.0
     max_edge = float(upem) * 1.5
 
     kept = pathops.Path()
@@ -2241,7 +2244,12 @@ def _pathops_strip_artefacts(path, *, upem: int = DEFAULT_UPEM):
         ys = [p[1] for p in pts]
         x0, x1 = min(xs), max(xs)
         y0, y1 = min(ys), max(ys)
-        if (x1 - x0) < min_span and (y1 - y0) < min_span:
+        w = x1 - x0
+        h = y1 - y0
+        if w < min_span and h < min_span:
+            continue
+        # Hairline slivers / single-axis crumbs from clip leftovers.
+        if min(w, h) < min_thickness:
             continue
         if x0 < -pad or y0 < -pad or x1 > pad or y1 > pad:
             continue
@@ -2272,7 +2280,7 @@ def _pathops_strip_artefacts(path, *, upem: int = DEFAULT_UPEM):
             elif verb == pathops.PathVerb.CLOSE:
                 kept.close()
         kept_any = True
-    return kept if kept_any else path
+    return kept if kept_any else pathops.Path()
 
 
 def _prepare_pathops_for_slice(
@@ -2281,7 +2289,7 @@ def _prepare_pathops_for_slice(
     *,
     upem: int = DEFAULT_UPEM,
 ):
-    """Decompose, heal miter spikes, then drop artefact contours."""
+    """Decompose, heal miter spikes, then drop artefact contours (pre-slice)."""
     sk = _ttglyph_to_pathops(glyph, glyph_set)
     tmp = _pathops_to_ttglyph(sk)
     tmp = cleanup_ttglyph_contours(tmp, upem=upem)
@@ -2300,7 +2308,7 @@ def clip_glyph_to_rect(
     Used for CJK half / third / quarter niches and combining slices: ink
     outside the band is dropped; ink inside keeps its original size and place.
     Complementary bands are ``boolean_subtract`` / ``boolean_union``, not a
-    second clip.
+    second clip. Artefacts are stripped before and after the intersection.
     """
     import pathops
 
@@ -2315,7 +2323,7 @@ def clip_glyph_to_rect(
         out = pathops.op(src, clip, pathops.PathOp.INTERSECTION, fix_winding=True)
     except Exception:
         return empty_glyph()
-    return _pathops_to_ttglyph(out)
+    return _pathops_to_ttglyph(_pathops_strip_artefacts(out))
 
 
 def _polygon_pathops(points: Sequence[Tuple[float, float]]):
@@ -2347,7 +2355,7 @@ def clip_glyph_to_polygon(
         out = pathops.op(src, clip, pathops.PathOp.INTERSECTION, fix_winding=True)
     except Exception:
         return empty_glyph()
-    return _pathops_to_ttglyph(out)
+    return _pathops_to_ttglyph(_pathops_strip_artefacts(out))
 
 
 def triangle_clip_points(
@@ -2922,6 +2930,82 @@ def fit_glyph_to_ideographic_cell(
     except Exception:
         lsb = 0
     return out, int(target_upem), lsb
+
+
+def _uniform_scale_about_ink_center(glyph: TTGlyph, factor: float) -> TTGlyph:
+    """Isotropic geometric scale about ink mid (stems scale with size)."""
+    if abs(factor - 1.0) < 1e-3:
+        return glyph
+    try:
+        glyph.recalcBounds(None)
+        cx = (float(glyph.xMin) + float(glyph.xMax)) / 2.0
+        cy = (float(glyph.yMin) + float(glyph.yMax)) / 2.0
+    except Exception:
+        return glyph
+    rec = _recording_from_glyph(glyph, None)
+    return apply_transform(
+        rec, Transform(factor, 0, 0, factor, cx * (1.0 - factor), cy * (1.0 - factor))
+    )
+
+
+def grow_undersize_to_average_ideo(
+    glyph: TTGlyph,
+    advance: int,
+    target_upem: int,
+    *,
+    avg_width: float,
+    avg_height: float,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    pad: float = STANDALONE_VERT_PAD,
+    align_y: str = "source",
+) -> GlyphMetrics:
+    """Uniform geometric grow until width or height touches average ideograph ink.
+
+    ``s = min(avg_w / ink_w, avg_h / ink_h)``; never below 1 (no shrink here)
+    and never past the padded cell. Geometric grow thickens strokes. Placement
+    is left to the caller.
+    """
+    del align_y
+    bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
+    inset = float(target_upem) * max(pad, 0.0)
+    x0, x1 = inset, float(target_upem) - inset
+    adv = int(advance if advance > 0 else target_upem)
+
+    src = glyph
+    try:
+        if glyph.isComposite():
+            src, adv, _ = _bake_transformed_glyph(
+                glyph, Transform(), adv, glyph_set=glyph_set
+            )
+    except Exception:
+        pass
+
+    try:
+        src.recalcBounds(None)
+        sx0 = float(src.xMin)
+        sy0 = float(src.yMin)
+        sx1 = float(src.xMax)
+        sy1 = float(src.yMax)
+        lsb = int(src.xMin)
+    except Exception:
+        return src, adv, int(getattr(src, "xMin", 0) or 0)
+
+    sw = max(sx1 - sx0, 1.0)
+    sh = max(sy1 - sy0, 1.0)
+    tw = max(x1 - x0, 1.0)
+    th = max(top - bottom, 1.0)
+    s = min(float(avg_width) / sw, float(avg_height) / sh)
+    s = min(s, tw / sw, th / sh)
+    if s <= 1.0 + 1e-3:
+        return src, adv, lsb
+
+    src = _uniform_scale_about_ink_center(src, s)
+    try:
+        src.recalcBounds(None)
+        lsb = int(src.xMin)
+    except Exception:
+        pass
+    return src, adv, lsb
 
 
 def _fit_glyph_to_cjk_height(

@@ -32,11 +32,16 @@ from __future__ import annotations
 
 import argparse
 import os
+import pickle
+import shutil
+import tempfile
+import time
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
-from fontTools.ttLib import TTFont, woff2
+from fontTools.ttLib import TTFont
 
 from shared_diacritics import (
     CGJ_CP,
@@ -90,7 +95,7 @@ from yi_slice import (
 )
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
-from shared_hinting import add_no_hint_argument
+from shared_hinting import add_jobs_argument, add_no_hint_argument, finish_font_outputs
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
@@ -250,9 +255,6 @@ def _save_yi_face(
     base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
     out_dir: str,
     target_upem: int,
-    write_ttf: bool,
-    write_woff2: bool,
-    hint: bool,
     slices: bool,
 ) -> Tuple[str, str, int, List[int]]:
     n_glyphs = len(glyphs)
@@ -326,18 +328,102 @@ def _save_yi_face(
 
     os.makedirs(out_dir, exist_ok=True)
     fb.save(out_path)
-    from shared_hinting import autohint_ttf
-
-    autohint_ttf(out_path, enabled=hint)
-    if write_woff2:
-        print(f"  Compressing {face_id}.woff2...", flush=True)
-        woff2.compress(out_path, out_path.replace(".ttf", ".woff2"))
-    if not write_ttf:
-        try:
-            os.remove(out_path)
-        except OSError:
-            pass
     return face_id, variant, n_glyphs - 1, sorted(cmap.keys())
+
+
+_WORKER_CACHE: Optional[dict] = None
+
+
+def _init_yi_worker(cache_path: str) -> None:
+    global _WORKER_CACHE
+    with open(cache_path, "rb") as f:
+        _WORKER_CACHE = pickle.load(f)
+
+
+def _yi_standalone_task(
+    payload: Tuple[int, object, int, float, float, float],
+) -> Tuple[int, Optional[Tuple]]:
+    idx, rec, target_upem, source_advance, source_center_y, source_max_height = payload
+    sa = make_standalone_glyph(
+        rec,
+        target_upem,
+        source_advance=source_advance,
+        source_center_y=source_center_y,
+        source_max_height=source_max_height,
+        widen=0.0,
+        horizontal_weight=YI_HORIZONTAL_STEM_WEIGHT,
+    )
+    return idx, sa
+
+
+def _yi_face_task(
+    spec: Tuple[str, Optional[int]],
+) -> Tuple[str, str, int, List[int], str]:
+    """Process-pool worker: subset + slices + TTF for one Yi face."""
+    assert _WORKER_CACHE is not None
+    m = _WORKER_CACHE
+    kind, bucket_id = spec
+    glyph_order = m["glyph_order"]
+    glyphs = m["glyphs"]
+    metrics = m["metrics"]
+    cmap = m["cmap"]
+    if kind == "h":
+        assert bucket_id is not None
+        bases = [n for n in m["yi_names"] if (m["yi_cps"][n] >> 8) == bucket_id]
+        keep: Set[str] = {".notdef", *m["dakuten_keep"], *m["vs_keep"]}
+        for base in bases:
+            keep.update(orientation_form_names(base, modes=YI_ORIENTATION_MODES))
+        go, gl, mt, cm = subset_glyph_tables(
+            glyph_order, glyphs, metrics, cmap, keep
+        )
+        print(
+            f"  Installing FE08–FE0F slices on {h_bucket_face_id(bucket_id)} "
+            f"({len(bases)} Yi CPs)...",
+            flush=True,
+        )
+        add_slice_halves(
+            bases,
+            glyph_order=go,
+            glyphs=gl,
+            metrics=mt,
+            target_upem=m["target_upem"],
+            modes=YI_ORIENTATION_MODES,
+        )
+        inject_slice_marks(go, gl, mt, cm, pua=True)
+        base_cps = {m["yi_cps"][n] for n in bases}
+        face_uvs = [
+            row for row in m["uvs_rows"] if row[0] in base_cps and row[2] in gl
+        ]
+        face_id = h_bucket_face_id(bucket_id)
+        variant = "h"
+        slices = True
+        yi_names = bases
+    else:
+        go, gl, mt, cm = subset_glyph_tables(
+            glyph_order, glyphs, metrics, cmap, set(glyph_order)
+        )
+        face_uvs = list(m["uvs_rows"])
+        face_id = PS_NAME
+        variant = ""
+        slices = False
+        yi_names = m["yi_names"]
+    meta = _save_yi_face(
+        face_id=face_id,
+        variant=variant,
+        glyph_order=go,
+        glyphs=gl,
+        metrics=mt,
+        cmap=cm,
+        uvs_rows=face_uvs,
+        yi_names=yi_names,
+        mark_names=m["mark_names"],
+        mark_cps=m["mark_cps"],
+        base_anchors=m["base_anchors"],
+        out_dir=m["out_dir"],
+        target_upem=m["target_upem"],
+        slices=slices,
+    )
+    return (*meta, os.path.join(m["out_dir"], f"{meta[0]}.ttf"))
 
 
 def build_panyi_font(
@@ -349,6 +435,7 @@ def build_panyi_font(
     write_woff2: bool = True,
     hint: bool = True,
     variants: Sequence[str] = ("", "h"),
+    jobs: int = 1,
 ) -> List[Tuple[str, str, int, List[int]]]:
     """Build ``edenia yi`` and/or pigeonholed ``edenia yi h`` slice faces."""
     if not write_ttf and not write_woff2:
@@ -366,29 +453,34 @@ def build_panyi_font(
     finally:
         tt.close()
 
+    workers = max(1, jobs)
     sx = target_upem / float(inv.source_advance)
     sy = target_upem / float(inv.source_max_height)
     print(
-        f"  Scaling {len(recs)} standalones "
+        f"Stage 1/4: scaling {len(recs)} standalones "
         f"(sx {inv.source_advance}→{target_upem} = {sx:.4g}×, "
         f"sy maxH {inv.source_max_height:.0f}→{target_upem} = {sy:.4g}×, "
         f"horizontal stems ×{YI_HORIZONTAL_STEM_WEIGHT:g}, "
-        f"cell {STANDALONE_CELL_SCALE:g}, vert pad {STANDALONE_VERT_PAD:g})...",
+        f"cell {STANDALONE_CELL_SCALE:g}, vert pad {STANDALONE_VERT_PAD:g}, "
+        f"{workers} workers)...",
         flush=True,
     )
-    standalones: Dict[int, Tuple] = {}
-    for idx, rec in recs.items():
-        sa = make_standalone_glyph(
+    payloads = [
+        (
+            idx,
             rec,
             target_upem,
-            source_advance=inv.source_advance,
-            source_center_y=inv.source_center_y,
-            source_max_height=inv.source_max_height,
-            widen=0.0,  # CAPE Width is kana-only
-            horizontal_weight=YI_HORIZONTAL_STEM_WEIGHT,
+            inv.source_advance,
+            inv.source_center_y,
+            inv.source_max_height,
         )
-        if sa is not None:
-            standalones[idx] = sa
+        for idx, rec in recs.items()
+    ]
+    standalones: Dict[int, Tuple] = {}
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for idx, sa in pool.map(_yi_standalone_task, payloads):
+            if sa is not None:
+                standalones[idx] = sa
 
     print(
         "  Orientations: transform id+r90 (no stem-normalize); "
@@ -474,87 +566,72 @@ def build_panyi_font(
 
     built: List[Tuple[str, str, int, List[int]]] = []
     os.makedirs(out_dir, exist_ok=True)
-
+    face_specs: List[Tuple[str, Optional[int]]] = []
     if "" in want:
-        built.append(
-            _save_yi_face(
-                face_id=PS_NAME,
-                variant="",
-                glyph_order=glyph_order,
-                glyphs=glyphs,
-                metrics=metrics,
-                cmap=cmap,
-                uvs_rows=uvs_rows,
-                yi_names=yi_names,
-                mark_names=mark_names,
-                mark_cps=mark_cps,
-                base_anchors=base_anchors,
-                out_dir=out_dir,
-                target_upem=target_upem,
-                write_ttf=write_ttf,
-                write_woff2=write_woff2,
-                hint=hint,
-                slices=False,
-            )
-        )
-
+        face_specs.append(("", None))
+    dakuten_keep = _dakuten_keep_names(glyph_order, mark_names)
+    vs_keep = {n for n in glyph_order if n.startswith("vs")}
     if "h" in want:
         buckets: Dict[int, List[str]] = {}
         for name in yi_names:
             cp = yi_cps[name]
             buckets.setdefault(cp >> 8, []).append(name)
-        dakuten_keep = _dakuten_keep_names(glyph_order, mark_names)
-        vs_keep = {n for n in glyph_order if n.startswith("vs")}
         for bucket_id in sorted(buckets):
-            bases = buckets[bucket_id]
-            keep: Set[str] = {".notdef", *dakuten_keep, *vs_keep}
-            for base in bases:
-                keep.update(
-                    orientation_form_names(base, modes=YI_ORIENTATION_MODES)
-                )
-            go, gl, mt, cm = subset_glyph_tables(
-                glyph_order, glyphs, metrics, cmap, keep
+            face_specs.append(("h", bucket_id))
+    if not face_specs:
+        return built
+
+    cache_dir = tempfile.mkdtemp(prefix="edenia-yi-")
+    try:
+        cache_path = os.path.join(cache_dir, "master.pkl")
+        with open(cache_path, "wb") as f:
+            pickle.dump(
+                {
+                    "glyph_order": glyph_order,
+                    "glyphs": glyphs,
+                    "metrics": metrics,
+                    "cmap": cmap,
+                    "uvs_rows": uvs_rows,
+                    "yi_names": yi_names,
+                    "yi_cps": yi_cps,
+                    "mark_names": mark_names,
+                    "mark_cps": mark_cps,
+                    "base_anchors": base_anchors,
+                    "dakuten_keep": dakuten_keep,
+                    "vs_keep": vs_keep,
+                    "out_dir": out_dir,
+                    "target_upem": target_upem,
+                },
+                f,
+                protocol=pickle.HIGHEST_PROTOCOL,
             )
+        t0 = time.perf_counter()
+        pool_workers = min(workers, max(1, len(face_specs)))
+        print(
+            f"Stage 2/4: face TTFs ({len(face_specs)} jobs, {pool_workers} workers)...",
+            flush=True,
+        )
+        with ProcessPoolExecutor(
+            max_workers=pool_workers,
+            initializer=_init_yi_worker,
+            initargs=(cache_path,),
+        ) as executor:
+            results = list(executor.map(_yi_face_task, face_specs))
             print(
-                f"  Installing FE08–FE0F slices on {h_bucket_face_id(bucket_id)} "
-                f"({len(bases)} Yi CPs)...",
+                f"  stage 2 done in {time.perf_counter() - t0:.1f}s",
                 flush=True,
             )
-            add_slice_halves(
-                bases,
-                glyph_order=go,
-                glyphs=gl,
-                metrics=mt,
-                target_upem=target_upem,
-                modes=YI_ORIENTATION_MODES,
+            ttf_paths = [r[4] for r in results]
+            built = [(r[0], r[1], r[2], r[3]) for r in results]
+            finish_font_outputs(
+                ttf_paths,
+                hint=hint,
+                write_woff2=write_woff2,
+                write_ttf=write_ttf,
+                executor=executor,
             )
-            inject_slice_marks(go, gl, mt, cm, pua=True)
-            base_cps = {yi_cps[n] for n in bases}
-            face_uvs = [
-                row for row in uvs_rows if row[0] in base_cps and row[2] in gl
-            ]
-            built.append(
-                _save_yi_face(
-                    face_id=h_bucket_face_id(bucket_id),
-                    variant="h",
-                    glyph_order=go,
-                    glyphs=gl,
-                    metrics=mt,
-                    cmap=cm,
-                    uvs_rows=face_uvs,
-                    yi_names=bases,
-                    mark_names=mark_names,
-                    mark_cps=mark_cps,
-                    base_anchors=base_anchors,
-                    out_dir=out_dir,
-                    target_upem=target_upem,
-                    write_ttf=write_ttf,
-                    write_woff2=write_woff2,
-                    hint=hint,
-                    slices=True,
-                )
-            )
-
+    finally:
+        shutil.rmtree(cache_dir, ignore_errors=True)
     return built
 
 
@@ -696,6 +773,7 @@ def build_all(
     write_woff2: bool = True,
     hint: bool = True,
     variants: Sequence[str] = ("", "h"),
+    jobs: int = 1,
 ) -> None:
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
@@ -736,6 +814,7 @@ def build_all(
         else ("ttf only" if write_ttf else "woff2 only")
     )
     print(f"  Formats: {fmt_note}")
+    print(f"  Jobs: {max(1, jobs)}")
 
     os.makedirs(out_dir, exist_ok=True)
     built = build_panyi_font(
@@ -746,6 +825,7 @@ def build_all(
         write_woff2=write_woff2,
         hint=hint,
         variants=variants,
+        jobs=jobs,
     )
     if built:
         write_css(out_dir, built)
@@ -754,8 +834,11 @@ def build_all(
             f"  {family_yi_variant(variant)} / {face_id}: {count} glyphs",
             flush=True,
         )
-    print(f"\nDone: {len(built)} Yi face(s)", flush=True)
-    sync_dist_to_plugin("yi", out_dir)
+    print(f"\nDone: {len(built)} Yi face(s), jobs={max(1, jobs)}", flush=True)
+    if os.path.normcase(os.path.abspath(out_dir)) == os.path.normcase(
+        os.path.abspath(OUT_DIR)
+    ):
+        sync_dist_to_plugin("yi", out_dir)
 
 
 def parse_args() -> argparse.Namespace:
@@ -792,6 +875,7 @@ def parse_args() -> argparse.Namespace:
         help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
     add_no_hint_argument(p)
+    add_jobs_argument(p)
     return p.parse_args()
 
 
@@ -807,4 +891,5 @@ if __name__ == "__main__":
         write_woff2=not args.ttf_only,
         hint=not args.no_hint,
         variants=variants,
+        jobs=max(1, args.jobs),
     )

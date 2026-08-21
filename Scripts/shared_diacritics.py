@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import os
 import unicodedata
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
@@ -1056,14 +1056,17 @@ def install_dakuten_gpos(
     glyphs: Dict[str, TTGlyph],
     extra_script_tags: Sequence[str] = (),
     base_chunk: int = 2048,
+    mark_anchor_fn: Optional[
+        Callable[..., Tuple[int, int]]
+    ] = None,
 ) -> int:
-    """Install ``mark``/``abvm`` MarkToBase at CJK box corners and edge mids.
+    """Install ``mark``/``abvm`` MarkToBase at the given base slot anchors.
 
-    Mark anchors are the matching ink points (left-/right-/center-aligned).
-    Base anchors stay at the padded cell slots. ``extra_script_tags`` (e.g.
-    ``hang``) merge into the GPOS script list alongside
-    ``COMPOSITION_LANGUAGE_SYSTEMS``. Large base inventories are split into
-    Extension MarkToBase subtables.
+    Mark anchors default to ``mark_corner_anchor`` (Yi/Hangul cell flush).
+    Pass ``mark_anchor_fn`` to override (kana pins the mark center).
+    ``extra_script_tags`` (e.g. ``hang``) merge into the GPOS script list
+    alongside ``COMPOSITION_LANGUAGE_SYSTEMS``. Large base inventories are
+    split into Extension MarkToBase subtables.
     """
     if not base_anchors or not mark_names:
         return 0
@@ -1073,6 +1076,8 @@ def install_dakuten_gpos(
         buildLookup,
         buildMarkBasePosSubtable,
     )
+
+    pin_mark = mark_anchor_fn or mark_corner_anchor
 
     script_tags: List[str] = []
     for line in COMPOSITION_LANGUAGE_SYSTEMS:
@@ -1122,7 +1127,7 @@ def install_dakuten_gpos(
                 name = dakuten_mark_slot_variant_name(cp, suf, variant)
                 if name not in order_index:
                     continue
-                ax, ay = mark_corner_anchor(base_glyph, slot, glyph_set=glyphs)
+                ax, ay = pin_mark(base_glyph, slot, glyph_set=glyphs)
                 marks[name] = (class_id, buildAnchor(ax, ay))
     if not marks:
         return 0

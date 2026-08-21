@@ -173,7 +173,7 @@ def _bake_slices_for_form(
 ) -> None:
     """Clip one side of each complementary pair; the other is ``full − that``.
 
-    Clip / subtract strip stem-offset specks and runaway spikes first.
+    Clip / subtract strip artefacts before and after pathops.
     """
     adv = int(target_upem if cell_width is None else cell_width)
 

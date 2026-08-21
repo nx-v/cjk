@@ -77,6 +77,7 @@ from shared_half_cells import (
     VS_LAST,
     add_d4_variant_glyphs,
     fit_glyph_to_ideographic_cell,
+    grow_undersize_to_average_ideo,
     is_yi_cp,
     load_inventory,
     make_standalone_glyph,
@@ -143,8 +144,12 @@ CSS_FAMILY = "edenia cjk"
 
 # Harmony target @ 1000 UPM (median of these sources): ink ≈ 874, stem ≈ 73.
 # local_scale = target_ink / native_ink; weightor = target_stem / (stem * scale).
+# After import: undersized glyphs grow uniformly to this average (geometric
+# scale → thicker strokes). Overflow is geometric shrink into the ideo box
+# (→ thinner). No CAPE stem hold on this path.
+AVERAGE_IDEO_INK = 874.0  # square target width/height @ 1000 UPM
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("NGULIM.ttf", 1.10, 1.2),
+    ("NGULIM.ttf", 1.22, 1.2),
     ("Han-Nom Gothic 1.32.otf", 0.95, 1.05),
     ("msyh.ttc", 0.95, 1.05),
     ("LXGWClearGothic-Regular.ttf", 1.0, 1.0),
@@ -308,8 +313,11 @@ class SourceFont:
         ``local_scale`` (per source font) scales outlines about the contour
         bounding-box center; advance width stays the UPM-scaled source advance.
         ``weightor`` then boldens/lightens via CAPE Weightor Weight mode only
-        (bounds preserved). Width-mode CAPE is not used for CJK.
+        (bounds preserved). Width-mode CAPE is not used for CJK niches.
         Mirrors also flip about that same contour center.
+        Undersized glyphs grow uniformly until W or H hits the average
+        ideograph ink (geometric scale → thicker). Overflow then shrinks
+        geometrically into the padded cell (→ thinner).
         """
         if is_empty_outline(self.tt, src_name):
             return None
@@ -392,11 +400,23 @@ class SourceFont:
                     file=sys.stderr,
                 )
 
-        # Uniform shrink-to-fit + X-center; keep source optical Y (日/月 sit
-        # lower than 木 — bbox-centering made short glyphs float).
+        # Undersized → uniform geometric grow until W or H hits average
+        # ideograph ink (strokes thicken). Overflow → geometric shrink into
+        # the padded cell (strokes thin). No CAPE stem hold.
+        cell_adv = advance if advance > 0 else target_upem
+        avg = AVERAGE_IDEO_INK * (float(target_upem) / float(DEFAULT_UPEM))
+        glyph, advance, lsb = grow_undersize_to_average_ideo(
+            glyph,
+            cell_adv,
+            target_upem,
+            avg_width=avg,
+            avg_height=avg,
+            align_y="source",
+        )
+        cell_adv = advance if advance > 0 else target_upem
         glyph, advance, lsb = fit_glyph_to_ideographic_cell(
             glyph,
-            advance if advance > 0 else target_upem,
+            cell_adv,
             target_upem,
             align_y="source",
         )
@@ -888,7 +908,14 @@ def build_bucket_font(
 
 def unpack_built_ttf(
     ttf_path: str,
-) -> Tuple[TTFont, List[str], Dict[str, TTGlyph], Dict[str, Tuple[int, int]], Dict[int, str], int]:
+) -> Tuple[
+    TTFont,
+    List[str],
+    Dict[str, TTGlyph],
+    Dict[str, Tuple[int, int]],
+    Dict[int, str],
+    int,
+]:
     """Load glyph order / glyf / hmtx / cmap / upem from a finished TTF.
 
     The returned ``TTFont`` must stay open until the glyph objects have been
@@ -905,9 +932,7 @@ def unpack_built_ttf(
         elif getattr(g, "numberOfContours", 0):
             _ = g.coordinates
         glyphs[name] = g
-    metrics = {
-        n: (int(tt["hmtx"][n][0]), int(tt["hmtx"][n][1])) for n in glyph_order
-    }
+    metrics = {n: (int(tt["hmtx"][n][0]), int(tt["hmtx"][n][1])) for n in glyph_order}
     cmap: Dict[int, str] = {}
     for table in tt["cmap"].tables:
         if table.isUnicode():
@@ -961,9 +986,7 @@ def derive_face_from_half(
     if not os.path.isfile(half_ttf):
         return out_path, 0, []
 
-    src_tt, glyph_order, glyphs, metrics, cmap, target_upem = unpack_built_ttf(
-        half_ttf
-    )
+    src_tt, glyph_order, glyphs, metrics, cmap, target_upem = unpack_built_ttf(half_ttf)
     try:
         if len(cmap) == 0:
             return out_path, 0, []
@@ -1076,9 +1099,7 @@ def _oriented_forms(bases: Sequence[str], glyphs: Dict[str, TTGlyph]) -> List[st
     return forms
 
 
-def _close_component_names(
-    keep: set, glyphs: Dict[str, TTGlyph]
-) -> set:
+def _close_component_names(keep: set, glyphs: Dict[str, TTGlyph]) -> set:
     stack = list(keep)
     out = set(keep)
     while stack:
@@ -1292,9 +1313,7 @@ def _install_face_gsub(
             )
             match variant:
                 case "t":
-                    install_third_cell_gsub(
-                        font, bases=third_forms, glyphs=glyphs
-                    )
+                    install_third_cell_gsub(font, bases=third_forms, glyphs=glyphs)
                 case "qv" | "qh" if quarter_face is not None:
                     install_quarter_cell_gsub(
                         font,
@@ -1578,9 +1597,7 @@ def _build_all_bucket_faces(
     hint_paths: List[str] = []
     t0 = time.perf_counter()
     for variant in variants:
-        face, out_path = _build_face_ttf_from_state(
-            bucket_id, variant, state, out_dir
-        )
+        face, out_path = _build_face_ttf_from_state(bucket_id, variant, state, out_dir)
         rows.append((variant, face))
         if out_path is not None:
             ttf_paths.append(out_path)
@@ -2079,11 +2096,7 @@ def build_all(
         else ("ttf only" if write_ttf else "woff2 only")
     )
     print(f"Output formats: {fmt_note}")
-    hint_note = (
-        "none"
-        if not hint
-        else ("base only" if hint_base_only else "all faces")
-    )
+    hint_note = "none" if not hint else ("base only" if hint_base_only else "all faces")
     print(f"Hinting: {hint_note}")
     print(
         "Faces: "
@@ -2170,11 +2183,7 @@ def build_all(
                 flush=True,
             )
 
-            face_jobs = [
-                (bid, variant)
-                for bid in bucket_ids
-                for variant in variants
-            ]
+            face_jobs = [(bid, variant) for bid in bucket_ids for variant in variants]
             t0 = time.perf_counter()
             print(
                 f"Stage 2/4: face TTFs ({len(face_jobs)} jobs)...",
@@ -2216,11 +2225,7 @@ def build_all(
                 t0 = time.perf_counter()
                 print(
                     f"Stage 3/4: hint ({len(hint_paths)} TTFs"
-                    + (
-                        f"; base only of {len(ttf_paths)}"
-                        if hint_base_only
-                        else ""
-                    )
+                    + (f"; base only of {len(ttf_paths)}" if hint_base_only else "")
                     + ")...",
                     flush=True,
                 )
@@ -2310,9 +2315,7 @@ if __name__ == "__main__":
     if args.css_only:
         regenerate_css_from_dist(
             args.out_dir,
-            variants=None
-            if variants == CJK_FACE_BUILD_ORDER
-            else variants,
+            variants=None if variants == CJK_FACE_BUILD_ORDER else variants,
         )
     else:
         build_all(

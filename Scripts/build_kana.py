@@ -33,14 +33,20 @@ Trailing marks (all D4)::
     katakana  length U+30FC ー · gemination U+30FD ヽ
 
 Umlaut orientations are real cmap entries (no VS). Combining slices use
-FE00 overlay + FE08–FE0F (halves and triangles). Dakuten GPOS is contour-corner.
+FE00 overlay + FE08–FE0F (halves and triangles). Dakuten GPOS uses eight
+unique slots just outside each form's ink (after D4), including halfwidth.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import pickle
+import shutil
 import sys
+import tempfile
+import time
+from concurrent.futures import ProcessPoolExecutor
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from fontTools.fontBuilder import FontBuilder
@@ -50,7 +56,7 @@ from fontTools.pens.cu2quPen import Cu2QuPen
 from fontTools.pens.recordingPen import DecomposingRecordingPen, RecordingPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
-from fontTools.ttLib import TTFont, woff2
+from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from cape_weightor import (
@@ -61,10 +67,13 @@ from cape_weightor import (
     layer_from_ttglyph,
     widen_ttglyph,
 )
+from kana_diacritics import (
+    collect_kana_dakuten_anchors,
+    kana_coord_liga_names,
+    kana_d4_form_names,
+    kana_mark_center_anchor,
+)
 from shared_diacritics import (
-    CGJ_CP,
-    DAKUTEN_EDGE_PAD_FRAC,
-    DAKUTEN_MARK_HEIGHT_FRAC,
     DAKUTEN_SLOT_CYCLE,
     DAKUTEN_SLOTS,
     add_dakuten_mark_glyphs,
@@ -116,7 +125,7 @@ from edenia_names import (
 )
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
-from shared_hinting import add_no_hint_argument
+from shared_hinting import add_jobs_argument, add_no_hint_argument, finish_font_outputs
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -198,43 +207,43 @@ VOWELS: Tuple[str, ...] = ("a", "i", "u", "e", "o", "ə")
 
 # 17×6 hiragana, then 7×6 katakana (row-major). Values = source CPs.
 HIRAGANA_ROWS: Tuple[Tuple[int, ...], ...] = (
-    (0x3042, 0x3044, 0x3046, 0x3048, 0x304A, 0x1B015),  # ∅
-    (0x304B, 0x304D, 0x304F, 0x3051, 0x3053, 0x1B02B),  # k
-    (0xE020, 0xE021, 0xE022, 0xE023, 0xE024, 0x1B033),  # ng
-    (0x305F, 0xED10, 0x1B06D, 0x3066, 0x3068, 0x1B077),  # t
-    (0xED1C, 0xED1E, 0x3064, 0xED20, 0xED22, 0x1B06A),  # ts
-    (0xED14, 0x3061, 0xED16, 0xED18, 0xED1A, 0x1B063),  # ch
-    (0x1B043, 0x3057, 0xED0A, 0xED0C, 0xED0E, 0x1B044),  # sh
-    (0x3055, 0xED01, 0x3059, 0x305B, 0x305D, 0x1B053),  # s
-    (0x307E, 0x307F, 0x3080, 0x3081, 0x3082, 0x1B0DA),  # m
-    (0x306A, 0x306B, 0x306C, 0x306D, 0x306E, 0x3093),  # n
-    (0x306F, 0x3072, 0x1B039, 0x3078, 0x307B, 0x1B0C0),  # h
-    (0x3084, 0x1B006, 0x3086, 0x1B001, 0x3088, 0x1B0E5),  # y
-    (0xE0E0, 0xE0E1, 0xE0E2, 0xE0E3, 0xE0E4, 0x1B102),  # l
-    (0x3089, 0x308A, 0x308B, 0x308C, 0x308D, 0x1B0EF),  # r
-    (0x308F, 0x3090, 0x1B11F, 0x3091, 0x3092, 0x1B10C),  # w
-    (0x1B0A6, 0x1B0AB, 0x3075, 0x1B0B8, 0x1B0BF, 0xECC1),  # f
-    (0xE030, 0xE031, 0xE032, 0xE02A, 0xE034, 0x1B0AF),  # p
+    (0x03042, 0x03044, 0x03046, 0x03048, 0x0304A, 0x1B015),  # ∅
+    (0x0304B, 0x0304D, 0x0304F, 0x03051, 0x03053, 0x1B02B),  # k
+    (0x0E020, 0x0E021, 0x0E022, 0x0E023, 0x0E024, 0x1B033),  # ng
+    (0x0305F, 0x0ED10, 0x1B06D, 0x03066, 0x03068, 0x1B077),  # t
+    (0x0ED1C, 0x0ED1E, 0x03064, 0x0ED20, 0x0ED22, 0x1B06A),  # ts
+    (0x0ED14, 0x03061, 0x0ED16, 0x0ED18, 0x0ED1A, 0x1B063),  # ch
+    (0x1B043, 0x03057, 0x0ED0A, 0x0ED0C, 0x0ED0E, 0x1B044),  # sh
+    (0x03055, 0x0ED01, 0x03059, 0x0305B, 0x0305D, 0x1B053),  # s
+    (0x0307E, 0x0307F, 0x03080, 0x03081, 0x03082, 0x1B0DA),  # m
+    (0x0306A, 0x0306B, 0x0306C, 0x0306D, 0x0306E, 0x03093),  # n
+    (0x0306F, 0x03072, 0x1B039, 0x03078, 0x0307B, 0x1B0C0),  # h
+    (0x03084, 0x1B006, 0x03086, 0x1B001, 0x03088, 0x1B0E5),  # y
+    (0x0E0E0, 0x0E0E1, 0x0E0E2, 0x0E0E3, 0x0E0E4, 0x1B102),  # l
+    (0x03089, 0x0308A, 0x0308B, 0x0308C, 0x0308D, 0x1B0EF),  # r
+    (0x0308F, 0x03090, 0x1B11F, 0x03091, 0x03092, 0x1B10C),  # w
+    (0x1B0A6, 0x1B0AB, 0x03075, 0x1B0B8, 0x1B0BF, 0x0ECC1),  # f
+    (0x0E030, 0x0E031, 0x0E032, 0x0E02A, 0x0E034, 0x1B0AF),  # p
 )
 
 KATAKANA_ROWS: Tuple[Tuple[int, ...], ...] = (
-    (0x30A2, 0x30A4, 0x30A6, 0x30A8, 0x30AA, 0x31A6),  # ∅
-    (0x30AB, 0x30AD, 0x30AF, 0x30B1, 0x30B3, 0x310E),  # k
-    (0xEDD3, 0xEC69, 0xEDCA, 0xEDC6, 0xEDD7, 0x312B),  # ng
-    (0x30BF, 0xED50, 0xED52, 0x30C6, 0x30C8, 0x3109),  # t
-    (0xED5C, 0xED5E, 0x30C4, 0xED60, 0xED62, 0x3118),  # ts
-    (0xED54, 0x30C1, 0xED56, 0xED58, 0xED5A, 0x3114),  # ch
-    (0xED48, 0x30B7, 0xED4A, 0xED4C, 0xED4E, 0x3115),  # sh
-    (0x30B5, 0xED41, 0x30B9, 0x30BB, 0x30BD, 0x3112),  # s
-    (0x30DE, 0x30DF, 0x30E0, 0x30E1, 0x30E2, 0x31B0),  # m
-    (0x30CA, 0x30CB, 0x30CC, 0x30CD, 0x30CE, 0x30F3),  # n
-    (0x30CF, 0x30D2, 0xEE45, 0x30D8, 0x30DB, 0x310F),  # h
-    (0x30E4, 0x1B120, 0x30E6, 0x1B121, 0x30E8, 0xEDCF),  # y
-    (0xEDC3, 0xEDC8, 0xEDC0, 0xEDC5, 0xEDC1, 0x310C),  # l
-    (0x30E9, 0x30EA, 0x30EB, 0x30EC, 0x30ED, 0xEDD7),  # r
-    (0x30EF, 0x30F0, 0x1B122, 0x30F1, 0x30F2, 0x3129),  # w
-    (0xEDCC, 0xEDCD, 0x30D5, 0xEDD8, 0xEDD4, 0x3108),  # f
-    (0xEDCB, 0xEDCA, 0xEE69, 0xEDD0, 0xEDC4, 0x3105),  # p
+    (0x030A2, 0x030A4, 0x030A6, 0x030A8, 0x030AA, 0x031A6),  # ∅
+    (0x030AB, 0x030AD, 0x030AF, 0x030B1, 0x030B3, 0x0310E),  # k
+    (0x0EDD3, 0x0EC69, 0x0EDCA, 0x0EDC6, 0x0EDD7, 0x0312B),  # ng
+    (0x030BF, 0x0ED50, 0x0ED52, 0x030C6, 0x030C8, 0x03109),  # t
+    (0x0ED5C, 0x0ED5E, 0x030C4, 0x0ED60, 0x0ED62, 0x03118),  # ts
+    (0x0ED54, 0x030C1, 0x0ED56, 0x0ED58, 0x0ED5A, 0x03114),  # ch
+    (0x0ED48, 0x030B7, 0x0ED4A, 0x0ED4C, 0x0ED4E, 0x03115),  # sh
+    (0x030B5, 0x0ED41, 0x030B9, 0x030BB, 0x030BD, 0x03112),  # s
+    (0x030DE, 0x030DF, 0x030E0, 0x030E1, 0x030E2, 0x031B0),  # m
+    (0x030CA, 0x030CB, 0x030CC, 0x030CD, 0x030CE, 0x030F3),  # n
+    (0x030CF, 0x030D2, 0x0EE45, 0x030D8, 0x030DB, 0x0310F),  # h
+    (0x030E4, 0x1B120, 0x030E6, 0x1B121, 0x030E8, 0x0EDCF),  # y
+    (0x0EDC3, 0x0EDC8, 0x0EDC0, 0x0EDC5, 0x0EDC1, 0x0310C),  # l
+    (0x030E9, 0x030EA, 0x030EB, 0x030EC, 0x030ED, 0x0EDD7),  # r
+    (0x030EF, 0x030F0, 0x1B122, 0x030F1, 0x030F2, 0x03129),  # w
+    (0x0EDCC, 0x0EDCD, 0x030D5, 0x0EDD8, 0x0EDD4, 0x03108),  # f
+    (0x0EDCB, 0x0EDCA, 0x0EE69, 0x0EDD0, 0x0EDC4, 0x03105),  # p
 )
 
 # After each script's last phonetic cell: length, then gemination.
@@ -1098,131 +1107,6 @@ def form_name_for_orient(base: str, orient: int) -> str:
     return variant_glyph_name(base, suffix)
 
 
-def _clamp(v: float, lo: float, hi: float) -> float:
-    if lo > hi:
-        return (lo + hi) / 2.0
-    return max(lo, min(hi, v))
-
-
-def kana_dakuten_corner_anchors(
-    ink: Tuple[float, float, float, float],
-    target_upem: int,
-    *,
-    mark_scale: float = 1.0,
-) -> Dict[str, Tuple[int, int]]:
-    """Dakuten anchors nestled against ink, inside the ideographic cell.
-
-    MarkToBase pins the mark's matching slot here, so the mark body extends
-    *inward* from each edge (TR → left+down, CR → left, TM → down, etc.).
-    Place each anchor just outside the ink by ~mark size, then clamp so the
-    whole mark footprint stays in the padded CJK cell.
-
-    ``mark_scale`` shrinks the assumed mark footprint (e.g. ``SMALL_WIDTH_FACTOR``
-    for small kana so anchors track scaled ``.mk.sm`` marks).
-    """
-    ix0, iy0, ix1, iy1 = ink
-    edge = float(target_upem) * DAKUTEN_EDGE_PAD_FRAC
-    cell_l = edge
-    cell_r = float(target_upem) - edge
-    cell_t = float(target_upem) * TYPO_ASCENDER_FRAC - edge
-    cell_b = float(target_upem) * TYPO_DESCENDER_FRAC + edge
-
-    # Mark outline is normalized to this height; treat footprint as ~square.
-    mark_h = float(target_upem) * DAKUTEN_MARK_HEIGHT_FRAC * float(mark_scale)
-    mark_w = mark_h
-    half_w = mark_w * 0.5
-    half_h = mark_h * 0.5
-    # Small air gap between ink and mark body.
-    gap = mark_h * 0.12
-    x_mid = (ix0 + ix1) / 2.0
-    y_mid = (iy0 + iy1) / 2.0
-
-    def _tr() -> Tuple[int, int]:
-        ax = _clamp(ix1 + gap, cell_l + mark_w, cell_r)
-        ay = _clamp(iy1 + gap, cell_b + mark_h, cell_t)
-        return otRound(ax), otRound(ay)
-
-    def _cr() -> Tuple[int, int]:
-        ax = _clamp(ix1 + gap, cell_l + mark_w, cell_r)
-        ay = _clamp(y_mid, cell_b + half_h, cell_t - half_h)
-        return otRound(ax), otRound(ay)
-
-    def _br() -> Tuple[int, int]:
-        ax = _clamp(ix1 + gap, cell_l + mark_w, cell_r)
-        ay = _clamp(iy0 - gap, cell_b, cell_t - mark_h)
-        return otRound(ax), otRound(ay)
-
-    def _tm() -> Tuple[int, int]:
-        ax = _clamp(x_mid, cell_l + half_w, cell_r - half_w)
-        ay = _clamp(iy1 + gap, cell_b + mark_h, cell_t)
-        return otRound(ax), otRound(ay)
-
-    def _bm() -> Tuple[int, int]:
-        ax = _clamp(x_mid, cell_l + half_w, cell_r - half_w)
-        ay = _clamp(iy0 - gap, cell_b, cell_t - mark_h)
-        return otRound(ax), otRound(ay)
-
-    def _tl() -> Tuple[int, int]:
-        ax = _clamp(ix0 - gap, cell_l, cell_r - mark_w)
-        ay = _clamp(iy1 + gap, cell_b + mark_h, cell_t)
-        return otRound(ax), otRound(ay)
-
-    def _cl() -> Tuple[int, int]:
-        ax = _clamp(ix0 - gap, cell_l, cell_r - mark_w)
-        ay = _clamp(y_mid, cell_b + half_h, cell_t - half_h)
-        return otRound(ax), otRound(ay)
-
-    def _bl() -> Tuple[int, int]:
-        ax = _clamp(ix0 - gap, cell_l, cell_r - mark_w)
-        ay = _clamp(iy0 - gap, cell_b, cell_t - mark_h)
-        return otRound(ax), otRound(ay)
-
-    return {
-        "tr": _tr(),
-        "cr": _cr(),
-        "br": _br(),
-        "tm": _tm(),
-        "bm": _bm(),
-        "tl": _tl(),
-        "cl": _cl(),
-        "bl": _bl(),
-    }
-
-
-def collect_contour_dakuten_anchors(
-    base_names: Sequence[str],
-    *,
-    glyphs: Dict[str, TTGlyph],
-    glyph_set: Dict[str, TTGlyph],
-    target_upem: int,
-    mark_scale: float = 1.0,
-) -> Dict[str, Dict[int, Tuple[int, int]]]:
-    """Per-glyph slot anchors: near ink, inside ideographic cell."""
-    anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
-    for name in base_names:
-        g = glyphs.get(name)
-        if g is None:
-            continue
-        try:
-            if g.isComposite():
-                g.recalcBounds(glyph_set)
-            else:
-                g.recalcBounds(None)
-            x0, y0 = float(g.xMin), float(g.yMin)
-            x1, y1 = float(g.xMax), float(g.yMax)
-        except Exception:
-            continue
-        if x1 <= x0 or y1 <= y0:
-            continue
-        corners = kana_dakuten_corner_anchors(
-            (x0, y0, x1, y1), target_upem, mark_scale=mark_scale
-        )
-        anchors[name] = {
-            i: corners[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)
-        }
-    return anchors
-
-
 def unicode_range_css(codepoints: Sequence[int]) -> str:
     cps = sorted(set(codepoints))
     if not cps:
@@ -1451,24 +1335,46 @@ def _install_kana_dakuten_layout(
     *,
     full_bases: Sequence[str],
     small_bases: Sequence[str],
+    hw_full_bases: Sequence[str],
+    hw_small_bases: Sequence[str],
     glyph_order: List[str],
     glyphs: Dict,
     mark_names: Sequence[str],
     mark_cps: Sequence[int],
     base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
+    target_upem: int,
 ) -> None:
-    if not mark_names or not base_anchors:
+    if not mark_names:
         return
-    small_forms: List[str] = []
-    for b in small_bases:
-        if b not in glyphs:
-            continue
-        small_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
-    full_forms_dak: List[str] = []
-    for b in full_bases:
-        if b not in glyphs:
-            continue
-        full_forms_dak.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
+    # Recompute from this face's outlines so overlay/slice ligatures (and
+    # mixed-source stacks) get their own 8 slots, not the identity's.
+    small_forms = kana_coord_liga_names(
+        [*small_bases, *hw_small_bases], glyphs=glyphs
+    )
+    full_forms_dak = kana_coord_liga_names(
+        [*full_bases, *hw_full_bases], glyphs=glyphs
+    )
+    face_anchors = {k: v for k, v in base_anchors.items() if k in glyphs}
+    face_anchors.update(
+        collect_kana_dakuten_anchors(
+            full_forms_dak,
+            glyphs=glyphs,
+            glyph_set=glyphs,
+            target_upem=target_upem,
+            mark_scale=1.0,
+        )
+    )
+    face_anchors.update(
+        collect_kana_dakuten_anchors(
+            small_forms,
+            glyphs=glyphs,
+            glyph_set=glyphs,
+            target_upem=target_upem,
+            mark_scale=SMALL_WIDTH_FACTOR,
+        )
+    )
+    if not face_anchors:
+        return
     if small_forms:
         print(
             "  Compiling GSUB (dakuten .mk→.mk.sm after small bases)...",
@@ -1506,10 +1412,13 @@ def _install_kana_dakuten_layout(
             glyph_order=glyph_order,
             base_names=full_forms_dak,
         )
-    face_anchors = {k: v for k, v in base_anchors.items() if k in glyphs}
     face_marks = [n for n in mark_names if n in glyphs]
     if face_marks and face_anchors:
-        print("  Compiling GPOS (dakuten @ contour slots)...", flush=True)
+        print(
+            f"  Compiling GPOS (dakuten @ {len(face_anchors)} ink-outside "
+            f"forms, incl. overlay/slice ligas)...",
+            flush=True,
+        )
         install_dakuten_gpos(
             font,
             base_anchors=face_anchors,
@@ -1517,6 +1426,7 @@ def _install_kana_dakuten_layout(
             mark_names=face_marks,
             glyph_order=glyph_order,
             glyphs=glyphs,
+            mark_anchor_fn=kana_mark_center_anchor,
         )
 
 
@@ -1537,9 +1447,6 @@ def _save_kana_face(
     base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
     out_dir: str,
     target_upem: int,
-    write_ttf: bool,
-    write_woff2: bool,
-    hint: bool,
     slices: bool,
 ) -> Tuple[str, str, int, List[int]]:
     n_glyphs = len(glyphs)
@@ -1620,27 +1527,95 @@ def _save_kana_face(
         fb.font,
         full_bases=full_bases,
         small_bases=small_bases,
+        hw_full_bases=hw_full_bases,
+        hw_small_bases=hw_small_bases,
         glyph_order=glyph_order,
         glyphs=glyphs,
         mark_names=mark_names,
         mark_cps=mark_cps,
         base_anchors=base_anchors,
+        target_upem=target_upem,
     )
 
     os.makedirs(out_dir, exist_ok=True)
     fb.save(out_path)
-    from shared_hinting import autohint_ttf
-
-    autohint_ttf(out_path, enabled=hint)
-    if write_woff2:
-        print(f"  Compressing {face_id}.woff2...", flush=True)
-        woff2.compress(out_path, out_path.replace(".ttf", ".woff2"))
-    if not write_ttf:
-        try:
-            os.remove(out_path)
-        except OSError:
-            pass
     return face_id, variant, n_glyphs - 1, sorted(cmap.keys())
+
+
+_WORKER_CACHE: Optional[dict] = None
+
+
+def _init_kana_worker(cache_path: str) -> None:
+    global _WORKER_CACHE
+    with open(cache_path, "rb") as f:
+        _WORKER_CACHE = pickle.load(f)
+
+
+def _kana_face_task(
+    spec: Tuple[str, Optional[int]],
+) -> Tuple[str, str, int, List[int], str]:
+    """Process-pool worker: subset + slices + TTF for one kana face."""
+    assert _WORKER_CACHE is not None
+    m = _WORKER_CACHE
+    kind, bucket_id = spec
+    glyph_order = m["glyph_order"]
+    glyphs = m["glyphs"]
+    metrics = m["metrics"]
+    cmap = m["cmap"]
+    if kind == "h":
+        assert bucket_id is not None
+        keep: Set[str] = {".notdef", *m["dakuten_keep"]}
+        for cp, name in cmap.items():
+            if (cp >> 8) == bucket_id:
+                keep.add(name)
+        go, gl, mt, cm = subset_glyph_tables(
+            glyph_order, glyphs, metrics, cmap, keep
+        )
+        print(
+            f"  Slice face {h_bucket_face_id(bucket_id)} "
+            f"({sum(1 for cp in cm if (cp >> 8) == bucket_id)} CPs)...",
+            flush=True,
+        )
+        _add_kana_slices(
+            full_bases=m["full_bases"],
+            small_bases=m["small_bases"],
+            hw_full_bases=m["hw_full_bases"],
+            hw_small_bases=m["hw_small_bases"],
+            glyph_order=go,
+            glyphs=gl,
+            metrics=mt,
+            target_upem=m["target_upem"],
+        )
+        inject_slice_marks(go, gl, mt, cm)
+        face_id = h_bucket_face_id(bucket_id)
+        variant = "h"
+        slices = True
+    else:
+        go, gl, mt, cm = subset_glyph_tables(
+            glyph_order, glyphs, metrics, cmap, set(glyph_order)
+        )
+        face_id = PS_NAME
+        variant = ""
+        slices = False
+    meta = _save_kana_face(
+        face_id=face_id,
+        variant=variant,
+        glyph_order=go,
+        glyphs=gl,
+        metrics=mt,
+        cmap=cm,
+        full_bases=m["full_bases"],
+        small_bases=m["small_bases"],
+        hw_full_bases=m["hw_full_bases"],
+        hw_small_bases=m["hw_small_bases"],
+        mark_names=m["mark_names"],
+        mark_cps=m["mark_cps"],
+        base_anchors=m["base_anchors"],
+        out_dir=m["out_dir"],
+        target_upem=m["target_upem"],
+        slices=slices,
+    )
+    return (*meta, os.path.join(m["out_dir"], f"{meta[0]}.ttf"))
 
 
 def build_pankana_font(
@@ -1653,6 +1628,7 @@ def build_pankana_font(
     write_woff2: bool = True,
     hint: bool = True,
     variants: Sequence[str] = ("", "h"),
+    jobs: int = 1,
 ) -> List[Tuple[str, str, int, List[int]]]:
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
@@ -1703,7 +1679,7 @@ def build_pankana_font(
 
     try:
         print(
-            f"  Installing {len(source_cps)} logical kana × {D4_COUNT} D4 "
+            f"Stage 1/4: installing {len(source_cps)} logical kana × {D4_COUNT} D4 "
             f"(no stem-normalize) + smalls "
             f"(ideo-scale {SMALL_WIDTH_FACTOR:g} + Weight once, "
             f"D4 @ post-scale ideo center)...",
@@ -1941,28 +1917,34 @@ def build_pankana_font(
             )
             mark_names = list(mark_names) + list(sm_mark_names)
 
-            full_dakuten: List[str] = []
-            for b in full_bases:
-                full_dakuten.extend(
-                    orientation_form_names(b, modes=YI_ORIENTATION_MODES)
-                )
-
-            small_dakuten: List[str] = []
-            for b in small_bases:
-                small_dakuten.extend(
-                    orientation_form_names(b, modes=YI_ORIENTATION_MODES)
-                )
-
-            base_anchors = collect_contour_dakuten_anchors(
-                full_dakuten,
+            base_anchors = collect_kana_dakuten_anchors(
+                kana_d4_form_names(full_bases),
                 glyphs=glyphs,
                 glyph_set=glyphs,
                 target_upem=target_upem,
                 mark_scale=1.0,
             )
             base_anchors.update(
-                collect_contour_dakuten_anchors(
-                    small_dakuten,
+                collect_kana_dakuten_anchors(
+                    kana_d4_form_names(small_bases),
+                    glyphs=glyphs,
+                    glyph_set=glyphs,
+                    target_upem=target_upem,
+                    mark_scale=SMALL_WIDTH_FACTOR,
+                )
+            )
+            base_anchors.update(
+                collect_kana_dakuten_anchors(
+                    kana_d4_form_names(hw_full_bases),
+                    glyphs=glyphs,
+                    glyph_set=glyphs,
+                    target_upem=target_upem,
+                    mark_scale=1.0,
+                )
+            )
+            base_anchors.update(
+                collect_kana_dakuten_anchors(
+                    kana_d4_form_names(hw_small_bases),
                     glyphs=glyphs,
                     glyph_set=glyphs,
                     target_upem=target_upem,
@@ -1970,8 +1952,8 @@ def build_pankana_font(
                 )
             )
             print(
-                f"  Dakuten: {len(mark_cps)} marks × {len(DAKUTEN_SLOTS)} contour slots "
-                f"(near ink, clamped to ideo cell; .sm @ "
+                f"  Dakuten: {len(mark_cps)} marks × {len(DAKUTEN_SLOTS)} slots "
+                f"(outside ink after D4; full/hw + small/hw-small .sm @ "
                 f"{SMALL_WIDTH_FACTOR:g}), "
                 f"{len(base_anchors)} bases",
                 flush=True,
@@ -1981,36 +1963,12 @@ def build_pankana_font(
 
         built: List[Tuple[str, str, int, List[int]]] = []
         os.makedirs(out_dir, exist_ok=True)
-        save_kw = dict(
-            full_bases=full_bases,
-            small_bases=small_bases,
-            hw_full_bases=hw_full_bases,
-            hw_small_bases=hw_small_bases,
-            mark_names=mark_names,
-            mark_cps=mark_cps,
-            base_anchors=base_anchors,
-            out_dir=out_dir,
-            target_upem=target_upem,
-            write_ttf=write_ttf,
-            write_woff2=write_woff2,
-            hint=hint,
-        )
+        workers = max(1, jobs)
+        face_specs: List[Tuple[str, Optional[int]]] = []
         if "" in want:
-            built.append(
-                _save_kana_face(
-                    face_id=PS_NAME,
-                    variant="",
-                    glyph_order=glyph_order,
-                    glyphs=glyphs,
-                    metrics=metrics,
-                    cmap=cmap,
-                    slices=False,
-                    **save_kw,
-                )
-            )
-
+            face_specs.append(("", None))
+        dakuten_keep = {n for n in glyph_order if ".mk" in n}
         if "h" in want:
-            dakuten_keep = {n for n in glyph_order if ".mk" in n}
             pages = sorted(
                 {
                     cp >> 8
@@ -2020,42 +1978,62 @@ def build_pankana_font(
                 }
             )
             for bucket_id in pages:
-                keep: Set[str] = {".notdef", *dakuten_keep}
-                for cp, name in cmap.items():
-                    if (cp >> 8) == bucket_id:
-                        keep.add(name)
-                go, gl, mt, cm = subset_glyph_tables(
-                    glyph_order, glyphs, metrics, cmap, keep
+                face_specs.append(("h", bucket_id))
+        if not face_specs:
+            return built
+
+        cache_dir = tempfile.mkdtemp(prefix="edenia-kana-")
+        try:
+            cache_path = os.path.join(cache_dir, "master.pkl")
+            with open(cache_path, "wb") as f:
+                pickle.dump(
+                    {
+                        "glyph_order": glyph_order,
+                        "glyphs": glyphs,
+                        "metrics": metrics,
+                        "cmap": cmap,
+                        "full_bases": full_bases,
+                        "small_bases": small_bases,
+                        "hw_full_bases": hw_full_bases,
+                        "hw_small_bases": hw_small_bases,
+                        "mark_names": mark_names,
+                        "mark_cps": mark_cps,
+                        "base_anchors": base_anchors,
+                        "dakuten_keep": dakuten_keep,
+                        "out_dir": out_dir,
+                        "target_upem": target_upem,
+                    },
+                    f,
+                    protocol=pickle.HIGHEST_PROTOCOL,
                 )
+            t0 = time.perf_counter()
+            pool_workers = min(workers, max(1, len(face_specs)))
+            print(
+                f"Stage 2/4: face TTFs ({len(face_specs)} jobs, "
+                f"{pool_workers} workers)...",
+                flush=True,
+            )
+            with ProcessPoolExecutor(
+                max_workers=pool_workers,
+                initializer=_init_kana_worker,
+                initargs=(cache_path,),
+            ) as executor:
+                results = list(executor.map(_kana_face_task, face_specs))
                 print(
-                    f"  Slice face {h_bucket_face_id(bucket_id)} "
-                    f"({sum(1 for cp in cm if (cp >> 8) == bucket_id)} CPs)...",
+                    f"  stage 2 done in {time.perf_counter() - t0:.1f}s",
                     flush=True,
                 )
-                _add_kana_slices(
-                    full_bases=full_bases,
-                    small_bases=small_bases,
-                    hw_full_bases=hw_full_bases,
-                    hw_small_bases=hw_small_bases,
-                    glyph_order=go,
-                    glyphs=gl,
-                    metrics=mt,
-                    target_upem=target_upem,
+                ttf_paths = [r[4] for r in results]
+                built = [(r[0], r[1], r[2], r[3]) for r in results]
+                finish_font_outputs(
+                    ttf_paths,
+                    hint=hint,
+                    write_woff2=write_woff2,
+                    write_ttf=write_ttf,
+                    executor=executor,
                 )
-                inject_slice_marks(go, gl, mt, cm)
-                built.append(
-                    _save_kana_face(
-                        face_id=h_bucket_face_id(bucket_id),
-                        variant="h",
-                        glyph_order=go,
-                        glyphs=gl,
-                        metrics=mt,
-                        cmap=cm,
-                        slices=True,
-                        **save_kw,
-                    )
-                )
-
+        finally:
+            shutil.rmtree(cache_dir, ignore_errors=True)
         return built
     finally:
         mkana.close()
@@ -2076,6 +2054,7 @@ def build_all(
     write_woff2: bool = True,
     hint: bool = True,
     variants: Sequence[str] = ("", "h"),
+    jobs: int = 1,
 ) -> None:
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
@@ -2120,6 +2099,7 @@ def build_all(
         else ("ttf only" if write_ttf else "woff2 only")
     )
     print(f"  Formats: {fmt_note}")
+    print(f"  Jobs: {max(1, jobs)}")
 
     os.makedirs(out_dir, exist_ok=True)
     built = build_pankana_font(
@@ -2131,6 +2111,7 @@ def build_all(
         write_woff2=write_woff2,
         hint=hint,
         variants=variants,
+        jobs=jobs,
     )
     if built:
         write_css(out_dir, built)
@@ -2154,8 +2135,11 @@ def build_all(
             f"  {family_kana_variant(variant)} / {face_id}: {count} glyphs",
             flush=True,
         )
-    print(f"\nDone: {len(built)} kana face(s)", flush=True)
-    sync_dist_to_plugin("kana", out_dir)
+    print(f"\nDone: {len(built)} kana face(s), jobs={max(1, jobs)}", flush=True)
+    if os.path.normcase(os.path.abspath(out_dir)) == os.path.normcase(
+        os.path.abspath(OUT_DIR)
+    ):
+        sync_dist_to_plugin("kana", out_dir)
 
 
 def parse_args() -> argparse.Namespace:
@@ -2192,6 +2176,7 @@ def parse_args() -> argparse.Namespace:
         help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
     add_no_hint_argument(p)
+    add_jobs_argument(p)
     return p.parse_args()
 
 
@@ -2207,4 +2192,5 @@ if __name__ == "__main__":
         write_woff2=not args.ttf_only,
         hint=not args.no_hint,
         variants=variants,
+        jobs=max(1, args.jobs),
     )

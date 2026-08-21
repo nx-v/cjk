@@ -13,7 +13,9 @@ import argparse
 import os
 import tempfile
 import time
-from typing import Union
+from typing import Sequence, Tuple, Union
+
+from fontTools.ttLib import woff2
 
 PathLike = Union[str, os.PathLike]
 
@@ -30,6 +32,21 @@ def add_no_hint_argument(parser: argparse.ArgumentParser) -> None:
         "--no-hinting",
         action="store_true",
         help=NO_HINT_HELP,
+    )
+
+
+def add_jobs_argument(parser: argparse.ArgumentParser) -> None:
+    """``--jobs`` / ``-j`` parallel workers (default: all CPUs)."""
+    parser.add_argument(
+        "--jobs",
+        "-j",
+        dest="jobs",
+        type=int,
+        default=max(1, os.cpu_count() or 4),
+        help=(
+            "Parallel workers per stage (default: all CPUs); "
+            "stages: face TTF, hint, WOFF2"
+        ),
     )
 
 
@@ -120,3 +137,82 @@ def autohint_ttf(ttf_path: PathLike, *, enabled: bool = True) -> None:
         except OSError:
             pass
         raise
+
+
+def compress_woff2(ttf_path: str, woff2_path: str | None = None) -> str:
+    """Compress TTF→WOFF2 via a temp file (avoids Windows/OneDrive errno 22 races)."""
+    if woff2_path is None:
+        woff2_path = os.path.splitext(ttf_path)[0] + ".woff2"
+    out_dir = os.path.dirname(os.path.abspath(woff2_path)) or "."
+    os.makedirs(out_dir, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(suffix=".woff2", dir=out_dir)
+    os.close(fd)
+    try:
+        last_err: BaseException | None = None
+        for attempt in range(8):
+            try:
+                woff2.compress(ttf_path, tmp_path)
+                os.replace(tmp_path, woff2_path)
+                return woff2_path
+            except OSError as exc:
+                last_err = exc
+                time.sleep(0.05 * (2 ** min(attempt, 6)))
+        assert last_err is not None
+        raise last_err
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+
+def drop_ttf(ttf_path: str) -> None:
+    try:
+        os.remove(ttf_path)
+    except OSError:
+        pass
+
+
+def hint_ttf_task(ttf_path: str) -> str:
+    """Process-pool worker: autohint ``ttf_path`` in place."""
+    autohint_ttf(ttf_path, enabled=True)
+    return ttf_path
+
+
+def woff2_face_task(item: Tuple[str, bool]) -> str:
+    """Process-pool worker: TTF→WOFF2; drop TTF when ``write_ttf`` is false."""
+    ttf_path, write_ttf = item
+    print(
+        f"  Compressing {os.path.basename(ttf_path).replace('.ttf', '.woff2')}...",
+        flush=True,
+    )
+    compress_woff2(ttf_path)
+    if not write_ttf:
+        drop_ttf(ttf_path)
+    return ttf_path
+
+
+def finish_font_outputs(
+    ttf_paths: Sequence[str],
+    *,
+    hint: bool,
+    write_woff2: bool,
+    write_ttf: bool,
+    executor,
+) -> None:
+    """Stages 3–4: parallel hint then WOFF2 on an existing executor."""
+    paths = list(ttf_paths)
+    if hint and paths:
+        t0 = time.perf_counter()
+        print(f"Stage 3/4: hint ({len(paths)} TTFs)...", flush=True)
+        list(executor.map(hint_ttf_task, paths))
+        print(f"  stage 3 done in {time.perf_counter() - t0:.1f}s", flush=True)
+    if write_woff2 and paths:
+        t0 = time.perf_counter()
+        print(f"Stage 4/4: WOFF2 ({len(paths)} TTFs)...", flush=True)
+        list(executor.map(woff2_face_task, [(p, write_ttf) for p in paths]))
+        print(f"  stage 4 done in {time.perf_counter() - t0:.1f}s", flush=True)
+    elif not write_ttf:
+        for path in paths:
+            drop_ttf(path)
