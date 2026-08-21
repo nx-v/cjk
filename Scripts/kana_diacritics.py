@@ -136,9 +136,7 @@ def _iter_ink_points(
             seen.add(name)
             cx = dx + float(getattr(comp, "x", 0) or 0)
             cy = dy + float(getattr(comp, "y", 0) or 0)
-            yield from _iter_ink_points(
-                child, glyph_set, dx=cx, dy=cy, _seen=seen
-            )
+            yield from _iter_ink_points(child, glyph_set, dx=cx, dy=cy, _seen=seen)
         return
     for x, y in _iter_simple_points(glyph):
         yield x + dx, y + dy
@@ -258,7 +256,5 @@ def collect_kana_dakuten_anchors(
         )
         if not slots:
             continue
-        anchors[name] = {
-            i: slots[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)
-        }
+        anchors[name] = {i: slots[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)}
     return anchors
