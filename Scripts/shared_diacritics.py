@@ -11,9 +11,10 @@ Stack (priority order)::
 
 Marks are normalized to a **fixed ink height** (and shrunk to a max
 width if needed), then attach via GPOS
-``mark`` / ``abvm`` at fixed CJK cell corners. Each mark’s matching ink
-corner is the mark anchor so TR/BR are **right-aligned** and TL/BL
-**left-aligned** (flush inside the ideograph, not centered past the edge).
+``mark`` / ``abvm`` at fixed CJK cell corners. Left / right slots pin the
+matching ink edge flush to the cell side. Top / bottom slots pin the
+mark's near edge to the **outer** face of the ideographic box so the
+diacritic sits clearly above or below the cell (not inset into it).
 
 Successive marks fill slots via GSUB cycling (corners then edge midpoints)::
 
@@ -385,14 +386,19 @@ def yi_forms_for_dakuten(
 
 
 def cjk_corner_anchors(target_upem: int) -> Dict[str, Tuple[int, int]]:
-    """Fixed dakuten positions at CJK typo-box corners and edge midpoints."""
+    """Fixed dakuten positions at CJK typo-box corners and edge midpoints.
+
+    Left / right stay inset from the em sides. Top / bottom attach on the
+    outer face of the ideographic box (``typo_top`` / ``typo_bot``) so marks
+    sit clearly above or below the cell.
+    """
     edge = target_upem * DAKUTEN_EDGE_PAD_FRAC
     typo_top = target_upem * TYPO_ASCENDER_FRAC
     typo_bot = target_upem * TYPO_DESCENDER_FRAC
     x_r = otRound(target_upem - edge)
     x_l = otRound(edge)
-    y_t = otRound(typo_top - edge)
-    y_b = otRound(typo_bot + edge)
+    y_t = otRound(typo_top)
+    y_b = otRound(typo_bot)
     x_m = otRound((x_l + x_r) / 2.0)
     y_m = otRound((y_t + y_b) / 2.0)
     return {
@@ -453,9 +459,10 @@ def mark_corner_anchor(
 ) -> Tuple[int, int]:
     """Ink point of the mark that pins to the matching CJK cell slot.
 
-    Right slots right-align, left slots left-align, top/bottom likewise.
-    Mid-edge slots (``cr``/``cl``/``tm``/``bm``) pin the mark's center on
-    that axis so the diacritic sits on the cell edge rather than straddling it.
+    Right slots right-align, left slots left-align. Top slots pin the mark's
+    bottom (sits above the ideographic top); bottom slots pin the mark's top
+    (sits below the ideographic bottom). Mid-side slots (``cr``/``cl``) pin
+    vertical center; mid-edge top/bottom (``tm``/``bm``) pin horizontal center.
     """
     try:
         if glyph.isComposite() and glyph_set is not None:
@@ -475,9 +482,9 @@ def mark_corner_anchor(
             x = (x0 + x1) / 2.0
     match slot:
         case "tr" | "tm" | "tl":
-            y = y1
-        case "br" | "bm" | "bl":
             y = y0
+        case "br" | "bm" | "bl":
+            y = y1
         case _:
             y = (y0 + y1) / 2.0
     return otRound(x), otRound(y)

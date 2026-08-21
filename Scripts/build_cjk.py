@@ -118,7 +118,7 @@ from edenia_names import (
 )
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
-from shared_hinting import add_no_hint_argument
+from shared_hinting import add_hint_mode_arguments
 
 # ---------- Directories ----------
 
@@ -1555,6 +1555,7 @@ def _build_all_bucket_faces(
     write_ttf: bool = True,
     write_woff2: bool = True,
     hint: bool = True,
+    hint_base_only: bool = False,
     variants: Sequence[str] = CJK_FACE_BUILD_ORDER,
 ) -> List[Tuple[str, Optional[Tuple[str, int, List[int]]]]]:
     """Build selected faces for one bucket (tests / single-bucket use)."""
@@ -1574,6 +1575,7 @@ def _build_all_bucket_faces(
 
     rows: List[Tuple[str, Optional[Tuple[str, int, List[int]]]]] = []
     ttf_paths: List[str] = []
+    hint_paths: List[str] = []
     t0 = time.perf_counter()
     for variant in variants:
         face, out_path = _build_face_ttf_from_state(
@@ -1582,14 +1584,16 @@ def _build_all_bucket_faces(
         rows.append((variant, face))
         if out_path is not None:
             ttf_paths.append(out_path)
+            if hint and (not hint_base_only or variant == ""):
+                hint_paths.append(out_path)
     times["faces"] = time.perf_counter() - t0
 
-    workers = max(1, min(len(variants), len(ttf_paths)))
+    workers = max(1, min(len(variants), len(hint_paths) or len(ttf_paths)))
     try:
         t0 = time.perf_counter()
-        if hint and ttf_paths:
+        if hint_paths:
             with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-                list(pool.map(lambda p: autohint_ttf(p, enabled=True), ttf_paths))
+                list(pool.map(lambda p: autohint_ttf(p, enabled=True), hint_paths))
         times["hint"] = time.perf_counter() - t0
 
         t0 = time.perf_counter()
@@ -1617,6 +1621,7 @@ def build_bucket_faces(
     write_ttf: bool = True,
     write_woff2: bool = True,
     hint: bool = True,
+    hint_base_only: bool = False,
     variants: Sequence[str] = CJK_FACE_BUILD_ORDER,
 ) -> List[Tuple[str, int, List[int]]]:
     """Build selected faces for one bucket sequentially (tests / single-bucket use)."""
@@ -1630,6 +1635,7 @@ def build_bucket_faces(
         write_ttf=write_ttf,
         write_woff2=write_woff2,
         hint=hint,
+        hint_base_only=hint_base_only,
         variants=variants,
     ):
         if face is not None:
@@ -1646,6 +1652,7 @@ _WORKER_UPEM: Optional[int] = None
 _WORKER_WRITE_TTF: bool = True
 _WORKER_WRITE_WOFF2: bool = True
 _WORKER_HINT: bool = True
+_WORKER_HINT_BASE_ONLY: bool = False
 _WORKER_VARIANTS: Tuple[str, ...] = CJK_FACE_BUILD_ORDER
 
 
@@ -1693,16 +1700,19 @@ def _init_build_worker(
     write_woff2: bool,
     hint: bool = True,
     variants: Tuple[str, ...] = CJK_FACE_BUILD_ORDER,
+    hint_base_only: bool = False,
 ) -> None:
     """Load source fonts once per process worker."""
     global _WORKER_SOURCES, _WORKER_OUT_DIR, _WORKER_CACHE_DIR, _WORKER_UPEM
     global _WORKER_WRITE_TTF, _WORKER_WRITE_WOFF2, _WORKER_HINT, _WORKER_VARIANTS
+    global _WORKER_HINT_BASE_ONLY
     _WORKER_OUT_DIR = out_dir
     _WORKER_CACHE_DIR = cache_dir
     _WORKER_UPEM = target_upem
     _WORKER_WRITE_TTF = write_ttf
     _WORKER_WRITE_WOFF2 = write_woff2
     _WORKER_HINT = hint
+    _WORKER_HINT_BASE_ONLY = hint_base_only
     _WORKER_VARIANTS = tuple(variants)
     _WORKER_SOURCES = {
         p: SourceFont(p, local_scale=s, weightor=w) for p, s, w in font_entries
@@ -1789,7 +1799,7 @@ def _build_bucket_variant(
         variant=variant,
         write_ttf=_WORKER_WRITE_TTF,
         write_woff2=_WORKER_WRITE_WOFF2,
-        hint=_WORKER_HINT,
+        hint=_WORKER_HINT and (not _WORKER_HINT_BASE_ONLY or variant == ""),
     )
     if count == 0:
         return bucket_id, variant, None
@@ -2040,6 +2050,7 @@ def build_all(
     write_ttf: bool = True,
     write_woff2: bool = True,
     hint: bool = True,
+    hint_base_only: bool = False,
     variants: Sequence[str] = CJK_FACE_BUILD_ORDER,
 ) -> None:
     if not write_ttf and not write_woff2:
@@ -2068,6 +2079,12 @@ def build_all(
         else ("ttf only" if write_ttf else "woff2 only")
     )
     print(f"Output formats: {fmt_note}")
+    hint_note = (
+        "none"
+        if not hint
+        else ("base only" if hint_base_only else "all faces")
+    )
+    print(f"Hinting: {hint_note}")
     print(
         "Faces: "
         + ", ".join(labels)
@@ -2138,6 +2155,7 @@ def build_all(
                 write_woff2,
                 hint,
                 variants,
+                hint_base_only,
             ),
         ) as executor:
             master_jobs = [(bid, buckets[bid]) for bid in bucket_ids]
@@ -2164,6 +2182,7 @@ def build_all(
             )
             face_results = list(executor.map(_face_ttf_task, face_jobs))
             ttf_paths: List[str] = []
+            hint_paths: List[str] = []
             done_faces = 0
             for bucket_id, variant, face, out_path in face_results:
                 done_faces += 1
@@ -2182,6 +2201,8 @@ def build_all(
                 built.append((face_id, count, codepoints))
                 if out_path is not None:
                     ttf_paths.append(out_path)
+                    if hint and (not hint_base_only or variant == ""):
+                        hint_paths.append(out_path)
                 print(
                     f"  [{done_faces}/{n_faces}] {face_id} ({fmt_tag}; {count})",
                     flush=True,
@@ -2191,13 +2212,19 @@ def build_all(
                 flush=True,
             )
 
-            if hint and ttf_paths:
+            if hint_paths:
                 t0 = time.perf_counter()
                 print(
-                    f"Stage 3/4: hint ({len(ttf_paths)} TTFs)...",
+                    f"Stage 3/4: hint ({len(hint_paths)} TTFs"
+                    + (
+                        f"; base only of {len(ttf_paths)}"
+                        if hint_base_only
+                        else ""
+                    )
+                    + ")...",
                     flush=True,
                 )
-                list(executor.map(_hint_ttf_task, ttf_paths))
+                list(executor.map(_hint_ttf_task, hint_paths))
                 print(
                     f"  stage 3 done in {time.perf_counter() - t0:.1f}s",
                     flush=True,
@@ -2268,7 +2295,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Write WOFF2 only (drop intermediate TTF after compress)",
     )
-    add_no_hint_argument(p)
+    add_hint_mode_arguments(p)
     add_cjk_variant_arguments(p)
     return p.parse_args()
 
@@ -2296,5 +2323,6 @@ if __name__ == "__main__":
             write_ttf=not args.woff2_only,
             write_woff2=not args.ttf_only,
             hint=not args.no_hint,
+            hint_base_only=bool(args.hint_base_only),
             variants=variants,
         )

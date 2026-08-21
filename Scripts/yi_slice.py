@@ -171,7 +171,10 @@ def _bake_slices_for_form(
     target_upem: int,
     cell_width: Optional[float] = None,
 ) -> None:
-    """Clip one side of each complementary pair; the other is ``full − that``."""
+    """Clip one side of each complementary pair; the other is ``full − that``.
+
+    Clip / subtract strip stem-offset specks and runaway spikes first.
+    """
     adv = int(target_upem if cell_width is None else cell_width)
 
     def _clip(kind: str) -> TTGlyph:

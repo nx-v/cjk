@@ -2092,10 +2092,15 @@ def boolean_subtract_glyphs(
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> TTGlyph:
-    """Boolean **difference** ``minuend − subtrahend``."""
+    """Boolean **difference** ``minuend − subtrahend``.
+
+    The minuend is artefact-stripped first so complements of a clip match the
+    cleaned intersection (``full − clip(full)``). The subtrahend is left as-is
+    (already a slice).
+    """
     import pathops
 
-    a = _ttglyph_to_pathops(minuend, glyph_set)
+    a = _prepare_pathops_for_slice(minuend, glyph_set)
     b = _ttglyph_to_pathops(subtrahend, glyph_set)
     try:
         out = pathops.op(a, b, pathops.PathOp.DIFFERENCE, fix_winding=True)
@@ -2209,6 +2214,81 @@ def half_plane_rect(
     return -inf, -inf, cut, inf
 
 
+def _pathops_strip_artefacts(path, *, upem: int = DEFAULT_UPEM):
+    """Drop specks, empty loops, and runaway spike contours before a clip.
+
+    Stem offset / composites leave needle contours and crumbs that pathops
+    intersection turns into visible slivers. Legitimate CJK/Yi strokes stay
+    inside ~1em; artefacts shoot far outside or have near-zero area.
+    """
+    import pathops
+
+    pad = float(upem) * 2.0
+    min_area = 8.0
+    min_span = 2.0
+    max_edge = float(upem) * 1.5
+
+    kept = pathops.Path()
+    kept_any = False
+    for contour in path.contours:
+        verbs = list(contour)
+        pts: List[Tuple[float, float]] = []
+        for _verb, vpts in verbs:
+            pts.extend(vpts)
+        if len(pts) < 3:
+            continue
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        x0, x1 = min(xs), max(xs)
+        y0, y1 = min(ys), max(ys)
+        if (x1 - x0) < min_span and (y1 - y0) < min_span:
+            continue
+        if x0 < -pad or y0 < -pad or x1 > pad or y1 > pad:
+            continue
+        area = 0.0
+        for i, (x, y) in enumerate(pts):
+            x2, y2 = pts[(i + 1) % len(pts)]
+            area += x * y2 - x2 * y
+        if abs(area) * 0.5 < min_area:
+            continue
+        longest = 0.0
+        for i, (x, y) in enumerate(pts):
+            x2, y2 = pts[(i + 1) % len(pts)]
+            dx, dy = x2 - x, y2 - y
+            d2 = dx * dx + dy * dy
+            if d2 > longest:
+                longest = d2
+        if longest ** 0.5 > max_edge:
+            continue
+        for verb, vpts in verbs:
+            if verb == pathops.PathVerb.MOVE:
+                kept.moveTo(*vpts[0])
+            elif verb == pathops.PathVerb.LINE:
+                kept.lineTo(*vpts[0])
+            elif verb == pathops.PathVerb.QUAD:
+                kept.quadTo(*vpts[0], *vpts[1])
+            elif verb == pathops.PathVerb.CUBIC:
+                kept.cubicTo(*vpts[0], *vpts[1], *vpts[2])
+            elif verb == pathops.PathVerb.CLOSE:
+                kept.close()
+        kept_any = True
+    return kept if kept_any else path
+
+
+def _prepare_pathops_for_slice(
+    glyph: TTGlyph,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    *,
+    upem: int = DEFAULT_UPEM,
+):
+    """Decompose, heal miter spikes, then drop artefact contours."""
+    sk = _ttglyph_to_pathops(glyph, glyph_set)
+    tmp = _pathops_to_ttglyph(sk)
+    tmp = cleanup_ttglyph_contours(tmp, upem=upem)
+    sk = _ttglyph_to_pathops(tmp)
+    return _pathops_strip_artefacts(sk, upem=upem)
+
+
 def clip_glyph_to_rect(
     glyph: TTGlyph,
     rect: Tuple[float, float, float, float],
@@ -2229,7 +2309,7 @@ def clip_glyph_to_rect(
         x0, x1 = x1, x0
     if y1 < y0:
         y0, y1 = y1, y0
-    src = _ttglyph_to_pathops(glyph, glyph_set)
+    src = _prepare_pathops_for_slice(glyph, glyph_set)
     clip = _rect_pathops(x0, y0, x1, y1)
     try:
         out = pathops.op(src, clip, pathops.PathOp.INTERSECTION, fix_winding=True)
@@ -2261,7 +2341,7 @@ def clip_glyph_to_polygon(
 
     if len(points) < 3:
         raise ValueError("polygon clip needs at least 3 points")
-    src = _ttglyph_to_pathops(glyph, glyph_set)
+    src = _prepare_pathops_for_slice(glyph, glyph_set)
     clip = _polygon_pathops(points)
     try:
         out = pathops.op(src, clip, pathops.PathOp.INTERSECTION, fix_winding=True)

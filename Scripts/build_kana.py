@@ -20,12 +20,12 @@ CAPE Width ``0.5`` holds the pre-squeeze stem thicknesses (match full-width
 kana). Combining slices use the half-em cell (FE08–FE0F) plus FE00 overlay.
 
 Initial fill: hiragana rows then length/gemination, then katakana rows
-then length/gemination — row-major into ``L``. Sources: LXGW Fasmart Gothic,
-then FlopDesignFONT, then mkanaplus (PUA/archaic + overrides), then GenSeki
-Hentaigana, then LXGW (Clear Gothic / XiHei). Non-Fasmart glyphs whose ink
-exceeds Fasmart's hiragana ふ (U+3075) width or katakana メ (U+30E1) height
-are geometrically condensed to those caps (stroke weight scales with the
-squish; no separate stem Weight match).
+then length/gemination — row-major into ``L``. Sources: FlopDesignFONT,
+then mkanaplus (PUA/archaic + overrides), then GenSeki Hentaigana, then
+LXGW (Clear Gothic / XiHei). Glyphs from sources other than Flop / mkana
+that are smaller than the average Flop kana ink size are stretched up on
+X and/or Y to that average; strokes are thinned to compensate (CAPE restores
+pre-stretch stem weight). Axes already at or above the average are left as-is.
 
 Trailing marks (all D4)::
 
@@ -145,14 +145,6 @@ FLOP_FILENAMES: Tuple[str, ...] = (
     "FlopDesignFONT.ttf",
     "FlopDesignFont.otf",
 )
-FASMART_FILENAMES: Tuple[str, ...] = (
-    "LXGWFasmartGothic.ttf",
-    "LXGWFasmartGothicMN.ttf",
-    "LXGWFasmartGothicCL.ttf",
-)
-# Reference outer size for geometric Width/Height-cap on non-Fasmart sources.
-FASMART_FU_CP = 0x3075  # ふ — max ink width
-FASMART_ME_CP = 0x30E1  # メ — max ink height
 MKANA_FILENAMES: Tuple[str, ...] = (
     "mkanaplus.ttf",
     "mkanaplus-regular.ttf",
@@ -179,13 +171,6 @@ MKANA_OVERRIDE_CPS: frozenset[int] = frozenset(
         0x30BD,  # ソ
         0x30EB,  # ル
         0x30EF,  # ワ
-    }
-)
-# Prefer FlopDesignFONT over Fasmart for these shapes.
-FLOP_OVERRIDE_CPS: frozenset[int] = frozenset(
-    {
-        0x304B,  # か
-        0x305D,  # そ
     }
 )
 
@@ -241,7 +226,7 @@ KATAKANA_ROWS: Tuple[Tuple[int, ...], ...] = (
     (0xED54, 0x30C1, 0xED56, 0xED58, 0xED5A, 0x3114),  # ch
     (0xED48, 0x30B7, 0xED4A, 0xED4C, 0xED4E, 0x3115),  # sh
     (0x30B5, 0xED41, 0x30B9, 0x30BB, 0x30BD, 0x3112),  # s
-    (0x30DE, 0x30DF, 0x30E0, 0x30E1, 0x30E2, 0x3107),  # m
+    (0x30DE, 0x30DF, 0x30E0, 0x30E1, 0x30E2, 0x31B0),  # m
     (0x30CA, 0x30CB, 0x30CC, 0x30CD, 0x30CE, 0x30F3),  # n
     (0x30CF, 0x30D2, 0xEE45, 0x30D8, 0x30DB, 0x310F),  # h
     (0x30E4, 0x1B120, 0x30E6, 0x1B121, 0x30E8, 0xEDCF),  # y
@@ -344,31 +329,16 @@ def _first_existing(paths: Sequence[str]) -> Optional[str]:
     return None
 
 
-def resolve_flop_path(in_dir: str) -> str:
-    candidates: List[str] = []
-    for name in FLOP_FILENAMES:
-        candidates.append(os.path.join(in_dir, name))
-        candidates.append(os.path.join(SCRIPT_DIR, "src", name))
-        candidates.append(os.path.join(REPO_ROOT, name))
-    found = _first_existing(candidates)
-    if found is None:
-        raise FileNotFoundError(
-            f"FlopDesignFONT not found under {in_dir!r} / Scripts/src / repo root"
-        )
-    return found
-
-
-def resolve_fasmart_family_paths(in_dir: str) -> List[str]:
-    """LXGW Fasmart Gothic faces. Prefer Scripts/src per name."""
+def resolve_flop_family_paths(in_dir: str) -> List[str]:
+    """FlopDesignFONT faces. Prefer Scripts/src per name."""
     src_dir = os.path.join(SCRIPT_DIR, "src")
     found: List[str] = []
     seen: set[str] = set()
-    for name in FASMART_FILENAMES:
+    for name in FLOP_FILENAMES:
         path = _first_existing(
             (
                 os.path.join(src_dir, name),
                 os.path.join(in_dir, name),
-                os.path.join(REPO_ROOT, "LXGW", name),
                 os.path.join(REPO_ROOT, name),
             )
         )
@@ -381,8 +351,7 @@ def resolve_fasmart_family_paths(in_dir: str) -> List[str]:
         found.append(path)
     if not found:
         raise FileNotFoundError(
-            f"LXGW Fasmart Gothic not found under "
-            f"Scripts/src / {in_dir!r} / LXGW / repo root"
+            f"FlopDesignFONT not found under " f"Scripts/src / {in_dir!r} / repo root"
         )
     return found
 
@@ -550,19 +519,16 @@ class SourceFont:
 
 def claim_source_cp(
     src_cp: int,
-    fasmart: Sequence[SourceFont],
-    flop: SourceFont,
+    flop: Sequence[SourceFont],
     mkana: SourceFont,
     genseki: SourceFont,
     lxgw: Sequence[SourceFont],
 ) -> Tuple[SourceFont, str]:
     """Return (source, glyph_name) for a chart source CP."""
     if src_cp in MKANA_OVERRIDE_CPS:
-        head: Tuple[SourceFont, ...] = (mkana, *fasmart, flop, genseki)
-    elif src_cp in FLOP_OVERRIDE_CPS:
-        head = (flop, *fasmart, mkana, genseki)
+        head: Tuple[SourceFont, ...] = (mkana, *flop, genseki)
     else:
-        head = (*fasmart, flop, mkana, genseki)
+        head = (*flop, mkana, genseki)
     for src in (*head, *lxgw):
         gname = src.cmap.get(src_cp)
         if gname is None:
@@ -570,9 +536,7 @@ def claim_source_cp(
         if is_empty_outline(src.tt, gname):
             continue
         return src, gname
-    raise KeyError(
-        f"No outline for U+{src_cp:04X} in fasmart/Flop/mkanaplus/genseki/lxgw"
-    )
+    raise KeyError(f"No outline for U+{src_cp:04X} in Flop/mkanaplus/genseki/lxgw")
 
 
 def _glyph_ink_width(glyph: TTGlyph) -> float:
@@ -591,148 +555,115 @@ def _glyph_ink_height(glyph: TTGlyph) -> float:
         return 0.0
 
 
-def _fasmart_fitted_glyph(
-    fasmart: SourceFont, src_cp: int, target_upem: int, *, label: str
-) -> TTGlyph:
-    gname = fasmart.cmap.get(src_cp)
-    if gname is None:
-        raise KeyError(
-            f"Fasmart missing {label} U+{src_cp:04X} "
-            f"in {os.path.basename(fasmart.path)}"
-        )
-    copied = fasmart.copy_fitted(gname, target_upem)
-    if copied is None:
+def flop_average_ink_size(
+    flop: Sequence[SourceFont],
+    target_upem: int,
+    source_cps: Sequence[int],
+) -> Tuple[float, float]:
+    """Mean Flop kana ink width / height over chart CPs present in Flop."""
+    widths: List[float] = []
+    heights: List[float] = []
+    for cp in source_cps:
+        for src in flop:
+            gname = src.cmap.get(cp)
+            if gname is None or is_empty_outline(src.tt, gname):
+                continue
+            copied = src.copy_fitted(gname, target_upem)
+            if copied is None:
+                break
+            g = copied[0]
+            w = _glyph_ink_width(g)
+            h = _glyph_ink_height(g)
+            if w > 1.0:
+                widths.append(w)
+            if h > 1.0:
+                heights.append(h)
+            break
+    if not widths or not heights:
         raise RuntimeError(
-            f"Fasmart {label} U+{src_cp:04X} empty in "
-            f"{os.path.basename(fasmart.path)}"
+            "Flop average ink size: no usable chart outlines "
+            f"(W={len(widths)} H={len(heights)})"
         )
-    return copied[0]
+    return sum(widths) / len(widths), sum(heights) / len(heights)
 
 
-def fasmart_size_caps(fasmart: SourceFont, target_upem: int) -> Tuple[float, float]:
-    """Fitted Fasmart ふ ink width and メ ink height (geometric size caps)."""
-    fu = _fasmart_fitted_glyph(fasmart, FASMART_FU_CP, target_upem, label="hiragana fu")
-    me = _fasmart_fitted_glyph(fasmart, FASMART_ME_CP, target_upem, label="katakana me")
-    max_w = _glyph_ink_width(fu)
-    max_h = _glyph_ink_height(me)
-    if max_w <= 1e-6:
-        raise RuntimeError("Fasmart fu ink width is zero")
-    if max_h <= 1e-6:
-        raise RuntimeError("Fasmart me ink height is zero")
-    return max_w, max_h
-
-
-def cape_cap_to_max_width(
+def stretch_to_flop_average(
     glyph: TTGlyph,
     advance: int,
     *,
-    max_width: float,
+    avg_width: float,
+    avg_height: float,
     target_upem: int,
     glyph_set: Dict[str, TTGlyph],
 ) -> Tuple[TTGlyph, int, int]:
-    """Geometrically X-condense if ink wider than ``max_width`` (stems scale too)."""
-    w = _glyph_ink_width(glyph)
-    if w <= max_width + 1e-6:
-        try:
-            glyph.recalcBounds(None)
-            lsb = int(glyph.xMin)
-        except Exception:
-            lsb = 0
-        return glyph, int(advance), lsb
-    factor = float(max_width) / w
-    baked, adv0, _ = _bake_simple(glyph, int(advance), glyph_set)
-    icx, _icy = ideographic_center(target_upem)
+    """Grow undersized axes to Flop averages; larger axes stay as-is.
+
+    Growing thickens strokes geometrically, so CAPE Width/Height restore the
+    pre-stretch stem (slightly thinner relative to the new size). If a stem
+    cannot be measured, fall back to Weight lighten by ``1/scale``.
+    """
+    baked, adv0, lsb = _bake_simple(glyph, int(advance), glyph_set)
+    work_adv = float(adv0 if adv0 > 0 else target_upem)
+    w = _glyph_ink_width(baked)
+    h = _glyph_ink_height(baked)
+    if w <= 1e-6 or h <= 1e-6:
+        return baked, int(advance), lsb
+
+    # Only enlarge undersized axes; never shrink.
+    sx = float(avg_width) / w if w < float(avg_width) else 1.0
+    sy = float(avg_height) / h if h < float(avg_height) else 1.0
+    if abs(sx - 1.0) < 1e-3 and abs(sy - 1.0) < 1e-3:
+        return baked, int(advance), lsb
+
+    icx, icy = ideographic_center(target_upem)
     try:
-        out, _adv, lsb = widen_ttglyph(
-            baked,
-            factor,
-            advance=float(adv0 if adv0 > 0 else target_upem),
-            stem=0.0,
-            center_x=icx,
-        )
+        baked = _ensure_cape_expand_winding(baked)
+        if abs(sx - 1.0) >= 1e-3:
+            vstem = _fixed_vertical_stem(baked, work_adv)
+            baked, _, lsb = widen_ttglyph(
+                baked,
+                sx,
+                advance=work_adv,
+                stem=vstem,
+                center_x=icx,
+            )
+            # No stem → CAPE skips offset; lighten so the grow isn't bolder.
+            if vstem is None and sx > 1.0:
+                baked = _ensure_cape_expand_winding(baked)
+                baked, _, lsb = bolden_ttglyph(baked, 1.0 / sx, advance=work_adv)
+        if abs(sy - 1.0) >= 1e-3:
+            # Remeasure height after Width (stem restore can nudge bbox).
+            h2 = _glyph_ink_height(baked)
+            if h2 > 1e-6 and h2 < float(avg_height):
+                sy = float(avg_height) / h2
+            else:
+                sy = 1.0
+            if abs(sy - 1.0) >= 1e-3:
+                hstem = _fixed_horizontal_stem(baked, work_adv)
+                baked, _, lsb = heighten_ttglyph(
+                    baked,
+                    sy,
+                    advance=work_adv,
+                    stem=hstem,
+                    center_y=icy,
+                )
+                if hstem is None and sy > 1.0:
+                    baked = _ensure_cape_expand_winding(baked)
+                    baked, _, lsb = bolden_ttglyph(baked, 1.0 / sy, advance=work_adv)
     except Exception as exc:
-        print(f"  [!] geometric Width-cap failed: {exc}", file=sys.stderr)
+        print(f"  [!] stretch-to-Flop-average failed: {exc}", file=sys.stderr)
         try:
             baked.recalcBounds(None)
             return baked, int(advance), int(baked.xMin)
         except Exception:
             return baked, int(advance), 0
+
     try:
-        out.recalcBounds(None)
-        lsb = int(out.xMin)
+        baked.recalcBounds(None)
+        lsb = int(baked.xMin)
     except Exception:
         pass
-    return out, int(advance if advance > 0 else target_upem), lsb
-
-
-def cape_cap_to_max_height(
-    glyph: TTGlyph,
-    advance: int,
-    *,
-    max_height: float,
-    target_upem: int,
-    glyph_set: Dict[str, TTGlyph],
-) -> Tuple[TTGlyph, int, int]:
-    """Geometrically Y-condense if ink taller than ``max_height`` (stems scale too)."""
-    h = _glyph_ink_height(glyph)
-    if h <= max_height + 1e-6:
-        try:
-            glyph.recalcBounds(None)
-            lsb = int(glyph.xMin)
-        except Exception:
-            lsb = 0
-        return glyph, int(advance), lsb
-    factor = float(max_height) / h
-    baked, adv0, _ = _bake_simple(glyph, int(advance), glyph_set)
-    _icx, icy = ideographic_center(target_upem)
-    try:
-        out, _adv, lsb = heighten_ttglyph(
-            baked,
-            factor,
-            advance=float(adv0 if adv0 > 0 else target_upem),
-            stem=0.0,
-            center_y=icy,
-        )
-    except Exception as exc:
-        print(f"  [!] geometric Height-cap failed: {exc}", file=sys.stderr)
-        try:
-            baked.recalcBounds(None)
-            return baked, int(advance), int(baked.xMin)
-        except Exception:
-            return baked, int(advance), 0
-    try:
-        out.recalcBounds(None)
-        lsb = int(out.xMin)
-    except Exception:
-        pass
-    return out, int(advance if advance > 0 else target_upem), lsb
-
-
-def geometric_cap_to_fasmart(
-    glyph: TTGlyph,
-    advance: int,
-    *,
-    max_width: float,
-    max_height: float,
-    target_upem: int,
-) -> Tuple[TTGlyph, int, int]:
-    """X/Y geometric condense to Fasmart ふ/メ caps; stroke scales with the squish."""
-    tmp_set: Dict[str, TTGlyph] = {".tmp": glyph}
-    g, adv, lsb = cape_cap_to_max_width(
-        glyph,
-        advance,
-        max_width=max_width,
-        target_upem=target_upem,
-        glyph_set=tmp_set,
-    )
-    tmp_set[".tmp"] = g
-    return cape_cap_to_max_height(
-        g,
-        adv,
-        max_height=max_height,
-        target_upem=target_upem,
-        glyph_set=tmp_set,
-    )
+    return baked, int(advance if advance > 0 else target_upem), lsb
 
 
 def _bake_simple(
@@ -1067,7 +998,9 @@ def replace_halfwidth_r90(
         target_upem=target_upem,
         glyphs=glyphs,
         metrics=metrics,
-        pivot=pivot if pivot is not None else halfwidth_center(target_upem, size_factor),
+        pivot=(
+            pivot if pivot is not None else halfwidth_center(target_upem, size_factor)
+        ),
         modes=YI_ORIENTATION_MODES,
     )
 
@@ -1325,9 +1258,7 @@ def _css_cps_for_kana_face(
     return sorted(cps)
 
 
-def write_css(
-    out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]
-) -> None:
+def write_css(out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]) -> None:
     """Write edenia-kana.css: ``h`` pigeonholes then the base face."""
     css_path = os.path.join(out_dir, CSS_KANA)
     mark_cps: set[int] = set()
@@ -1426,9 +1357,7 @@ def _add_kana_slices(
 ) -> None:
     """Bake combining slices + overlays for bases present in ``glyphs``."""
     full_pairs = [
-        (f, s)
-        for f, s in zip(full_bases, small_bases)
-        if f in glyphs and s in glyphs
+        (f, s) for f, s in zip(full_bases, small_bases) if f in glyphs and s in glyphs
     ]
     full = [f for f, _s in full_pairs]
     small = [s for _f, s in full_pairs]
@@ -1659,14 +1588,10 @@ def _save_kana_face(
         full_forms: List[str] = []
         for b in full_bases:
             if b in glyphs:
-                full_forms.extend(
-                    orientation_form_names(b, modes=YI_ORIENTATION_MODES)
-                )
+                full_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
         for b in small_bases:
             if b in glyphs:
-                full_forms.extend(
-                    orientation_form_names(b, modes=YI_ORIENTATION_MODES)
-                )
+                full_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
         if full_forms:
             print("  Compiling GSUB (FE00 overlay + FE08–F slice)...", flush=True)
             install_slice_gsub(
@@ -1678,14 +1603,10 @@ def _save_kana_face(
         hw_forms: List[str] = []
         for b in hw_full_bases:
             if b in glyphs:
-                hw_forms.extend(
-                    orientation_form_names(b, modes=YI_ORIENTATION_MODES)
-                )
+                hw_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
         for b in hw_small_bases:
             if b in glyphs:
-                hw_forms.extend(
-                    orientation_form_names(b, modes=YI_ORIENTATION_MODES)
-                )
+                hw_forms.extend(orientation_form_names(b, modes=YI_ORIENTATION_MODES))
         if hw_forms:
             print("  Compiling GSUB (halfwidth FE00/FE08–F slice)...", flush=True)
             install_slice_gsub(
@@ -1741,16 +1662,14 @@ def build_pankana_font(
     if limit is not None:
         source_cps = source_cps[: max(0, limit)]
 
-    flop_path = resolve_flop_path(in_dir)
-    fasmart_paths = resolve_fasmart_family_paths(in_dir)
+    flop_paths = resolve_flop_family_paths(in_dir)
     mkana_path = resolve_mkana_path(in_dir)
     genseki_path = resolve_genseki_path(in_dir)
     lxgw_paths = resolve_lxgw_family_paths(in_dir)
     print(
-        "  fasmart: " + ", ".join(os.path.basename(p) for p in fasmart_paths),
+        "  Flop: " + ", ".join(os.path.basename(p) for p in flop_paths),
         flush=True,
     )
-    print(f"  Flop: {flop_path}", flush=True)
     print(f"  mkanaplus: {mkana_path}", flush=True)
     print(f"  genseki: {genseki_path}", flush=True)
     print(
@@ -1758,16 +1677,17 @@ def build_pankana_font(
         flush=True,
     )
 
-    fasmart = [SourceFont(path) for path in fasmart_paths]
-    flop = SourceFont(flop_path)
+    flop = [SourceFont(path) for path in flop_paths]
     mkana = SourceFont(mkana_path)
     genseki = SourceFont(genseki_path)
     lxgw = [SourceFont(path) for path in lxgw_paths]
-    fasmart_path_set = {os.path.normcase(os.path.normpath(p)) for p in fasmart_paths}
-    max_w, max_h = fasmart_size_caps(fasmart[0], target_upem)
+    primary_path_set = {os.path.normcase(os.path.normpath(p)) for p in flop_paths}
+    primary_path_set.add(os.path.normcase(os.path.normpath(mkana_path)))
+    avg_w, avg_h = flop_average_ink_size(flop, target_upem, source_cps)
     print(
-        f"  Size-cap (non-Fasmart): geometric ≤ Fasmart ふ W {max_w:.1f} / "
-        f"メ H {max_h:.1f} (upem {target_upem})",
+        f"  Size-fit (non-Flop/mkana): grow to Flop avg "
+        f"W {avg_w:.1f} / H {avg_h:.1f} if smaller; thin stems to compensate "
+        f"(upem {target_upem})",
         flush=True,
     )
 
@@ -1791,9 +1711,7 @@ def build_pankana_font(
         )
         for logical, src_cp in enumerate(source_cps):
             try:
-                src, gname = claim_source_cp(
-                    src_cp, fasmart, flop, mkana, genseki, lxgw
-                )
+                src, gname = claim_source_cp(src_cp, flop, mkana, genseki, lxgw)
             except KeyError as exc:
                 print(f"  [!] skip L={logical}: {exc}", file=sys.stderr)
                 continue
@@ -1807,13 +1725,14 @@ def build_pankana_font(
                 )
                 continue
             sa_glyph, sa_adv, sa_lsb = copied
-            if os.path.normcase(os.path.normpath(src.path)) not in fasmart_path_set:
-                sa_glyph, sa_adv, sa_lsb = geometric_cap_to_fasmart(
+            if os.path.normcase(os.path.normpath(src.path)) not in primary_path_set:
+                sa_glyph, sa_adv, sa_lsb = stretch_to_flop_average(
                     sa_glyph,
                     sa_adv,
-                    max_width=max_w,
-                    max_height=max_h,
+                    avg_width=avg_w,
+                    avg_height=avg_h,
                     target_upem=target_upem,
+                    glyph_set={".tmp": sa_glyph},
                 )
             base = logical_base_name(logical)
             glyph_order.append(base)
@@ -2139,10 +2058,9 @@ def build_pankana_font(
 
         return built
     finally:
-        flop.close()
         mkana.close()
         genseki.close()
-        for src in fasmart:
+        for src in flop:
             src.close()
         for src in lxgw:
             src.close()

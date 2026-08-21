@@ -18,6 +18,9 @@ from typing import Union
 PathLike = Union[str, os.PathLike]
 
 NO_HINT_HELP = "Skip ttfautohint-py TrueType autohint step"
+HINT_BASE_ONLY_HELP = (
+    "Autohint only base faces (skip niche / slice faces such as h/t/q)"
+)
 
 
 def add_no_hint_argument(parser: argparse.ArgumentParser) -> None:
@@ -27,6 +30,22 @@ def add_no_hint_argument(parser: argparse.ArgumentParser) -> None:
         "--no-hinting",
         action="store_true",
         help=NO_HINT_HELP,
+    )
+
+
+def add_hint_mode_arguments(parser: argparse.ArgumentParser) -> None:
+    """Mutually exclusive ``--no-hint`` / ``--hint-base-only``."""
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--no-hint",
+        "--no-hinting",
+        action="store_true",
+        help=NO_HINT_HELP,
+    )
+    group.add_argument(
+        "--hint-base-only",
+        action="store_true",
+        help=HINT_BASE_ONLY_HELP,
     )
 
 
