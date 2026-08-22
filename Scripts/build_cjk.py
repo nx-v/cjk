@@ -157,11 +157,9 @@ CSS_FAMILY = "edenia cjk"
 # AREA_CEIL_FRAC × mean². Cell overflow uses per-axis shrink for non-sparse.
 AVERAGE_IDEO_INK = 874.0  # square target width/height @ 1000 UPM
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    # Ngulim is already heavy — scale for size; stem restore is automatic.
-    ("NGULIM.ttf", 1.25, 1.0),
+    ("NGULIM.ttf", 1.25, 1.2),
     ("Han-Nom Gothic 1.32.otf", 0.95, 1.1),
-    # YaHei runs light — mild size + extra Weight after scale restore.
-    ("msyh.ttc", 0.95, 1.25),
+    ("msyh.ttc", 0.95, 1.1),
     ("LXGWClearGothic-Regular.ttf", 1.0, 1.0),
     ("LXGWXiHeiMN.ttf", 1.0, 1.0),
     ("LXGWXiHeiCL.ttf", 1.0, 1.0),
