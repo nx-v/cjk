@@ -127,7 +127,7 @@ from edenia_names import (
 )
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
-from shared_hinting import add_hint_mode_arguments, _parse_jobs
+from shared_font_builder import load_ttfont, setup_head_timestamps
 
 # ---------- Directories ----------
 
@@ -357,7 +357,7 @@ class SourceFont:
         base = os.path.basename(path).casefold()
         self.area_cap = base in AREA_CAP_FONTS
         self.constants_only = base in CONSTANTS_ONLY_FONTS
-        self.tt = TTFont(path, fontNumber=0)
+        self.tt = load_ttfont(path, fontNumber=0)
         self.upem = int(self.tt["head"].unitsPerEm)
         self.cmap = font_cmap(self.tt)
         self.glyph_set = self.tt.getGlyphSet()
@@ -1044,6 +1044,7 @@ def build_bucket_font(
             target_upem=target_upem,
         )
 
+    setup_head_timestamps(fb)
     fb.save(out_path)
     from shared_hinting import autohint_ttf
 
@@ -1211,6 +1212,7 @@ def derive_face_from_half(
             glyphs=glyphs,
         )
 
+        setup_head_timestamps(fb)
         fb.save(out_path)
     finally:
         src_tt.close()
@@ -1413,6 +1415,7 @@ def _build_tables_font(
         achVendID="pCJK",
     )
     fb.setupPost()
+    setup_head_timestamps(fb)
     return fb.font
 
 

@@ -95,6 +95,7 @@ from yi_slice import (
 )
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
+from shared_font_builder import setup_head_timestamps
 from shared_hinting import add_jobs_argument, add_no_hint_argument, finish_font_outputs
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -326,6 +327,7 @@ def _save_yi_face(
         )
 
     os.makedirs(out_dir, exist_ok=True)
+    setup_head_timestamps(fb)
     fb.save(out_path)
     return face_id, variant, n_glyphs - 1, sorted(cmap.keys())
 

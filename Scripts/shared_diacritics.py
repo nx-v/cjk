@@ -55,6 +55,7 @@ from fontTools.ttLib.tables._g_l_y_f import (
     GlyphComponent,
 )
 
+from shared_font_builder import load_ttfont
 from shared_half_cells import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
@@ -316,7 +317,7 @@ def combining_mark_codepoints_from_cmap(cmap: Dict[int, str]) -> List[int]:
 
 def combining_mark_codepoints_from_font(font_path: str) -> List[int]:
     """``\\p{M}`` minus variation selectors from a font file's cmap."""
-    tt = TTFont(font_path, fontNumber=0)
+    tt = load_ttfont(font_path, fontNumber=0)
     try:
         cmap: Dict[int, str] = {}
         for table in tt["cmap"].tables:
@@ -572,7 +573,7 @@ def load_dakuten_marks(
     target_upem: int,
 ) -> Tuple[List[int], Dict[int, TTGlyph]]:
     """Load all ``\\p{M}`` marks except variation selectors; native ink size."""
-    tt = TTFont(font_path, fontNumber=0)
+    tt = load_ttfont(font_path, fontNumber=0)
     try:
         cmap: Dict[int, str] = {}
         for table in tt["cmap"].tables:

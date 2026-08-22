@@ -71,6 +71,7 @@ from shared_half_cells import (  # noqa: E402
     make_composite_variant,
 )
 from shared_hinting import autohint_ttf  # noqa: E402
+from shared_font_builder import setup_head_timestamps  # noqa: E402
 from cdn_fonts import dist_rel, format_src_line  # noqa: E402
 
 # One SPUA-marker font: 6400 PUA selectors + 6400*8 rendered D4 variants
@@ -589,6 +590,7 @@ def build_marker_font(
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    setup_head_timestamps(fb)
     fb.save(str(out_path))
     autohint_ttf(str(out_path), enabled=hint)
     if write_woff2:

@@ -2487,9 +2487,12 @@ def _save_font(
 ) -> str:
     from shared_hinting import autohint_ttf
 
+    from shared_font_builder import setup_head_timestamps
+
     os.makedirs(out_dir, exist_ok=True)
     file_stem = stem(family)
     out_path = os.path.join(out_dir, f"{file_stem}.ttf")
+    setup_head_timestamps(fb)
     fb.save(out_path)
     autohint_ttf(out_path, enabled=hint)
     if write_woff2:
