@@ -26,7 +26,7 @@ Half face (``edenia cjk h``)
 ----------------------------
 Half-cell niches are **slices** of already-baked fullwidth outlines.
 ``FE00`` overlays; ``FE08``–``FE0F`` are halves / triangles. CJK D4 stays
-on ``FE01``–``FE07`` / PUA ``E000``–``E007``. Digraphs::
+on ``FE01``–``FE07`` (BMP PUA is edenia kana). Digraphs::
 
     A  FE08  FE00  B  FE09   →  A.top.ov + B.bot
 """
@@ -59,7 +59,6 @@ from cape_weightor import (
 from shared_half_cells import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
-    OV_PUA_CP,
     OV_SELECTOR_CP,
     OV_SELECTOR_NAME,
     SLICE_LABELS,
@@ -1897,11 +1896,11 @@ def d4_liga_map(
     glyphs: Dict[str, TTGlyph],
     vs01_forms: Optional[Sequence[str]] = None,
 ) -> Dict[Tuple[str, ...], str]:
-    """``base + VS01..VS08`` (PUA E000–E007 / FE01–FE07) → orientation form.
+    """``base + vs02..vs08`` (FE01–FE07) → orientation form.
 
-    ``VS01`` (PUA ``U+E000``) is a no-op (``glyph + vs01 → glyph``) on every
-    identity base, every D4 form, and every squish/overlay form in
-    ``vs01_forms``. ``U+FE00`` is overlay, not identity.
+    Glyph names still follow the historical VS01..VS08 scheme (``vs01`` =
+    identity). Identity is the bare character; optional ``vs01`` no-op ligas
+    remain for internal forms. Access is FE* cmap only (not BMP PUA).
     """
     liga: Dict[Tuple[str, ...], str] = {}
     vs01 = vs_glyph_name(TRANSFORM_MODES[0][0])
@@ -1912,14 +1911,14 @@ def d4_liga_map(
         for vs_cp, _r, _fx, _fy, suffix in TRANSFORM_MODES:
             sel = vs_glyph_name(vs_cp)
             if suffix is None:
-                # Identity no-op — consumes PUA VS01 without changing the base.
+                # Identity no-op — consumes vs01 without changing the base.
                 liga[(base, sel)] = base
                 continue
             vname = variant_glyph_name(base, suffix)
             if vname not in glyphs:
                 continue
             liga[(base, sel)] = vname
-    # PUA VS01 no-op on squish / overlay forms.
+    # vs01 no-op on squish / overlay forms.
     for form in vs01_forms or ():
         if form not in glyphs or form in base_set:
             continue
@@ -2058,12 +2057,12 @@ def build_squish_vs_uvs_entries(
     *,
     glyphs: Dict[str, TTGlyph],
 ) -> List[Tuple[int, int, Optional[str]]]:
-    """No cmap-14 UVS for FE00 / FE08–FE0F — access is GSUB liga (or PUA) only.
+    """No cmap-14 UVS for FE00 / FE08–FE0F — access is GSUB liga only.
 
     UVS for slice selectors made browsers map ``base+FE08`` after dropping
     overlay, so digraphs became two full-advance halves instead of
     ``.dk.ov`` + opposing niche. Overlay / slice / digraphs all use
-    ``ccmp``/``rlig``/``liga``; galleries prefer PUA ``E008``…``E010``.
+    ``ccmp``/``rlig``/``liga`` on ``U+FE00`` / ``U+FE08``–``U+FE0F``.
     """
     del base_cp, base_glyph, glyphs
     return []
@@ -2107,8 +2106,6 @@ def prepare_squish_vs_access(
                 metrics=metrics,
                 cmap=cmap,
             )
-        for pua_cp, name in SQUISH_PUA_SLOTS:
-            cmap[pua_cp] = name
     squishable = squishable_forms(cjk_bases)
     add_squish_forms(
         cjk_bases,
@@ -2201,9 +2198,9 @@ def inject_mark_slot_selectors(
     metrics: Dict[str, Tuple[int, int]],
     cmap: Dict[int, str],
     *,
-    pua: bool = True,
+    pua: bool = False,
 ) -> List[str]:
-    """Cmap FE00–FE0F (and PUA E008–E017) as ca/nhay position×mirror VS."""
+    """Cmap FE00–FE0F as ca/nhay position×mirror VS (optional legacy BMP PUA)."""
     names: List[str] = []
     for i, (cp, name, _pos, _mir) in enumerate(MARK_SLOT_VS):
         _ensure_side_selector(

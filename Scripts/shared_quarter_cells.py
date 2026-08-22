@@ -8,7 +8,7 @@ Encoding
 * **Horizontal face** (``qh``): X-axis bands via VS15–16 + VS34–40.
   Label “top”/“bottom” on the horizontal face maps to **left**/**right**
   (r90 CCW: top→left, bottom→right).
-* ``FE00`` (and PUA ``U+E008``) → zero-width ``.ov`` for stacking.
+* ``FE00`` → zero-width ``.ov`` for stacking.
 * GSUB ``ccmp``/``rlig``/``liga`` only — no cmap-14 UVS.
 
 Grid (``q``) — 2×2; L for a corner is the 3/4 that includes that corner
@@ -88,7 +88,6 @@ from shared_half_cells import (
     variant_glyph_name,
     HALF_PLANE_INF_FRAC,
     propagate_d4_niches,
-    OV_PUA_CP,
     OV_SELECTOR_CP,
     OV_SELECTOR_NAME,
 )
@@ -664,7 +663,6 @@ def prepare_quarter_cells(
         glyphs[OV_SELECTOR_NAME] = empty_glyph()
         metrics[OV_SELECTOR_NAME] = (0, 0)
     cmap[OV_SELECTOR_CP] = OV_SELECTOR_NAME
-    cmap[OV_PUA_CP] = OV_SELECTOR_NAME
 
     for slot in slots:
         vs_cp, sel_name, _suf = quarter_slot_parts(slot)

@@ -78,11 +78,12 @@ from shared_half_cells import (
     VS_LAST,
     add_d4_variant_glyphs,
     fit_glyph_to_ideographic_cell,
+    clamp_overflow_axes_to_cell,
     grow_undersize_to_average_ideo,
+    cap_oversize_bbox_area,
     is_yi_cp,
     load_inventory,
     make_standalone_glyph,
-    normalize_axes_to_average_ideo,
     record_glyph,
     uvs_selector_for_mode,
     variant_glyph_name,
@@ -148,16 +149,14 @@ CSS_FAMILY = "edenia cjk"
 # local_scale = target_ink / native_ink; weightor = target_stem / (stem * scale).
 # After import: undersized glyphs grow uniformly to this average (geometric
 # scale → thicker strokes). Overflow is geometric shrink into the ideo box
-# (→ thinner). New Gulim + Microsoft YaHei then stretch/squash X and Y
-# independently so each glyph's ink W and H match this mean (still geometric;
-# no CAPE stem hold). Thresholds vs mean on either axis: <50% leave alone,
-# <75% uniform grow only, else axis-normalize. Radical blocks skip axis
-# stretch. Other sources keep uniform grow.
+# (→ thinner). New Gulim + Microsoft YaHei never grow: bbox area below
+# AREA_FLOOR_FRAC × mean² is left alone; area above AREA_CEIL_FRAC × mean²
+# is scaled down uniformly to that ceiling; cell overflow still fits.
 AVERAGE_IDEO_INK = 874.0  # square target width/height @ 1000 UPM
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("NGULIM.ttf", 1.25, 1.2),
-    ("Han-Nom Gothic 1.32.otf", 0.95, 1.1),
-    ("msyh.ttc", 0.95, 1.1),
+    ("Han-Nom Gothic 1.32.otf", 0.95, 1.05),
+    ("msyh.ttc", 0.95, 1.05),
     ("LXGWClearGothic-Regular.ttf", 1.0, 1.0),
     ("LXGWXiHeiMN.ttf", 1.0, 1.0),
     ("LXGWXiHeiCL.ttf", 1.0, 1.0),
@@ -175,20 +174,10 @@ PRIORITY_FONTS: List[Tuple[str, float, float]] = [
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
 FONT_LOCAL_SCALE: Dict[str, float] = {name: scale for name, scale, _w in PRIORITY_FONTS}
 FONT_WEIGHTOR: Dict[str, float] = {name: w for name, _scale, w in PRIORITY_FONTS}
-# Independent X/Y normalize to AVERAGE_IDEO_INK (stretch and squash).
-# Per-axis ink vs mean (after local_scale / weightor):
-#   < leave (0.50)  → no grow / no axis stretch (leave designed size)
-#   < sparse (0.75) → uniform grow only
-#   else            → independent axis normalize
-# Radical CPs always skip axis stretch (uniform grow unless also < leave).
-AXIS_NORMALIZE_FONTS = frozenset({"ngulim.ttf", "msyh.ttc"})
-AXIS_NORMALIZE_LEAVE_FRAC = 0.8
-AXIS_NORMALIZE_SPARSE_FRAC = 0.9
-
-
-def is_cjk_radical_cp(cp: int) -> bool:
-    """Kangxi / CJK radical blocks — keep designed proportions, no axis stretch."""
-    return (0x2E80 <= cp <= 0x2EFF) or (0x2F00 <= cp <= 0x2FDF)
+# Shrink-only by bbox area vs mean² (no grow). Floor: leave small alone.
+AREA_CAP_FONTS = frozenset({"ngulim.ttf", "msyh.ttc"})
+AREA_FLOOR_FRAC = 0.60
+AREA_CEIL_FRAC = 0.80
 
 
 # ---------- Unicode ranges (inclusive) ----------
@@ -363,7 +352,7 @@ class SourceFont:
         self.path = path
         self.local_scale = float(local_scale)
         self.weightor = float(weightor)
-        self.axis_normalize = os.path.basename(path).casefold() in AXIS_NORMALIZE_FONTS
+        self.area_cap = os.path.basename(path).casefold() in AREA_CAP_FONTS
         self.tt = TTFont(path, fontNumber=0)
         self.upem = int(self.tt["head"].unitsPerEm)
         self.cmap = font_cmap(self.tt)
@@ -382,8 +371,6 @@ class SourceFont:
         target_upem: int,
         flip_x: bool = False,
         flip_y: bool = False,
-        *,
-        codepoint: Optional[int] = None,
     ) -> Optional[Tuple[TTGlyph, int, int]]:
         """Decompose + UPM scale + optional local scale / weightor / mirrors.
 
@@ -392,10 +379,10 @@ class SourceFont:
         ``weightor`` then boldens/lightens via CAPE Weightor Weight mode only
         (bounds preserved). Width-mode CAPE is not used for CJK niches.
         Mirrors also flip about that same contour center.
-        New Gulim / Microsoft YaHei then stretch or squash X and Y independently
-        so ink width and height match the average ideograph — except radical
-        CPs and few-stroke glyphs (either axis sparse), which use uniform grow
-        only. Overflow then shrinks geometrically into the padded cell.
+        Undersized glyphs grow uniformly until W or H hits the average
+        ideograph ink. New Gulim / YaHei never grow: bbox area below 60% of
+        mean² is unchanged; area above 80% of mean² is scaled down to that
+        ceiling. Overflow then shrinks geometrically into the padded cell.
         """
         if is_empty_outline(self.tt, src_name):
             return None
@@ -480,43 +467,17 @@ class SourceFont:
 
         cell_adv = advance if advance > 0 else target_upem
         avg = AVERAGE_IDEO_INK * (float(target_upem) / float(DEFAULT_UPEM))
-        if self.axis_normalize:
-            try:
-                glyph.recalcBounds(None)
-                ink_w = float(glyph.xMax) - float(glyph.xMin)
-                ink_h = float(glyph.yMax) - float(glyph.yMin)
-            except Exception:
-                ink_w = ink_h = 0.0
-            leave = AXIS_NORMALIZE_LEAVE_FRAC
-            sparse = AXIS_NORMALIZE_SPARSE_FRAC
-            tiny = ink_w < avg * leave or ink_h < avg * leave
-            radical = codepoint is not None and is_cjk_radical_cp(codepoint)
-            # <50% either axis: leave designed size (cell-clamp overflow only).
-            # <75%: uniform grow. Else: independent axis normalize.
-            if (
-                not tiny
-                and not radical
-                and (ink_w >= avg * sparse and ink_h >= avg * sparse)
-            ):
-                glyph, advance, lsb = normalize_axes_to_average_ideo(
-                    glyph,
-                    cell_adv,
-                    target_upem,
-                    avg_width=avg,
-                    avg_height=avg,
-                    sparse_frac=sparse,
-                )
-                cell_adv = advance if advance > 0 else target_upem
-            if not tiny:
-                glyph, advance, lsb = grow_undersize_to_average_ideo(
-                    glyph,
-                    cell_adv,
-                    target_upem,
-                    avg_width=avg,
-                    avg_height=avg,
-                    align_y="source",
-                )
-                cell_adv = advance if advance > 0 else target_upem
+        if self.area_cap:
+            # Shrink-only by bbox area vs mean²; never grow small glyphs.
+            glyph, advance, lsb = cap_oversize_bbox_area(
+                glyph,
+                cell_adv,
+                target_upem,
+                avg_width=avg,
+                avg_height=avg,
+                area_floor=AREA_FLOOR_FRAC,
+                area_ceil=AREA_CEIL_FRAC,
+            )
         else:
             glyph, advance, lsb = grow_undersize_to_average_ideo(
                 glyph,
@@ -526,13 +487,22 @@ class SourceFont:
                 avg_height=avg,
                 align_y="source",
             )
-            cell_adv = advance if advance > 0 else target_upem
-        glyph, advance, lsb = fit_glyph_to_ideographic_cell(
-            glyph,
-            cell_adv,
-            target_upem,
-            align_y="source",
-        )
+        cell_adv = advance if advance > 0 else target_upem
+        if self.area_cap:
+            # Per-axis shrink only when that axis overflows the cell.
+            glyph, advance, lsb = clamp_overflow_axes_to_cell(
+                glyph,
+                cell_adv,
+                target_upem,
+                align_y="source",
+            )
+        else:
+            glyph, advance, lsb = fit_glyph_to_ideographic_cell(
+                glyph,
+                cell_adv,
+                target_upem,
+                align_y="source",
+            )
         return glyph, advance, lsb
 
 
@@ -657,7 +627,6 @@ def _import_one_bucket_entry(
             target_upem,
             flip_x=False,
             flip_y=False,
-            codepoint=src_cp,
         )
         if copied is None:
             return None
@@ -753,10 +722,10 @@ def _import_bucket_glyphs(
             glyph_order.append(vname)
             glyphs[vname] = empty_glyph()
             metrics[vname] = (0, 0)
+        # FE01–FE07 only — BMP PUA E000–E007 is edenia kana.
         uvs = uvs_selector_for_mode(mode_i)
         if uvs is not None:
             cmap[uvs] = vname
-        cmap[vs_cp] = vname
     if OV_SELECTOR_NAME not in glyphs:
         glyph_order.append(OV_SELECTOR_NAME)
         glyphs[OV_SELECTOR_NAME] = empty_glyph()
@@ -1322,17 +1291,18 @@ def _filter_face_cmap(
         "qh": set(range(0xE0111, 0xE0118)),
         "q": set(range(0xE0118, 0xE0120)),
     }.get(variant, set())
-    fe_ok = {OV_SELECTOR_CP, 0xE008}
+    # FE* + VS17+ supplement only — no BMP PUA (kana owns U+E000–F8FF).
+    fe_ok = {OV_SELECTOR_CP}
     if variant in ("h", "t", "q", "qv", "qh"):
-        fe_ok |= set(range(0xFE01, 0xFE08)) | set(range(VS_BASE, VS_LAST + 1))
+        fe_ok |= set(range(0xFE01, 0xFE08))
     if variant in ("h", "q"):
-        fe_ok |= set(range(0xFE08, 0xFE10)) | set(range(0xE009, 0xE011))
+        fe_ok |= set(range(0xFE08, 0xFE10))
     elif variant == "qv":
         fe_ok |= {0xFE08, 0xFE09}
     elif variant == "qh":
         fe_ok |= {0xFE0A, 0xFE0B}
     if variant == "":
-        fe_ok |= set(range(0xFE00, 0xFE10)) | set(range(0xE008, 0xE018))
+        fe_ok |= set(range(0xFE00, 0xFE10))
         fe_ok |= set(MARK_CPS)
     out: Dict[int, str] = {}
     for cp, name in cmap.items():
@@ -2220,11 +2190,11 @@ def build_all(
             notes.append(f"local_scale {scale:g}")
         if abs(weightor - 1.0) > 1e-9:
             notes.append(f"weightor {weightor:g}")
-        if os.path.basename(path).casefold() in AXIS_NORMALIZE_FONTS:
+        if os.path.basename(path).casefold() in AREA_CAP_FONTS:
             notes.append(
-                f"axis-normalize mean W×H "
-                f"(leave <{AXIS_NORMALIZE_LEAVE_FRAC:g}×; "
-                f"uniform <{AXIS_NORMALIZE_SPARSE_FRAC:g}×; skip radicals)"
+                f"area-cap shrink >{AREA_CEIL_FRAC:g}× mean² "
+                f"(floor {AREA_FLOOR_FRAC:g}× unchanged; no grow; "
+                f"per-axis cell overflow)"
             )
         if notes:
             print(f"  {', '.join(notes)}: {os.path.basename(path)}")

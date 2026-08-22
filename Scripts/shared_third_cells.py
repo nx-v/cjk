@@ -5,7 +5,7 @@ Encoding
 * Standard CJK (etc.) code points are used as-is.
 * ``VS17``–``VS26`` (``U+E0100``–``U+E0109``) select which third niche the
   preceding base occupies.
-* ``FE00`` (and PUA ``U+E008``) makes the preceding form zero-width
+* ``FE00`` makes the preceding form zero-width
   (``.ov``) for trigraph / digraph stacking — same as half-cell overlays.
 * Access is GSUB ``ccmp``/``rlig``/``liga`` only — no cmap-14 UVS.
 
@@ -55,7 +55,6 @@ from shared_half_cells import (
     variant_glyph_name,
     HALF_PLANE_INF_FRAC,
     propagate_d4_niches,
-    OV_PUA_CP,
     OV_SELECTOR_CP,
     OV_SELECTOR_NAME,
 )
@@ -420,13 +419,12 @@ def prepare_third_cells(
 
     Returns the form list that accepts third-cell VS (identity + D4).
     """
-    # FE00 (+ PUA mirror) zero-width overlay selector.
+    # FE00 zero-width overlay selector (BMP PUA is edenia kana).
     if OV_SELECTOR_NAME not in glyphs:
         glyph_order.append(OV_SELECTOR_NAME)
         glyphs[OV_SELECTOR_NAME] = empty_glyph()
         metrics[OV_SELECTOR_NAME] = (0, 0)
     cmap[OV_SELECTOR_CP] = OV_SELECTOR_NAME
-    cmap[OV_PUA_CP] = OV_SELECTOR_NAME
 
     for vs_cp, sel_name, _suf, _axis, _b0, _b1 in THIRD_VS_SLOTS:
         if sel_name not in glyphs:

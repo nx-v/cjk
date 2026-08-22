@@ -12,8 +12,8 @@ Encoding
   ``STANDALONE_HORIZONTAL_WEIGHT`` (125%) to recover thickness lost in the
   anisotropic stretch, then uniformly downscaled to ``STANDALONE_CELL_SCALE``
   (~98%) about the ideographic center.
-* Orientations: D4 square symmetries on **VS01..VS08** (``U+E000``..``U+E007``,
-  UVS ``U+FE01``..``U+FE07``; identity is the bare character), including ``r90my``. Pipeline for the two
+* Orientations: D4 square symmetries on **UVS ``U+FE01``..``U+FE07``**
+  (identity is the bare character; BMP PUA ``U+E000``.. is edenia kana), including ``r90my``. Pipeline for the two
   outline sources: **transform / reorient first**, then stem-normalize
   (``id`` = identity; ``r90`` = rotate from the un-normalized upright).
   Stem normalize probes targets pseudorandomly, then binary-searches toward
@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import math
 import os
 import random
 from dataclasses import dataclass
@@ -113,7 +114,8 @@ HALF_SUFFIXES: Tuple[str, ...] = ("top", "bot", "left", "right")
 TRI_SUFFIXES: Tuple[str, ...] = ("tl", "br", "tr", "bl")
 SLICE_SUFFIXES: Tuple[str, ...] = HALF_SUFFIXES + TRI_SUFFIXES
 # PUA mirrors of overlay + eight slices (Blink drops unlisted VS before GSUB).
-# E000–E007 remain D4; E008 = overlay; E009–E010 = FE08–FE0F.
+# Legacy BMP PUA mirrors (optional ``pua=True`` only). Kana owns U+E000–F8FF.
+# E008 = overlay; E009–E010 = FE08–FE0F.
 SLICE_PUA_SLOTS: Tuple[Tuple[int, str], ...] = (
     (OV_PUA_CP, OV_SELECTOR_NAME),
     (0xE009, "vsTop"),
@@ -1427,9 +1429,12 @@ def inject_stack_mark(
     metrics: Dict[str, Tuple[int, int]],
     cmap: Dict[int, str],
     *,
-    pua: bool = True,
+    pua: bool = False,
 ) -> str:
-    """Ensure FE00 overlay mark exists (zero-width) and is cmap'd."""
+    """Ensure FE00 overlay mark exists (zero-width) and is cmap'd.
+
+    ``pua=True`` also maps BMP ``U+E008`` (legacy); leave off so kana owns PUA.
+    """
     sname = stack_glyph_name()
     if sname not in glyphs:
         glyph_order.append(sname)
@@ -1450,7 +1455,7 @@ def inject_slice_selectors(
     pua: bool = False,
     slots: Sequence[SliceSlot] = SLICE_VS_SLOTS,
 ) -> List[str]:
-    """Cmap FE00 overlay + slice VS (and optional PUA mirrors)."""
+    """Cmap FE00 overlay + FE08–FE0F slice VS (optional legacy BMP PUA mirrors)."""
     names = [inject_stack_mark(glyph_order, glyphs, metrics, cmap, pua=pua)]
     for cp, gname, _suf in slots:
         if gname not in glyphs:
@@ -1529,7 +1534,8 @@ def slice_overlay_liga_map(
     """``base + FE00/FE08–F`` → overlay and/or slice (either order).
 
     Longer sequences (overlay+slice) are included so the caller can sort by
-    length. Optional ``vs01`` (PUA identity) prefixes keep ``base E000 FE08``.
+    length. Optional ``vs01`` prefixes keep legacy ``base + vs01 + FE08``
+    sequences (glyph-name only; BMP PUA is not cmap'd).
     """
     name_of = form_name if form_name is not None else slice_form_name
     vs01 = vs_glyph_name(TRANSFORM_MODES[0][0]) if include_vs01 else None
@@ -2932,6 +2938,86 @@ def fit_glyph_to_ideographic_cell(
     return out, int(target_upem), lsb
 
 
+def clamp_overflow_axes_to_cell(
+    glyph: TTGlyph,
+    advance: int,
+    target_upem: int,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    pad: float = STANDALONE_VERT_PAD,
+    align_y: str = "source",
+) -> GlyphMetrics:
+    """Shrink only the axis that overflows the padded ideo cell.
+
+    ``sx = min(1, cell_w / ink_w)``, ``sy = min(1, cell_h / ink_h)`` about the
+    ink center — never grow. Wider-than-cell ink is squeezed on X only;
+    taller-than-cell ink on Y only. Then center X in the cell; ``align_y``
+    matches ``fit_glyph_to_ideographic_cell``.
+    """
+    bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
+    inset = float(target_upem) * max(pad, 0.0)
+    x0, x1 = inset, float(target_upem) - inset
+    y0, y1 = bottom, top
+    adv = int(advance if advance > 0 else target_upem)
+
+    src = glyph
+    try:
+        if glyph.isComposite():
+            src, adv, _ = _bake_transformed_glyph(
+                glyph, Transform(), adv, glyph_set=glyph_set
+            )
+    except Exception:
+        pass
+
+    try:
+        src.recalcBounds(None)
+        sx0 = float(src.xMin)
+        sy0 = float(src.yMin)
+        sx1 = float(src.xMax)
+        sy1 = float(src.yMax)
+    except Exception:
+        return src, int(target_upem), int(getattr(src, "xMin", 0) or 0)
+
+    sw = max(sx1 - sx0, 1.0)
+    sh = max(sy1 - sy0, 1.0)
+    tw = max(x1 - x0, 1.0)
+    th = max(y1 - y0, 1.0)
+    sx = min(1.0, tw / sw)
+    sy = min(1.0, th / sh)
+    src_cx = (sx0 + sx1) / 2.0
+    src_cy = (sy0 + sy1) / 2.0
+    dst_cx = (x0 + x1) / 2.0
+    if align_y == "source":
+        dst_cy = src_cy
+    else:
+        dst_cy = (y0 + y1) / 2.0
+    t = Transform(sx, 0, 0, sy, dst_cx - sx * src_cx, dst_cy - sy * src_cy)
+    rec = _recording_from_glyph(src, None)
+    out = apply_transform(rec, t)
+
+    if align_y == "source":
+        try:
+            out.recalcBounds(None)
+            oy0, oy1 = float(out.yMin), float(out.yMax)
+            dy = 0.0
+            if oy0 < y0:
+                dy = y0 - oy0
+            if oy1 + dy > y1:
+                dy = y1 - oy1
+            if abs(dy) > 1e-6:
+                rec2 = _recording_from_glyph(out, None)
+                out = apply_transform(rec2, Transform(1, 0, 0, 1, 0, dy))
+        except Exception:
+            pass
+
+    try:
+        out.recalcBounds(None)
+        lsb = int(out.xMin)
+    except Exception:
+        lsb = 0
+    return out, int(target_upem), lsb
+
+
 def _scale_xy_about_ink_center(glyph: TTGlyph, sx: float, sy: float) -> TTGlyph:
     """Geometric scale about ink mid; axes are independent (stems scale with size)."""
     if abs(sx - 1.0) < 1e-3 and abs(sy - 1.0) < 1e-3:
@@ -3004,6 +3090,73 @@ def grow_undersize_to_average_ideo(
     if s <= 1.0 + 1e-3:
         return src, adv, lsb
 
+    src = _uniform_scale_about_ink_center(src, s)
+    try:
+        src.recalcBounds(None)
+        lsb = int(src.xMin)
+    except Exception:
+        pass
+    return src, adv, lsb
+
+
+def cap_oversize_bbox_area(
+    glyph: TTGlyph,
+    advance: int,
+    target_upem: int,
+    *,
+    avg_width: float,
+    avg_height: float,
+    area_floor: float = 0.60,
+    area_ceil: float = 0.80,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> GlyphMetrics:
+    """Uniform shrink when ink bbox area exceeds ``area_ceil`` × mean area.
+
+    Mean area is ``avg_width * avg_height``. Relative area
+    ``(ink_w * ink_h) / mean_area``:
+
+    * below ``area_floor`` → unchanged (no grow)
+    * between floor and ceil → unchanged
+    * above ``area_ceil`` → isotropic scale down so area equals ``area_ceil``
+      × mean (never scale up)
+
+    Cell overflow is left to ``fit_glyph_to_ideographic_cell``.
+    """
+    adv = int(advance if advance > 0 else target_upem)
+    src = glyph
+    try:
+        if glyph.isComposite():
+            src, adv, _ = _bake_transformed_glyph(
+                glyph, Transform(), adv, glyph_set=glyph_set
+            )
+    except Exception:
+        pass
+
+    try:
+        src.recalcBounds(None)
+        sx0 = float(src.xMin)
+        sy0 = float(src.yMin)
+        sx1 = float(src.xMax)
+        sy1 = float(src.yMax)
+        lsb = int(src.xMin)
+    except Exception:
+        return src, adv, int(getattr(src, "xMin", 0) or 0)
+
+    sw = max(sx1 - sx0, 1.0)
+    sh = max(sy1 - sy0, 1.0)
+    mean_area = max(float(avg_width) * float(avg_height), 1.0)
+    ink_area = sw * sh
+    ratio = ink_area / mean_area
+    floor = max(0.0, float(area_floor))
+    ceil = max(floor, float(area_ceil))
+    if ratio <= ceil + 1e-9:
+        # Below ceil (including under floor): do not grow or shrink for size.
+        return src, adv, lsb
+
+    # Scale so new_area / mean_area == ceil → s² * ratio = ceil.
+    s = math.sqrt(ceil / ratio)
+    if s >= 1.0 - 1e-3:
+        return src, adv, lsb
     src = _uniform_scale_about_ink_center(src, s)
     try:
         src.recalcBounds(None)

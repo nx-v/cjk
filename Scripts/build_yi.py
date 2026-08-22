@@ -118,14 +118,13 @@ def _inject_d4_vs(
     metrics: Dict,
     cmap: Dict[int, str],
 ) -> None:
-    """Cmap PUA E000–E007 + FE01–FE07 for D4 (not overlay / slices)."""
+    """Cmap FE01–FE07 for D4 (not overlay / slices). BMP PUA is edenia kana."""
     for mode_i, (vs_cp, _rot, _fx, _fy, _suffix) in enumerate(YI_ORIENTATION_MODES):
         vname = vs_glyph_name(vs_cp)
         if vname not in glyphs:
             glyph_order.append(vname)
             glyphs[vname] = empty_glyph()
             metrics[vname] = (0, 0)
-        cmap[vs_cp] = vname
         uvs = uvs_selector_for_mode(mode_i)
         if uvs is not None:
             cmap[uvs] = vname
@@ -141,7 +140,7 @@ def _inject_vs(
 ) -> None:
     _inject_d4_vs(glyph_order, glyphs, metrics, cmap)
     if slices:
-        inject_slice_marks(glyph_order, glyphs, metrics, cmap, pua=True)
+        inject_slice_marks(glyph_order, glyphs, metrics, cmap)
 
 
 def install_yi_gsub(
@@ -389,7 +388,7 @@ def _yi_face_task(
             target_upem=m["target_upem"],
             modes=YI_ORIENTATION_MODES,
         )
-        inject_slice_marks(go, gl, mt, cm, pua=True)
+        inject_slice_marks(go, gl, mt, cm)
         base_cps = {m["yi_cps"][n] for n in bases}
         face_uvs = [
             row for row in m["uvs_rows"] if row[0] in base_cps and row[2] in gl
@@ -793,8 +792,8 @@ def build_all(
         print(f"Yi inventory: {inv.count} glyphs from {NUOSU_FILENAME}")
 
     print(
-        "  Orientations: VS01..VS08 / FE01..FE07 "
-        "(bare = identity; FE00 = overlay on h)"
+        "  Orientations: FE01..FE07 "
+        "(bare = identity; FE00 = overlay on h; BMP PUA = kana)"
     )
     print("  Slice (h face): U+FE08–FE0B halves, U+FE0C–FE0F triangles")
     print(
