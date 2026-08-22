@@ -82,6 +82,7 @@ from shared_half_cells import (
     grow_undersize_to_average_ideo,
     cap_oversize_bbox_area,
     compensate_stems_after_geometric_scale,
+    center_glyph_ink_in_advance,
     is_sparse_ideo_axes,
     is_yi_cp,
     load_inventory,
@@ -389,6 +390,7 @@ class SourceFont:
         ls = self.local_scale
         advance_src, lsb_src = self.hmtx[src_name]
         advance = otRound(advance_src * upem_scale)
+        zero_advance_src = advance_src <= 0
 
         try:
             rec = DecomposingRecordingPen(self.glyph_set)
@@ -463,6 +465,8 @@ class SourceFont:
                         f"  [!] weightor failed {os.path.basename(self.path)}:{src_name}: {e}",
                         file=sys.stderr,
                     )
+            # Ext-B / supplemental sources: advance 0 + ink @ origin → huge LSB.
+            glyph, advance, lsb = center_glyph_ink_in_advance(glyph, advance)
             try:
                 glyph.recalcBounds(None)
                 lsb = int(glyph.xMin)
@@ -544,6 +548,8 @@ class SourceFont:
                 target_upem,
                 align_y="source",
             )
+        if zero_advance_src:
+            glyph, advance, lsb = center_glyph_ink_in_advance(glyph, advance)
         return glyph, advance, lsb
 
 

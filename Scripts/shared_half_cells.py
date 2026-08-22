@@ -3112,6 +3112,45 @@ def compensate_stems_after_geometric_scale(
         return glyph, adv, lsb
 
 
+def center_glyph_ink_in_advance(
+    glyph: TTGlyph,
+    advance: int,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> GlyphMetrics:
+    """Translate so ink center X sits at ``advance / 2``.
+
+    Some Ext-B / supplemental sources ship ``hmtx`` advance 0 with outlines
+    centered on the origin (large negative ``lsb``). Pan-CJK cells are full-em;
+    without this step the ink stays shifted left/right in the cell.
+    """
+    adv = int(advance if advance > 0 else DEFAULT_UPEM)
+    src = glyph
+    try:
+        if glyph.isComposite():
+            src, adv, _ = _bake_transformed_glyph(
+                glyph, Transform(), adv, glyph_set=glyph_set
+            )
+    except Exception:
+        pass
+    try:
+        src.recalcBounds(None)
+        x0, x1 = float(src.xMin), float(src.xMax)
+    except Exception:
+        return glyph, adv, int(getattr(glyph, "xMin", 0) or 0)
+    dx = (adv / 2.0) - (x0 + x1) / 2.0
+    if abs(dx) < 0.5:
+        return src, adv, int(src.xMin)
+    rec = _recording_from_glyph(src, None)
+    out = apply_transform(rec, Transform(1, 0, 0, 1, dx, 0))
+    try:
+        out.recalcBounds(None)
+        lsb = int(out.xMin)
+    except Exception:
+        lsb = 0
+    return out, adv, lsb
+
+
 def grow_undersize_to_average_ideo(
     glyph: TTGlyph,
     advance: int,
