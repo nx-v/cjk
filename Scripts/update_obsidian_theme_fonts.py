@@ -222,8 +222,22 @@ _SCRIPT_UNICODE_RANGE = {
 # Combining marks (dakuten) must be in unicode-range or Blink shows tofu.
 _DAKUTEN_UR_CACHE: str | None = None
 _DAKUTEN_UR_FALLBACK = (
-    "U+300-36F, U+483-489, U+591-5C7, U+64B-65F, U+670, U+6D6-6ED, "
-    "U+1AB0-1ACE, U+1DC0-1DFF, U+20D0-20F0, U+FE20-FE2F"
+    "U+300-36F, U+483-488, U+591-5BD, U+5BF, U+5C1-5C2, U+5C4-5C5, U+5C7, U+615, "
+    "U+64B-656, U+658, U+670, U+6D6-6DC, U+6DF-6E4, U+6E7-6E8, U+6EA-6ED, "
+    "U+901-903, U+93C, U+93E, U+941-949, U+94D, U+951-954, U+962-963, "
+    "U+981-983, U+9BC, U+9BE, U+9C1-9C4, U+9C7-9C8, U+9CD, U+9E2-9E3, U+A02, "
+    "U+A3C, U+A3E-A42, U+A47-A48, U+A4B-A4D, U+A70-A71, U+A81-A83, U+ABC, "
+    "U+ABE, U+AC0-AC5, U+AC7-AC9, U+ACD, U+B01-B03, U+B3C, U+B3E-B43, U+B47, "
+    "U+B4D, U+B56, U+B82, U+BBE-BC1, U+BC8, U+BCD, U+BD7, U+C01, U+C03, "
+    "U+C3E-C41, U+C46-C47, U+C4A-C4D, U+C55-C56, U+C82-C83, U+CBE-CBF, "
+    "U+CC1-CC4, U+CC6, U+CCD, U+CD5-CD6, U+D02-D03, U+D3E-D43, U+D46-D48, "
+    "U+D4A-D4D, U+D57, U+E31, U+E34-E3A, U+E47-E4E, U+EB1, U+EB4-EB9, "
+    "U+EBB-EBC, U+EC8-ECD, U+F18-F19, U+F35, U+F37, U+F39, U+F3E-F3F, "
+    "U+F71-F84, U+F86-F87, U+F90-F95, U+F97, U+F99-FAD, U+FB1-FB7, U+FB9, "
+    "U+1AB0-1ACE, U+1DC0-1DFF, U+20D0-20DC, U+20E1, U+20E5-20E9, U+20EC-20F0, "
+    "U+2D7F, U+2DE0-2DFF, U+302A-302F, U+3099-309A, U+A66F, U+A674-A67D, "
+    "U+A69E-A69F, U+FB1E, U+FE20-FE2F, U+1D165-1D169, U+1D16E-1D172, "
+    "U+1D17B-1D182, U+1D185-1D18B, U+1D1AA-1D1AD, U+1E08F"
 )
 
 
@@ -232,7 +246,19 @@ def _dakuten_unicode_range() -> str:
     global _DAKUTEN_UR_CACHE
     if _DAKUTEN_UR_CACHE is not None:
         return _DAKUTEN_UR_CACHE
-    from shared_diacritics import combining_marks_unicode_range_from_font
+    from shared_diacritics import (
+        combining_marks_unicode_range_from_font,
+        combining_marks_unicode_range_from_stack,
+    )
+
+    src_dir = str(SCRIPT_DIR / "src")
+    try:
+        ur = combining_marks_unicode_range_from_stack(src_dir)
+        if ur:
+            _DAKUTEN_UR_CACHE = ur
+            return ur
+    except Exception as exc:
+        print(f"  [!] mark unicode-range from stack ({src_dir}): {exc}")
 
     candidates = (
         DIST_DIR / "yi" / "edenia-yi.woff2",

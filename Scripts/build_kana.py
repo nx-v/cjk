@@ -72,6 +72,7 @@ from kana_diacritics import (
     kana_coord_liga_names,
     kana_d4_form_names,
     kana_mark_center_anchor,
+    kana_representative_mark_points,
 )
 from shared_diacritics import (
     DAKUTEN_SLOT_CYCLE,
@@ -1341,6 +1342,8 @@ def _install_kana_dakuten_layout(
     mark_cps: Sequence[int],
     base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
     target_upem: int,
+    mark_ink_height: Optional[float] = None,
+    mark_contour_points: Optional[List[Tuple[float, float]]] = None,
 ) -> None:
     if not mark_names:
         return
@@ -1358,7 +1361,8 @@ def _install_kana_dakuten_layout(
             glyphs=glyphs,
             glyph_set=glyphs,
             target_upem=target_upem,
-            mark_scale=1.0,
+            mark_ink_height=mark_ink_height,
+            mark_points=mark_contour_points,
         )
     )
     if not face_anchors:
@@ -1410,6 +1414,8 @@ def _save_kana_face(
     base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
     out_dir: str,
     target_upem: int,
+    mark_ink_height: Optional[float],
+    mark_contour_points: Optional[List[Tuple[float, float]]],
     slices: bool,
 ) -> Tuple[str, str, int, List[int]]:
     n_glyphs = len(glyphs)
@@ -1498,6 +1504,8 @@ def _save_kana_face(
         mark_cps=mark_cps,
         base_anchors=base_anchors,
         target_upem=target_upem,
+        mark_ink_height=mark_ink_height,
+        mark_contour_points=mark_contour_points,
     )
 
     os.makedirs(out_dir, exist_ok=True)
@@ -1576,6 +1584,8 @@ def _kana_face_task(
         base_anchors=m["base_anchors"],
         out_dir=m["out_dir"],
         target_upem=m["target_upem"],
+        mark_ink_height=m.get("mark_ink_height"),
+        mark_contour_points=m.get("mark_contour_points"),
         slices=slices,
     )
     return (*meta, os.path.join(m["out_dir"], f"{meta[0]}.ttf"))
@@ -1850,6 +1860,8 @@ def build_pankana_font(
 
         mark_names: List[str] = []
         mark_cps: List[int] = []
+        mark_ink_h: Optional[float] = None
+        mark_contour_pts: Optional[List[Tuple[float, float]]] = None
         base_anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
         try:
             mark_fonts = resolve_dakuten_mark_font_stack(in_dir)
@@ -1861,6 +1873,10 @@ def build_pankana_font(
             mark_cps, mark_glyphs = load_dakuten_marks_from_stack(
                 mark_fonts, target_upem
             )
+            mark_contour_pts = kana_representative_mark_points(mark_glyphs)
+            if mark_contour_pts:
+                ys = [y for _x, y in mark_contour_pts]
+                mark_ink_h = max(ys) - min(ys)
             mark_names = add_dakuten_mark_glyphs(
                 mark_cps,
                 mark_glyphs,
@@ -1875,7 +1891,8 @@ def build_pankana_font(
                 glyphs=glyphs,
                 glyph_set=glyphs,
                 target_upem=target_upem,
-                mark_scale=1.0,
+                mark_ink_height=mark_ink_h,
+                mark_points=mark_contour_pts,
             )
             base_anchors.update(
                 collect_kana_dakuten_anchors(
@@ -1883,7 +1900,8 @@ def build_pankana_font(
                     glyphs=glyphs,
                     glyph_set=glyphs,
                     target_upem=target_upem,
-                    mark_scale=1.0,
+                    mark_ink_height=mark_ink_h,
+                    mark_points=mark_contour_pts,
                 )
             )
             base_anchors.update(
@@ -1892,7 +1910,8 @@ def build_pankana_font(
                     glyphs=glyphs,
                     glyph_set=glyphs,
                     target_upem=target_upem,
-                    mark_scale=1.0,
+                    mark_ink_height=mark_ink_h,
+                    mark_points=mark_contour_pts,
                 )
             )
             base_anchors.update(
@@ -1901,13 +1920,14 @@ def build_pankana_font(
                     glyphs=glyphs,
                     glyph_set=glyphs,
                     target_upem=target_upem,
-                    mark_scale=1.0,
+                    mark_ink_height=mark_ink_h,
+                    mark_points=mark_contour_pts,
                 )
             )
             print(
                 f"  Dakuten: {len(mark_cps)} marks × {len(DAKUTEN_SLOTS)} slots "
-                f"(full-size outside ink after D4; full/small/hw; "
-                f"no mark-scale), "
+                f"(contour ink + dakuten contour gap; full/small/hw; "
+                f"dakuten H≈{mark_ink_h:.0f}), "
                 f"{len(base_anchors)} bases",
                 flush=True,
             )
@@ -1952,6 +1972,8 @@ def build_pankana_font(
                         "mark_names": mark_names,
                         "mark_cps": mark_cps,
                         "base_anchors": base_anchors,
+                        "mark_ink_height": mark_ink_h,
+                        "mark_contour_points": mark_contour_pts,
                         "dakuten_keep": dakuten_keep,
                         "out_dir": out_dir,
                         "target_upem": target_upem,

@@ -6,11 +6,11 @@ marks (macron, overline) are box-fitted, not dropped.
 
 Stack (priority order)::
 
-    mkanaplus → Nexsevka-Regular → JuliaMono-Regular → Constructium
-    → Droid Sans → Arial Unicode MS → Gentium-Regular
+    LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka-Regular → JuliaMono-Regular
+    → Constructium → Droid Sans → Arial Unicode MS → Gentium-Regular
 
-Marks are normalized to a **fixed ink height** (and shrunk to a max
-width if needed), then attach via GPOS
+Marks are copied at **native outline size** (only UPM harmonization when the
+source ``unitsPerEm`` differs). They attach via GPOS
 ``mark`` / ``abvm`` at fixed CJK cell corners. Left / right slots pin the
 matching ink edge flush to the cell side. Top / bottom slots pin the
 mark's near edge to the **outer** face of the ideographic box so the
@@ -69,6 +69,9 @@ from shared_half_cells import (
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_SCRIPTS_DIR)
 
+LXGW_NEO_XIHEI_SCREEN_FULL_FILENAMES: Tuple[str, ...] = (
+    "LXGWNeoXiHeiScreenFull.ttf",
+)
 MKANAPLUS_FILENAMES: Tuple[str, ...] = ("mkanaplus.ttf", "mkanaplus-regular.ttf")
 NEXSEVKA_FILENAME = "Nexsevka-Regular.ttf"
 JULIAMONO_FILENAME = "JuliaMono-Regular.ttf"
@@ -101,7 +104,8 @@ VS_RANGES: Tuple[Tuple[int, int], ...] = (
 # Drop source outlines larger than this fraction of source UPM (either axis).
 MAX_DIACRITIC_FRAC = 0.48
 
-# Uniform ink height after load (fraction of target UPM).
+# Uniform ink height after load (fraction of target UPM) — fallback for slot
+# gap math only; ``load_dakuten_marks`` no longer normalizes outlines to this.
 DAKUTEN_MARK_HEIGHT_FRAC = 0.14
 
 # Full D4: identity + VS02..VS08 (FE01..FE07), including r90my.
@@ -121,7 +125,9 @@ DAKUTEN_SLOTS: Tuple[Tuple[str, Optional[str]], ...] = (
     ("cl", "cl"),
     ("bl", "bl"),
 )
-DAKUTEN_SLOT_LABELS: Tuple[str, ...] = tuple(slot.upper() for slot, _ in DAKUTEN_SLOTS)
+DAKUTEN_SLOT_LABELS: Tuple[str, ...] = tuple[str, ...](
+    slot.upper() for slot, _ in DAKUTEN_SLOTS
+)
 DAKUTEN_SLOT_SUFFIXES = frozenset(suf for _slot, suf in DAKUTEN_SLOTS if suf)
 DAKUTEN_SLOT_CYCLE = "→".join(DAKUTEN_SLOT_LABELS)
 DAKUTEN_SLOT_COUNT = len(DAKUTEN_SLOTS)
@@ -155,11 +161,12 @@ def _paths_for_names(in_dir: str, names: Sequence[str], *extra: str) -> Tuple[st
 def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
     """Return existing mark-source paths in priority order.
 
-    Priority: mkanaplus → Nexsevka → JuliaMono → Constructium →
-    Droid Sans → Arial Unicode MS → Gentium.
+    Priority: LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka → JuliaMono →
+    Constructium → Droid Sans → Arial Unicode MS → Gentium.
     Looks under ``in_dir`` first, then well-known repo locations.
     """
     groups: Tuple[Tuple[str, ...], ...] = (
+        _paths_for_names(in_dir, LXGW_NEO_XIHEI_SCREEN_FULL_FILENAMES),
         _paths_for_names(
             in_dir,
             MKANAPLUS_FILENAMES,
@@ -189,8 +196,8 @@ def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
     if not out:
         raise FileNotFoundError(
             "No shared-diacritic mark source fonts found "
-            "(mkanaplus / Nexsevka / JuliaMono / Constructium / "
-            "Droid Sans / Arial Unicode MS / Gentium; "
+            "(LXGWNeoXiHeiScreenFull / mkanaplus / Nexsevka / JuliaMono / "
+            "Constructium / Droid Sans / Arial Unicode MS / Gentium; "
             f"in_dir={in_dir!r})"
         )
     return out
@@ -325,6 +332,16 @@ def combining_marks_unicode_range_from_font(font_path: str) -> str:
     return unicode_range_css(combining_mark_codepoints_from_font(font_path))
 
 
+def combining_marks_unicode_range_from_stack(
+    in_dir: str,
+    target_upem: int = 1000,
+) -> str:
+    """CSS unicode-range for the full mark-stack inventory (``\\p{M}`` union)."""
+    paths = resolve_dakuten_mark_font_stack(in_dir)
+    order, _glyphs = load_dakuten_marks_from_stack(paths, target_upem)
+    return unicode_range_css(order)
+
+
 def dakuten_count_options_html(indent: str = "      ") -> str:
     """``<option>`` list for mark-count (1..N, labels TR / +CR / …)."""
     lines: List[str] = []
@@ -426,8 +443,8 @@ def make_dakuten_mark_glyph(
 ) -> Optional[TTGlyph]:
     """Scale mark to ``target_height``, shrink to ``max_width``, pin center.
 
-    Wide bars (macron / overline) stay in the inventory instead of being
-    dropped after height-only scale. GPOS uses per-slot corner anchors.
+    Legacy normalizer — ``load_dakuten_marks`` uses ``copy_dakuten_mark_glyph``
+    (native size, UPM scale only) instead.
     """
     bounds = recording_bounds(rec)
     if bounds is None:
@@ -449,6 +466,53 @@ def make_dakuten_mark_glyph(
     except Exception:
         pass
     return glyph
+
+
+def copy_dakuten_mark_glyph(
+    rec: RecordingPen,
+    *,
+    upem_scale: float = 1.0,
+) -> Optional[TTGlyph]:
+    """Copy a mark outline; only optional UPM harmonization, then center at origin."""
+    bounds = recording_bounds(rec)
+    if bounds is None:
+        return None
+    x0, y0, x1, y1 = bounds
+    w, h = x1 - x0, y1 - y0
+    if w <= 0 or h <= 0:
+        return None
+    s = float(upem_scale)
+    cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+    t = Transform(s, 0, 0, s, -s * cx, -s * cy)
+    glyph = apply_transform(rec, t)
+    if glyph.numberOfContours == 0 and not glyph.isComposite():
+        return None
+    try:
+        glyph.recalcBounds(None)
+    except Exception:
+        pass
+    return glyph
+
+
+def dakuten_mark_reference_height(
+    mark_glyphs: Dict[int, TTGlyph],
+    target_upem: int,
+) -> float:
+    """Typical loaded mark ink height (for kana outside-ink slot gaps)."""
+    heights: List[float] = []
+    for cp, glyph in mark_glyphs.items():
+        if cp == CGJ_CP:
+            continue
+        try:
+            glyph.recalcBounds(None)
+            h = float(glyph.yMax) - float(glyph.yMin)
+            if h > 0:
+                heights.append(h)
+        except Exception:
+            pass
+    if heights:
+        return max(heights)
+    return float(target_upem) * DAKUTEN_MARK_HEIGHT_FRAC
 
 
 def mark_corner_anchor(
@@ -507,7 +571,7 @@ def load_dakuten_marks(
     font_path: str,
     target_upem: int,
 ) -> Tuple[List[int], Dict[int, TTGlyph]]:
-    """Load all ``\\p{M}`` marks except variation selectors; fixed ink height."""
+    """Load all ``\\p{M}`` marks except variation selectors; native ink size."""
     tt = TTFont(font_path, fontNumber=0)
     try:
         cmap: Dict[int, str] = {}
@@ -516,9 +580,8 @@ def load_dakuten_marks(
                 cmap.update(table.cmap)
         glyph_set = tt.getGlyphSet()
         src_upem = float(tt["head"].unitsPerEm)
+        upem_scale = float(target_upem) / src_upem if src_upem > 0 else 1.0
         max_ext = src_upem * MAX_DIACRITIC_FRAC
-        target_h = float(target_upem) * DAKUTEN_MARK_HEIGHT_FRAC
-        max_w = float(target_upem) * MAX_DIACRITIC_FRAC
 
         cps: List[int] = []
         glyphs: Dict[int, TTGlyph] = {}
@@ -538,7 +601,7 @@ def load_dakuten_marks(
                 glyph_set[gname].draw(rec)
             except Exception:
                 continue
-            mark = make_dakuten_mark_glyph(rec, target_height=target_h, max_width=max_w)
+            mark = copy_dakuten_mark_glyph(rec, upem_scale=upem_scale)
             if mark is None:
                 continue
             cps.append(cp)
@@ -1056,9 +1119,7 @@ def install_dakuten_gpos(
     glyphs: Dict[str, TTGlyph],
     extra_script_tags: Sequence[str] = (),
     base_chunk: int = 2048,
-    mark_anchor_fn: Optional[
-        Callable[..., Tuple[int, int]]
-    ] = None,
+    mark_anchor_fn: Optional[Callable[..., Tuple[int, int]]] = None,
 ) -> int:
     """Install ``mark``/``abvm`` MarkToBase at the given base slot anchors.
 

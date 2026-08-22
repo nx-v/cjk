@@ -12,17 +12,15 @@ Slots (same GSUB cycle as ``shared_diacritics.DAKUTEN_SLOTS``)::
     TR  CR  BR  TM  BM  TL  CL  BL
     NE  E   SE  N   S   NW  W   SW
 
-Each slot is the support of the outline in that direction, then offset
-outward by a gap plus the mark's half-extent so the mark body does not
-overlap the kana. Centers are then pushed further until neighboring marks
-also clear each other. Mark GPOS pins the mark **center** (glyphs are already
-centered at origin). Marks stay full size on small / halfwidth forms too.
+Each slot is the contour support of the base outline in that direction,
+offset outward by a small gap plus the representative dakuten mark's own
+contour extent along that axis (not bbox / stack max height).
 """
 
 from __future__ import annotations
 
 import math
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from fontTools.misc.roundTools import otRound
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
@@ -30,14 +28,17 @@ from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 from shared_diacritics import (
     DAKUTEN_MARK_HEIGHT_FRAC,
     DAKUTEN_SLOTS,
+    CGJ_CP,
 )
 from shared_half_cells import (
     SLICE_SUFFIXES,
     YI_ORIENTATION_MODES,
+    _bake_transformed_glyph,
     orientation_form_names,
     overlay_glyph_name,
     slice_form_name,
 )
+from fontTools.misc.transform import Transform
 
 # Compass unit vectors for the eight slots (pre-normalized diagonals).
 _INV_SQRT2 = 1.0 / math.sqrt(2.0)
@@ -52,11 +53,20 @@ KANA_SLOT_DIRS: Dict[str, Tuple[float, float]] = {
     "bl": (-_INV_SQRT2, -_INV_SQRT2),
 }
 
-# Air gap between kana ink and the mark body, as a fraction of mark height.
-KANA_MARK_GAP_FRAC = 0.28
-# Minimum center-to-center separation between marks (fraction of mark height)
-# so adjacent slot footprints do not overlap.
-KANA_MARK_SEP_FRAC = 1.08
+# Air gap between kana ink and the nearest mark contour (fraction of dakuten H).
+KANA_MARK_GAP_FRAC = 0.12
+# Minimum center-to-center separation between marks (fraction of dakuten H).
+KANA_MARK_SEP_FRAC = 1.05
+
+# Primary marks for contour-based gap / extent (Japanese voicing).
+_KANA_DAKUTEN_MARK_CPS: Tuple[int, ...] = (
+    0x3099,
+    0x309A,
+    0x309B,
+    0x309C,
+    0xFF9E,
+    0xFF9F,
+)
 
 
 def kana_d4_form_names(bases: Sequence[str]) -> List[str]:
@@ -103,43 +113,83 @@ def kana_mark_center_anchor(
     return 0, 0
 
 
-def _iter_simple_points(glyph: TTGlyph) -> Iterable[Tuple[float, float]]:
+def _mark_contour_points(glyph: TTGlyph) -> List[Tuple[float, float]]:
+    """On- and off-curve coordinates for a baked mark (centered at origin)."""
     try:
-        for x, y in glyph.coordinates:
-            yield float(x), float(y)
+        glyph.recalcBounds(None)
+        coords = glyph.coordinates
+        if coords is None or len(coords) == 0:
+            return []
+        return [(float(x), float(y)) for x, y in coords]
     except Exception:
-        return
+        return []
 
 
-def _iter_ink_points(
+def kana_representative_mark_points(
+    mark_glyphs: Dict[int, TTGlyph],
+) -> List[Tuple[float, float]]:
+    """Contour of a typical voicing mark (3099/309A, …) for slot gap math."""
+    for cp in _KANA_DAKUTEN_MARK_CPS:
+        g = mark_glyphs.get(cp)
+        if g is None:
+            continue
+        pts = _mark_contour_points(g)
+        if len(pts) >= 2:
+            return pts
+    best: List[Tuple[float, float]] = []
+    best_h = 1e9
+    for cp, g in mark_glyphs.items():
+        if cp == CGJ_CP:
+            continue
+        pts = _mark_contour_points(g)
+        if len(pts) < 2:
+            continue
+        ys = [y for _x, y in pts]
+        h = max(ys) - min(ys)
+        if 0 < h < best_h:
+            best_h = h
+            best = pts
+    return best
+
+
+def _contour_ink_points(
     glyph: TTGlyph,
     glyph_set: Dict[str, TTGlyph],
-    *,
-    dx: float = 0.0,
-    dy: float = 0.0,
-    _seen: Optional[set] = None,
-) -> Iterable[Tuple[float, float]]:
-    """On- and off-curve points, composites expanded (translate only)."""
-    seen = _seen if _seen is not None else set()
+) -> List[Tuple[float, float]]:
+    """Outline coordinates only — composites baked with full transforms."""
+    src = glyph
     if glyph.isComposite():
         try:
-            comps = list(glyph.components)
+            src, _, _ = _bake_transformed_glyph(
+                glyph, Transform(), 0, glyph_set=glyph_set
+            )
         except Exception:
-            return
-        for comp in comps:
-            name = getattr(comp, "glyphName", None)
-            if not name or name in seen:
-                continue
-            child = glyph_set.get(name)
-            if child is None:
-                continue
-            seen.add(name)
-            cx = dx + float(getattr(comp, "x", 0) or 0)
-            cy = dy + float(getattr(comp, "y", 0) or 0)
-            yield from _iter_ink_points(child, glyph_set, dx=cx, dy=cy, _seen=seen)
-        return
-    for x, y in _iter_simple_points(glyph):
-        yield x + dx, y + dy
+            return []
+    try:
+        coords = src.coordinates
+        if coords is None or len(coords) == 0:
+            return []
+        return [(float(x), float(y)) for x, y in coords]
+    except Exception:
+        return []
+
+
+def _mark_radius_along(
+    mark_points: Sequence[Tuple[float, float]],
+    ux: float,
+    uy: float,
+) -> float:
+    """Outer contour radius of a centered mark along ``u``."""
+    if not mark_points:
+        return 0.0
+    return max(x * ux + y * uy for x, y in mark_points)
+
+
+def _mark_height(mark_points: Sequence[Tuple[float, float]]) -> float:
+    if not mark_points:
+        return 0.0
+    ys = [y for _x, y in mark_points]
+    return max(ys) - min(ys)
 
 
 def _support_point(
@@ -169,38 +219,33 @@ def kana_slot_anchors(
     *,
     glyph_set: Dict[str, TTGlyph],
     target_upem: int,
+    mark_points: Optional[Sequence[Tuple[float, float]]] = None,
+    mark_ink_height: Optional[float] = None,
     mark_scale: float = 1.0,
 ) -> Optional[Dict[str, Tuple[int, int]]]:
-    """Eight unique coordinates just outside this glyph's ink.
+    """Eight unique coordinates just outside this glyph's ink contours.
 
-    Marks are always full-size (``mark_scale`` reserved for callers that still
-    pass it; kana builds use ``1.0``). Each center is pushed outward until its
-    footprint clears the kana and every previously placed mark.
+    Base support uses baked outline points only (no bbox / advance box).
+    Mark offset uses the representative dakuten **contour** along each slot
+    direction, not a global max mark height from the full stack.
     """
-    try:
-        if glyph.isComposite():
-            glyph.recalcBounds(glyph_set)
-        else:
-            glyph.recalcBounds(None)
-    except Exception:
-        pass
-    points = list(_iter_ink_points(glyph, glyph_set))
+    del mark_scale
+    points = _contour_ink_points(glyph, glyph_set)
     if len(points) < 2:
-        try:
-            x0, y0 = float(glyph.xMin), float(glyph.yMin)
-            x1, y1 = float(glyph.xMax), float(glyph.yMax)
-        except Exception:
-            return None
-        if x1 <= x0 or y1 <= y0:
-            return None
-        points = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+        return None
 
-    mark_h = float(target_upem) * DAKUTEN_MARK_HEIGHT_FRAC * float(mark_scale)
-    half = mark_h * 0.5
+    mpts = list(mark_points) if mark_points else []
+    mark_h = _mark_height(mpts)
+    if mark_h <= 0:
+        mark_h = float(
+            mark_ink_height
+            if mark_ink_height is not None and mark_ink_height > 0
+            else target_upem * DAKUTEN_MARK_HEIGHT_FRAC
+        )
     gap = mark_h * KANA_MARK_GAP_FRAC
     min_sep = mark_h * KANA_MARK_SEP_FRAC
     min_sep_sq = min_sep * min_sep
-    step = max(1.0, mark_h * 0.05)
+    step = max(1.0, mark_h * 0.04)
 
     out: Dict[str, Tuple[int, int]] = {}
     used: set[Tuple[int, int]] = set()
@@ -208,9 +253,8 @@ def kana_slot_anchors(
     for slot, _suf in DAKUTEN_SLOTS:
         ux, uy = KANA_SLOT_DIRS[slot]
         sx, sy = _support_point(points, ux, uy)
-        # Axis-aligned mark box extent along ``u``.
-        extent = half * (abs(ux) + abs(uy))
-        dist = gap + extent
+        mark_r = _mark_radius_along(mpts, ux, uy) if mpts else mark_h * 0.5
+        dist = gap + mark_r
         cx = cy = 0.0
         ax = ay = 0
         for _ in range(512):
@@ -240,6 +284,8 @@ def collect_kana_dakuten_anchors(
     glyphs: Dict[str, TTGlyph],
     glyph_set: Dict[str, TTGlyph],
     target_upem: int,
+    mark_points: Optional[Sequence[Tuple[float, float]]] = None,
+    mark_ink_height: Optional[float] = None,
     mark_scale: float = 1.0,
 ) -> Dict[str, Dict[int, Tuple[int, int]]]:
     """Per-glyph ``{mark_class: (x, y)}`` for every named form that exists."""
@@ -252,6 +298,8 @@ def collect_kana_dakuten_anchors(
             g,
             glyph_set=glyph_set,
             target_upem=target_upem,
+            mark_points=mark_points,
+            mark_ink_height=mark_ink_height,
             mark_scale=mark_scale,
         )
         if not slots:
