@@ -916,6 +916,7 @@ def bolden_ttglyph(
             advance = float(max(glyph.xMax, 0)) + 100.0
         except Exception:
             advance = 1000.0
+    glyph = ensure_cape_expand_winding(glyph)
     layer = layer_from_ttglyph(glyph, advance)
     adv0 = layer.width
     apply_weight(layer, factor, stem=stem)

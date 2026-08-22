@@ -148,13 +148,10 @@ CSS_FAMILY = "edenia cjk"
 #   Width-mode / niche CAPE here (CJK niches are composites; Width is kana).
 
 # Harmony target @ 1000 UPM (median of these sources): ink ≈ 874, stem ≈ 73.
-# local_scale = target_ink / native_ink. After that scale, CAPE Weight
-# ``1/local_scale`` restores stem thickness (grow thins, shrink thickens).
-# weightor is only an *extra* design nudge on top of that restore — do not
-# bake 1/scale into weightor or stems get compensated twice. New Gulim +
-# Microsoft YaHei: if either ink axis is below AREA_FLOOR_FRAC × mean, leave
-# size alone (sparse); otherwise shrink when bbox area exceeds
-# AREA_CEIL_FRAC × mean². Cell overflow uses per-axis shrink for non-sparse.
+# Ngulim (first): area-cap sizing + stem restore after local_scale.
+# Han-Nom Gothic and all lower-priority sources: **only** their per-font
+# ``local_scale`` (uniform resize) and ``weightor`` (CAPE Weight, factor > 1
+# boldens). No grow, fit-to-average, or area-cap pass.
 AVERAGE_IDEO_INK = 874.0  # square target width/height @ 1000 UPM
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("NGULIM.ttf", 1.2, 1.2),
@@ -172,9 +169,11 @@ PRIORITY_FONTS: List[Tuple[str, float, float]] = [
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
 FONT_LOCAL_SCALE: Dict[str, float] = {name: scale for name, scale, _w in PRIORITY_FONTS}
 FONT_WEIGHTOR: Dict[str, float] = {name: w for name, _scale, w in PRIORITY_FONTS}
-# Area-cap fonts: sparse if either axis < floor×mean (unchanged). Else shrink
-# area above ceil×mean². No grow.
-AREA_CAP_FONTS = frozenset({"ngulim.ttf", "msyh.ttc"})
+# Area-cap sizing applies to Ngulim only; other priority fonts are constants-only.
+AREA_CAP_FONTS = frozenset({"ngulim.ttf"})
+CONSTANTS_ONLY_FONTS = frozenset(
+    os.path.basename(name).casefold() for name, _s, _w in PRIORITY_FONTS[1:]
+)
 AREA_FLOOR_FRAC = 0.65
 AREA_CEIL_FRAC = 1.0
 
@@ -351,7 +350,9 @@ class SourceFont:
         self.path = path
         self.local_scale = float(local_scale)
         self.weightor = float(weightor)
-        self.area_cap = os.path.basename(path).casefold() in AREA_CAP_FONTS
+        base = os.path.basename(path).casefold()
+        self.area_cap = base in AREA_CAP_FONTS
+        self.constants_only = base in CONSTANTS_ONLY_FONTS
         self.tt = TTFont(path, fontNumber=0)
         self.upem = int(self.tt["head"].unitsPerEm)
         self.cmap = font_cmap(self.tt)
@@ -373,15 +374,13 @@ class SourceFont:
     ) -> Optional[Tuple[TTGlyph, int, int]]:
         """Decompose + UPM scale + optional local scale / weightor / mirrors.
 
-        ``local_scale`` (per source font) scales outlines about the contour
-        bounding-box center; advance width stays the UPM-scaled source advance.
-        ``weightor`` then boldens/lightens via CAPE Weightor Weight mode only
-        (bounds preserved). Width-mode CAPE is not used for CJK niches.
-        Mirrors also flip about that same contour center.
-        Undersized glyphs grow uniformly until W or H hits the average
-        ideograph ink. New Gulim / YaHei never grow: bbox area below 60% of
-        mean² is unchanged; area above 80% of mean² is scaled down to that
-        ceiling. Overflow then shrinks geometrically into the padded cell.
+        ``local_scale`` scales outlines about the contour bbox center; advance
+        stays the UPM-scaled source advance. ``weightor`` boldens/lightens via
+        CAPE Weight (bounds preserved).
+
+        Ngulim: stem restore after ``local_scale``, then area-cap + cell clamp.
+        Han-Nom Gothic and lower priority fonts: only ``local_scale`` +
+        ``weightor`` — no grow, fit-to-average, or area-cap.
         """
         if is_empty_outline(self.tt, src_name):
             return None
@@ -450,6 +449,26 @@ class SourceFont:
         # centered on x=0 (large negative LSB). Pan-CJK cells are full-em.
         if advance <= 0:
             advance = target_upem
+
+        if self.constants_only:
+            if abs(self.weightor - 1.0) > 1e-9:
+                try:
+                    glyph, advance, lsb = bolden_ttglyph(
+                        glyph, self.weightor, advance=float(advance)
+                    )
+                    if advance <= 0:
+                        advance = target_upem
+                except Exception as e:
+                    print(
+                        f"  [!] weightor failed {os.path.basename(self.path)}:{src_name}: {e}",
+                        file=sys.stderr,
+                    )
+            try:
+                glyph.recalcBounds(None)
+                lsb = int(glyph.xMin)
+            except Exception:
+                lsb = 0
+            return glyph, advance, lsb
 
         # Stem restore for local_scale (thin if grown, thicken if shrunk).
         # weightor below is only an extra design nudge — not 1/scale again.
@@ -2218,6 +2237,8 @@ def build_all(
                 f"no area change; shrink area >{AREA_CEIL_FRAC:g}× mean²; "
                 f"cell clamp (uniform if sparse, else per-axis)"
             )
+        elif os.path.basename(path).casefold() in CONSTANTS_ONLY_FONTS:
+            notes.append("constants-only (local_scale + weightor)")
         if notes:
             print(f"  {', '.join(notes)}: {os.path.basename(path)}")
     fmt_note = (
