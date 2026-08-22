@@ -7,7 +7,7 @@ Encoding
 --------
 BMP PUA ``U+E000``..``U+F8FF`` (full/small, 6400 CPs)::
 
-    i        = L * 8 + o          # L = 0..399, o = 0..7 (D4_MODES order)
+    i        = L * 8 + o          # L = 0..219, o = 0..7 (D4_MODES order)
     full[i]  = 0xE000 + 2 * i     # even — full-size oriented form
     small[i] = 0xE000 + 2 * i + 1 # odd  — small: ideo-scale + Weight once, D4 @ ideo
 
@@ -19,13 +19,50 @@ Halfwidth companions (same ``i``) in Supplementary PUA-A::
 CAPE Width ``0.5`` holds the pre-squeeze stem thicknesses (match full-width
 kana). Combining slices use the half-em cell (FE08–FE0F) plus FE00 overlay.
 
-Initial fill: hiragana rows then length/gemination, then katakana rows
-then length/gemination — row-major into ``L``. Sources: FlopDesignFONT,
-then mkanaplus (PUA/archaic + overrides), then GenSeki Hentaigana, then
-LXGW (Clear Gothic / XiHei). Glyphs from sources other than Flop / mkana
-that are smaller than the average Flop kana ink size are stretched up on
-X and/or Y to that average; strokes are thinned to compensate (CAPE restores
-pre-stretch stem weight). Axes already at or above the average are left as-is.
+Chart (18 consonant rows × 6 vowels, then trailing marks)
+---------------------------------------------------------
+Row-major into logical ``L`` (hiragana block, then katakana block). Each cell
+holds one **source** code point (Flop / mkanaplus PUA / GenSeki / LXGW); the
+built face maps it to PUA ``full`` / ``small`` (and halfwidth companions).
+
+Columns (``VOWELS``)::  a · i · u · e · o · ə
+
+Rows (``CONSONANTS`` — same order in ``HIRAGANA_ROWS`` and ``KATAKANA_ROWS``)::
+
+     0  ∅     vowel-only (あア …)
+     1  k
+     2  ng
+     3  t
+     4  ts
+     5  ch
+     6  sh
+     7  s
+     8  m
+     9  n
+    10  h
+    11  y
+    12  l
+    13  r
+    14  w
+    15  f
+    16  p
+    17  ny
+
+Logical indices::
+
+    L 0..107     hiragana 18×6
+    L 108..109   hiragana length · gemination
+    L 110..217   katakana 18×6
+    L 218..219   katakana length · gemination
+
+(220 logical cells total; ``i = L * 8 + o`` with ``L = 0..219``, ``o = 0..7``.)
+
+Source priority per cell: FlopDesignFONT, then mkanaplus (PUA/archaic +
+overrides), then GenSeki Hentaigana, then LXGW (Clear Gothic / XiHei). Glyphs
+from sources other than Flop / mkana that are smaller than the average Flop kana
+ink size are stretched up on X and/or Y to that average; strokes are thinned to
+compensate (CAPE restores pre-stretch stem weight). Axes already at or above the
+average are left as-is.
 
 Trailing marks (all D4)::
 
@@ -201,10 +238,11 @@ CONSONANTS: Tuple[str, ...] = (
     "w",
     "f",
     "p",
+    "ny",
 )
 VOWELS: Tuple[str, ...] = ("a", "i", "u", "e", "o", "ə")
 
-# 17×6 hiragana, then 7×6 katakana (row-major). Values = source CPs.
+# 18×6 hiragana, then 18×6 katakana (row-major). Values = source CPs.
 HIRAGANA_ROWS: Tuple[Tuple[int, ...], ...] = (
     (0x03042, 0x03044, 0x03046, 0x03048, 0x0304A, 0x1B015),  # ∅
     (0x0304B, 0x0304D, 0x0304F, 0x03051, 0x03053, 0x1B02B),  # k
@@ -223,6 +261,7 @@ HIRAGANA_ROWS: Tuple[Tuple[int, ...], ...] = (
     (0x0308F, 0x03090, 0x1B11F, 0x03091, 0x03092, 0x1B10C),  # w
     (0x1B0A6, 0x1B0AB, 0x03075, 0x1B0B8, 0x1B0BF, 0x0ECC1),  # f
     (0x0E030, 0x0E031, 0x0E032, 0x0E02A, 0x0E034, 0x1B0AF),  # p
+    (0x1B081, 0x1B08A, 0x1B099, 0x1B094, 0x1B09C, 0x1B08C),  # ny
 )
 
 KATAKANA_ROWS: Tuple[Tuple[int, ...], ...] = (
@@ -239,10 +278,11 @@ KATAKANA_ROWS: Tuple[Tuple[int, ...], ...] = (
     (0x030CF, 0x030D2, 0x0EE45, 0x030D8, 0x030DB, 0x0310F),  # h
     (0x030E4, 0x1B120, 0x030E6, 0x1B121, 0x030E8, 0x0EDCF),  # y
     (0x0EDC3, 0x0EDC8, 0x0EDC0, 0x0EDC5, 0x0EDC1, 0x0310C),  # l
-    (0x030E9, 0x030EA, 0x030EB, 0x030EC, 0x030ED, 0x0EDD7),  # r
+    (0x030E9, 0x030EA, 0x030EB, 0x030EC, 0x030ED, 0x0EDD1),  # r
     (0x030EF, 0x030F0, 0x1B122, 0x030F1, 0x030F2, 0x03129),  # w
     (0x0EDCC, 0x0EDCD, 0x030D5, 0x0EDD8, 0x0EDD4, 0x03108),  # f
-    (0x0EDCB, 0x0EDCA, 0x0EE69, 0x0EDD0, 0x0EDC4, 0x03105),  # p
+    (0x0EDCB, 0x0EDC9, 0x0EE69, 0x0EDD0, 0x0EDC4, 0x03105),  # p
+    (0x0EE89, 0x0EBF0, 0x0EE8A, 0x0EE8B, 0x0EE8C, 0x0312C),  # ny
 )
 
 # After each script's last phonetic cell: length, then gemination.
@@ -278,6 +318,34 @@ def chart_source_cps() -> List[int]:
         out.extend(row)
     out.extend(cp for _lab, cp in KATAKANA_TRAILING_CPS)
     return out
+
+
+def validate_chart_tables() -> None:
+    """Raise if row tables or source CP inventory are inconsistent."""
+    n_cons = len(CONSONANTS)
+    n_vow = len(VOWELS)
+    if len(HIRAGANA_ROWS) != n_cons:
+        raise ValueError(
+            f"HIRAGANA_ROWS ({len(HIRAGANA_ROWS)}) must match CONSONANTS ({n_cons})"
+        )
+    if len(KATAKANA_ROWS) != n_cons:
+        raise ValueError(
+            f"KATAKANA_ROWS ({len(KATAKANA_ROWS)}) must match CONSONANTS ({n_cons})"
+        )
+    for label, rows in (("HIRAGANA", HIRAGANA_ROWS), ("KATAKANA", KATAKANA_ROWS)):
+        for ri, row in enumerate(rows):
+            if len(row) != n_vow:
+                raise ValueError(
+                    f"{label}_ROWS[{ri}] has {len(row)} cells; expected {n_vow}"
+                )
+    seen: Dict[int, int] = {}
+    for logical, cp in enumerate(chart_source_cps()):
+        if cp in seen:
+            prev = seen[cp]
+            raise ValueError(
+                f"Duplicate chart source U+{cp:04X} at L={logical} and L={prev}"
+            )
+        seen[cp] = logical
 
 
 def trailing_mark_label(logical: int) -> Optional[str]:
@@ -1539,9 +1607,7 @@ def _kana_face_task(
         for cp, name in cmap.items():
             if (cp >> 8) == bucket_id:
                 keep.add(name)
-        go, gl, mt, cm = subset_glyph_tables(
-            glyph_order, glyphs, metrics, cmap, keep
-        )
+        go, gl, mt, cm = subset_glyph_tables(glyph_order, glyphs, metrics, cmap, keep)
         print(
             f"  Slice face {h_bucket_face_id(bucket_id)} "
             f"({sum(1 for cp in cm if (cp >> 8) == bucket_id)} CPs)...",
@@ -1605,6 +1671,7 @@ def build_pankana_font(
 ) -> List[Tuple[str, str, int, List[int]]]:
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
+    validate_chart_tables()
     want = {v for v in variants}
 
     source_cps = chart_source_cps()
