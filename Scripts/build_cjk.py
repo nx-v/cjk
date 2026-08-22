@@ -81,6 +81,8 @@ from shared_half_cells import (
     clamp_overflow_axes_to_cell,
     grow_undersize_to_average_ideo,
     cap_oversize_bbox_area,
+    compensate_stems_after_geometric_scale,
+    is_sparse_ideo_axes,
     is_yi_cp,
     load_inventory,
     make_standalone_glyph,
@@ -146,17 +148,20 @@ CSS_FAMILY = "edenia cjk"
 #   Width-mode / niche CAPE here (CJK niches are composites; Width is kana).
 
 # Harmony target @ 1000 UPM (median of these sources): ink ≈ 874, stem ≈ 73.
-# local_scale = target_ink / native_ink; weightor = target_stem / (stem * scale).
-# After import: undersized glyphs grow uniformly to this average (geometric
-# scale → thicker strokes). Overflow is geometric shrink into the ideo box
-# (→ thinner). New Gulim + Microsoft YaHei never grow: bbox area below
-# AREA_FLOOR_FRAC × mean² is left alone; area above AREA_CEIL_FRAC × mean²
-# is scaled down uniformly to that ceiling; cell overflow still fits.
+# local_scale = target_ink / native_ink. After that scale, CAPE Weight
+# ``1/local_scale`` restores stem thickness (grow thins, shrink thickens).
+# weightor is only an *extra* design nudge on top of that restore — do not
+# bake 1/scale into weightor or stems get compensated twice. New Gulim +
+# Microsoft YaHei: if either ink axis is below AREA_FLOOR_FRAC × mean, leave
+# size alone (sparse); otherwise shrink when bbox area exceeds
+# AREA_CEIL_FRAC × mean². Cell overflow uses per-axis shrink for non-sparse.
 AVERAGE_IDEO_INK = 874.0  # square target width/height @ 1000 UPM
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("NGULIM.ttf", 1.25, 1.2),
-    ("Han-Nom Gothic 1.32.otf", 0.95, 1.05),
-    ("msyh.ttc", 0.95, 1.05),
+    # Ngulim is already heavy — scale for size; stem restore is automatic.
+    ("NGULIM.ttf", 1.25, 1.0),
+    ("Han-Nom Gothic 1.32.otf", 0.95, 1.1),
+    # YaHei runs light — mild size + extra Weight after scale restore.
+    ("msyh.ttc", 0.95, 1.25),
     ("LXGWClearGothic-Regular.ttf", 1.0, 1.0),
     ("LXGWXiHeiMN.ttf", 1.0, 1.0),
     ("LXGWXiHeiCL.ttf", 1.0, 1.0),
@@ -174,10 +179,11 @@ PRIORITY_FONTS: List[Tuple[str, float, float]] = [
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
 FONT_LOCAL_SCALE: Dict[str, float] = {name: scale for name, scale, _w in PRIORITY_FONTS}
 FONT_WEIGHTOR: Dict[str, float] = {name: w for name, _scale, w in PRIORITY_FONTS}
-# Shrink-only by bbox area vs mean² (no grow). Floor: leave small alone.
+# Area-cap fonts: sparse if either axis < floor×mean (unchanged). Else shrink
+# area above ceil×mean². No grow.
 AREA_CAP_FONTS = frozenset({"ngulim.ttf", "msyh.ttc"})
-AREA_FLOOR_FRAC = 0.60
-AREA_CEIL_FRAC = 0.80
+AREA_FLOOR_FRAC = 0.65
+AREA_CEIL_FRAC = 1.0
 
 
 # ---------- Unicode ranges (inclusive) ----------
@@ -452,6 +458,22 @@ class SourceFont:
         if advance <= 0:
             advance = target_upem
 
+        # Stem restore for local_scale (thin if grown, thicken if shrunk).
+        # weightor below is only an extra design nudge — not 1/scale again.
+        if abs(ls - 1.0) > 1e-3:
+            try:
+                glyph, advance, lsb = compensate_stems_after_geometric_scale(
+                    glyph, advance, scale_x=ls
+                )
+                if advance <= 0:
+                    advance = target_upem
+            except Exception as e:
+                print(
+                    f"  [!] scale stem compensate failed "
+                    f"{os.path.basename(self.path)}:{src_name}: {e}",
+                    file=sys.stderr,
+                )
+
         if abs(self.weightor - 1.0) > 1e-9:
             try:
                 glyph, advance, lsb = bolden_ttglyph(
@@ -468,7 +490,9 @@ class SourceFont:
         cell_adv = advance if advance > 0 else target_upem
         avg = AVERAGE_IDEO_INK * (float(target_upem) / float(DEFAULT_UPEM))
         if self.area_cap:
-            # Shrink-only by bbox area vs mean²; never grow small glyphs.
+            # Sparse (either axis < floor×mean): no area grow/shrink. Else
+            # shrink area > ceil. Always clamp into the cell afterward —
+            # sparse uses uniform shrink (keep aspect); dense uses per-axis.
             glyph, advance, lsb = cap_oversize_bbox_area(
                 glyph,
                 cell_adv,
@@ -477,6 +501,20 @@ class SourceFont:
                 avg_height=avg,
                 area_floor=AREA_FLOOR_FRAC,
                 area_ceil=AREA_CEIL_FRAC,
+            )
+            cell_adv = advance if advance > 0 else target_upem
+            sparse = is_sparse_ideo_axes(
+                glyph,
+                avg_width=avg,
+                avg_height=avg,
+                sparse_frac=AREA_FLOOR_FRAC,
+            )
+            glyph, advance, lsb = clamp_overflow_axes_to_cell(
+                glyph,
+                cell_adv,
+                target_upem,
+                align_y="source",
+                uniform=sparse,
             )
         else:
             glyph, advance, lsb = grow_undersize_to_average_ideo(
@@ -487,16 +525,7 @@ class SourceFont:
                 avg_height=avg,
                 align_y="source",
             )
-        cell_adv = advance if advance > 0 else target_upem
-        if self.area_cap:
-            # Per-axis shrink only when that axis overflows the cell.
-            glyph, advance, lsb = clamp_overflow_axes_to_cell(
-                glyph,
-                cell_adv,
-                target_upem,
-                align_y="source",
-            )
-        else:
+            cell_adv = advance if advance > 0 else target_upem
             glyph, advance, lsb = fit_glyph_to_ideographic_cell(
                 glyph,
                 cell_adv,
@@ -2192,9 +2221,9 @@ def build_all(
             notes.append(f"weightor {weightor:g}")
         if os.path.basename(path).casefold() in AREA_CAP_FONTS:
             notes.append(
-                f"area-cap shrink >{AREA_CEIL_FRAC:g}× mean² "
-                f"(floor {AREA_FLOOR_FRAC:g}× unchanged; no grow; "
-                f"per-axis cell overflow)"
+                f"area-cap: sparse either-axis <{AREA_FLOOR_FRAC:g}× mean "
+                f"no area change; shrink area >{AREA_CEIL_FRAC:g}× mean²; "
+                f"cell clamp (uniform if sparse, else per-axis)"
             )
         if notes:
             print(f"  {', '.join(notes)}: {os.path.basename(path)}")

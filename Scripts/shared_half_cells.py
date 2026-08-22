@@ -2913,6 +2913,10 @@ def fit_glyph_to_ideographic_cell(
     t = Transform(s, 0, 0, s, dst_cx - s * src_cx, dst_cy - s * src_cy)
     rec = _recording_from_glyph(src, None)
     out = apply_transform(rec, t)
+    if abs(s - 1.0) >= 1e-3:
+        out, adv, _ = compensate_stems_after_geometric_scale(
+            out, adv, scale_x=s
+        )
 
     # Source-Y shrink can still clip a low/high glyph; nudge into the cell.
     if align_y == "source":
@@ -2946,13 +2950,15 @@ def clamp_overflow_axes_to_cell(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     pad: float = STANDALONE_VERT_PAD,
     align_y: str = "source",
+    uniform: bool = False,
 ) -> GlyphMetrics:
-    """Shrink only the axis that overflows the padded ideo cell.
+    """Shrink overflowing ink so it fits the padded ideo cell.
 
-    ``sx = min(1, cell_w / ink_w)``, ``sy = min(1, cell_h / ink_h)`` about the
-    ink center — never grow. Wider-than-cell ink is squeezed on X only;
-    taller-than-cell ink on Y only. Then center X in the cell; ``align_y``
-    matches ``fit_glyph_to_ideographic_cell``.
+    By default ``sx = min(1, cell_w / ink_w)``, ``sy = min(1, cell_h / ink_h)``
+    (per-axis). Pass ``uniform=True`` to use ``min(sx, sy)`` on both axes so
+    sparse glyphs keep their aspect. Never grows. Then centers X; ``align_y``
+    matches ``fit_glyph_to_ideographic_cell``. Finally pins any remaining
+    overhang into the cell.
     """
     bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
     inset = float(target_upem) * max(pad, 0.0)
@@ -2984,6 +2990,9 @@ def clamp_overflow_axes_to_cell(
     th = max(y1 - y0, 1.0)
     sx = min(1.0, tw / sw)
     sy = min(1.0, th / sh)
+    if uniform:
+        s = min(sx, sy)
+        sx = sy = s
     src_cx = (sx0 + sx1) / 2.0
     src_cy = (sy0 + sy1) / 2.0
     dst_cx = (x0 + x1) / 2.0
@@ -2994,21 +3003,49 @@ def clamp_overflow_axes_to_cell(
     t = Transform(sx, 0, 0, sy, dst_cx - sx * src_cx, dst_cy - sy * src_cy)
     rec = _recording_from_glyph(src, None)
     out = apply_transform(rec, t)
+    scale_x, scale_y = sx, sy
 
-    if align_y == "source":
-        try:
+    # Pin into the cell: translate first; if still oversized, uniform shrink.
+    try:
+        out.recalcBounds(None)
+        ox0, oy0 = float(out.xMin), float(out.yMin)
+        ox1, oy1 = float(out.xMax), float(out.yMax)
+        dx = dy = 0.0
+        if ox0 < x0:
+            dx = x0 - ox0
+        if ox1 + dx > x1:
+            dx = x1 - ox1
+        if oy0 < y0:
+            dy = y0 - oy0
+        if oy1 + dy > y1:
+            dy = y1 - oy1
+        if abs(dx) > 1e-6 or abs(dy) > 1e-6:
+            rec2 = _recording_from_glyph(out, None)
+            out = apply_transform(rec2, Transform(1, 0, 0, 1, dx, dy))
             out.recalcBounds(None)
-            oy0, oy1 = float(out.yMin), float(out.yMax)
-            dy = 0.0
-            if oy0 < y0:
-                dy = y0 - oy0
-            if oy1 + dy > y1:
-                dy = y1 - oy1
-            if abs(dy) > 1e-6:
-                rec2 = _recording_from_glyph(out, None)
-                out = apply_transform(rec2, Transform(1, 0, 0, 1, 0, dy))
-        except Exception:
-            pass
+            ox0, oy0 = float(out.xMin), float(out.yMin)
+            ox1, oy1 = float(out.xMax), float(out.yMax)
+        ow = max(ox1 - ox0, 1.0)
+        oh = max(oy1 - oy0, 1.0)
+        if ow > tw + 1e-3 or oh > th + 1e-3:
+            s = min(tw / ow, th / oh, 1.0)
+            cx = (ox0 + ox1) / 2.0
+            cy = (oy0 + oy1) / 2.0
+            dcx = (x0 + x1) / 2.0
+            dcy = (y0 + y1) / 2.0
+            rec3 = _recording_from_glyph(out, None)
+            out = apply_transform(
+                rec3, Transform(s, 0, 0, s, dcx - s * cx, dcy - s * cy)
+            )
+            scale_x *= s
+            scale_y *= s
+    except Exception:
+        pass
+
+    if abs(scale_x - 1.0) >= 1e-3 or abs(scale_y - 1.0) >= 1e-3:
+        out, adv, _ = compensate_stems_after_geometric_scale(
+            out, adv, scale_x=scale_x, scale_y=scale_y
+        )
 
     try:
         out.recalcBounds(None)
@@ -3039,6 +3076,42 @@ def _uniform_scale_about_ink_center(glyph: TTGlyph, factor: float) -> TTGlyph:
     return _scale_xy_about_ink_center(glyph, factor, factor)
 
 
+def compensate_stems_after_geometric_scale(
+    glyph: TTGlyph,
+    advance: int,
+    *,
+    scale_x: float,
+    scale_y: Optional[float] = None,
+) -> GlyphMetrics:
+    """CAPE Weight after geometric scale: thin if grown, thicken if shrunk.
+
+    Geometric scale multiplies stem thickness by ``s``. Weight ``1/s`` restores
+    optical weight (outer box preserved by CAPE). For anisotropic scale use the
+    geometric mean of the two factors.
+    """
+    sy = float(scale_x) if scale_y is None else float(scale_y)
+    sx = float(scale_x)
+    s = math.sqrt(max(sx, 1e-9) * max(sy, 1e-9))
+    try:
+        glyph.recalcBounds(None)
+        lsb = int(glyph.xMin)
+    except Exception:
+        lsb = 0
+    adv = int(advance if advance > 0 else 1000)
+    if abs(s - 1.0) < 1e-3:
+        return glyph, adv, lsb
+    factor = 1.0 / s
+    # Keep compensation mild on extreme fits (avoid CAPE shredding joins).
+    factor = max(0.75, min(1.35, factor))
+    if abs(factor - 1.0) < 1e-3:
+        return glyph, adv, lsb
+    try:
+        out, _a, lsb = bolden_ttglyph(glyph, factor, advance=float(adv))
+        return out, adv, int(lsb)
+    except Exception:
+        return glyph, adv, lsb
+
+
 def grow_undersize_to_average_ideo(
     glyph: TTGlyph,
     advance: int,
@@ -3053,8 +3126,8 @@ def grow_undersize_to_average_ideo(
     """Uniform geometric grow until width or height touches average ideograph ink.
 
     ``s = min(avg_w / ink_w, avg_h / ink_h)``; never below 1 (no shrink here)
-    and never past the padded cell. Geometric grow thickens strokes. Placement
-    is left to the caller.
+    and never past the padded cell. Geometric grow thickens strokes, so CAPE
+    Weight ``1/s`` thins them back. Placement is left to the caller.
     """
     del align_y
     bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
@@ -3091,11 +3164,9 @@ def grow_undersize_to_average_ideo(
         return src, adv, lsb
 
     src = _uniform_scale_about_ink_center(src, s)
-    try:
-        src.recalcBounds(None)
-        lsb = int(src.xMin)
-    except Exception:
-        pass
+    src, adv, lsb = compensate_stems_after_geometric_scale(
+        src, adv, scale_x=s
+    )
     return src, adv, lsb
 
 
@@ -3110,17 +3181,18 @@ def cap_oversize_bbox_area(
     area_ceil: float = 0.80,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> GlyphMetrics:
-    """Uniform shrink when ink bbox area exceeds ``area_ceil`` × mean area.
+    """Shrink oversize ink; leave sparse glyphs unchanged.
 
-    Mean area is ``avg_width * avg_height``. Relative area
-    ``(ink_w * ink_h) / mean_area``:
+    Mean size is ``(avg_width, avg_height)``. Relative area
+    ``(ink_w * ink_h) / (avg_w * avg_h)``:
 
-    * below ``area_floor`` → unchanged (no grow)
-    * between floor and ceil → unchanged
-    * above ``area_ceil`` → isotropic scale down so area equals ``area_ceil``
-      × mean (never scale up)
+    * if ``ink_w < area_floor × avg_w`` **or** ``ink_h < area_floor × avg_h``
+      → unchanged (sparse on either axis — never grow/stretch)
+    * if relative area ``> area_ceil`` → isotropic shrink to ``area_ceil`` × mean
+    * otherwise → unchanged
 
-    Cell overflow is left to ``fit_glyph_to_ideographic_cell``.
+    Cell overflow is left to the caller (``clamp_overflow_axes_to_cell`` /
+    ``fit_glyph_to_ideographic_cell``).
     """
     adv = int(advance if advance > 0 else target_upem)
     src = glyph
@@ -3144,26 +3216,56 @@ def cap_oversize_bbox_area(
 
     sw = max(sx1 - sx0, 1.0)
     sh = max(sy1 - sy0, 1.0)
-    mean_area = max(float(avg_width) * float(avg_height), 1.0)
-    ink_area = sw * sh
-    ratio = ink_area / mean_area
+    avg_w = max(float(avg_width), 1.0)
+    avg_h = max(float(avg_height), 1.0)
     floor = max(0.0, float(area_floor))
-    ceil = max(floor, float(area_ceil))
-    if ratio <= ceil + 1e-9:
-        # Below ceil (including under floor): do not grow or shrink for size.
+    ceil = max(0.0, float(area_ceil))
+
+    # Sparse on either axis: keep designed proportions (no grow / no area shrink).
+    if sw < floor * avg_w or sh < floor * avg_h:
         return src, adv, lsb
 
-    # Scale so new_area / mean_area == ceil → s² * ratio = ceil.
+    mean_area = avg_w * avg_h
+    ratio = (sw * sh) / mean_area
+    if ratio <= ceil + 1e-9:
+        return src, adv, lsb
+
+    # Scale so new_area / mean_area == ceil.
     s = math.sqrt(ceil / ratio)
     if s >= 1.0 - 1e-3:
         return src, adv, lsb
     src = _uniform_scale_about_ink_center(src, s)
+    src, adv, lsb = compensate_stems_after_geometric_scale(
+        src, adv, scale_x=s
+    )
+    return src, adv, lsb
+
+
+def is_sparse_ideo_axes(
+    glyph: TTGlyph,
+    *,
+    avg_width: float,
+    avg_height: float,
+    sparse_frac: float,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> bool:
+    """True if either ink axis is below ``sparse_frac`` × the mean."""
+    src = glyph
     try:
-        src.recalcBounds(None)
-        lsb = int(src.xMin)
+        if glyph.isComposite():
+            src, _, _ = _bake_transformed_glyph(
+                glyph, Transform(), 0, glyph_set=glyph_set
+            )
     except Exception:
         pass
-    return src, adv, lsb
+    try:
+        src.recalcBounds(None)
+        sw = max(float(src.xMax) - float(src.xMin), 1.0)
+        sh = max(float(src.yMax) - float(src.yMin), 1.0)
+    except Exception:
+        return False
+    floor = max(0.0, float(sparse_frac))
+    return sw < floor * float(avg_width) or sh < floor * float(avg_height)
 
 
 def normalize_axes_to_average_ideo(

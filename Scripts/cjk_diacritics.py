@@ -13,8 +13,8 @@ FE00–FE0F on the **clipped CJK** select mark position × axis-mirror
     FE02  right, my
     FE03  right, mxy / r180
     FE04–FE07  left  (id / mx / my / mxy)
-    FE08–FE0B  up    (id / mx / my / mxy)
-    FE0C–FE0F  down  (id / mx / my / mxy)
+    FE08–FE0B  up    (id / mx / my / mxy) — mark is r90 of LR upright
+    FE0C–FE0F  down  (id / mx / my / mxy) — same ``.T`` outlines
 
     CJK  MARK              → ``base.dk_MARK``          (right, upright)
     CJK  FE00  MARK        → ``base.dk_MARK``          (explicit no-op)
@@ -654,12 +654,12 @@ def add_mark_glyphs(
     target_upem: int,
     tb_glyphs: Optional[Dict[int, TTGlyph]] = None,
 ) -> Tuple[List[str], List[str], List[str], List[str]]:
-    """Install LR-fitted ca/nhay + mx/my/r180, and a TB-fitted ``.T`` family.
+    """Install LR-fitted ca/nhay + mx/my/r180, and a TB ``.T`` family.
 
-    ``tb_glyphs`` are origin-centered marks fitted to the 1/4-height strip
-    (same orientation as LR — Height-fit, not r90). Up and down slots share
-    those TB outlines and differ only in composite offset.
-    Returns ``(right, left, top, bottom)`` name lists for compat callers.
+    ``tb_glyphs`` are origin-centered marks for up/down (r90 of the LR-fitted
+    upright — not Height-stretched). Mirrors are applied *after* that rotation.
+    Up and down slots share those TB outlines and differ only in composite
+    offset. Returns ``(right, left, top, bottom)`` name lists for compat callers.
     """
     upright: List[str] = []
     for cp in mark_cps:
@@ -692,7 +692,15 @@ def add_mark_glyphs(
             continue
         tn = top_mark_name(name)
         if tn not in glyphs:
-            src = (tb_glyphs or {}).get(cp) or glyphs[name]
+            if tb_glyphs is not None and cp in tb_glyphs:
+                src = tb_glyphs[cp]
+            else:
+                src, _lsb = make_tb_mark_glyph(
+                    glyphs[name],
+                    target_upem=target_upem,
+                    glyph_set=glyphs,
+                    base_name=name,
+                )
             try:
                 src.recalcBounds(None)
                 lsb = int(src.xMin)
@@ -1207,7 +1215,7 @@ def marked_form_name(squish_form: str, mark_root: str) -> str:
 def _mark_component_for_slot(
     upright: str, position: str, mirror: Optional[str]
 ) -> str:
-    """LR-fitted mark for right/left; TB-fitted ``.T`` for up/down; then mirror."""
+    """LR-fitted mark for right/left; r90 ``.T`` for up/down; then mirror."""
     root = upright if position in ("right", "left") else top_mark_name(upright)
     if mirror is None:
         return root
@@ -2252,19 +2260,21 @@ def prepare_marks(
     lr_glyphs: Dict[int, TTGlyph] = {}
     tb_glyphs: Dict[int, TTGlyph] = {}
     for cp, raw in list(core_glyphs.items()):
-        lr_glyphs[cp] = fit_mark_to_halfcell(
+        lr = fit_mark_to_halfcell(
             raw,
             target_upem,
             axis="x",
             glyph_set=None,
             niche_frac=mark_niche_frac,
         )
-        tb_glyphs[cp] = fit_mark_to_halfcell(
-            raw,
-            target_upem,
-            axis="y",
+        lr_glyphs[cp] = lr
+        # Horizontal (up/down) marks: r90 of the LR-fitted upright, then
+        # mx/my/r180 — never Height-stretch into the TB strip.
+        tb_glyphs[cp], _ = make_tb_mark_glyph(
+            lr,
+            target_upem=target_upem,
             glyph_set=None,
-            niche_frac=mark_niche_frac,
+            base_name=glyph_name_for_cp(cp),
         )
 
     set_mark_cps(core_cps)
