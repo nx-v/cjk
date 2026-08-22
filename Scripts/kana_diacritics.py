@@ -12,7 +12,8 @@ Slots (same GSUB cycle as ``shared_diacritics.DAKUTEN_SLOTS``)::
     TR  CR  BR  TM  BM  TL  CL  BL
     NE  E   SE  N   S   NW  W   SW
 
-Each slot is the contour support of the base outline in that direction,
+The eight directions are rotated ``KANA_SLOT_ROTATION_DEG`` clockwise as a
+ring. Each slot is the contour support of the base outline in that direction,
 offset outward by a small gap plus the representative dakuten mark's own
 contour extent along that axis (not bbox / stack max height).
 """
@@ -52,9 +53,11 @@ KANA_SLOT_DIRS: Dict[str, Tuple[float, float]] = {
     "cl": (-1.0, 0.0),
     "bl": (-_INV_SQRT2, -_INV_SQRT2),
 }
+# Clockwise rotation applied to the whole eight-slot ring (degrees).
+KANA_SLOT_ROTATION_DEG = 15.0
 
 # Air gap between kana ink and the nearest mark contour (fraction of dakuten H).
-KANA_MARK_GAP_FRAC = 0.12
+KANA_MARK_GAP_FRAC = 0.06
 # Minimum center-to-center separation between marks (fraction of dakuten H).
 KANA_MARK_SEP_FRAC = 1.05
 
@@ -192,6 +195,17 @@ def _mark_height(mark_points: Sequence[Tuple[float, float]]) -> float:
     return max(ys) - min(ys)
 
 
+def _slot_dir(slot: str) -> Tuple[float, float]:
+    """Unit vector for ``slot``, rotated ``KANA_SLOT_ROTATION_DEG`` clockwise."""
+    ux, uy = KANA_SLOT_DIRS[slot]
+    deg = KANA_SLOT_ROTATION_DEG
+    if deg == 0.0:
+        return ux, uy
+    rad = math.radians(deg)
+    c, s = math.cos(rad), math.sin(rad)
+    return ux * c + uy * s, -ux * s + uy * c
+
+
 def _support_point(
     points: Sequence[Tuple[float, float]],
     ux: float,
@@ -251,7 +265,7 @@ def kana_slot_anchors(
     used: set[Tuple[int, int]] = set()
     placed: List[Tuple[float, float]] = []
     for slot, _suf in DAKUTEN_SLOTS:
-        ux, uy = KANA_SLOT_DIRS[slot]
+        ux, uy = _slot_dir(slot)
         sx, sy = _support_point(points, ux, uy)
         mark_r = _mark_radius_along(mpts, ux, uy) if mpts else mark_h * 0.5
         dist = gap + mark_r
