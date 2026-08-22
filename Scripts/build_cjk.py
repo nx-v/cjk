@@ -84,6 +84,7 @@ from shared_half_cells import (
     compensate_stems_after_geometric_scale,
     center_glyph_ink_in_advance,
     is_sparse_ideo_axes,
+    squish_flat_cap_ink,
     is_yi_cp,
     load_inventory,
     make_standalone_glyph,
@@ -154,6 +155,10 @@ CSS_FAMILY = "edenia cjk"
 # ``local_scale`` (uniform resize) and ``weightor`` (CAPE Weight, factor > 1
 # boldens). No grow, fit-to-average, or area-cap pass.
 AVERAGE_IDEO_INK = 874.0  # square target width/height @ 1000 UPM
+# Ngulim flat-cap / square-block squish (fractions of ``AVERAGE_IDEO_INK``).
+FLAT_CAP_INK_FRAC = 0.96
+SQUARE_BLOCK_INK_WIDTH_FRAC = 0.88
+SQUARE_BLOCK_INK_HEIGHT_FRAC = 0.92
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("NGULIM.ttf", 1.2, 1.2),
     ("Han-Nom Gothic 1.32.otf", 0.9, 1.15),
@@ -531,6 +536,16 @@ class SourceFont:
                 target_upem,
                 align_y="source",
                 uniform=sparse,
+            )
+            glyph, advance, lsb = squish_flat_cap_ink(
+                glyph,
+                advance,
+                target_upem,
+                avg_width=avg,
+                avg_height=avg,
+                ink_frac=FLAT_CAP_INK_FRAC,
+                square_width_frac=SQUARE_BLOCK_INK_WIDTH_FRAC,
+                square_height_frac=SQUARE_BLOCK_INK_HEIGHT_FRAC,
             )
         else:
             glyph, advance, lsb = grow_undersize_to_average_ideo(
@@ -2241,7 +2256,9 @@ def build_all(
             notes.append(
                 f"area-cap: sparse either-axis <{AREA_FLOOR_FRAC:g}× mean "
                 f"no area change; shrink area >{AREA_CEIL_FRAC:g}× mean²; "
-                f"cell clamp (uniform if sparse, else per-axis)"
+                f"cell clamp; flat-cap/side squish "
+                f"({FLAT_CAP_INK_FRAC:.0%} mean; square blocks "
+                f"{SQUARE_BLOCK_INK_WIDTH_FRAC:.0%}×{SQUARE_BLOCK_INK_HEIGHT_FRAC:.0%} W×H)"
             )
         elif os.path.basename(path).casefold() in CONSTANTS_ONLY_FONTS:
             notes.append("constants-only (local_scale + weightor)")

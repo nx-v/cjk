@@ -3307,6 +3307,274 @@ def is_sparse_ideo_axes(
     return sw < floor * float(avg_width) or sh < floor * float(avg_height)
 
 
+def _glyph_outline_points(
+    glyph: TTGlyph,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> List[Tuple[float, float]]:
+    """On-curve and off-curve coordinates (baked if composite)."""
+    src = glyph
+    try:
+        if glyph.isComposite():
+            src, _, _ = _bake_transformed_glyph(
+                glyph, Transform(), 0, glyph_set=glyph_set
+            )
+        src.recalcBounds(None)
+        coords = src.coordinates
+        if coords is None or len(coords) == 0:
+            return []
+        return [(float(x), float(y)) for x, y in coords]
+    except Exception:
+        return []
+
+
+def flat_horizontal_caps(
+    glyph: TTGlyph,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    tol_frac: float = 0.035,
+    min_span_frac: float = 0.20,
+) -> Tuple[bool, bool]:
+    """Return ``(flat_top, flat_bottom)`` when a horizontal edge spans the ink."""
+    pts = _glyph_outline_points(glyph, glyph_set)
+    if len(pts) < 4:
+        return False, False
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    x0, x1 = min(xs), max(xs)
+    y0, y1 = min(ys), max(ys)
+    iw = max(x1 - x0, 1.0)
+    ih = max(y1 - y0, 1.0)
+    tol = max(ih * tol_frac, 6.0)
+
+    def _flat_at(y_ref: float) -> bool:
+        band = [(x, y) for x, y in pts if abs(y - y_ref) <= tol]
+        if len(band) < 2:
+            return False
+        span = max(x for x, _y in band) - min(x for x, _y in band)
+        return span >= iw * min_span_frac
+
+    return _flat_at(y1), _flat_at(y0)
+
+
+def flat_vertical_sides(
+    glyph: TTGlyph,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    tol_frac: float = 0.035,
+    min_span_frac: float = 0.20,
+) -> Tuple[bool, bool]:
+    """Return ``(flat_right, flat_left)`` when a vertical edge spans the ink."""
+    pts = _glyph_outline_points(glyph, glyph_set)
+    if len(pts) < 4:
+        return False, False
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    x0, x1 = min(xs), max(xs)
+    y0, y1 = min(ys), max(ys)
+    iw = max(x1 - x0, 1.0)
+    ih = max(y1 - y0, 1.0)
+    tol = max(iw * tol_frac, 6.0)
+
+    def _flat_at(x_ref: float) -> bool:
+        band = [(x, y) for x, y in pts if abs(x - x_ref) <= tol]
+        if len(band) < 2:
+            return False
+        span = max(y for _x, y in band) - min(y for _x, y in band)
+        return span >= ih * min_span_frac
+
+    return _flat_at(x1), _flat_at(x0)
+
+
+def open_enclosure_frame(
+    glyph: TTGlyph,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> bool:
+    """Partial/open enclosure frames (冂 open bottom, 凵 open top, 内 C-channel)."""
+    flat_top, flat_bottom = flat_horizontal_caps(glyph, glyph_set=glyph_set)
+    flat_right, flat_left = flat_vertical_sides(glyph, glyph_set=glyph_set)
+    if flat_top and (flat_left or flat_right):
+        return True
+    if flat_bottom and flat_left and flat_right:
+        return True
+    if flat_top and flat_bottom and (flat_left or flat_right):
+        return True
+    return False
+
+
+def _baked_ink_size(
+    glyph: TTGlyph,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> Tuple[TTGlyph, float, float]:
+    """Return ``(glyph, ink_width, ink_height)`` with composites baked."""
+    src = glyph
+    try:
+        if glyph.isComposite():
+            src, _, _ = _bake_transformed_glyph(
+                glyph, Transform(), 0, glyph_set=glyph_set
+            )
+    except Exception:
+        pass
+    try:
+        src.recalcBounds(None)
+        sw = max(float(src.xMax) - float(src.xMin), 1.0)
+        sh = max(float(src.yMax) - float(src.yMin), 1.0)
+        return src, sw, sh
+    except Exception:
+        return glyph, 1.0, 1.0
+
+
+def square_block_ideo(
+    glyph: TTGlyph,
+    *,
+    avg_width: float,
+    avg_height: float,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    aspect_lo: float = 0.82,
+    aspect_hi: float = 1.22,
+    open_aspect_lo: float = 0.68,
+    open_aspect_hi: float = 1.35,
+    fill_frac: float = 0.88,
+    open_fill_frac: float = 0.82,
+    full_frac: float = 0.94,
+) -> bool:
+    """Blocky, nearly square ideographs (画, 囗, 冂, 凵, 内, 凸, …).
+
+    These often read wide even before Ngulim area-cap. Curved sides (己/已/巳)
+    still qualify when the ink bbox is square-ish and fills the mean cell.
+    Open/partial enclosures (冂, 凵, 内, 凶, …) match on frame geometry.
+    """
+    _src, sw, sh = _baked_ink_size(glyph, glyph_set)
+    open_frame = open_enclosure_frame(glyph, glyph_set=glyph_set)
+    aspect = sw / max(sh, 1.0)
+    if open_frame and sw >= float(avg_width) * open_fill_frac:
+        if open_aspect_lo <= aspect <= open_aspect_hi:
+            return True
+
+    if not (aspect_lo <= aspect <= aspect_hi):
+        return False
+    if sw < float(avg_width) * fill_frac:
+        return False
+
+    flat_top, flat_bottom = flat_horizontal_caps(glyph, glyph_set=glyph_set)
+    flat_right, flat_left = flat_vertical_sides(glyph, glyph_set=glyph_set)
+    flat_count = sum((flat_top, flat_bottom, flat_right, flat_left))
+    if flat_top and flat_bottom:
+        return True
+    if flat_right and flat_left:
+        return True
+    if flat_count >= 3:
+        return True
+    if open_frame:
+        return True
+    # Curved-outline blocks that still fill the em square.
+    if (
+        sw >= float(avg_width) * full_frac
+        and sh >= float(avg_height) * (full_frac - 0.06)
+    ):
+        return True
+    return False
+
+
+def squish_flat_cap_ink(
+    glyph: TTGlyph,
+    advance: int,
+    target_upem: int,
+    *,
+    avg_width: float,
+    avg_height: float,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    ink_frac: float = 0.96,
+    square_width_frac: float = 0.88,
+    square_height_frac: float = 0.92,
+    min_oversize_frac: float = 0.998,
+) -> GlyphMetrics:
+    """Axis shrink when flat caps/sides leave ink wider/taller than the mean.
+
+    Ngulim glyphs with horizontal roof/floor bars or vertical enclosure
+    sides often fill the padded cell after area-cap. Pull each oversize axis
+    down to the mean ink size and thicken stems to match.
+
+    ``square_block_ideo`` glyphs (画, 囗, 冂, 凵, 内, 凸, …) use tighter
+    ``square_*_frac`` targets — especially on width.
+    """
+    flat_top, flat_bottom = flat_horizontal_caps(glyph, glyph_set=glyph_set)
+    flat_right, flat_left = flat_vertical_sides(glyph, glyph_set=glyph_set)
+    square = square_block_ideo(
+        glyph,
+        avg_width=avg_width,
+        avg_height=avg_height,
+        glyph_set=glyph_set,
+    )
+    need_y = flat_top or flat_bottom or square
+    need_x = flat_right or flat_left or square
+    if not (need_x or need_y):
+        adv = int(advance if advance > 0 else target_upem)
+        try:
+            glyph.recalcBounds(None)
+            return glyph, adv, int(glyph.xMin)
+        except Exception:
+            return glyph, adv, 0
+
+    adv = int(advance if advance > 0 else target_upem)
+    src, sw, sh = _baked_ink_size(glyph, glyph_set)
+    try:
+        src.recalcBounds(None)
+        cx = (float(src.xMin) + float(src.xMax)) / 2.0
+        cy = (float(src.yMin) + float(src.yMax)) / 2.0
+        lsb = int(src.xMin)
+    except Exception:
+        return glyph, adv, int(getattr(glyph, "xMin", 0) or 0)
+
+    sx = 1.0
+    sy = 1.0
+    target_w = float(avg_width) * float(ink_frac)
+    target_h = float(avg_height) * float(ink_frac)
+    if square:
+        target_w = float(avg_width) * float(square_width_frac)
+        if flat_top or flat_bottom:
+            target_h = float(avg_height) * float(square_height_frac)
+    if need_x and sw > target_w * min_oversize_frac:
+        sx = min(sx, target_w / sw)
+    if need_y and sh > target_h * min_oversize_frac:
+        sy = min(sy, target_h / sh)
+    if sx >= 1.0 - 1e-3 and sy >= 1.0 - 1e-3:
+        return src, adv, lsb
+
+    rec = _recording_from_glyph(src, None)
+    out = apply_transform(
+        rec,
+        Transform(sx, 0, 0, sy, cx * (1.0 - sx), cy * (1.0 - sy)),
+    )
+    out, adv, lsb = compensate_stems_after_geometric_scale(
+        out, adv, scale_x=sx, scale_y=sy
+    )
+    return out, adv, lsb
+
+
+def squish_flat_cap_height(
+    glyph: TTGlyph,
+    advance: int,
+    target_upem: int,
+    *,
+    avg_height: float,
+    avg_width: Optional[float] = None,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    min_oversize_frac: float = 1.01,
+) -> GlyphMetrics:
+    """Compat wrapper — prefer ``squish_flat_cap_ink``."""
+    w = float(avg_width if avg_width is not None else avg_height)
+    return squish_flat_cap_ink(
+        glyph,
+        advance,
+        target_upem,
+        avg_width=w,
+        avg_height=avg_height,
+        glyph_set=glyph_set,
+        min_oversize_frac=min_oversize_frac,
+    )
+
+
 def normalize_axes_to_average_ideo(
     glyph: TTGlyph,
     advance: int,
