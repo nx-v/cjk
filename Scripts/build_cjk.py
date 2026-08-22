@@ -83,6 +83,7 @@ from shared_half_cells import (
     cap_oversize_bbox_area,
     compensate_stems_after_geometric_scale,
     center_glyph_ink_in_advance,
+    average_ideo_ink,
     is_sparse_ideo_axes,
     squish_flat_cap_ink,
     is_yi_cp,
@@ -149,27 +150,24 @@ CSS_FAMILY = "edenia cjk"
 #   <1 lighten, 1.0 = none). Outer width/height are preserved. Do **not** use
 #   Width-mode / niche CAPE here (CJK niches are composites; Width is kana).
 
-# Harmony target @ 1000 UPM (median of these sources): ink ≈ 874, stem ≈ 73.
-# Ngulim (first): area-cap sizing + stem restore after local_scale.
-# Han-Nom Gothic and all lower-priority sources: **only** their per-font
-# ``local_scale`` (uniform resize) and ``weightor`` (CAPE Weight, factor > 1
-# boldens). No grow, fit-to-average, or area-cap pass.
-AVERAGE_IDEO_INK = 874.0  # square target width/height @ 1000 UPM
+# Harmony ink target — 2% inset (960×960 @ 1000 UPM; cell fit still uses 5%).
+HARMONY_IDEO_PAD = 0.02
+AVERAGE_IDEO_INK = average_ideo_ink(DEFAULT_UPEM, pad=HARMONY_IDEO_PAD)
 # Ngulim flat-cap / square-block squish (fractions of ``AVERAGE_IDEO_INK``).
-FLAT_CAP_INK_FRAC = 0.96
-SQUARE_BLOCK_INK_WIDTH_FRAC = 0.88
-SQUARE_BLOCK_INK_HEIGHT_FRAC = 0.92
+FLAT_CAP_INK_FRAC = 0.98
+SQUARE_BLOCK_INK_WIDTH_FRAC = 0.92
+SQUARE_BLOCK_INK_HEIGHT_FRAC = 0.95
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("NGULIM.ttf", 1.2, 1.2),
-    ("Han-Nom Gothic 1.32.otf", 0.9, 1.15),
-    ("msyh.ttc", 0.9, 1.15),
-    ("ChironHeiHK-R.ttf", 0.95, 1.05),
-    ("SukimaGothic.ttf", 0.95, 1.05),
-    ("YshiYuanGothicCleaned.ttf", 0.95, 1.05),
-    ("ChocolateClassicalSans-Regular.ttf", 0.95, 1.05),
-    ("Gothic Nguyen Regular.ttf", 0.95, 1.05),
-    ("PlangothicP1-Regular.ttf", 0.95, 1.05),
-    ("PlangothicP2-Regular.ttf", 0.95, 1.05),
+    ("Han-Nom Gothic 1.32.otf", 0.95, 1.15),
+    ("msyh.ttc", 0.95, 1.15),
+    ("ChironHeiHK-R.ttf", 1.0, 1.05),
+    ("SukimaGothic.ttf", 1.0, 1.05),
+    ("YshiYuanGothicCleaned.ttf", 1.0, 1.05),
+    ("ChocolateClassicalSans-Regular.ttf", 1.0, 1.05),
+    ("Gothic Nguyen Regular.ttf", 1.0, 1.05),
+    ("PlangothicP1-Regular.ttf", 1.0, 1.05),
+    ("PlangothicP2-Regular.ttf", 1.0, 1.05),
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
@@ -510,7 +508,7 @@ class SourceFont:
                 )
 
         cell_adv = advance if advance > 0 else target_upem
-        avg = AVERAGE_IDEO_INK * (float(target_upem) / float(DEFAULT_UPEM))
+        avg = average_ideo_ink(target_upem, pad=HARMONY_IDEO_PAD)
         if self.area_cap:
             # Sparse (either axis < floor×mean): no area grow/shrink. Else
             # shrink area > ceil. Always clamp into the cell afterward —

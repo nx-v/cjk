@@ -2846,6 +2846,23 @@ def cjk_padded_floor(
     return bottom, top, cell_h
 
 
+def average_ideo_ink(
+    target_upem: int,
+    *,
+    pad: float = STANDALONE_VERT_PAD,
+) -> float:
+    """Target square ink width/height for CJK harmony sizing.
+
+    Defaults to the padded ideographic cell (``STANDALONE_VERT_PAD`` = 5% →
+    900 @ 1000 UPM). CJK build passes a tighter ``pad`` (2% → 960) so harmony
+    targets sit above the old median (~874) without over-squishing.
+    """
+    inset = float(target_upem) * max(pad, 0.0)
+    cell_w = float(target_upem) - 2.0 * inset
+    _bottom, _top, cell_h = cjk_padded_floor(target_upem, pad=pad)
+    return min(cell_w, cell_h)
+
+
 def fit_glyph_to_ideographic_cell(
     glyph: TTGlyph,
     advance: int,
