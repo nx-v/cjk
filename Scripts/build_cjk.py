@@ -157,21 +157,16 @@ CSS_FAMILY = "edenia cjk"
 # AREA_CEIL_FRAC × mean². Cell overflow uses per-axis shrink for non-sparse.
 AVERAGE_IDEO_INK = 874.0  # square target width/height @ 1000 UPM
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("NGULIM.ttf", 1.25, 1.2),
-    ("Han-Nom Gothic 1.32.otf", 0.95, 1.1),
-    ("msyh.ttc", 0.95, 1.1),
-    ("LXGWClearGothic-Regular.ttf", 1.0, 1.0),
-    ("LXGWXiHeiMN.ttf", 1.0, 1.0),
-    ("LXGWXiHeiCL.ttf", 1.0, 1.0),
-    ("LXGWNeoXiHeiPlus.ttf", 1.0, 1.0),
-    ("LXGWNeoXiHeiScreenFull.ttf", 1.0, 1.0),
-    ("ChironHeiHK-R.ttf", 0.95, 1.05),
-    ("SukimaGothic.ttf", 0.95, 1.05),
-    ("YshiYuanGothicCleaned.ttf", 0.95, 1.05),
-    ("ChocolateClassicalSans-Regular.ttf", 0.95, 1.05),
-    ("Gothic Nguyen Regular.ttf", 0.95, 1.05),
-    ("PlangothicP1-Regular.ttf", 0.95, 1.05),
-    ("PlangothicP2-Regular.ttf", 0.95, 1.05),
+    ("NGULIM.ttf", 1.2, 1.25),
+    ("Han-Nom Gothic 1.32.otf", 0.95, 1.15),
+    ("msyh.ttc", 0.95, 1.15),
+    ("ChironHeiHK-R.ttf", 1.0, 1.05),
+    ("SukimaGothic.ttf", 1.0, 1.05),
+    ("YshiYuanGothicCleaned.ttf", 1.0, 1.05),
+    ("ChocolateClassicalSans-Regular.ttf", 1.0, 1.05),
+    ("Gothic Nguyen Regular.ttf", 1.0, 1.05),
+    ("PlangothicP1-Regular.ttf", 1.0, 1.05),
+    ("PlangothicP2-Regular.ttf", 1.0, 1.05),
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
