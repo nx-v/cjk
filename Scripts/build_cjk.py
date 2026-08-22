@@ -158,8 +158,8 @@ CSS_FAMILY = "edenia cjk"
 AVERAGE_IDEO_INK = 874.0  # square target width/height @ 1000 UPM
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("NGULIM.ttf", 1.2, 1.2),
-    ("Han-Nom Gothic 1.32.otf", 0.9, 1.15),
-    ("msyh.ttc", 0.9, 1.15),
+    ("Han-Nom Gothic 1.32.otf", 0.9, 1.2),
+    ("msyh.ttc", 0.9, 1.2),
     ("ChironHeiHK-R.ttf", 0.95, 1.05),
     ("SukimaGothic.ttf", 0.95, 1.05),
     ("YshiYuanGothicCleaned.ttf", 0.95, 1.05),
