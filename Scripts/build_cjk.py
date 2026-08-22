@@ -377,6 +377,7 @@ class SourceFont:
         target_upem: int,
         flip_x: bool = False,
         flip_y: bool = False,
+        codepoint: Optional[int] = None,
     ) -> Optional[Tuple[TTGlyph, int, int]]:
         """Decompose + UPM scale + optional local scale / weightor / mirrors.
 
@@ -543,6 +544,7 @@ class SourceFont:
                 target_upem,
                 avg_width=avg,
                 avg_height=avg,
+                codepoint=codepoint,
                 ink_frac=FLAT_CAP_INK_FRAC,
                 square_width_frac=SQUARE_BLOCK_INK_WIDTH_FRAC,
                 square_height_frac=SQUARE_BLOCK_INK_HEIGHT_FRAC,
@@ -689,6 +691,7 @@ def _import_one_bucket_entry(
             target_upem,
             flip_x=False,
             flip_y=False,
+            codepoint=out_cp,
         )
         if copied is None:
             return None

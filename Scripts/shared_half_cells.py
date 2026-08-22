@@ -3385,6 +3385,27 @@ def flat_vertical_sides(
     return _flat_at(x1), _flat_at(x0)
 
 
+# Ideographs that read wide even in source masters (Ngulim square-block squish).
+# 冂…冋, 凵…凿, 厂…厲, 囗…圞, 門…闧, 辶…邐 — enclosure / cliff / gate / walk shapes.
+SQUARE_BLOCK_CODEPOINT_RANGES: Tuple[Tuple[int, int], ...] = (
+    (0x5182, 0x518B),  # 冂 … 冋 (incl. 内, 円, 冈, 冉, 冊, …)
+    (0x51F5, 0x51FF),  # 凵 … 凿 (incl. 凶, 凸, 凹, 出, 击, 函, …)
+    (0x5382, 0x53B2),  # 厂 … 厲 (cliff / 厂-radical cluster)
+    (0x56D7, 0x571E),  # 囗 … 圞 (enclosure / 囗-radical cluster)
+    (0x9580, 0x95E7),  # 門 … 闧 (gate radical cluster)
+    (0x8FB6, 0x9090),  # 辶 … 邐 (walk / 辶-radical cluster)
+)
+
+
+def cp_in_square_block_ranges(codepoint: Optional[int]) -> bool:
+    if codepoint is None:
+        return False
+    for lo, hi in SQUARE_BLOCK_CODEPOINT_RANGES:
+        if lo <= int(codepoint) <= hi:
+            return True
+    return False
+
+
 def open_enclosure_frame(
     glyph: TTGlyph,
     *,
@@ -3430,6 +3451,7 @@ def square_block_ideo(
     avg_width: float,
     avg_height: float,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    codepoint: Optional[int] = None,
     aspect_lo: float = 0.82,
     aspect_hi: float = 1.22,
     open_aspect_lo: float = 0.68,
@@ -3437,14 +3459,21 @@ def square_block_ideo(
     fill_frac: float = 0.88,
     open_fill_frac: float = 0.82,
     full_frac: float = 0.94,
+    cp_fill_frac: float = 0.75,
 ) -> bool:
     """Blocky, nearly square ideographs (画, 囗, 冂, 凵, 内, 凸, …).
 
     These often read wide even before Ngulim area-cap. Curved sides (己/已/巳)
     still qualify when the ink bbox is square-ish and fills the mean cell.
-    Open/partial enclosures (冂, 凵, 内, 凶, …) match on frame geometry.
+    Open/partial enclosures (冂, 凵, 内, 凶, …), cliff radicals (厂…厲),
+    full enclosures (囗…圞), gate radicals (門…闧), and walk radicals
+    (辶…邐) match on frame geometry or explicit
+    ``SQUARE_BLOCK_CODEPOINT_RANGES``.
     """
     _src, sw, sh = _baked_ink_size(glyph, glyph_set)
+    if cp_in_square_block_ranges(codepoint) and sw >= float(avg_width) * cp_fill_frac:
+        return True
+
     open_frame = open_enclosure_frame(glyph, glyph_set=glyph_set)
     aspect = sw / max(sh, 1.0)
     if open_frame and sw >= float(avg_width) * open_fill_frac:
@@ -3484,6 +3513,7 @@ def squish_flat_cap_ink(
     avg_width: float,
     avg_height: float,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    codepoint: Optional[int] = None,
     ink_frac: float = 0.96,
     square_width_frac: float = 0.88,
     square_height_frac: float = 0.92,
@@ -3505,6 +3535,7 @@ def squish_flat_cap_ink(
         avg_width=avg_width,
         avg_height=avg_height,
         glyph_set=glyph_set,
+        codepoint=codepoint,
     )
     need_y = flat_top or flat_bottom or square
     need_x = flat_right or flat_left or square
