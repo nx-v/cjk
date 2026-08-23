@@ -209,9 +209,7 @@ _FE0_TOKEN = re.compile(
 _SCRIPT_UNICODE_RANGE = {
     # FE04 must be listed: Hangul top-swap is GPOS on vs05 and does not
     # cluster when FE04 is outside unicode-range (unlike FE00–FE03 mirrors).
-    FAMILY_HANGUL: (
-        "U+1100-11FF, U+A960-A97C, U+D7B0-D7FB, U+302E-302F, U+FE04"
-    ),
+    FAMILY_HANGUL: ("U+1100-11FF, U+A960-A97C, U+D7B0-D7FB, U+302E-302F, U+FE04"),
     FAMILY_HANGULS: "U+AC00-D7A3, U+3130-318F",
     FAMILY_YI: "U+A000-A4C6, U+FE01-FE07",
     FAMILY_YI_H: "U+A000-A4C6, U+FE00-FE0F",
@@ -651,9 +649,7 @@ def transform_face_css(css: str, *, folder: str) -> str:
     return out.strip() + "\n"
 
 
-def build_faces_block(
-    hangul: str, yi: str, kana: str, cjk: str, *, bake: bool
-) -> str:
+def build_faces_block(hangul: str, yi: str, kana: str, cjk: str, *, bake: bool) -> str:
     if bake:
         return "\n".join(
             [

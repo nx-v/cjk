@@ -79,10 +79,30 @@ ORIENT_LABEL = [
 
 SLICE_MODES = [
     {"id": "none", "a": None, "b": None, "label": "none"},
-    {"id": "TB", "a": SLICE_TOP_CP, "b": SLICE_BOT_CP, "label": "FE08 FE00 / FE09 (top+bot)"},
-    {"id": "LR", "a": SLICE_LEFT_CP, "b": SLICE_RIGHT_CP, "label": "FE0A FE00 / FE0B (left+right)"},
-    {"id": "TLBR", "a": SLICE_TL_CP, "b": SLICE_BR_CP, "label": "FE0C FE00 / FE0D (tl+br Δ)"},
-    {"id": "TRBL", "a": SLICE_TR_CP, "b": SLICE_BL_CP, "label": "FE0E FE00 / FE0F (tr+bl Δ)"},
+    {
+        "id": "TB",
+        "a": SLICE_TOP_CP,
+        "b": SLICE_BOT_CP,
+        "label": "FE08 FE00 / FE09 (top+bot)",
+    },
+    {
+        "id": "LR",
+        "a": SLICE_LEFT_CP,
+        "b": SLICE_RIGHT_CP,
+        "label": "FE0A FE00 / FE0B (left+right)",
+    },
+    {
+        "id": "TLBR",
+        "a": SLICE_TL_CP,
+        "b": SLICE_BR_CP,
+        "label": "FE0C FE00 / FE0D (tl+br Δ)",
+    },
+    {
+        "id": "TRBL",
+        "a": SLICE_TR_CP,
+        "b": SLICE_BL_CP,
+        "label": "FE0E FE00 / FE0F (tr+bl Δ)",
+    },
 ]
 
 

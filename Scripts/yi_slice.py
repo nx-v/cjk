@@ -194,7 +194,12 @@ def _bake_slices_for_form(
             cell_width=cell_width,
         )
 
-    for first, second in (("top", "bot"), ("left", "right"), ("tl", "br"), ("tr", "bl")):
+    for first, second in (
+        ("top", "bot"),
+        ("left", "right"),
+        ("tl", "br"),
+        ("tr", "bl"),
+    ):
         n1 = half_glyph_name(form_name, first)
         if n1 not in glyphs:
             _put_slice(
@@ -284,11 +289,14 @@ def add_slice_halves(
     forms: List[str] = []
     seen: set = set()
     for base in identity:
-        for name in (base, *(
-            variant_glyph_name(base, suf)
-            for _vs, _r, _fx, _fy, suf in TRANSFORM_MODES
-            if suf is not None
-        )):
+        for name in (
+            base,
+            *(
+                variant_glyph_name(base, suf)
+                for _vs, _r, _fx, _fy, suf in TRANSFORM_MODES
+                if suf is not None
+            ),
+        ):
             if name in glyphs and name not in seen:
                 if all(half_glyph_name(name, h) in glyphs for h in SLICE_SUFFIXES):
                     forms.append(name)
@@ -328,9 +336,7 @@ def inject_slice_marks(
 ) -> List[str]:
     """Ensure overlay + slice-mark glyphs exist and are cmap'd."""
     del modes
-    return inject_slice_selectors(
-        glyph_order, glyphs, metrics, cmap, pua=pua
-    )
+    return inject_slice_selectors(glyph_order, glyphs, metrics, cmap, pua=pua)
 
 
 def install_slice_gsub(
