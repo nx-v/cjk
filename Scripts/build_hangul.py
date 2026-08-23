@@ -99,10 +99,13 @@ from shared_diacritics import (
     DAKUTEN_SLOT_CYCLE,
     DAKUTEN_SLOT_COUNT,
     add_dakuten_mark_glyphs,
+    add_dakuten_chain_mark_glyphs,
     cjk_corner_anchors,
     DAKUTEN_SLOTS,
     dakuten_mark_stack_label,
+    install_dakuten_chain_gsub,
     install_dakuten_gpos,
+    install_dakuten_mark_chain_gpos,
     install_dakuten_slot_gsub,
     load_dakuten_marks_from_stack,
     resolve_dakuten_mark_font_stack,
@@ -502,6 +505,13 @@ def prepare_hangul_dakuten(
         metrics=metrics,
         cmap=cmap,
     )
+    chain_names = add_dakuten_chain_mark_glyphs(
+        mark_cps,
+        glyph_order=glyph_order,
+        glyphs=glyphs,
+        metrics=metrics,
+    )
+    mark_names = list(mark_names) + chain_names
     bases = hangul_dakuten_bases(seed_bases, glyphs)
     base_anchors = collect_hangul_dakuten_base_anchors(
         bases,
@@ -511,8 +521,8 @@ def prepare_hangul_dakuten(
     )
     print(
         f"  Dakuten: {len(mark_cps)} marks × {DAKUTEN_SLOT_COUNT} slots, "
-        f"{len(base_anchors)} bases ({DAKUTEN_SLOT_CYCLE}; CGJ skips a slot; "
-        f"fixed H, L/R align)",
+        f"{len(base_anchors)} bases ({DAKUTEN_SLOT_CYCLE}; mark-to-mark chain; "
+        f"CGJ skips a slot; fixed H, L/R align)",
         flush=True,
     )
     if not mark_names or not base_anchors:
@@ -528,6 +538,7 @@ def compile_hangul_dakuten(
     base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
     glyphs: Dict[str, TTGlyph],
     glyph_order: Sequence[str],
+    target_upem: int,
 ) -> None:
     """Install dakuten slot GSUB + corner GPOS (call after Hangul/VS GSUB exists)."""
     print(f"  Compiling GSUB (dakuten slots {DAKUTEN_SLOT_CYCLE})...", flush=True)
@@ -538,6 +549,12 @@ def compile_hangul_dakuten(
         glyph_order=glyph_order,
         base_names=list(base_anchors),
     )
+    install_dakuten_chain_gsub(
+        font,
+        mark_cps,
+        glyphs=glyphs,
+        glyph_order=glyph_order,
+    )
     print("  Compiling GPOS (dakuten mark @ CJK corners)...", flush=True)
     install_dakuten_gpos(
         font,
@@ -546,6 +563,14 @@ def compile_hangul_dakuten(
         mark_names=mark_names,
         glyph_order=glyph_order,
         glyphs=glyphs,
+        extra_script_tags=("hang",),
+    )
+    install_dakuten_mark_chain_gpos(
+        font,
+        mark_cps=mark_cps,
+        glyphs=glyphs,
+        glyph_order=glyph_order,
+        target_upem=target_upem,
         extra_script_tags=("hang",),
     )
 
@@ -2777,6 +2802,7 @@ def build_jamo_font(
             base_anchors=base_anchors,
             glyphs=glyphs,
             glyph_order=glyph_order,
+            target_upem=target_upem,
         )
     dy_lv, dy_t, n_fe04 = install_fe04_gpos(
         fb.font,
@@ -2961,6 +2987,7 @@ def build_syllables_font(
             base_anchors=base_anchors,
             glyphs=glyphs,
             glyph_order=glyph_order,
+            target_upem=target_upem,
         )
 
     out_path = _save_font(

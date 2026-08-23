@@ -48,9 +48,12 @@ from shared_diacritics import (
     DAKUTEN_SLOT_CYCLE,
     DAKUTEN_SLOT_COUNT,
     add_dakuten_mark_glyphs,
+    add_dakuten_chain_mark_glyphs,
     collect_dakuten_base_anchors,
     dakuten_mark_stack_label,
+    install_dakuten_chain_gsub,
     install_dakuten_gpos,
+    install_dakuten_mark_chain_gpos,
     install_dakuten_slot_gsub,
     load_dakuten_marks_from_stack,
     resolve_dakuten_mark_font_stack,
@@ -316,6 +319,12 @@ def _save_yi_face(
             glyph_order=glyph_order,
             base_names=list(face_anchors),
         )
+        install_dakuten_chain_gsub(
+            fb.font,
+            mark_cps,
+            glyphs=glyphs,
+            glyph_order=glyph_order,
+        )
         print("  Compiling GPOS (dakuten mark @ CJK corners)...", flush=True)
         install_dakuten_gpos(
             fb.font,
@@ -324,6 +333,13 @@ def _save_yi_face(
             mark_names=face_marks,
             glyph_order=glyph_order,
             glyphs=glyphs,
+        )
+        install_dakuten_mark_chain_gpos(
+            fb.font,
+            mark_cps=mark_cps,
+            glyphs=glyphs,
+            glyph_order=glyph_order,
+            target_upem=target_upem,
         )
 
     os.makedirs(out_dir, exist_ok=True)
@@ -546,6 +562,13 @@ def build_panyi_font(
             metrics=metrics,
             cmap=cmap,
         )
+        chain_names = add_dakuten_chain_mark_glyphs(
+            mark_cps,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+        )
+        mark_names = list(mark_names) + chain_names
         dakuten_bases = yi_forms_for_dakuten(yi_names, modes=YI_ORIENTATION_MODES)
         anchor_bases = list(dakuten_bases)
         base_anchors = collect_dakuten_base_anchors(
@@ -557,7 +580,7 @@ def build_panyi_font(
         print(
             f"  Dakuten: {n_unique} marks × {DAKUTEN_SLOT_COUNT} slots, "
             f"{len(base_anchors)} bases "
-            f"({DAKUTEN_SLOT_CYCLE}; fixed H, L/R/mid align)",
+            f"({DAKUTEN_SLOT_CYCLE}; mark-to-mark chain; fixed H, L/R/mid align)",
             flush=True,
         )
     except FileNotFoundError as exc:

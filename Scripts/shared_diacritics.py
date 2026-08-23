@@ -38,6 +38,7 @@ No left-squish forms.
 
 from __future__ import annotations
 
+import math
 import os
 import unicodedata
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -132,6 +133,24 @@ DAKUTEN_SLOT_LABELS: Tuple[str, ...] = tuple[str, ...](
 DAKUTEN_SLOT_SUFFIXES = frozenset(suf for _slot, suf in DAKUTEN_SLOTS if suf)
 DAKUTEN_SLOT_CYCLE = "→".join(DAKUTEN_SLOT_LABELS)
 DAKUTEN_SLOT_COUNT = len(DAKUTEN_SLOTS)
+
+# GPOS mark-to-mark class for overflow marks (9th+), chained off prior marks.
+DAKUTEN_CHAIN_MARK_CLASS = 0
+DAKUTEN_CHAIN_SUFFIX = "ch"
+
+# Compass unit vectors for sequential chain offsets (parent slot → next slot).
+_INV_SQRT2 = 1.0 / math.sqrt(2.0)
+_DAKUTEN_SLOT_DIR: Dict[str, Tuple[float, float]] = {
+    "tr": (_INV_SQRT2, _INV_SQRT2),
+    "cr": (1.0, 0.0),
+    "br": (_INV_SQRT2, -_INV_SQRT2),
+    "tm": (0.0, 1.0),
+    "bm": (0.0, -1.0),
+    "tl": (-_INV_SQRT2, _INV_SQRT2),
+    "cl": (-1.0, 0.0),
+    "bl": (-_INV_SQRT2, -_INV_SQRT2),
+}
+DAKUTEN_CHAIN_SEP_FRAC = 1.05
 
 # Combining Grapheme Joiner: empty mark, same slot cycle as visible diacritics.
 CGJ_CP = 0x034F
@@ -267,6 +286,11 @@ def dakuten_mark_slot_variant_name(
 ) -> str:
     base = dakuten_mark_variant_name(cp, variant)
     return base if not slot_suffix else f"{base}.{slot_suffix}"
+
+
+def dakuten_mark_chain_name(cp: int, variant: str = "") -> str:
+    """Overflow mark glyph (9th+); GPOS mark-to-mark only, not mark-to-base."""
+    return f"{dakuten_mark_variant_name(cp, variant)}.{DAKUTEN_CHAIN_SUFFIX}"
 
 
 def dakuten_mark_label(cp: int) -> Tuple[str, str, str]:
@@ -715,6 +739,49 @@ def add_dakuten_mark_glyphs(
             metrics[sname] = (0, metrics[base][1])
             names.append(sname)
     return names
+
+
+def add_dakuten_chain_mark_glyphs(
+    mark_cps: Sequence[int],
+    *,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    variant: str = "",
+) -> List[str]:
+    """Install ``.mk.ch`` composites for mark-to-mark overflow (no cmap)."""
+    names: List[str] = []
+    for cp in mark_cps:
+        base = dakuten_mark_variant_name(cp, variant)
+        if base not in glyphs:
+            continue
+        cname = dakuten_mark_chain_name(cp, variant)
+        if cname in glyphs:
+            names.append(cname)
+            continue
+        glyph_order.append(cname)
+        glyphs[cname] = _mark_slot_composite(base)
+        metrics[cname] = (0, metrics[base][1])
+        names.append(cname)
+    return names
+
+
+def mark_chain_parent_anchor(
+    glyph: TTGlyph,
+    parent_slot: str,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    mark_height: Optional[float] = None,
+    target_upem: int = 1000,
+) -> Tuple[int, int]:
+    """Mark2 anchor: where the next overflow mark attaches on ``parent_slot``."""
+    del glyph, glyph_set
+    idx = next(i for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS) if slot == parent_slot)
+    next_slot = DAKUTEN_SLOTS[(idx + 1) % DAKUTEN_SLOT_COUNT][0]
+    ux, uy = _DAKUTEN_SLOT_DIR[next_slot]
+    h = mark_height if mark_height and mark_height > 0 else target_upem * DAKUTEN_MARK_HEIGHT_FRAC
+    d = h * DAKUTEN_CHAIN_SEP_FRAC
+    return otRound(ux * d), otRound(uy * d)
 
 
 def add_dakuten_mark_scale_variants(
@@ -1270,3 +1337,270 @@ def install_dakuten_gpos(
         glyph_order=glyph_order,
     )
     return len(bases_sorted)
+
+
+def _append_gsub_feature_lookups(font, feature_lookup_idxs: Sequence[int]) -> int:
+    if not feature_lookup_idxs:
+        return 0
+    gsub = font["GSUB"].table
+    tag_to_fr = {fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])}
+    for tag in COMPOSITION_FEATURE_TAGS:
+        fr = tag_to_fr.get(tag)
+        if fr is None:
+            fr = ot.FeatureRecord()
+            fr.FeatureTag = tag
+            fr.Feature = ot.Feature()
+            fr.Feature.FeatureParams = None
+            fr.Feature.LookupListIndex = []
+            fr.Feature.LookupCount = 0
+            gsub.FeatureList.FeatureRecord.append(fr)
+            gsub.FeatureList.FeatureCount = len(gsub.FeatureList.FeatureRecord)
+            tag_to_fr[tag] = fr
+            for sr in gsub.ScriptList.ScriptRecord:
+                ls = sr.Script.DefaultLangSys
+                if ls is None:
+                    continue
+                fi = list(ls.FeatureIndex or [])
+                new_i = gsub.FeatureList.FeatureCount - 1
+                if new_i not in fi:
+                    fi.append(new_i)
+                    ls.FeatureIndex = fi
+                    ls.FeatureCount = len(fi)
+        idxs = list(fr.Feature.LookupListIndex or [])
+        for li in feature_lookup_idxs:
+            idxs.append(li)
+        fr.Feature.LookupListIndex = idxs
+        fr.Feature.LookupCount = len(idxs)
+    return len(feature_lookup_idxs)
+
+
+def install_dakuten_chain_gsub(
+    font,
+    mark_cps: Sequence[int],
+    *,
+    glyphs: Dict[str, TTGlyph],
+    glyph_order: Sequence[str],
+    variant: str = "",
+) -> int:
+    """Route 9th+ marks through ``.mk.ch`` so they chain mark-to-mark.
+
+    * BL + TR input → input TR becomes ``.ch`` (first overflow mark).
+    * ``.ch`` backtrack + TR input → input TR becomes ``.ch`` (continues chain).
+
+    Earlier slot marks are not substituted or replaced.
+    """
+    from shared_half_cells import (
+        build_chain_context_format2,
+        build_chunked_single_subst_lookup,
+        build_ext_gsub_lookup,
+    )
+
+    order_index = {n: i for i, n in enumerate(glyph_order)}
+
+    def _gid_sort(names: Sequence[str]) -> List[str]:
+        return sorted(set(names), key=lambda n: order_index.get(n, 10**9))
+
+    def _tr_name(cp: int) -> str:
+        return dakuten_mark_variant_name(cp, variant)
+
+    def _chain_name(cp: int) -> str:
+        return dakuten_mark_chain_name(cp, variant)
+
+    slot_lists: List[List[str]] = [[] for _ in DAKUTEN_SLOTS]
+    chain_list: List[str] = []
+    for cp in mark_cps:
+        tr = _tr_name(cp)
+        ch = _chain_name(cp)
+        if tr not in glyphs or ch not in glyphs:
+            continue
+        for i, (_slot, suf) in enumerate(DAKUTEN_SLOTS):
+            sname = dakuten_mark_slot_variant_name(cp, suf, variant)
+            if sname in glyphs:
+                slot_lists[i].append(sname)
+        chain_list.append(ch)
+    slot_lists = [_gid_sort(lst) for lst in slot_lists]
+    chain_list = _gid_sort(chain_list)
+    if not slot_lists[0] or not slot_lists[-1] or not chain_list:
+        return 0
+
+    if "GSUB" not in font:
+        return 0
+    gsub = font["GSUB"].table
+    if gsub.LookupList is None:
+        gsub.LookupList = ot.LookupList()
+        gsub.LookupList.Lookup = []
+        gsub.LookupList.LookupCount = 0
+
+    input_cls = {n: 1 for n in slot_lists[0]}
+    feature_lookup_idxs: List[int] = []
+
+    def _add_rule(
+        *,
+        backtrack: Dict[str, int],
+        backtrack_seq: Sequence[int],
+        mapping: Dict[str, str],
+    ) -> None:
+        if not mapping:
+            return
+        single_lu = build_chunked_single_subst_lookup(mapping)
+        st = build_chain_context_format2(
+            coverage_glyphs=slot_lists[0],
+            input_classes=input_cls,
+            input_class=1,
+            backtrack_classes=backtrack,
+            backtrack_seq=backtrack_seq,
+        )
+        chain_lu = build_ext_gsub_lookup([st])
+        base = gsub.LookupList.LookupCount
+        chain_i = base
+        single_i = base + 1
+        st.ChainSubClassSet[1].ChainSubClassRule[0].SubstLookupRecord[
+            0
+        ].LookupListIndex = single_i
+        gsub.LookupList.Lookup.extend([chain_lu, single_lu])
+        gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
+        feature_lookup_idxs.append(chain_i)
+
+    # 9th mark: after BL slot, incoming TR becomes a chain glyph.
+    _add_rule(
+        backtrack={n: 1 for n in slot_lists[-1]},
+        backtrack_seq=(1,),
+        mapping={
+            _tr_name(cp): _chain_name(cp)
+            for cp in mark_cps
+            if _tr_name(cp) in glyphs and _chain_name(cp) in glyphs
+        },
+    )
+    # 10th+ marks: chain off the previous chain mark, not the base slot cycle.
+    _add_rule(
+        backtrack={n: 1 for n in chain_list},
+        backtrack_seq=(1,),
+        mapping={
+            _tr_name(cp): _chain_name(cp)
+            for cp in mark_cps
+            if _tr_name(cp) in glyphs and _chain_name(cp) in glyphs
+        },
+    )
+    return _append_gsub_feature_lookups(font, feature_lookup_idxs)
+
+
+def install_dakuten_mark_chain_gpos(
+    font,
+    *,
+    mark_cps: Sequence[int],
+    glyphs: Dict[str, TTGlyph],
+    glyph_order: Sequence[str],
+    variant: str = "",
+    mark_height: Optional[float] = None,
+    target_upem: int = 1000,
+    chain_parent_anchor_fn: Optional[
+        Callable[..., Tuple[int, int]]
+    ] = None,
+    chain_child_anchor_fn: Optional[
+        Callable[..., Tuple[int, int]]
+    ] = None,
+    extra_script_tags: Sequence[str] = (),
+) -> int:
+    """GPOS mark-to-mark: overflow ``.ch`` marks attach to the prior mark."""
+    from fontTools.otlLib.builder import MarkMarkPosBuilder, buildAnchor
+
+    parent_anchor = chain_parent_anchor_fn or mark_chain_parent_anchor
+    child_anchor = chain_child_anchor_fn or mark_corner_anchor
+
+    chain_names: List[str] = []
+    parent_names: List[str] = []
+    for cp in mark_cps:
+        ch = dakuten_mark_chain_name(cp, variant)
+        if ch in glyphs:
+            chain_names.append(ch)
+        for _slot, suf in DAKUTEN_SLOTS:
+            sname = dakuten_mark_slot_variant_name(cp, suf, variant)
+            if sname in glyphs:
+                parent_names.append(sname)
+    if not chain_names or not parent_names:
+        return 0
+
+    builder = MarkMarkPosBuilder(font, "dakuten-chain")
+    common_parent = dict(
+        mark_height=mark_height,
+        target_upem=target_upem,
+        glyph_set=glyphs,
+    )
+    for cp in mark_cps:
+        ch = dakuten_mark_chain_name(cp, variant)
+        if ch not in glyphs:
+            continue
+        base = dakuten_mark_variant_name(cp, variant)
+        base_glyph = glyphs.get(base)
+        if base_glyph is None:
+            continue
+        ax, ay = child_anchor(base_glyph, "tr", glyph_set=glyphs)
+        builder.marks[ch] = (DAKUTEN_CHAIN_MARK_CLASS, buildAnchor(ax, ay))
+
+    def _parent_slot(name: str) -> str:
+        for slot, suf in reversed(DAKUTEN_SLOTS):
+            if suf and name.endswith(f".{suf}"):
+                return slot
+        if name.endswith(f".{DAKUTEN_CHAIN_SUFFIX}"):
+            return "tr"
+        return "tr"
+
+    for name in parent_names + chain_names:
+        parent_glyph = glyphs[name]
+        slot = _parent_slot(name)
+        ax, ay = parent_anchor(parent_glyph, slot, **common_parent)
+        builder.baseMarks.setdefault(name, {})[DAKUTEN_CHAIN_MARK_CLASS] = buildAnchor(
+            ax, ay
+        )
+
+    lookup = builder.build()
+    script_tags = _gpos_script_tags(extra_script_tags)
+    gpos = _ensure_gpos(font, script_tags)
+    _ensure_gpos_scripts(gpos, script_tags)
+    if gpos.LookupList is None:
+        gpos.LookupList = ot.LookupList()
+        gpos.LookupList.Lookup = []
+        gpos.LookupList.LookupCount = 0
+    lookup_index = gpos.LookupList.LookupCount
+    gpos.LookupList.Lookup.append(lookup)
+    gpos.LookupList.LookupCount = len(gpos.LookupList.Lookup)
+
+    tag_to_fr = {fr.FeatureTag: fr for fr in (gpos.FeatureList.FeatureRecord or [])}
+    for tag in MARK_FEATURE_TAGS:
+        fr = tag_to_fr.get(tag)
+        if fr is None:
+            fr = ot.FeatureRecord()
+            fr.FeatureTag = tag
+            fr.Feature = ot.Feature()
+            fr.Feature.FeatureParams = None
+            fr.Feature.LookupListIndex = []
+            fr.Feature.LookupCount = 0
+            gpos.FeatureList.FeatureRecord.append(fr)
+            gpos.FeatureList.FeatureCount = len(gpos.FeatureList.FeatureRecord)
+            tag_to_fr[tag] = fr
+        idxs = list(fr.Feature.LookupListIndex or [])
+        if lookup_index not in idxs:
+            idxs.append(lookup_index)
+        fr.Feature.LookupListIndex = idxs
+        fr.Feature.LookupCount = len(idxs)
+
+    _ensure_gdef_classes(
+        font,
+        bases=[],
+        marks=list(chain_names),
+        glyph_order=glyph_order,
+    )
+    return len(chain_names)
+
+
+def _gpos_script_tags(extra_script_tags: Sequence[str] = ()) -> List[str]:
+    script_tags: List[str] = []
+    for line in COMPOSITION_LANGUAGE_SYSTEMS:
+        parts = line.replace(";", "").split()
+        if len(parts) >= 2 and parts[0] == "languagesystem":
+            script_tags.append(parts[1].ljust(4)[:4])
+    for tag in extra_script_tags:
+        t = tag.ljust(4)[:4]
+        if t not in script_tags:
+            script_tags.append(t)
+    return script_tags

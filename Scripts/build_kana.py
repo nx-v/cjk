@@ -109,14 +109,18 @@ from kana_diacritics import (
     kana_coord_liga_names,
     kana_d4_form_names,
     kana_mark_center_anchor,
+    kana_mark_chain_parent_anchor,
     kana_representative_mark_points,
 )
 from shared_diacritics import (
     DAKUTEN_SLOT_CYCLE,
     DAKUTEN_SLOTS,
     add_dakuten_mark_glyphs,
+    add_dakuten_chain_mark_glyphs,
     dakuten_mark_stack_label,
+    install_dakuten_chain_gsub,
     install_dakuten_gpos,
+    install_dakuten_mark_chain_gpos,
     install_dakuten_slot_gsub,
     load_dakuten_marks_from_stack,
     resolve_dakuten_mark_font_stack,
@@ -1448,10 +1452,16 @@ def _install_kana_dakuten_layout(
             glyph_order=glyph_order,
             base_names=all_forms,
         )
+        install_dakuten_chain_gsub(
+            font,
+            mark_cps,
+            glyphs=glyphs,
+            glyph_order=glyph_order,
+        )
     face_marks = [n for n in mark_names if n in glyphs]
     if face_marks and face_anchors:
         print(
-            f"  Compiling GPOS (dakuten @ {len(face_anchors)} ink-outside "
+            f"  Compiling GPOS (dakuten @ {len(face_anchors)} contour "
             f"forms, incl. overlay/slice ligas)...",
             flush=True,
         )
@@ -1463,6 +1473,16 @@ def _install_kana_dakuten_layout(
             glyph_order=glyph_order,
             glyphs=glyphs,
             mark_anchor_fn=kana_mark_center_anchor,
+        )
+        install_dakuten_mark_chain_gpos(
+            font,
+            mark_cps=mark_cps,
+            glyphs=glyphs,
+            glyph_order=glyph_order,
+            mark_height=mark_ink_height,
+            target_upem=target_upem,
+            chain_parent_anchor_fn=kana_mark_chain_parent_anchor,
+            chain_child_anchor_fn=kana_mark_center_anchor,
         )
 
 
@@ -1954,6 +1974,13 @@ def build_pankana_font(
                 metrics=metrics,
                 cmap=cmap,
             )
+            chain_names = add_dakuten_chain_mark_glyphs(
+                mark_cps,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+            )
+            mark_names = list(mark_names) + chain_names
 
             base_anchors = collect_kana_dakuten_anchors(
                 kana_d4_form_names(full_bases),
@@ -1995,7 +2022,7 @@ def build_pankana_font(
             )
             print(
                 f"  Dakuten: {len(mark_cps)} marks × {len(DAKUTEN_SLOTS)} slots "
-                f"(contour ink + dakuten contour gap; full/small/hw; "
+                f"(contour-hug + mark-to-mark chain; full/small/hw; "
                 f"dakuten H≈{mark_ink_h:.0f}), "
                 f"{len(base_anchors)} bases",
                 flush=True,
