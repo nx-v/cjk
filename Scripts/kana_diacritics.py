@@ -1,13 +1,9 @@
-"""Kana dakuten placement: eight unique slots hugging each glyph contour.
+"""Kana dakuten placement: eight compass slots on an offset support contour.
 
-Marks sit just outside the baked outline (quadratic segments flattened), using
-outward normals at convex and concave vertices. Slots fill in GSUB order
-(TR→CR→BR→TM→BM→TL→CL→BL) by walking clockwise from the top-right contour
-region until eight non-overlapping positions are found. Marks 9+ use GPOS
-mark-to-mark (``.mk.ch``) chained off the previous mark, not the base slots.
-
-Coordinate ligatures (FE00 overlay ``.ov``, FE08–FE0F slices, and ``.ov`` of
-slices) are measured from **their** ink, not copied from the identity.
+Outlines are converted to pathops paths (quadratics/cubics preserved), offset
+outward by the mark gap, then each slot ray from the ink centroid hits that
+offset contour (Bezier-aware). The ring fills TR↔BL first, alternating inward
+on both arcs. Marks 9+ stack outward on the BL anchor ray (``.ch``).
 """
 
 from __future__ import annotations
@@ -17,7 +13,6 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
-from fontTools.pens.basePen import BasePen
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from shared_diacritics import (
@@ -29,22 +24,23 @@ from shared_half_cells import (
     SLICE_SUFFIXES,
     YI_ORIENTATION_MODES,
     _bake_transformed_glyph,
+    _ttglyph_to_pathops,
     orientation_form_names,
     overlay_glyph_name,
     slice_form_name,
 )
 
+Point = Tuple[float, float]
+_Seg = Tuple[str, Tuple[Point, ...]]
+
 # Air gap between kana ink and the nearest mark contour (fraction of dakuten H).
 KANA_MARK_GAP_FRAC = 0.08
 # Minimum center-to-center separation between marks (fraction of dakuten H).
 KANA_MARK_SEP_FRAC = 1.05
-# Arc-length step when searching for the next contour slot.
-KANA_CONTOUR_ARC_STEP_FRAC = 0.04
-# Polyline flattening step along the outline (fraction of dakuten H).
-KANA_CONTOUR_SAMPLE_FRAC = 0.12
+# Outward stack step for 9th+ marks on the same compass ray (fraction of H).
+KANA_CHAIN_RADIAL_FRAC = 1.05
 
 _INV_SQRT2 = 1.0 / math.sqrt(2.0)
-_TR_DIR = (_INV_SQRT2, _INV_SQRT2)
 KANA_SLOT_DIRS: Dict[str, Tuple[float, float]] = {
     "tr": (_INV_SQRT2, _INV_SQRT2),
     "cr": (1.0, 0.0),
@@ -115,17 +111,15 @@ def kana_mark_chain_parent_anchor(
     mark_height: Optional[float] = None,
     target_upem: int = 1000,
 ) -> Tuple[int, int]:
-    """Mark2 anchor for 9th+ marks: offset along the slot cycle, not stacked."""
+    """Mark2 anchor: stack further out on the parent slot's compass ray."""
     del glyph, glyph_set
-    idx = next(i for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS) if slot == parent_slot)
-    next_slot = DAKUTEN_SLOTS[(idx + 1) % len(DAKUTEN_SLOTS)][0]
-    ux, uy = KANA_SLOT_DIRS[next_slot]
+    ux, uy = KANA_SLOT_DIRS[parent_slot]
     h = (
         float(mark_height)
         if mark_height is not None and mark_height > 0
         else target_upem * DAKUTEN_MARK_HEIGHT_FRAC
     )
-    d = h * KANA_MARK_SEP_FRAC
+    d = h * KANA_CHAIN_RADIAL_FRAC
     return otRound(ux * d), otRound(uy * d)
 
 
@@ -168,60 +162,425 @@ def kana_representative_mark_points(
     return best
 
 
-class _OutlinePolylinePen(BasePen):
-    """Flatten TrueType outlines to polylines (quadratics subdivided)."""
+def _vadd(a: Point, b: Point) -> Point:
+    return a[0] + b[0], a[1] + b[1]
 
-    def __init__(self) -> None:
-        super().__init__(None)
-        self.contours: List[List[Tuple[float, float]]] = []
-        self._pts: List[Tuple[float, float]] = []
 
-    def _moveTo(self, pt) -> None:
-        self._pts = [(float(pt[0]), float(pt[1]))]
+def _vsub(a: Point, b: Point) -> Point:
+    return a[0] - b[0], a[1] - b[1]
 
-    def _lineTo(self, pt) -> None:
-        self._pts.append((float(pt[0]), float(pt[1])))
 
-    def _qCurveToOne(self, p1, p2) -> None:
-        p0 = self._pts[-1]
-        c1 = (float(p1[0]), float(p1[1]))
-        p2f = (float(p2[0]), float(p2[1]))
-        for i in range(1, 9):
-            t = i / 8.0
-            u = 1.0 - t
-            x = u * u * p0[0] + 2.0 * u * t * c1[0] + t * t * p2f[0]
-            y = u * u * p0[1] + 2.0 * u * t * c1[1] + t * t * p2f[1]
-            self._pts.append((x, y))
+def _vmul(s: float, v: Point) -> Point:
+    return s * v[0], s * v[1]
 
-    def _curveToOne(self, p1, p2, p3) -> None:
-        p0 = self._pts[-1]
-        c1 = (float(p1[0]), float(p1[1]))
-        c2 = (float(p2[0]), float(p2[1]))
-        p3f = (float(p3[0]), float(p3[1]))
-        for i in range(1, 9):
-            t = i / 8.0
-            u = 1.0 - t
-            x = (
-                u * u * u * p0[0]
-                + 3.0 * u * u * t * c1[0]
-                + 3.0 * u * t * t * c2[0]
-                + t * t * t * p3f[0]
+
+def _dot(a: Point, b: Point) -> float:
+    return a[0] * b[0] + a[1] * b[1]
+
+
+def _cross(a: Point, b: Point) -> float:
+    return a[0] * b[1] - a[1] * b[0]
+
+
+def _hypot(v: Point) -> float:
+    return math.hypot(v[0], v[1])
+
+
+def _unit(v: Point) -> Point:
+    ln = _hypot(v)
+    if ln < 1e-12:
+        return 0.0, 1.0
+    return v[0] / ln, v[1] / ln
+
+
+def _outward_normal(tangent: Point, ccw: bool) -> Point:
+    tx, ty = _unit(tangent)
+    return (-ty, tx) if ccw else (ty, -tx)
+
+
+def _parse_pathops_contour(contour) -> List[_Seg]:
+    import pathops
+
+    segs: List[_Seg] = []
+    cur: Optional[Point] = None
+    start: Optional[Point] = None
+    for verb, pts in contour:
+        if verb == pathops.PathVerb.MOVE:
+            cur = (float(pts[0][0]), float(pts[0][1]))
+            start = cur
+        elif verb == pathops.PathVerb.LINE:
+            end = (float(pts[0][0]), float(pts[0][1]))
+            if cur is not None:
+                segs.append(("line", (cur, end)))
+            cur = end
+        elif verb == pathops.PathVerb.QUAD:
+            c1 = (float(pts[0][0]), float(pts[0][1]))
+            end = (float(pts[1][0]), float(pts[1][1]))
+            if cur is not None:
+                segs.append(("quad", (cur, c1, end)))
+            cur = end
+        elif verb == pathops.PathVerb.CUBIC:
+            c1 = (float(pts[0][0]), float(pts[0][1]))
+            c2 = (float(pts[1][0]), float(pts[1][1]))
+            end = (float(pts[2][0]), float(pts[2][1]))
+            if cur is not None:
+                segs.append(("cubic", (cur, c1, c2, end)))
+            cur = end
+        elif verb == pathops.PathVerb.CLOSE:
+            if cur is not None and start is not None and cur != start:
+                segs.append(("line", (cur, start)))
+            cur = start
+    return segs
+
+
+def _flatten_segments(segs: Sequence[_Seg], *, steps: int = 8) -> List[Point]:
+    pts: List[Point] = []
+    for kind, sp in segs:
+        if kind == "line":
+            p0, p1 = sp
+            if not pts:
+                pts.append(p0)
+            pts.append(p1)
+        elif kind == "quad":
+            p0, p1, p2 = sp
+            if not pts:
+                pts.append(p0)
+            for i in range(1, steps + 1):
+                t = i / steps
+                u = 1.0 - t
+                x = u * u * p0[0] + 2.0 * u * t * p1[0] + t * t * p2[0]
+                y = u * u * p0[1] + 2.0 * u * t * p1[1] + t * t * p2[1]
+                pts.append((x, y))
+        elif kind == "cubic":
+            p0, p1, p2, p3 = sp
+            if not pts:
+                pts.append(p0)
+            for i in range(1, steps + 1):
+                t = i / steps
+                u = 1.0 - t
+                x = (
+                    u * u * u * p0[0]
+                    + 3.0 * u * u * t * p1[0]
+                    + 3.0 * u * t * t * p2[0]
+                    + t * t * t * p3[0]
+                )
+                y = (
+                    u * u * u * p0[1]
+                    + 3.0 * u * u * t * p1[1]
+                    + 3.0 * u * t * t * p2[1]
+                    + t * t * t * p3[1]
+                )
+                pts.append((x, y))
+    return pts
+
+
+def _segments_signed_area(segs: Sequence[_Seg]) -> float:
+    loop = _flatten_segments(segs, steps=6)
+    if len(loop) < 3:
+        return 0.0
+    a = 0.0
+    n = len(loop)
+    for i in range(n):
+        x1, y1 = loop[i]
+        x2, y2 = loop[(i + 1) % n]
+        a += x1 * y2 - x2 * y1
+    return 0.5 * a
+
+
+def _largest_path_contour(path):
+    best = None
+    best_area = 0.0
+    for contour in path.contours:
+        segs = _parse_pathops_contour(contour)
+        if not segs:
+            continue
+        area = abs(_segments_signed_area(segs))
+        if area > best_area:
+            best_area = area
+            best = contour
+    return best
+
+
+def _bezier_eval_quad(p0: Point, p1: Point, p2: Point, t: float) -> Point:
+    u = 1.0 - t
+    x = u * u * p0[0] + 2.0 * u * t * p1[0] + t * t * p2[0]
+    y = u * u * p0[1] + 2.0 * u * t * p1[1] + t * t * p2[1]
+    return x, y
+
+
+def _bezier_eval_cubic(p0: Point, p1: Point, p2: Point, p3: Point, t: float) -> Point:
+    u = 1.0 - t
+    x = (
+        u * u * u * p0[0]
+        + 3.0 * u * u * t * p1[0]
+        + 3.0 * u * t * t * p2[0]
+        + t * t * t * p3[0]
+    )
+    y = (
+        u * u * u * p0[1]
+        + 3.0 * u * u * t * p1[1]
+        + 3.0 * u * t * t * p2[1]
+        + t * t * t * p3[1]
+    )
+    return x, y
+
+
+def _bezier_deriv_quad(p0: Point, p1: Point, p2: Point, t: float) -> Point:
+    u = 1.0 - t
+    x = 2.0 * u * (p1[0] - p0[0]) + 2.0 * t * (p2[0] - p1[0])
+    y = 2.0 * u * (p1[1] - p0[1]) + 2.0 * t * (p2[1] - p1[1])
+    return x, y
+
+
+def _bezier_deriv_cubic(
+    p0: Point, p1: Point, p2: Point, p3: Point, t: float
+) -> Point:
+    u = 1.0 - t
+    x = (
+        3.0 * u * u * (p1[0] - p0[0])
+        + 6.0 * u * t * (p2[0] - p1[0])
+        + 3.0 * t * t * (p3[0] - p2[0])
+    )
+    y = (
+        3.0 * u * u * (p1[1] - p0[1])
+        + 6.0 * u * t * (p2[1] - p1[1])
+        + 3.0 * t * t * (p3[1] - p2[1])
+    )
+    return x, y
+
+
+def _seg_normal_at(kind: str, pts: Tuple[Point, ...], t: float, ccw: bool) -> Point:
+    if kind == "line":
+        return _outward_normal(_vsub(pts[1], pts[0]), ccw)
+    if kind == "quad":
+        tan = _bezier_deriv_quad(pts[0], pts[1], pts[2], t)
+        return _outward_normal(tan, ccw)
+    tan = _bezier_deriv_cubic(pts[0], pts[1], pts[2], pts[3], t)
+    return _outward_normal(tan, ccw)
+
+
+def _offset_segment(kind: str, pts: Tuple[Point, ...], d: float, ccw: bool) -> _Seg:
+    if kind == "line":
+        p0, p1 = pts
+        n = _outward_normal(_vsub(p1, p0), ccw)
+        return ("line", (_vadd(p0, _vmul(d, n)), _vadd(p1, _vmul(d, n))))
+    if kind == "quad":
+        p0, p1, p2 = pts
+        samples = (0.0, 0.5, 1.0)
+        op: List[Point] = []
+        for t in samples:
+            pt = _bezier_eval_quad(p0, p1, p2, t)
+            n = _seg_normal_at("quad", pts, t, ccw)
+            op.append(_vadd(pt, _vmul(d, n)))
+        return ("quad", (op[0], op[1], op[2]))
+    p0, p1, p2, p3 = pts
+    samples = (0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0)
+    op = []
+    for t in samples:
+        pt = _bezier_eval_cubic(p0, p1, p2, p3, t)
+        n = _seg_normal_at("cubic", pts, t, ccw)
+        op.append(_vadd(pt, _vmul(d, n)))
+    return ("cubic", (op[0], op[1], op[2], op[3]))
+
+
+def _offset_pathops_contour(contour, distance: float):
+    import pathops
+
+    segs = _parse_pathops_contour(contour)
+    if not segs or distance <= 0.0:
+        return None
+    ccw = _segments_signed_area(segs) >= 0.0
+    off_segs = [_offset_segment(kind, pts, distance, ccw) for kind, pts in segs]
+    out = pathops.Path()
+    first = True
+    prev_end: Optional[Point] = None
+    for kind, pts in off_segs:
+        if first:
+            out.moveTo(pts[0][0], pts[0][1])
+            first = False
+        elif prev_end is not None and _hypot(_vsub(prev_end, pts[0])) > 1e-6:
+            out.lineTo(pts[0][0], pts[0][1])
+        if kind == "line":
+            out.lineTo(pts[1][0], pts[1][1])
+            prev_end = pts[1]
+        elif kind == "quad":
+            out.quadTo(pts[1][0], pts[1][1], pts[2][0], pts[2][1])
+            prev_end = pts[2]
+        else:
+            out.curveTo(
+                pts[1][0],
+                pts[1][1],
+                pts[2][0],
+                pts[2][1],
+                pts[3][0],
+                pts[3][1],
             )
-            y = (
-                u * u * u * p0[1]
-                + 3.0 * u * u * t * c1[1]
-                + 3.0 * u * t * t * c2[1]
-                + t * t * t * p3f[1]
-            )
-            self._pts.append((x, y))
+            prev_end = pts[3]
+    out.close()
+    try:
+        return pathops.simplify(out, fix_winding=True)
+    except Exception:
+        return out
 
-    def _closePath(self) -> None:
-        if len(self._pts) >= 2:
-            self.contours.append(self._pts)
 
-    def _endPath(self) -> None:
-        if len(self._pts) >= 2:
-            self.contours.append(self._pts)
+def _glyph_to_pathops(
+    glyph: TTGlyph,
+    glyph_set: Dict[str, TTGlyph],
+):
+    g = _baked_glyph(glyph, glyph_set)
+    if g is None or g.numberOfContours <= 0:
+        return None
+    try:
+        return _ttglyph_to_pathops(g, glyph_set)
+    except Exception:
+        return None
+
+
+def _offset_contour_segments(
+    glyph: TTGlyph,
+    glyph_set: Dict[str, TTGlyph],
+    distance: float,
+) -> Tuple[List[_Seg], bool]:
+    path = _glyph_to_pathops(glyph, glyph_set)
+    if path is None:
+        return [], True
+    contour = _largest_path_contour(path)
+    if contour is None:
+        return [], True
+    ink_segs = _parse_pathops_contour(contour)
+    ccw = _segments_signed_area(ink_segs) >= 0.0
+    off = _offset_pathops_contour(contour, distance)
+    if off is None:
+        return [], ccw
+    segs: List[_Seg] = []
+    for off_contour in off.contours:
+        segs.extend(_parse_pathops_contour(off_contour))
+    return segs, ccw
+
+
+def _line_line_intersection(
+    p1: Point,
+    d1: Point,
+    p2: Point,
+    d2: Point,
+) -> Optional[Point]:
+    denom = _cross(d1, d2)
+    if abs(denom) < 1e-12:
+        return None
+    t = _cross(_vsub(p2, p1), d2) / denom
+    return _vadd(p1, _vmul(t, d1))
+
+
+def _ray_line_hit(
+    origin: Point,
+    direction: Point,
+    p0: Point,
+    p1: Point,
+) -> Optional[Tuple[float, Point, Point]]:
+    seg = _vsub(p1, p0)
+    hit = _line_line_intersection(origin, direction, p0, seg)
+    if hit is None:
+        return None
+    proj = _dot(_vsub(hit, origin), direction)
+    if proj < 0.0:
+        return None
+    s = _dot(_vsub(hit, p0), seg) / (_dot(seg, seg) or 1.0)
+    if s < -1e-6 or s > 1.0 + 1e-6:
+        return None
+    tan = seg
+    return proj, hit, tan
+
+
+def _lerp(a: Point, b: Point, t: float) -> Point:
+    return a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+
+
+def _split_quad(p0: Point, p1: Point, p2: Point) -> Tuple[_Seg, _Seg]:
+    m01 = _lerp(p0, p1, 0.5)
+    m12 = _lerp(p1, p2, 0.5)
+    mid = _lerp(m01, m12, 0.5)
+    return ("quad", (p0, m01, mid)), ("quad", (mid, m12, p2))
+
+
+def _split_cubic(
+    p0: Point, p1: Point, p2: Point, p3: Point
+) -> Tuple[_Seg, _Seg]:
+    m01 = _lerp(p0, p1, 0.5)
+    m12 = _lerp(p1, p2, 0.5)
+    m23 = _lerp(p2, p3, 0.5)
+    m012 = _lerp(m01, m12, 0.5)
+    m123 = _lerp(m12, m23, 0.5)
+    mid = _lerp(m012, m123, 0.5)
+    return ("cubic", (p0, m01, m012, mid)), ("cubic", (mid, m123, m23, p3))
+
+
+def _ray_flat_curve_hits(
+    origin: Point,
+    direction: Point,
+    kind: str,
+    pts: Tuple[Point, ...],
+    *,
+    depth: int = 0,
+) -> List[Tuple[float, Point, Point]]:
+    if kind == "quad":
+        p0, p1, p2 = pts
+        end = p2
+    else:
+        p0, p1, p2, p3 = pts
+        end = p3
+    if depth >= 14 or _hypot(_vsub(end, p0)) < 0.5:
+        hit = _ray_line_hit(origin, direction, p0, end)
+        return [hit] if hit else []
+    if kind == "quad":
+        left, right = _split_quad(p0, p1, p2)
+    else:
+        left, right = _split_cubic(p0, p1, p2, p3)
+    return _ray_flat_curve_hits(
+        origin, direction, left[0], left[1], depth=depth + 1
+    ) + _ray_flat_curve_hits(
+        origin, direction, right[0], right[1], depth=depth + 1
+    )
+
+
+def _ray_segment_hit(
+    origin: Point,
+    direction: Point,
+    kind: str,
+    pts: Tuple[Point, ...],
+) -> Optional[Tuple[float, Point, Point]]:
+    if kind == "line":
+        hit = _ray_line_hit(origin, direction, pts[0], pts[1])
+        return hit
+    hits = _ray_flat_curve_hits(origin, direction, kind, pts)
+    best: Optional[Tuple[float, Point, Point]] = None
+    for hit in hits:
+        if hit is None:
+            continue
+        if best is None or hit[0] > best[0]:
+            best = hit
+    return best
+
+
+def _ray_farthest_contour_hit(
+    origin: Point,
+    direction: Point,
+    segs: Sequence[_Seg],
+    ccw: bool,
+) -> Optional[Tuple[float, float, float, float]]:
+    ux, uy = _unit(direction)
+    best_proj = -1e30
+    best_xy: Optional[Tuple[float, float, float, float]] = None
+    for kind, pts in segs:
+        hit = _ray_segment_hit(origin, (ux, uy), kind, pts)
+        if hit is None:
+            continue
+        proj, xy, tan = hit
+        if proj <= best_proj:
+            continue
+        nx, ny = _outward_normal(tan, ccw)
+        best_proj = proj
+        best_xy = (xy[0], xy[1], nx, ny)
+    return best_xy
 
 
 def _baked_glyph(
@@ -239,90 +598,12 @@ def _baked_glyph(
     return glyph
 
 
-def _outline_polylines(
-    glyph: TTGlyph,
-    glyph_set: Dict[str, TTGlyph],
-) -> List[List[Tuple[float, float]]]:
-    g = _baked_glyph(glyph, glyph_set)
-    if g is None or g.numberOfContours <= 0:
-        return []
-    pen = _OutlinePolylinePen()
-    try:
-        g.draw(pen, glyph_set)
-    except TypeError:
-        try:
-            g.draw(pen)
-        except Exception:
-            return []
-    except Exception:
-        return []
-    return [c for c in pen.contours if len(c) >= 2]
-
-
-def _polyline_perimeter(loop: Sequence[Tuple[float, float]]) -> float:
-    total = 0.0
-    n = len(loop)
-    for i in range(n):
-        j = (i + 1) % n
-        dx = loop[j][0] - loop[i][0]
-        dy = loop[j][1] - loop[i][1]
-        total += math.hypot(dx, dy)
-    return total
-
-
-def _loop_centroid(loop: Sequence[Tuple[float, float]]) -> Tuple[float, float]:
-    xs = [p[0] for p in loop]
-    ys = [p[1] for p in loop]
+def _ink_centroid(
+    points: Sequence[Tuple[float, float]],
+) -> Tuple[float, float]:
+    xs = [x for x, _y in points]
+    ys = [y for _x, y in points]
     return sum(xs) / len(xs), sum(ys) / len(ys)
-
-
-def _signed_area(loop: Sequence[Tuple[float, float]]) -> float:
-    a = 0.0
-    n = len(loop)
-    for i in range(n):
-        x1, y1 = loop[i]
-        x2, y2 = loop[(i + 1) % n]
-        a += x1 * y2 - x2 * y1
-    return 0.5 * a
-
-
-def _segment_left_normal(
-    ax: float,
-    ay: float,
-    bx: float,
-    by: float,
-) -> Tuple[float, float]:
-    tx, ty = bx - ax, by - ay
-    ln = math.hypot(tx, ty)
-    if ln < 1e-9:
-        return 0.0, 1.0
-    return -ty / ln, tx / ln
-
-
-def _outward_normal(
-    loop: Sequence[Tuple[float, float]],
-    index: int,
-    *,
-    ccw: bool,
-) -> Tuple[float, float]:
-    n = len(loop)
-    i0 = (index - 1) % n
-    i1 = index % n
-    i2 = (index + 1) % n
-    n1 = _segment_left_normal(loop[i0][0], loop[i0][1], loop[i1][0], loop[i1][1])
-    n2 = _segment_left_normal(loop[i1][0], loop[i1][1], loop[i2][0], loop[i2][1])
-    nx = n1[0] + n2[0]
-    ny = n1[1] + n2[1]
-    ln = math.hypot(nx, ny)
-    if ln < 1e-9:
-        nx, ny = n1
-        ln = math.hypot(nx, ny) or 1.0
-    else:
-        nx /= ln
-        ny /= ln
-    if not ccw:
-        nx, ny = -nx, -ny
-    return nx, ny
 
 
 def _mark_bbox(
@@ -401,88 +682,23 @@ def _conflicts(
     return False
 
 
-def _densify_loop(
-    loop: Sequence[Tuple[float, float]],
-    *,
-    step: float,
-) -> List[Tuple[float, float, float, float, float]]:
-    """Return ``(arc_s, x, y, nx, ny)`` samples along a closed polyline."""
-    n = len(loop)
-    if n < 2:
-        return []
-    ccw = _signed_area(loop) >= 0.0
-    samples: List[Tuple[float, float, float, float, float]] = []
-    arc = 0.0
-    for i in range(n):
-        ax, ay = loop[i]
-        bx, by = loop[(i + 1) % n]
-        seg_len = math.hypot(bx - ax, by - ay)
-        if seg_len < 1e-9:
-            continue
-        nx, ny = _segment_left_normal(ax, ay, bx, by)
-        if not ccw:
-            nx, ny = -nx, -ny
-        steps = max(1, int(math.ceil(seg_len / step)))
-        for k in range(steps):
-            t = k / steps
-            x = ax + (bx - ax) * t
-            y = ay + (by - ay) * t
-            vi = int(round(i + t)) % n
-            vnx, vny = _outward_normal(loop, vi, ccw=ccw)
-            # Blend segment and vertex normals so concave corners stay tight.
-            mx = 0.65 * nx + 0.35 * vnx
-            my = 0.65 * ny + 0.35 * vny
-            ml = math.hypot(mx, my) or 1.0
-            mx /= ml
-            my /= ml
-            samples.append((arc, x, y, mx, my))
-        arc += seg_len
-    return samples
+# Slot fill order: TR and BL first, then alternating inward on both arcs.
+_KANA_RING_FILL_ORDER: Tuple[str, ...] = (
+    "tr",
+    "bl",
+    "cr",
+    "cl",
+    "br",
+    "tl",
+    "tm",
+    "bm",
+)
 
 
-def _place_at_sample(
-    x: float,
-    y: float,
-    nx: float,
-    ny: float,
-    *,
-    gap: float,
-    mark_points: Sequence[Tuple[float, float]],
-    mark_h: float,
-    mx0: float,
-    my0: float,
-    mx1: float,
-    my1: float,
-    ink_rect: Tuple[float, float, float, float],
-    placed: Sequence[Tuple[float, float]],
-    min_sep_sq: float,
-    normal_step: float,
-    max_normal_steps: int = 24,
-) -> Optional[Tuple[float, float]]:
-    base = gap + _mark_extent_along_normal(mark_points, mark_h, nx, ny)
-    for nstep in range(max_normal_steps):
-        dist = base + nstep * normal_step
-        cx, cy = x + nx * dist, y + ny * dist
-        if not _conflicts(cx, cy, mx0, my0, mx1, my1, ink_rect, placed, min_sep_sq):
-            return cx, cy
-    return None
-
-
-def _ensure_outward(
-    nx: float,
-    ny: float,
-    px: float,
-    py: float,
-    cx: float,
-    cy: float,
-) -> Tuple[float, float]:
-    if (px - cx) * nx + (py - cy) * ny < 0.0:
-        return -nx, -ny
-    return nx, ny
-
-
-def _contour_slot_positions(
-    loop: Sequence[Tuple[float, float]],
+def _offset_contour_slot_positions(
+    glyph: TTGlyph,
+    glyph_set: Dict[str, TTGlyph],
+    origin: Point,
     *,
     gap: float,
     mark_h: float,
@@ -493,109 +709,38 @@ def _contour_slot_positions(
     my1: float,
     ink_rect: Tuple[float, float, float, float],
     min_sep: float,
-    sample_step: float,
-    arc_step: float,
-    slot_count: int = 8,
-) -> List[Tuple[float, float]]:
-    del arc_step
-    samples = _densify_loop(loop, step=sample_step)
-    if not samples:
-        return []
-    perimeter = samples[-1][0] + math.hypot(
-        samples[-1][1] - samples[0][1],
-        samples[-1][2] - samples[0][2],
-    )
-    if perimeter < 1e-6:
-        return []
-
-    centroid = _loop_centroid(loop)
-    ccw = _signed_area(loop) >= 0.0
-    tr_x, tr_y = _TR_DIR
-    start_i = max(
-        range(len(samples)),
-        key=lambda i: samples[i][1] * tr_x + samples[i][2] * tr_y,
-    )
-    start_s = samples[start_i][0]
-
+) -> Optional[List[Tuple[float, float]]]:
+    """Place eight slots on a Bezier offset contour (TR↔BL zigzag validation)."""
     min_sep_sq = min_sep * min_sep
-    normal_step = max(1.0, mark_h * 0.03)
+    extra_step = max(1.0, mark_h * 0.04)
+    slot_xy: Dict[str, Tuple[float, float]] = {}
 
-    # Clockwise from TR: forward arc on CW outers, backward on CCW outers.
-    if ccw:
-        order = sorted(
-            range(len(samples)),
-            key=lambda i: (start_s - samples[i][0]) % perimeter,
-        )
-    else:
-        order = sorted(
-            range(len(samples)),
-            key=lambda i: (samples[i][0] - start_s) % perimeter,
-        )
-
-    placed: List[Tuple[float, float]] = []
-    positions: List[Tuple[float, float]] = []
-    cursor = 0
-    for _slot in range(slot_count):
-        found: Optional[Tuple[float, float]] = None
-        while cursor < len(order):
-            i = order[cursor]
-            cursor += 1
-            _s, x, y, nx, ny = samples[i]
-            nx, ny = _ensure_outward(nx, ny, x, y, centroid[0], centroid[1])
-            hit = _place_at_sample(
-                x,
-                y,
-                nx,
-                ny,
-                gap=gap,
-                mark_points=mark_points,
-                mark_h=mark_h,
-                mx0=mx0,
-                my0=my0,
-                mx1=mx1,
-                my1=my1,
-                ink_rect=ink_rect,
-                placed=placed,
-                min_sep_sq=min_sep_sq,
-                normal_step=normal_step,
-            )
-            if hit is not None:
-                found = hit
+    for attempt in range(64):
+        offset_d = gap + attempt * extra_step
+        segs, ccw = _offset_contour_segments(glyph, glyph_set, offset_d)
+        if not segs:
+            continue
+        placed: List[Tuple[float, float]] = []
+        ok = True
+        slot_xy.clear()
+        for slot in _KANA_RING_FILL_ORDER:
+            ux, uy = KANA_SLOT_DIRS[slot]
+            hit = _ray_farthest_contour_hit(origin, (ux, uy), segs, ccw)
+            if hit is None:
+                ok = False
                 break
-        if found is None:
-            break
-        placed.append(found)
-        positions.append(found)
-    if len(positions) < slot_count:
-        # Tighter spacing pass for crowded outlines.
-        cursor = 0
-        relax_sq = (min_sep * 0.55) ** 2
-        while len(positions) < slot_count and cursor < len(order):
-            i = order[cursor]
-            cursor += 1
-            _s, x, y, nx, ny = samples[i]
-            nx, ny = _ensure_outward(nx, ny, x, y, centroid[0], centroid[1])
-            hit = _place_at_sample(
-                x,
-                y,
-                nx,
-                ny,
-                gap=gap,
-                mark_points=mark_points,
-                mark_h=mark_h,
-                mx0=mx0,
-                my0=my0,
-                mx1=mx1,
-                my1=my1,
-                ink_rect=ink_rect,
-                placed=placed,
-                min_sep_sq=relax_sq,
-                normal_step=normal_step,
-            )
-            if hit is not None:
-                placed.append(hit)
-                positions.append(hit)
-    return positions
+            px, py, nx, ny = hit
+            ext = _mark_extent_along_normal(mark_points, mark_h, nx, ny)
+            cx = px + nx * ext
+            cy = py + ny * ext
+            if _conflicts(cx, cy, mx0, my0, mx1, my1, ink_rect, placed, min_sep_sq):
+                ok = False
+                break
+            placed.append((cx, cy))
+            slot_xy[slot] = (cx, cy)
+        if ok and len(slot_xy) == len(DAKUTEN_SLOTS):
+            return [slot_xy[slot] for slot, _suf in DAKUTEN_SLOTS]
+    return None
 
 
 def kana_slot_anchors(
@@ -607,17 +752,25 @@ def kana_slot_anchors(
     mark_ink_height: Optional[float] = None,
     mark_scale: float = 1.0,
 ) -> Optional[Dict[str, Tuple[int, int]]]:
-    """Eight coordinates hugging this glyph's outline (TR→BL clockwise fill)."""
+    """Eight anchors on a Bezier offset contour (TR↔BL zigzag fill)."""
     del mark_scale
-    polylines = _outline_polylines(glyph, glyph_set)
-    if not polylines:
-        points = _contour_ink_points_fallback(glyph, glyph_set)
-        if len(points) < 2:
+    path = _glyph_to_pathops(glyph, glyph_set)
+    if path is None:
+        flat = _contour_ink_points_fallback(glyph, glyph_set)
+        if len(flat) < 2:
             return None
-        polylines = [points]
-
-    loop = max(polylines, key=lambda p: abs(_signed_area(p)))
-    flat_ink = [p for contour in polylines for p in contour]
+        origin = _ink_centroid(flat)
+        ink_rect = _ink_bbox(flat)
+    else:
+        contour = _largest_path_contour(path)
+        if contour is None:
+            return None
+        segs = _parse_pathops_contour(contour)
+        flat = _flatten_segments(segs)
+        if len(flat) < 2:
+            return None
+        origin = _ink_centroid(flat)
+        ink_rect = _ink_bbox(flat)
 
     mpts = list(mark_points) if mark_points else []
     mark_h = _mark_height(mpts)
@@ -629,15 +782,12 @@ def kana_slot_anchors(
         )
     gap = mark_h * KANA_MARK_GAP_FRAC
     min_sep = mark_h * KANA_MARK_SEP_FRAC
-    sample_step = max(2.0, mark_h * KANA_CONTOUR_SAMPLE_FRAC)
-    arc_step = max(1.0, mark_h * KANA_CONTOUR_ARC_STEP_FRAC)
-
     mx0, my0, mx1, my1 = _mark_bbox(mpts, mark_h)
-    ix0, iy0, ix1, iy1 = _ink_bbox(flat_ink)
-    ink_rect = (ix0, iy0, ix1, iy1)
 
-    positions = _contour_slot_positions(
-        loop,
+    positions = _offset_contour_slot_positions(
+        glyph,
+        glyph_set,
+        origin,
         gap=gap,
         mark_h=mark_h,
         mark_points=mpts,
@@ -647,11 +797,8 @@ def kana_slot_anchors(
         my1=my1,
         ink_rect=ink_rect,
         min_sep=min_sep,
-        sample_step=sample_step,
-        arc_step=arc_step,
-        slot_count=len(DAKUTEN_SLOTS),
     )
-    if len(positions) < len(DAKUTEN_SLOTS):
+    if not positions:
         return None
 
     out: Dict[str, Tuple[int, int]] = {}

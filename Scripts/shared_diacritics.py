@@ -774,11 +774,9 @@ def mark_chain_parent_anchor(
     mark_height: Optional[float] = None,
     target_upem: int = 1000,
 ) -> Tuple[int, int]:
-    """Mark2 anchor: where the next overflow mark attaches on ``parent_slot``."""
+    """Mark2 anchor: stack further out on the parent slot's compass ray."""
     del glyph, glyph_set
-    idx = next(i for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS) if slot == parent_slot)
-    next_slot = DAKUTEN_SLOTS[(idx + 1) % DAKUTEN_SLOT_COUNT][0]
-    ux, uy = _DAKUTEN_SLOT_DIR[next_slot]
+    ux, uy = _DAKUTEN_SLOT_DIR[parent_slot]
     h = mark_height if mark_height and mark_height > 0 else target_upem * DAKUTEN_MARK_HEIGHT_FRAC
     d = h * DAKUTEN_CHAIN_SEP_FRAC
     return otRound(ux * d), otRound(uy * d)
@@ -1542,7 +1540,7 @@ def install_dakuten_mark_chain_gpos(
             if suf and name.endswith(f".{suf}"):
                 return slot
         if name.endswith(f".{DAKUTEN_CHAIN_SUFFIX}"):
-            return "tr"
+            return DAKUTEN_SLOTS[-1][0]
         return "tr"
 
     for name in parent_names + chain_names:
