@@ -128,6 +128,7 @@ from edenia_names import (
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
 from shared_font_builder import load_ttfont, setup_head_timestamps
+from shared_hinting import add_hint_mode_arguments, add_jobs_argument
 
 # ---------- Directories ----------
 
@@ -2466,17 +2467,7 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_UPEM,
         help=f"Target unitsPerEm (default {DEFAULT_UPEM})",
     )
-    p.add_argument(
-        "--jobs",
-        "-j",
-        dest="jobs",
-        type=_parse_jobs,
-        default=max(1, os.cpu_count() or 4),
-        help=(
-            "Parallel workers per stage (default: all CPUs); 4 stages: "
-            "master TTF, hint, WOFF2. ``-j -61`` is the same as ``-j 61``."
-        ),
-    )
+    add_jobs_argument(p)
     p.add_argument(
         "--css-only",
         action="store_true",

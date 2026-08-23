@@ -241,7 +241,7 @@ button.danger {{ background: #4a2a2a; border-color: #6a3a3a; }}
   font-size: var(--fs);
   line-height: 1.35;
   display: flex; flex-wrap: wrap; gap: 2px;
-  font-feature-settings: "rlig" 1, "liga" 1, "ccmp" 1;
+  font-feature-settings: "rlig" 1, "liga" 1, "ccmp" 1, "mark" 1, "abvm" 1, "mkmk" 1;
 }}
 .cell {{
   display: inline-flex; flex-direction: column; align-items: center;
@@ -265,6 +265,7 @@ h2 {{
   width: 100%;
   font-family: 'edenia kana h', 'edenia kana', sans-serif;
   font-size: var(--fs);
+  font-feature-settings: "rlig" 1, "liga" 1, "ccmp" 1, "mark" 1, "abvm" 1, "mkmk" 1;
   margin-bottom: 12px;
 }}
 .chart .hdr, .chart .rowlab {{
@@ -286,7 +287,7 @@ h2 {{
   dakuten {len(marks)} (sample).<br/>
   Orientation gallery: {n_orient:,} · pairwise slices: {n_pair:,} each mode
   (on demand). Diacritics optional: 1–{DAKUTEN_SLOT_COUNT} marks →
-  {DAKUTEN_SLOT_CYCLE} (contour anchors); CGJ (U+034F) skips a slot.
+  {DAKUTEN_SLOT_CYCLE} (octagon ring; 9+ chains TR→…→BL); CGJ (U+034F) skips a slot.
 </p>
 
 <div class="controls">

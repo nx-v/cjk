@@ -1,18 +1,25 @@
-"""Kana dakuten placement: eight compass slots on an offset support contour.
+"""Kana dakuten placement: eight compass slots hugging the ink contour.
 
-Outlines are converted to pathops paths (quadratics/cubics preserved), offset
-outward by the mark gap, then each slot ray from the ink centroid hits that
-offset contour (Bezier-aware). The ring fills TR↔BL first, alternating inward
-on both arcs. Marks 9+ stack outward on the BL anchor ray (``.ch``).
+Each of the first eight marks sits on its compass ray from the ink centroid,
+as close to the outline as the mark gap allows; separation bumps only when
+marks would overlap. Marks 9+ stack outward on TR→CR→…→BL in sequence, each
+GPOS-chained to its matching slot diacritic.
 """
 
 from __future__ import annotations
 
+import glob
 import math
-from typing import Dict, List, Optional, Sequence, Tuple
+import os
+import pickle
+import tempfile
+import time
+from concurrent.futures import ProcessPoolExecutor
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
+from fontTools.pens.basePen import BasePen
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from shared_diacritics import (
@@ -24,14 +31,12 @@ from shared_half_cells import (
     SLICE_SUFFIXES,
     YI_ORIENTATION_MODES,
     _bake_transformed_glyph,
-    _ttglyph_to_pathops,
     orientation_form_names,
     overlay_glyph_name,
     slice_form_name,
 )
 
 Point = Tuple[float, float]
-_Seg = Tuple[str, Tuple[Point, ...]]
 
 # Air gap between kana ink and the nearest mark contour (fraction of dakuten H).
 KANA_MARK_GAP_FRAC = 0.08
@@ -39,6 +44,10 @@ KANA_MARK_GAP_FRAC = 0.08
 KANA_MARK_SEP_FRAC = 1.05
 # Outward stack step for 9th+ marks on the same compass ray (fraction of H).
 KANA_CHAIN_RADIAL_FRAC = 1.05
+# Curve flattening steps when turning an ink outline into a polyline.
+KANA_CONTOUR_FLATTEN_STEPS = 8
+# Inward slide step when hugging the contour along a slot ray (fraction of H).
+KANA_SLOT_SLIDE_FRAC = 0.02
 
 _INV_SQRT2 = 1.0 / math.sqrt(2.0)
 KANA_SLOT_DIRS: Dict[str, Tuple[float, float]] = {
@@ -198,269 +207,97 @@ def _outward_normal(tangent: Point, ccw: bool) -> Point:
     return (-ty, tx) if ccw else (ty, -tx)
 
 
-def _parse_pathops_contour(contour) -> List[_Seg]:
-    import pathops
+class _PolylinePen(BasePen):
+    """Flatten a glyph outline into closed contour polylines."""
 
-    segs: List[_Seg] = []
-    cur: Optional[Point] = None
-    start: Optional[Point] = None
-    for verb, pts in contour:
-        match verb:
-            case pathops.PathVerb.MOVE:
-                cur = (float(pts[0][0]), float(pts[0][1]))
-                start = cur
-            case pathops.PathVerb.LINE:
-                end = (float(pts[0][0]), float(pts[0][1]))
-                if cur is not None:
-                    segs.append(("line", (cur, end)))
-                cur = end
-            case pathops.PathVerb.QUAD:
-                c1 = (float(pts[0][0]), float(pts[0][1]))
-                end = (float(pts[1][0]), float(pts[1][1]))
-                if cur is not None:
-                    segs.append(("quad", (cur, c1, end)))
-                cur = end
-            case pathops.PathVerb.CUBIC:
-                c1 = (float(pts[0][0]), float(pts[0][1]))
-                c2 = (float(pts[1][0]), float(pts[1][1]))
-                end = (float(pts[2][0]), float(pts[2][1]))
-                if cur is not None:
-                    segs.append(("cubic", (cur, c1, c2, end)))
-                cur = end
-            case pathops.PathVerb.CLOSE:
-                if cur is not None and start is not None and cur != start:
-                    segs.append(("line", (cur, start)))
-                cur = start
-    return segs
+    def __init__(self, glyph_set):
+        super().__init__(glyphSet=glyph_set)
+        self.contours: List[List[Point]] = []
+        self._current: List[Point] = []
+        self._start: Optional[Point] = None
 
+    def _moveTo(self, pt):
+        self._current = [(float(pt[0]), float(pt[1]))]
+        self._start = self._current[0]
 
-def _flatten_segments(segs: Sequence[_Seg], *, steps: int = 8) -> List[Point]:
-    pts: List[Point] = []
-    for kind, sp in segs:
-        match kind:
-            case "line":
-                p0, p1 = sp
-                if not pts:
-                    pts.append(p0)
-                pts.append(p1)
-            case "quad":
-                p0, p1, p2 = sp
-                if not pts:
-                    pts.append(p0)
-                for i in range(1, steps + 1):
-                    t = i / steps
-                    u = 1.0 - t
-                    x = u * u * p0[0] + 2.0 * u * t * p1[0] + t * t * p2[0]
-                    y = u * u * p0[1] + 2.0 * u * t * p1[1] + t * t * p2[1]
-                    pts.append((x, y))
-            case "cubic":
-                p0, p1, p2, p3 = sp
-                if not pts:
-                    pts.append(p0)
-                for i in range(1, steps + 1):
-                    t = i / steps
-                    u = 1.0 - t
-                    x = (
-                        u * u * u * p0[0]
-                        + 3.0 * u * u * t * p1[0]
-                        + 3.0 * u * t * t * p2[0]
-                        + t * t * t * p3[0]
-                    )
-                    y = (
-                        u * u * u * p0[1]
-                        + 3.0 * u * u * t * p1[1]
-                        + 3.0 * u * t * t * p2[1]
-                        + t * t * t * p3[1]
-                    )
-                    pts.append((x, y))
-    return pts
+    def _lineTo(self, pt):
+        self._current.append((float(pt[0]), float(pt[1])))
+
+    def _curveToOne(self, pt1, pt2):
+        p0 = self._current[-1]
+        c1 = (float(pt1[0]), float(pt1[1]))
+        p2 = (float(pt2[0]), float(pt2[1]))
+        steps = KANA_CONTOUR_FLATTEN_STEPS
+        for i in range(1, steps + 1):
+            t = i / steps
+            u = 1.0 - t
+            x = u * u * p0[0] + 2.0 * u * t * c1[0] + t * t * p2[0]
+            y = u * u * p0[1] + 2.0 * u * t * c1[1] + t * t * p2[1]
+            self._current.append((x, y))
+
+    def _curveToThree(self, pt1, pt2, pt3):
+        p0 = self._current[-1]
+        c1 = (float(pt1[0]), float(pt1[1]))
+        c2 = (float(pt2[0]), float(pt2[1]))
+        p3 = (float(pt3[0]), float(pt3[1]))
+        steps = KANA_CONTOUR_FLATTEN_STEPS
+        for i in range(1, steps + 1):
+            t = i / steps
+            u = 1.0 - t
+            x = (
+                u * u * u * p0[0]
+                + 3.0 * u * u * t * c1[0]
+                + 3.0 * u * t * t * c2[0]
+                + t * t * t * p3[0]
+            )
+            y = (
+                u * u * u * p0[1]
+                + 3.0 * u * u * t * c1[1]
+                + 3.0 * u * t * t * c2[1]
+                + t * t * t * p3[1]
+            )
+            self._current.append((x, y))
+
+    def _closePath(self):
+        if self._start is not None and self._current and self._current[-1] != self._start:
+            self._current.append(self._start)
+        if len(self._current) >= 2:
+            self.contours.append(self._current)
+        self._current = []
+        self._start = None
+
+    def _endPath(self):
+        if len(self._current) >= 2:
+            self.contours.append(self._current)
+        self._current = []
+        self._start = None
 
 
-def _segments_signed_area(segs: Sequence[_Seg]) -> float:
-    loop = _flatten_segments(segs, steps=6)
-    if len(loop) < 3:
+def _polyline_signed_area(points: Sequence[Point]) -> float:
+    if len(points) < 3:
         return 0.0
-    a = 0.0
-    n = len(loop)
+    area = 0.0
+    n = len(points)
     for i in range(n):
-        x1, y1 = loop[i]
-        x2, y2 = loop[(i + 1) % n]
-        a += x1 * y2 - x2 * y1
-    return 0.5 * a
+        x1, y1 = points[i]
+        x2, y2 = points[(i + 1) % n]
+        area += x1 * y2 - x2 * y1
+    return 0.5 * area
 
 
-def _largest_path_contour(path):
-    best = None
-    best_area = 0.0
-    for contour in path.contours:
-        segs = _parse_pathops_contour(contour)
-        if not segs:
-            continue
-        area = abs(_segments_signed_area(segs))
-        if area > best_area:
-            best_area = area
-            best = contour
-    return best
-
-
-def _bezier_eval_quad(p0: Point, p1: Point, p2: Point, t: float) -> Point:
-    u = 1.0 - t
-    x = u * u * p0[0] + 2.0 * u * t * p1[0] + t * t * p2[0]
-    y = u * u * p0[1] + 2.0 * u * t * p1[1] + t * t * p2[1]
-    return x, y
-
-
-def _bezier_eval_cubic(p0: Point, p1: Point, p2: Point, p3: Point, t: float) -> Point:
-    u = 1.0 - t
-    x = (
-        u * u * u * p0[0]
-        + 3.0 * u * u * t * p1[0]
-        + 3.0 * u * t * t * p2[0]
-        + t * t * t * p3[0]
-    )
-    y = (
-        u * u * u * p0[1]
-        + 3.0 * u * u * t * p1[1]
-        + 3.0 * u * t * t * p2[1]
-        + t * t * t * p3[1]
-    )
-    return x, y
-
-
-def _bezier_deriv_quad(p0: Point, p1: Point, p2: Point, t: float) -> Point:
-    u = 1.0 - t
-    x = 2.0 * u * (p1[0] - p0[0]) + 2.0 * t * (p2[0] - p1[0])
-    y = 2.0 * u * (p1[1] - p0[1]) + 2.0 * t * (p2[1] - p1[1])
-    return x, y
-
-
-def _bezier_deriv_cubic(p0: Point, p1: Point, p2: Point, p3: Point, t: float) -> Point:
-    u = 1.0 - t
-    x = (
-        3.0 * u * u * (p1[0] - p0[0])
-        + 6.0 * u * t * (p2[0] - p1[0])
-        + 3.0 * t * t * (p3[0] - p2[0])
-    )
-    y = (
-        3.0 * u * u * (p1[1] - p0[1])
-        + 6.0 * u * t * (p2[1] - p1[1])
-        + 3.0 * t * t * (p3[1] - p2[1])
-    )
-    return x, y
-
-
-def _seg_normal_at(kind: str, pts: Tuple[Point, ...], t: float, ccw: bool) -> Point:
-    match kind:
-        case "line":
-            return _outward_normal(_vsub(pts[1], pts[0]), ccw)
-        case "quad":
-            tan = _bezier_deriv_quad(pts[0], pts[1], pts[2], t)
-            return _outward_normal(tan, ccw)
-        case _:
-            tan = _bezier_deriv_cubic(pts[0], pts[1], pts[2], pts[3], t)
-            return _outward_normal(tan, ccw)
-
-
-def _offset_segment(kind: str, pts: Tuple[Point, ...], d: float, ccw: bool) -> _Seg:
-    match kind:
-        case "line":
-            p0, p1 = pts
-            n = _outward_normal(_vsub(p1, p0), ccw)
-            return ("line", (_vadd(p0, _vmul(d, n)), _vadd(p1, _vmul(d, n))))
-        case "quad":
-            p0, p1, p2 = pts
-            samples = (0.0, 0.5, 1.0)
-            op: List[Point] = []
-            for t in samples:
-                pt = _bezier_eval_quad(p0, p1, p2, t)
-                n = _seg_normal_at("quad", pts, t, ccw)
-                op.append(_vadd(pt, _vmul(d, n)))
-            return ("quad", (op[0], op[1], op[2]))
-        case _:
-            p0, p1, p2, p3 = pts
-            samples = (0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0)
-            op = []
-            for t in samples:
-                pt = _bezier_eval_cubic(p0, p1, p2, p3, t)
-                n = _seg_normal_at("cubic", pts, t, ccw)
-                op.append(_vadd(pt, _vmul(d, n)))
-            return ("cubic", (op[0], op[1], op[2], op[3]))
-
-
-def _offset_pathops_contour(contour, distance: float):
-    import pathops
-
-    segs = _parse_pathops_contour(contour)
-    if not segs or distance <= 0.0:
-        return None
-    ccw = _segments_signed_area(segs) >= 0.0
-    off_segs = [_offset_segment(kind, pts, distance, ccw) for kind, pts in segs]
-    out = pathops.Path()
-    first = True
-    prev_end: Optional[Point] = None
-    for kind, pts in off_segs:
-        if first:
-            out.moveTo(pts[0][0], pts[0][1])
-            first = False
-        elif prev_end is not None and _hypot(_vsub(prev_end, pts[0])) > 1e-6:
-            out.lineTo(pts[0][0], pts[0][1])
-        match kind:
-            case "line":
-                out.lineTo(pts[1][0], pts[1][1])
-                prev_end = pts[1]
-            case "quad":
-                out.quadTo(pts[1][0], pts[1][1], pts[2][0], pts[2][1])
-                prev_end = pts[2]
-            case _:
-                out.curveTo(
-                    pts[1][0],
-                    pts[1][1],
-                    pts[2][0],
-                    pts[2][1],
-                    pts[3][0],
-                    pts[3][1],
-                )
-                prev_end = pts[3]
-    out.close()
-    try:
-        return pathops.simplify(out, fix_winding=True)
-    except Exception:
-        return out
-
-
-def _glyph_to_pathops(
+def _glyph_contour_polylines(
     glyph: TTGlyph,
-    glyph_set: Dict[str, TTGlyph],
-):
-    g = _baked_glyph(glyph, glyph_set)
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> List[List[Point]]:
+    g = _baked_glyph(glyph, glyph_set) if glyph_set is not None else glyph
     if g is None or g.numberOfContours <= 0:
-        return None
+        return []
     try:
-        return _ttglyph_to_pathops(g, glyph_set)
+        pen = _PolylinePen(glyph_set or {})
+        g.draw(pen, None)
+        return pen.contours
     except Exception:
-        return None
-
-
-def _offset_contour_segments(
-    glyph: TTGlyph,
-    glyph_set: Dict[str, TTGlyph],
-    distance: float,
-) -> Tuple[List[_Seg], bool]:
-    path = _glyph_to_pathops(glyph, glyph_set)
-    if path is None:
-        return [], True
-    contour = _largest_path_contour(path)
-    if contour is None:
-        return [], True
-    ink_segs = _parse_pathops_contour(contour)
-    ccw = _segments_signed_area(ink_segs) >= 0.0
-    off = _offset_pathops_contour(contour, distance)
-    if off is None:
-        return [], ccw
-    segs: List[_Seg] = []
-    for off_contour in off.contours:
-        segs.extend(_parse_pathops_contour(off_contour))
-    return segs, ccw
+        return []
 
 
 def _line_line_intersection(
@@ -489,93 +326,31 @@ def _ray_line_hit(
     proj = _dot(_vsub(hit, origin), direction)
     if proj < 0.0:
         return None
-    s = _dot(_vsub(hit, p0), seg) / (_dot(seg, seg) or 1.0)
+    seg_len_sq = _dot(seg, seg)
+    if seg_len_sq < 1e-18:
+        return None
+    s = _dot(_vsub(hit, p0), seg) / seg_len_sq
     if s < -1e-6 or s > 1.0 + 1e-6:
         return None
-    tan = seg
-    return proj, hit, tan
+    return proj, hit, seg
 
 
-def _lerp(a: Point, b: Point, t: float) -> Point:
-    return a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
-
-
-def _split_quad(p0: Point, p1: Point, p2: Point) -> Tuple[_Seg, _Seg]:
-    m01 = _lerp(p0, p1, 0.5)
-    m12 = _lerp(p1, p2, 0.5)
-    mid = _lerp(m01, m12, 0.5)
-    return ("quad", (p0, m01, mid)), ("quad", (mid, m12, p2))
-
-
-def _split_cubic(p0: Point, p1: Point, p2: Point, p3: Point) -> Tuple[_Seg, _Seg]:
-    m01 = _lerp(p0, p1, 0.5)
-    m12 = _lerp(p1, p2, 0.5)
-    m23 = _lerp(p2, p3, 0.5)
-    m012 = _lerp(m01, m12, 0.5)
-    m123 = _lerp(m12, m23, 0.5)
-    mid = _lerp(m012, m123, 0.5)
-    return ("cubic", (p0, m01, m012, mid)), ("cubic", (mid, m123, m23, p3))
-
-
-def _ray_flat_curve_hits(
+def _ray_polyline_farthest(
     origin: Point,
     direction: Point,
-    kind: str,
-    pts: Tuple[Point, ...],
-    *,
-    depth: int = 0,
-) -> List[Tuple[float, Point, Point]]:
-    match kind:
-        case "quad":
-            p0, p1, p2 = pts
-            end = p2
-        case _:
-            p0, p1, p2, p3 = pts
-            end = p3
-    if depth >= 14 or _hypot(_vsub(end, p0)) < 0.5:
-        hit = _ray_line_hit(origin, direction, p0, end)
-        return [hit] if hit else []
-    match kind:
-        case "quad":
-            left, right = _split_quad(p0, p1, p2)
-        case _:
-            left, right = _split_cubic(p0, p1, p2, p3)
-    return _ray_flat_curve_hits(
-        origin, direction, left[0], left[1], depth=depth + 1
-    ) + _ray_flat_curve_hits(origin, direction, right[0], right[1], depth=depth + 1)
-
-
-def _ray_segment_hit(
-    origin: Point,
-    direction: Point,
-    kind: str,
-    pts: Tuple[Point, ...],
-) -> Optional[Tuple[float, Point, Point]]:
-    match kind:
-        case "line":
-            return _ray_line_hit(origin, direction, pts[0], pts[1])
-        case _:
-            hits = _ray_flat_curve_hits(origin, direction, kind, pts)
-            best: Optional[Tuple[float, Point, Point]] = None
-            for hit in hits:
-                if hit is None:
-                    continue
-                if best is None or hit[0] > best[0]:
-                    best = hit
-            return best
-
-
-def _ray_farthest_contour_hit(
-    origin: Point,
-    direction: Point,
-    segs: Sequence[_Seg],
+    points: Sequence[Point],
     ccw: bool,
 ) -> Optional[Tuple[float, float, float, float]]:
+    if len(points) < 2:
+        return None
     ux, uy = _unit(direction)
     best_proj = -1e30
     best_xy: Optional[Tuple[float, float, float, float]] = None
-    for kind, pts in segs:
-        hit = _ray_segment_hit(origin, (ux, uy), kind, pts)
+    n = len(points)
+    for i in range(n):
+        p0 = points[i]
+        p1 = points[(i + 1) % n]
+        hit = _ray_line_hit(origin, (ux, uy), p0, p1)
         if hit is None:
             continue
         proj, xy, tan = hit
@@ -585,6 +360,77 @@ def _ray_farthest_contour_hit(
         best_proj = proj
         best_xy = (xy[0], xy[1], nx, ny)
     return best_xy
+
+
+def _ray_ink_reach(
+    origin: Point,
+    direction: Point,
+    polylines: Sequence[Sequence[Point]],
+) -> float:
+    """Farthest ink hit along ``direction`` from ``origin`` (font units)."""
+    ux, uy = _unit(direction)
+    best = 0.0
+    for poly in polylines:
+        if len(poly) < 2:
+            continue
+        ccw = _polyline_signed_area(poly) >= 0.0
+        hit = _ray_polyline_farthest(origin, direction, poly, ccw)
+        if hit is None:
+            continue
+        px, py, _, _ = hit
+        proj = _dot(_vsub((px, py), origin), (ux, uy))
+        if proj > best:
+            best = proj
+    return best
+
+
+def _closest_center_radius(
+    origin: Point,
+    direction: Point,
+    polylines: Sequence[Sequence[Point]],
+    *,
+    gap: float,
+    mark_h: float,
+    mark_points: Sequence[Tuple[float, float]],
+) -> float:
+    """Minimum center distance along ``direction`` clearing ink by ``gap``."""
+    ux, uy = _unit(direction)
+    reach = _ray_ink_reach(origin, direction, polylines)
+    if mark_points:
+        inward = min(px * ux + py * uy for px, py in mark_points)
+        return reach + gap - inward
+    return reach + gap + mark_h * 0.5
+
+
+def _closest_slot_on_ray(
+    origin: Point,
+    direction: Point,
+    polylines: Sequence[Sequence[Point]],
+    *,
+    gap: float,
+    mark_h: float,
+    mark_points: Sequence[Tuple[float, float]],
+    placed: Sequence[Tuple[float, float]],
+    min_sep_sq: float,
+) -> Optional[Tuple[float, float]]:
+    """Place a slot mark as close to the ink as gap and separation allow."""
+    ux, uy = _unit(direction)
+    r = _closest_center_radius(
+        origin,
+        direction,
+        polylines,
+        gap=gap,
+        mark_h=mark_h,
+        mark_points=mark_points,
+    )
+    step = max(0.5, mark_h * KANA_SLOT_SLIDE_FRAC)
+    for _attempt in range(64):
+        cx = origin[0] + ux * r
+        cy = origin[1] + uy * r
+        if not _conflicts(cx, cy, placed, min_sep_sq):
+            return cx, cy
+        r += step
+    return None
 
 
 def _baked_glyph(
@@ -612,18 +458,6 @@ def _ink_centroid(
     return sum(xs) / len(xs), sum(ys) / len(ys)
 
 
-def _mark_bbox(
-    mark_points: Sequence[Tuple[float, float]],
-    mark_h: float,
-) -> Tuple[float, float, float, float]:
-    if mark_points:
-        xs = [x for x, _y in mark_points]
-        ys = [y for _x, y in mark_points]
-        return min(xs), min(ys), max(xs), max(ys)
-    half = mark_h * 0.5
-    return -half, -half, half, half
-
-
 def _mark_height(mark_points: Sequence[Tuple[float, float]]) -> float:
     if not mark_points:
         return 0.0
@@ -631,58 +465,13 @@ def _mark_height(mark_points: Sequence[Tuple[float, float]]) -> float:
     return max(ys) - min(ys)
 
 
-def _mark_extent_along_normal(
-    mark_points: Sequence[Tuple[float, float]],
-    mark_h: float,
-    nx: float,
-    ny: float,
-) -> float:
-    if mark_points:
-        return max(px * nx + py * ny for px, py in mark_points)
-    return mark_h * 0.5
-
-
-def _ink_bbox(
-    points: Sequence[Tuple[float, float]],
-) -> Tuple[float, float, float, float]:
-    xs = [x for x, _y in points]
-    ys = [y for _x, y in points]
-    return min(xs), min(ys), max(xs), max(ys)
-
-
-def _mark_rect(
-    cx: float,
-    cy: float,
-    mx0: float,
-    my0: float,
-    mx1: float,
-    my1: float,
-) -> Tuple[float, float, float, float]:
-    return cx + mx0, cy + my0, cx + mx1, cy + my1
-
-
-def _rects_overlap(
-    a: Tuple[float, float, float, float],
-    b: Tuple[float, float, float, float],
-) -> bool:
-    ax0, ay0, ax1, ay1 = a
-    bx0, by0, bx1, by1 = b
-    return ax0 < bx1 and ax1 > bx0 and ay0 < by1 and ay1 > by0
-
-
 def _conflicts(
     cx: float,
     cy: float,
-    mx0: float,
-    my0: float,
-    mx1: float,
-    my1: float,
-    ink_rect: Tuple[float, float, float, float],
     placed: Sequence[Tuple[float, float]],
     min_sep_sq: float,
 ) -> bool:
-    if _rects_overlap(_mark_rect(cx, cy, mx0, my0, mx1, my1), ink_rect):
-        return True
+    """True when ``(cx, cy)`` is too close to an already-placed slot center."""
     for px, py in placed:
         dx, dy = cx - px, cy - py
         if dx * dx + dy * dy < min_sep_sq:
@@ -703,7 +492,7 @@ _KANA_RING_FILL_ORDER: Tuple[str, ...] = (
 )
 
 
-def _offset_contour_slot_positions(
+def _octagon_slot_positions(
     glyph: TTGlyph,
     glyph_set: Dict[str, TTGlyph],
     origin: Point,
@@ -711,43 +500,41 @@ def _offset_contour_slot_positions(
     gap: float,
     mark_h: float,
     mark_points: Sequence[Tuple[float, float]],
-    mx0: float,
-    my0: float,
-    mx1: float,
-    my1: float,
-    ink_rect: Tuple[float, float, float, float],
     min_sep: float,
 ) -> Optional[List[Tuple[float, float]]]:
-    """Place eight slots on a Bezier offset contour (TR↔BL zigzag validation)."""
-    min_sep_sq = min_sep * min_sep
-    extra_step = max(1.0, mark_h * 0.04)
-    slot_xy: Dict[str, Tuple[float, float]] = {}
+    """Eight compass slots, each as close to the ink as its ray allows (TR↔BL zigzag)."""
+    baked = _baked_glyph(glyph, glyph_set)
+    if baked is None:
+        return None
+    polylines = _glyph_contour_polylines(baked)
+    if not polylines:
+        polylines = [_contour_ink_points_fallback(glyph, glyph_set)]
+    polylines = [p for p in polylines if len(p) >= 2]
+    if not polylines:
+        return None
 
-    for attempt in range(64):
-        offset_d = gap + attempt * extra_step
-        segs, ccw = _offset_contour_segments(glyph, glyph_set, offset_d)
-        if not segs:
-            continue
-        placed: List[Tuple[float, float]] = []
-        ok = True
-        slot_xy.clear()
-        for slot in _KANA_RING_FILL_ORDER:
-            ux, uy = KANA_SLOT_DIRS[slot]
-            hit = _ray_farthest_contour_hit(origin, (ux, uy), segs, ccw)
-            if hit is None:
-                ok = False
-                break
-            px, py, nx, ny = hit
-            ext = _mark_extent_along_normal(mark_points, mark_h, nx, ny)
-            cx = px + nx * ext
-            cy = py + ny * ext
-            if _conflicts(cx, cy, mx0, my0, mx1, my1, ink_rect, placed, min_sep_sq):
-                ok = False
-                break
-            placed.append((cx, cy))
-            slot_xy[slot] = (cx, cy)
-        if ok and len(slot_xy) == len(DAKUTEN_SLOTS):
-            return [slot_xy[slot] for slot, _suf in DAKUTEN_SLOTS]
+    min_sep_sq = min_sep * min_sep
+    slot_xy: Dict[str, Tuple[float, float]] = {}
+    placed: List[Tuple[float, float]] = []
+
+    for slot in _KANA_RING_FILL_ORDER:
+        xy = _closest_slot_on_ray(
+            origin,
+            KANA_SLOT_DIRS[slot],
+            polylines,
+            gap=gap,
+            mark_h=mark_h,
+            mark_points=mark_points,
+            placed=placed,
+            min_sep_sq=min_sep_sq,
+        )
+        if xy is None:
+            return None
+        placed.append(xy)
+        slot_xy[slot] = xy
+
+    if len(slot_xy) == len(DAKUTEN_SLOTS):
+        return [slot_xy[slot] for slot, _suf in DAKUTEN_SLOTS]
     return None
 
 
@@ -760,50 +547,29 @@ def kana_slot_anchors(
     mark_ink_height: Optional[float] = None,
     mark_scale: float = 1.0,
 ) -> Optional[Dict[str, Tuple[int, int]]]:
-    """Eight anchors on a Bezier offset contour (TR↔BL zigzag fill)."""
+    """Eight anchors hugging the ink along each compass ray."""
     del mark_scale
-    path = _glyph_to_pathops(glyph, glyph_set)
-    if path is None:
-        flat = _contour_ink_points_fallback(glyph, glyph_set)
-        if len(flat) < 2:
-            return None
-        origin = _ink_centroid(flat)
-        ink_rect = _ink_bbox(flat)
-    else:
-        contour = _largest_path_contour(path)
-        if contour is None:
-            return None
-        segs = _parse_pathops_contour(contour)
-        flat = _flatten_segments(segs)
-        if len(flat) < 2:
-            return None
-        origin = _ink_centroid(flat)
-        ink_rect = _ink_bbox(flat)
+    flat = _contour_ink_points_fallback(glyph, glyph_set)
+    if len(flat) < 2:
+        return None
+    origin = _ink_centroid(flat)
 
     mpts = list(mark_points) if mark_points else []
     mark_h = _mark_height(mpts)
+    if mark_ink_height is not None and mark_ink_height > 0:
+        mark_h = max(mark_h, float(mark_ink_height))
     if mark_h <= 0:
-        mark_h = float(
-            mark_ink_height
-            if mark_ink_height is not None and mark_ink_height > 0
-            else target_upem * DAKUTEN_MARK_HEIGHT_FRAC
-        )
+        mark_h = float(target_upem * DAKUTEN_MARK_HEIGHT_FRAC)
     gap = mark_h * KANA_MARK_GAP_FRAC
     min_sep = mark_h * KANA_MARK_SEP_FRAC
-    mx0, my0, mx1, my1 = _mark_bbox(mpts, mark_h)
 
-    positions = _offset_contour_slot_positions(
+    positions = _octagon_slot_positions(
         glyph,
         glyph_set,
         origin,
         gap=gap,
         mark_h=mark_h,
         mark_points=mpts,
-        mx0=mx0,
-        my0=my0,
-        mx1=mx1,
-        my1=my1,
-        ink_rect=ink_rect,
         min_sep=min_sep,
     )
     if not positions:
@@ -831,6 +597,270 @@ def _contour_ink_points_fallback(
         return []
 
 
+_ANCHOR_WORKER_CACHE_DIR: Optional[str] = None
+
+
+def _anchor_chunk_input_path(cache_dir: str, chunk_id: int) -> str:
+    return os.path.join(cache_dir, f"anchor_input_{chunk_id:04d}.pkl")
+
+
+def _anchor_chunk_result_path(cache_dir: str, chunk_id: int) -> str:
+    return os.path.join(cache_dir, f"anchors_{chunk_id:04d}.pkl")
+
+
+def _partition_anchor_names(names: Sequence[str], n_chunks: int) -> List[List[str]]:
+    n_chunks = max(1, min(n_chunks, len(names)))
+    size = (len(names) + n_chunks - 1) // n_chunks
+    return [list(names[i : i + size]) for i in range(0, len(names), size) if names[i : i + size]]
+
+
+def _acquire_cache_lock(cache_path: str) -> str:
+    lock_path = cache_path + ".lock"
+    for _attempt in range(600):
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            return lock_path
+        except FileExistsError:
+            if os.path.isfile(cache_path):
+                return ""
+            time.sleep(0.05)
+    raise TimeoutError(f"timed out waiting for cache lock: {cache_path}")
+
+
+def _release_cache_lock(lock_path: str) -> None:
+    if lock_path:
+        try:
+            os.remove(lock_path)
+        except OSError:
+            pass
+
+
+def _write_anchor_chunk_input(
+    cache_dir: str,
+    chunk_id: int,
+    chunk_names: Sequence[str],
+    *,
+    glyph_set: Dict[str, TTGlyph],
+    target_upem: int,
+    mark_points: Optional[Sequence[Tuple[float, float]]],
+    mark_ink_height: Optional[float],
+    mark_scale: float,
+) -> str:
+    path = _anchor_chunk_input_path(cache_dir, chunk_id)
+    if os.path.isfile(path):
+        return path
+    lock = _acquire_cache_lock(path)
+    try:
+        if os.path.isfile(path):
+            return path
+        subset = _glyph_subset_for_names(chunk_names, glyph_set)
+        state = {
+            "names": list(chunk_names),
+            "glyphs": subset,
+            "target_upem": target_upem,
+            "mark_points": tuple(mark_points) if mark_points else None,
+            "mark_ink_height": mark_ink_height,
+            "mark_scale": mark_scale,
+        }
+        with open(path, "wb") as f:
+            pickle.dump(state, f, protocol=pickle.HIGHEST_PROTOCOL)
+        return path
+    finally:
+        _release_cache_lock(lock)
+
+
+def _write_anchor_chunk_result(
+    cache_dir: str,
+    chunk_id: int,
+    anchors: Dict[str, Dict[int, Tuple[int, int]]],
+) -> None:
+    path = _anchor_chunk_result_path(cache_dir, chunk_id)
+    if os.path.isfile(path):
+        return
+    lock = _acquire_cache_lock(path)
+    try:
+        if os.path.isfile(path):
+            return
+        with open(path, "wb") as f:
+            pickle.dump(anchors, f, protocol=pickle.HIGHEST_PROTOCOL)
+    finally:
+        _release_cache_lock(lock)
+
+
+def _load_merged_anchor_chunks(
+    cache_dir: str,
+    names: Sequence[str],
+    *,
+    require_all: bool = False,
+) -> Optional[Dict[str, Dict[int, Tuple[int, int]]]]:
+    paths = sorted(glob.glob(os.path.join(cache_dir, "anchors_*.pkl")))
+    if not paths:
+        legacy = os.path.join(cache_dir, "anchors.pkl")
+        if os.path.isfile(legacy):
+            paths = [legacy]
+        else:
+            return None
+    merged: Dict[str, Dict[int, Tuple[int, int]]] = {}
+    for path in paths:
+        with open(path, "rb") as f:
+            merged.update(pickle.load(f))
+    out = {name: merged[name] for name in names if name in merged}
+    if not out:
+        return None
+    if require_all and len(out) != len(names):
+        return None
+    return out
+
+
+def _glyph_subset_for_names(
+    names: Sequence[str],
+    glyph_set: Dict[str, TTGlyph],
+) -> Dict[str, TTGlyph]:
+    """Composite closure of ``names`` (minimal dict for worker pickling)."""
+    needed: Set[str] = set()
+    stack = [n for n in names if n in glyph_set]
+    while stack:
+        name = stack.pop()
+        if name in needed:
+            continue
+        needed.add(name)
+        glyph = glyph_set[name]
+        if not glyph.isComposite():
+            continue
+        for comp in glyph.components:
+            child = comp.glyphName
+            if child not in needed:
+                stack.append(child)
+    return {n: glyph_set[n] for n in needed if n in glyph_set}
+
+
+def _init_kana_anchor_worker(cache_dir: str) -> None:
+    global _ANCHOR_WORKER_CACHE_DIR
+    _ANCHOR_WORKER_CACHE_DIR = cache_dir
+
+
+def _kana_anchor_chunk_task(chunk_id: int) -> int:
+    cache_dir = _ANCHOR_WORKER_CACHE_DIR
+    if cache_dir is None:
+        return chunk_id
+    result_path = _anchor_chunk_result_path(cache_dir, chunk_id)
+    if os.path.isfile(result_path):
+        return chunk_id
+    input_path = _anchor_chunk_input_path(cache_dir, chunk_id)
+    with open(input_path, "rb") as f:
+        state = pickle.load(f)
+    glyphs = state["glyphs"]
+    anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
+    for name in state["names"]:
+        slot_map = _slot_map_for_glyph(
+            name,
+            glyphs=glyphs,
+            glyph_set=glyphs,
+            target_upem=state["target_upem"],
+            mark_points=state["mark_points"],
+            mark_ink_height=state["mark_ink_height"],
+            mark_scale=state["mark_scale"],
+        )
+        if slot_map is not None:
+            anchors[name] = slot_map
+    _write_anchor_chunk_result(cache_dir, chunk_id, anchors)
+    return chunk_id
+
+
+def _slot_map_for_glyph(
+    name: str,
+    *,
+    glyphs: Dict[str, TTGlyph],
+    glyph_set: Dict[str, TTGlyph],
+    target_upem: int,
+    mark_points: Optional[Sequence[Tuple[float, float]]],
+    mark_ink_height: Optional[float],
+    mark_scale: float,
+) -> Optional[Dict[int, Tuple[int, int]]]:
+    glyph = glyphs.get(name)
+    if glyph is None:
+        return None
+    slots = kana_slot_anchors(
+        glyph,
+        glyph_set=glyph_set,
+        target_upem=target_upem,
+        mark_points=mark_points,
+        mark_ink_height=mark_ink_height,
+        mark_scale=mark_scale,
+    )
+    if not slots:
+        return None
+    return {i: slots[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)}
+
+
+def _collect_kana_dakuten_anchors_parallel(
+    names: Sequence[str],
+    *,
+    glyphs: Dict[str, TTGlyph],
+    glyph_set: Dict[str, TTGlyph],
+    target_upem: int,
+    mark_points: Optional[Sequence[Tuple[float, float]]],
+    mark_ink_height: Optional[float],
+    mark_scale: float,
+    jobs: int,
+    cache_dir: str,
+) -> Dict[str, Dict[int, Tuple[int, int]]]:
+    n_chunks = min(jobs, len(names))
+    chunks = _partition_anchor_names(names, n_chunks)
+    chunk_jobs: List[int] = []
+    for chunk_id, chunk_names in enumerate(chunks):
+        _write_anchor_chunk_input(
+            cache_dir,
+            chunk_id,
+            chunk_names,
+            glyph_set=glyph_set,
+            target_upem=target_upem,
+            mark_points=mark_points,
+            mark_ink_height=mark_ink_height,
+            mark_scale=mark_scale,
+        )
+        chunk_jobs.append(chunk_id)
+    workers = min(jobs, len(chunk_jobs))
+    with ProcessPoolExecutor(
+        max_workers=workers,
+        initializer=_init_kana_anchor_worker,
+        initargs=(cache_dir,),
+    ) as pool:
+        list(pool.map(_kana_anchor_chunk_task, chunk_jobs))
+    merged = _load_merged_anchor_chunks(cache_dir, names)
+    return merged or {}
+
+
+def _collect_kana_dakuten_anchors_sequential(
+    names: Sequence[str],
+    *,
+    glyphs: Dict[str, TTGlyph],
+    glyph_set: Dict[str, TTGlyph],
+    target_upem: int,
+    mark_points: Optional[Sequence[Tuple[float, float]]],
+    mark_ink_height: Optional[float],
+    mark_scale: float,
+    cache_dir: Optional[str],
+) -> Dict[str, Dict[int, Tuple[int, int]]]:
+    anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
+    for name in names:
+        slot_map = _slot_map_for_glyph(
+            name,
+            glyphs=glyphs,
+            glyph_set=glyph_set,
+            target_upem=target_upem,
+            mark_points=mark_points,
+            mark_ink_height=mark_ink_height,
+            mark_scale=mark_scale,
+        )
+        if slot_map is not None:
+            anchors[name] = slot_map
+    if cache_dir:
+        _write_anchor_chunk_result(cache_dir, 0, anchors)
+    return anchors
+
+
 def collect_kana_dakuten_anchors(
     base_names: Sequence[str],
     *,
@@ -840,22 +870,39 @@ def collect_kana_dakuten_anchors(
     mark_points: Optional[Sequence[Tuple[float, float]]] = None,
     mark_ink_height: Optional[float] = None,
     mark_scale: float = 1.0,
+    jobs: int = 1,
+    cache_dir: Optional[str] = None,
 ) -> Dict[str, Dict[int, Tuple[int, int]]]:
     """Per-glyph ``{mark_class: (x, y)}`` for every named form that exists."""
-    anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
-    for name in base_names:
-        g = glyphs.get(name)
-        if g is None:
-            continue
-        slots = kana_slot_anchors(
-            g,
+    names = [n for n in base_names if n in glyphs]
+    if not names:
+        return {}
+    if cache_dir:
+        cached = _load_merged_anchor_chunks(cache_dir, names, require_all=True)
+        if cached is not None:
+            return cached
+    parallel = jobs > 1 and len(names) >= max(4, jobs // 2)
+    if parallel:
+        if not cache_dir:
+            cache_dir = tempfile.mkdtemp(prefix="edenia-kana-anchors-")
+        return _collect_kana_dakuten_anchors_parallel(
+            names,
+            glyphs=glyphs,
             glyph_set=glyph_set,
             target_upem=target_upem,
             mark_points=mark_points,
             mark_ink_height=mark_ink_height,
             mark_scale=mark_scale,
+            jobs=jobs,
+            cache_dir=cache_dir,
         )
-        if not slots:
-            continue
-        anchors[name] = {i: slots[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)}
-    return anchors
+    return _collect_kana_dakuten_anchors_sequential(
+        names,
+        glyphs=glyphs,
+        glyph_set=glyph_set,
+        target_upem=target_upem,
+        mark_points=mark_points,
+        mark_ink_height=mark_ink_height,
+        mark_scale=mark_scale,
+        cache_dir=cache_dir,
+    )

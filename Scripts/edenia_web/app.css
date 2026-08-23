@@ -233,7 +233,7 @@ main.work {
   font-family:
     "edenia hangul", "edenia hanguls", "edenia kana h", "edenia kana", "edenia yi h", "edenia yi",
     var(--cjk), Georgia, serif;
-  font-feature-settings: "liga" 1, "rlig" 1, "ccmp" 1, "rclt" 1, "ljmo" 1, "vjmo" 1, "tjmo" 1;
+  font-feature-settings: "liga" 1, "rlig" 1, "ccmp" 1, "mark" 1, "abvm" 1, "mkmk" 1, "rclt" 1, "ljmo" 1, "vjmo" 1, "tjmo" 1;
   outline: none;
 }
 #editor:empty:before {

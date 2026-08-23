@@ -107,7 +107,6 @@ from cape_weightor import (
 from kana_diacritics import (
     collect_kana_dakuten_anchors,
     kana_coord_liga_names,
-    kana_d4_form_names,
     kana_mark_center_anchor,
     kana_mark_chain_parent_anchor,
     kana_representative_mark_points,
@@ -118,6 +117,7 @@ from shared_diacritics import (
     add_dakuten_mark_glyphs,
     add_dakuten_chain_mark_glyphs,
     dakuten_mark_stack_label,
+    is_dakuten_chain_glyph,
     install_dakuten_chain_gsub,
     install_dakuten_gpos,
     install_dakuten_mark_chain_gpos,
@@ -1420,24 +1420,11 @@ def _install_kana_dakuten_layout(
 ) -> None:
     if not mark_names:
         return
-    # Recompute from this face's outlines so overlay/slice ligatures (and
-    # mixed-source stacks) get their own 8 slots, not the identity's.
-    # Full-size marks on every form (small kana do not use scaled .mk.sm).
     all_forms = kana_coord_liga_names(
         [*full_bases, *small_bases, *hw_full_bases, *hw_small_bases],
         glyphs=glyphs,
     )
     face_anchors = {k: v for k, v in base_anchors.items() if k in glyphs}
-    face_anchors.update(
-        collect_kana_dakuten_anchors(
-            all_forms,
-            glyphs=glyphs,
-            glyph_set=glyphs,
-            target_upem=target_upem,
-            mark_ink_height=mark_ink_height,
-            mark_points=mark_contour_points,
-        )
-    )
     if not face_anchors:
         return
     if all_forms:
@@ -1458,7 +1445,9 @@ def _install_kana_dakuten_layout(
             glyphs=glyphs,
             glyph_order=glyph_order,
         )
-    face_marks = [n for n in mark_names if n in glyphs]
+    face_marks = [
+        n for n in mark_names if n in glyphs and not is_dakuten_chain_glyph(n)
+    ]
     if face_marks and face_anchors:
         print(
             f"  Compiling GPOS (dakuten @ {len(face_anchors)} contour "
@@ -1606,10 +1595,15 @@ def _save_kana_face(
 _WORKER_CACHE: Optional[dict] = None
 
 
-def _init_kana_worker(cache_path: str) -> None:
+def _init_kana_worker(cache_dir: str) -> None:
     global _WORKER_CACHE
-    with open(cache_path, "rb") as f:
-        _WORKER_CACHE = pickle.load(f)
+    manifest_path = os.path.join(cache_dir, "manifest.pkl")
+    glyf_path = os.path.join(cache_dir, "glyf.pkl")
+    with open(manifest_path, "rb") as f:
+        manifest = pickle.load(f)
+    with open(glyf_path, "rb") as f:
+        glyf = pickle.load(f)
+    _WORKER_CACHE = {**manifest, **glyf}
 
 
 def _kana_face_task(
@@ -1952,115 +1946,116 @@ def build_pankana_font(
         mark_ink_h: Optional[float] = None
         mark_contour_pts: Optional[List[Tuple[float, float]]] = None
         base_anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
-        try:
-            mark_fonts = resolve_dakuten_mark_font_stack(in_dir)
-            print(
-                f"  Loading dakuten marks from "
-                f"{dakuten_mark_stack_label(mark_fonts)}...",
-                flush=True,
-            )
-            mark_cps, mark_glyphs = load_dakuten_marks_from_stack(
-                mark_fonts, target_upem
-            )
-            mark_contour_pts = kana_representative_mark_points(mark_glyphs)
-            if mark_contour_pts:
-                ys = [y for _x, y in mark_contour_pts]
-                mark_ink_h = max(ys) - min(ys)
-            mark_names = add_dakuten_mark_glyphs(
-                mark_cps,
-                mark_glyphs,
-                glyph_order=glyph_order,
-                glyphs=glyphs,
-                metrics=metrics,
-                cmap=cmap,
-            )
-            chain_names = add_dakuten_chain_mark_glyphs(
-                mark_cps,
-                glyph_order=glyph_order,
-                glyphs=glyphs,
-                metrics=metrics,
-            )
-            mark_names = list(mark_names) + chain_names
-
-            base_anchors = collect_kana_dakuten_anchors(
-                kana_d4_form_names(full_bases),
-                glyphs=glyphs,
-                glyph_set=glyphs,
-                target_upem=target_upem,
-                mark_ink_height=mark_ink_h,
-                mark_points=mark_contour_pts,
-            )
-            base_anchors.update(
-                collect_kana_dakuten_anchors(
-                    kana_d4_form_names(small_bases),
-                    glyphs=glyphs,
-                    glyph_set=glyphs,
-                    target_upem=target_upem,
-                    mark_ink_height=mark_ink_h,
-                    mark_points=mark_contour_pts,
-                )
-            )
-            base_anchors.update(
-                collect_kana_dakuten_anchors(
-                    kana_d4_form_names(hw_full_bases),
-                    glyphs=glyphs,
-                    glyph_set=glyphs,
-                    target_upem=target_upem,
-                    mark_ink_height=mark_ink_h,
-                    mark_points=mark_contour_pts,
-                )
-            )
-            base_anchors.update(
-                collect_kana_dakuten_anchors(
-                    kana_d4_form_names(hw_small_bases),
-                    glyphs=glyphs,
-                    glyph_set=glyphs,
-                    target_upem=target_upem,
-                    mark_ink_height=mark_ink_h,
-                    mark_points=mark_contour_pts,
-                )
-            )
-            print(
-                f"  Dakuten: {len(mark_cps)} marks × {len(DAKUTEN_SLOTS)} slots "
-                f"(contour-hug + mark-to-mark chain; full/small/hw; "
-                f"dakuten H≈{mark_ink_h:.0f}), "
-                f"{len(base_anchors)} bases",
-                flush=True,
-            )
-        except FileNotFoundError as exc:
-            print(f"  Skipping dakuten marks: {exc}", flush=True)
-
-        built: List[Tuple[str, str, int, List[int]]] = []
-        os.makedirs(out_dir, exist_ok=True)
         workers = max(1, jobs)
-        face_specs: List[Tuple[str, Optional[int]]] = []
-        if "" in want:
-            face_specs.append(("", None))
-        dakuten_keep = {n for n in glyph_order if ".mk" in n}
-        if "h" in want:
-            pages = sorted(
-                {
-                    cp >> 8
-                    for cp in cmap
-                    if (PUA_START <= cp <= PUA_END)
-                    or (HW_PUA_START <= cp <= HW_PUA_LAST)
-                }
-            )
-            for bucket_id in pages:
-                face_specs.append(("h", bucket_id))
-        if not face_specs:
-            return built
-
         cache_dir = tempfile.mkdtemp(prefix="edenia-kana-")
         try:
-            cache_path = os.path.join(cache_dir, "master.pkl")
-            with open(cache_path, "wb") as f:
+            try:
+                mark_fonts = resolve_dakuten_mark_font_stack(in_dir)
+                print(
+                    f"  Loading dakuten marks from "
+                    f"{dakuten_mark_stack_label(mark_fonts)}...",
+                    flush=True,
+                )
+                mark_cps, mark_glyphs = load_dakuten_marks_from_stack(
+                    mark_fonts, target_upem
+                )
+                mark_contour_pts = kana_representative_mark_points(mark_glyphs)
+                if mark_contour_pts:
+                    ys = [y for _x, y in mark_contour_pts]
+                    mark_ink_h = max(ys) - min(ys)
+                mark_names = add_dakuten_mark_glyphs(
+                    mark_cps,
+                    mark_glyphs,
+                    glyph_order=glyph_order,
+                    glyphs=glyphs,
+                    metrics=metrics,
+                    cmap=cmap,
+                )
+                chain_names = add_dakuten_chain_mark_glyphs(
+                    mark_cps,
+                    glyph_order=glyph_order,
+                    glyphs=glyphs,
+                    metrics=metrics,
+                )
+                mark_names = list(mark_names) + chain_names
+
+                anchor_names = kana_coord_liga_names(
+                    [
+                        *full_bases,
+                        *small_bases,
+                        *hw_full_bases,
+                        *hw_small_bases,
+                    ],
+                    glyphs=glyphs,
+                )
+                print(
+                    f"Stage 1/4: dakuten anchors ({len(anchor_names)} forms, "
+                    f"{workers} chunk workers, sharded pickle cache)...",
+                    flush=True,
+                )
+                t_anchors = time.perf_counter()
+                base_anchors = collect_kana_dakuten_anchors(
+                    anchor_names,
+                    glyphs=glyphs,
+                    glyph_set=glyphs,
+                    target_upem=target_upem,
+                    mark_ink_height=mark_ink_h,
+                    mark_points=mark_contour_pts,
+                    jobs=workers,
+                    cache_dir=cache_dir,
+                )
+                print(
+                    f"  stage 1 done in {time.perf_counter() - t_anchors:.1f}s "
+                    f"({len(base_anchors)} bases)",
+                    flush=True,
+                )
+                print(
+                    f"  Dakuten: {len(mark_cps)} marks × {len(DAKUTEN_SLOTS)} slots "
+                    f"(octagon ring + corner chain TR→BL; full/small/hw; "
+                    f"dakuten H≈{mark_ink_h:.0f})",
+                    flush=True,
+                )
+            except FileNotFoundError as exc:
+                print(f"  Skipping dakuten marks: {exc}", flush=True)
+
+            built: List[Tuple[str, str, int, List[int]]] = []
+            os.makedirs(out_dir, exist_ok=True)
+            face_specs: List[Tuple[str, Optional[int]]] = []
+            if "" in want:
+                face_specs.append(("", None))
+            dakuten_keep = {n for n in glyph_order if ".mk" in n}
+            if "h" in want:
+                pages = sorted(
+                    {
+                        cp >> 8
+                        for cp in cmap
+                        if (PUA_START <= cp <= PUA_END)
+                        or (HW_PUA_START <= cp <= HW_PUA_LAST)
+                    }
+                )
+                for bucket_id in pages:
+                    face_specs.append(("h", bucket_id))
+            if not face_specs:
+                return built
+
+            glyf_path = os.path.join(cache_dir, "glyf.pkl")
+            manifest_path = os.path.join(cache_dir, "manifest.pkl")
+            print("  Writing glyf + manifest cache...", flush=True)
+            t_cache = time.perf_counter()
+            with open(glyf_path, "wb") as f:
                 pickle.dump(
                     {
                         "glyph_order": glyph_order,
                         "glyphs": glyphs,
                         "metrics": metrics,
                         "cmap": cmap,
+                    },
+                    f,
+                    protocol=pickle.HIGHEST_PROTOCOL,
+                )
+            with open(manifest_path, "wb") as f:
+                pickle.dump(
+                    {
                         "full_bases": full_bases,
                         "small_bases": small_bases,
                         "hw_full_bases": hw_full_bases,
@@ -2077,6 +2072,10 @@ def build_pankana_font(
                     f,
                     protocol=pickle.HIGHEST_PROTOCOL,
                 )
+            print(
+                f"  cache written in {time.perf_counter() - t_cache:.1f}s",
+                flush=True,
+            )
             t0 = time.perf_counter()
             pool_workers = min(workers, max(1, len(face_specs)))
             print(
@@ -2087,7 +2086,7 @@ def build_pankana_font(
             with ProcessPoolExecutor(
                 max_workers=pool_workers,
                 initializer=_init_kana_worker,
-                initargs=(cache_path,),
+                initargs=(cache_dir,),
             ) as executor:
                 results = list(executor.map(_kana_face_task, face_specs))
                 print(

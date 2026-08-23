@@ -54,6 +54,7 @@ from shared_diacritics import (
     install_dakuten_chain_gsub,
     install_dakuten_gpos,
     install_dakuten_mark_chain_gpos,
+    is_dakuten_chain_glyph,
     install_dakuten_slot_gsub,
     load_dakuten_marks_from_stack,
     resolve_dakuten_mark_font_stack,
@@ -309,7 +310,9 @@ def _save_yi_face(
     install_yi_gsub(fb.font, yi_names, glyphs, glyph_order, slices=slices)
 
     face_anchors = {k: v for k, v in base_anchors.items() if k in glyphs}
-    face_marks = [n for n in mark_names if n in glyphs]
+    face_marks = [
+        n for n in mark_names if n in glyphs and not is_dakuten_chain_glyph(n)
+    ]
     if face_marks and face_anchors:
         print(f"  Compiling GSUB (dakuten slots {DAKUTEN_SLOT_CYCLE})...", flush=True)
         install_dakuten_slot_gsub(
