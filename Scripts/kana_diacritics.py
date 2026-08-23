@@ -334,9 +334,7 @@ def _bezier_deriv_quad(p0: Point, p1: Point, p2: Point, t: float) -> Point:
     return x, y
 
 
-def _bezier_deriv_cubic(
-    p0: Point, p1: Point, p2: Point, p3: Point, t: float
-) -> Point:
+def _bezier_deriv_cubic(p0: Point, p1: Point, p2: Point, p3: Point, t: float) -> Point:
     u = 1.0 - t
     x = (
         3.0 * u * u * (p1[0] - p0[0])
@@ -509,9 +507,7 @@ def _split_quad(p0: Point, p1: Point, p2: Point) -> Tuple[_Seg, _Seg]:
     return ("quad", (p0, m01, mid)), ("quad", (mid, m12, p2))
 
 
-def _split_cubic(
-    p0: Point, p1: Point, p2: Point, p3: Point
-) -> Tuple[_Seg, _Seg]:
+def _split_cubic(p0: Point, p1: Point, p2: Point, p3: Point) -> Tuple[_Seg, _Seg]:
     m01 = _lerp(p0, p1, 0.5)
     m12 = _lerp(p1, p2, 0.5)
     m23 = _lerp(p2, p3, 0.5)
@@ -546,9 +542,7 @@ def _ray_flat_curve_hits(
             left, right = _split_cubic(p0, p1, p2, p3)
     return _ray_flat_curve_hits(
         origin, direction, left[0], left[1], depth=depth + 1
-    ) + _ray_flat_curve_hits(
-        origin, direction, right[0], right[1], depth=depth + 1
-    )
+    ) + _ray_flat_curve_hits(origin, direction, right[0], right[1], depth=depth + 1)
 
 
 def _ray_segment_hit(
@@ -648,7 +642,9 @@ def _mark_extent_along_normal(
     return mark_h * 0.5
 
 
-def _ink_bbox(points: Sequence[Tuple[float, float]]) -> Tuple[float, float, float, float]:
+def _ink_bbox(
+    points: Sequence[Tuple[float, float]],
+) -> Tuple[float, float, float, float]:
     xs = [x for x, _y in points]
     ys = [y for _x, y in points]
     return min(xs), min(ys), max(xs), max(ys)
