@@ -205,72 +205,74 @@ def _parse_pathops_contour(contour) -> List[_Seg]:
     cur: Optional[Point] = None
     start: Optional[Point] = None
     for verb, pts in contour:
-        if verb == pathops.PathVerb.MOVE:
-            cur = (float(pts[0][0]), float(pts[0][1]))
-            start = cur
-        elif verb == pathops.PathVerb.LINE:
-            end = (float(pts[0][0]), float(pts[0][1]))
-            if cur is not None:
-                segs.append(("line", (cur, end)))
-            cur = end
-        elif verb == pathops.PathVerb.QUAD:
-            c1 = (float(pts[0][0]), float(pts[0][1]))
-            end = (float(pts[1][0]), float(pts[1][1]))
-            if cur is not None:
-                segs.append(("quad", (cur, c1, end)))
-            cur = end
-        elif verb == pathops.PathVerb.CUBIC:
-            c1 = (float(pts[0][0]), float(pts[0][1]))
-            c2 = (float(pts[1][0]), float(pts[1][1]))
-            end = (float(pts[2][0]), float(pts[2][1]))
-            if cur is not None:
-                segs.append(("cubic", (cur, c1, c2, end)))
-            cur = end
-        elif verb == pathops.PathVerb.CLOSE:
-            if cur is not None and start is not None and cur != start:
-                segs.append(("line", (cur, start)))
-            cur = start
+        match verb:
+            case pathops.PathVerb.MOVE:
+                cur = (float(pts[0][0]), float(pts[0][1]))
+                start = cur
+            case pathops.PathVerb.LINE:
+                end = (float(pts[0][0]), float(pts[0][1]))
+                if cur is not None:
+                    segs.append(("line", (cur, end)))
+                cur = end
+            case pathops.PathVerb.QUAD:
+                c1 = (float(pts[0][0]), float(pts[0][1]))
+                end = (float(pts[1][0]), float(pts[1][1]))
+                if cur is not None:
+                    segs.append(("quad", (cur, c1, end)))
+                cur = end
+            case pathops.PathVerb.CUBIC:
+                c1 = (float(pts[0][0]), float(pts[0][1]))
+                c2 = (float(pts[1][0]), float(pts[1][1]))
+                end = (float(pts[2][0]), float(pts[2][1]))
+                if cur is not None:
+                    segs.append(("cubic", (cur, c1, c2, end)))
+                cur = end
+            case pathops.PathVerb.CLOSE:
+                if cur is not None and start is not None and cur != start:
+                    segs.append(("line", (cur, start)))
+                cur = start
     return segs
 
 
 def _flatten_segments(segs: Sequence[_Seg], *, steps: int = 8) -> List[Point]:
     pts: List[Point] = []
     for kind, sp in segs:
-        if kind == "line":
-            p0, p1 = sp
-            if not pts:
-                pts.append(p0)
-            pts.append(p1)
-        elif kind == "quad":
-            p0, p1, p2 = sp
-            if not pts:
-                pts.append(p0)
-            for i in range(1, steps + 1):
-                t = i / steps
-                u = 1.0 - t
-                x = u * u * p0[0] + 2.0 * u * t * p1[0] + t * t * p2[0]
-                y = u * u * p0[1] + 2.0 * u * t * p1[1] + t * t * p2[1]
-                pts.append((x, y))
-        elif kind == "cubic":
-            p0, p1, p2, p3 = sp
-            if not pts:
-                pts.append(p0)
-            for i in range(1, steps + 1):
-                t = i / steps
-                u = 1.0 - t
-                x = (
-                    u * u * u * p0[0]
-                    + 3.0 * u * u * t * p1[0]
-                    + 3.0 * u * t * t * p2[0]
-                    + t * t * t * p3[0]
-                )
-                y = (
-                    u * u * u * p0[1]
-                    + 3.0 * u * u * t * p1[1]
-                    + 3.0 * u * t * t * p2[1]
-                    + t * t * t * p3[1]
-                )
-                pts.append((x, y))
+        match kind:
+            case "line":
+                p0, p1 = sp
+                if not pts:
+                    pts.append(p0)
+                pts.append(p1)
+            case "quad":
+                p0, p1, p2 = sp
+                if not pts:
+                    pts.append(p0)
+                for i in range(1, steps + 1):
+                    t = i / steps
+                    u = 1.0 - t
+                    x = u * u * p0[0] + 2.0 * u * t * p1[0] + t * t * p2[0]
+                    y = u * u * p0[1] + 2.0 * u * t * p1[1] + t * t * p2[1]
+                    pts.append((x, y))
+            case "cubic":
+                p0, p1, p2, p3 = sp
+                if not pts:
+                    pts.append(p0)
+                for i in range(1, steps + 1):
+                    t = i / steps
+                    u = 1.0 - t
+                    x = (
+                        u * u * u * p0[0]
+                        + 3.0 * u * u * t * p1[0]
+                        + 3.0 * u * t * t * p2[0]
+                        + t * t * t * p3[0]
+                    )
+                    y = (
+                        u * u * u * p0[1]
+                        + 3.0 * u * u * t * p1[1]
+                        + 3.0 * u * t * t * p2[1]
+                        + t * t * t * p3[1]
+                    )
+                    pts.append((x, y))
     return pts
 
 
@@ -350,37 +352,41 @@ def _bezier_deriv_cubic(
 
 
 def _seg_normal_at(kind: str, pts: Tuple[Point, ...], t: float, ccw: bool) -> Point:
-    if kind == "line":
-        return _outward_normal(_vsub(pts[1], pts[0]), ccw)
-    if kind == "quad":
-        tan = _bezier_deriv_quad(pts[0], pts[1], pts[2], t)
-        return _outward_normal(tan, ccw)
-    tan = _bezier_deriv_cubic(pts[0], pts[1], pts[2], pts[3], t)
-    return _outward_normal(tan, ccw)
+    match kind:
+        case "line":
+            return _outward_normal(_vsub(pts[1], pts[0]), ccw)
+        case "quad":
+            tan = _bezier_deriv_quad(pts[0], pts[1], pts[2], t)
+            return _outward_normal(tan, ccw)
+        case _:
+            tan = _bezier_deriv_cubic(pts[0], pts[1], pts[2], pts[3], t)
+            return _outward_normal(tan, ccw)
 
 
 def _offset_segment(kind: str, pts: Tuple[Point, ...], d: float, ccw: bool) -> _Seg:
-    if kind == "line":
-        p0, p1 = pts
-        n = _outward_normal(_vsub(p1, p0), ccw)
-        return ("line", (_vadd(p0, _vmul(d, n)), _vadd(p1, _vmul(d, n))))
-    if kind == "quad":
-        p0, p1, p2 = pts
-        samples = (0.0, 0.5, 1.0)
-        op: List[Point] = []
-        for t in samples:
-            pt = _bezier_eval_quad(p0, p1, p2, t)
-            n = _seg_normal_at("quad", pts, t, ccw)
-            op.append(_vadd(pt, _vmul(d, n)))
-        return ("quad", (op[0], op[1], op[2]))
-    p0, p1, p2, p3 = pts
-    samples = (0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0)
-    op = []
-    for t in samples:
-        pt = _bezier_eval_cubic(p0, p1, p2, p3, t)
-        n = _seg_normal_at("cubic", pts, t, ccw)
-        op.append(_vadd(pt, _vmul(d, n)))
-    return ("cubic", (op[0], op[1], op[2], op[3]))
+    match kind:
+        case "line":
+            p0, p1 = pts
+            n = _outward_normal(_vsub(p1, p0), ccw)
+            return ("line", (_vadd(p0, _vmul(d, n)), _vadd(p1, _vmul(d, n))))
+        case "quad":
+            p0, p1, p2 = pts
+            samples = (0.0, 0.5, 1.0)
+            op: List[Point] = []
+            for t in samples:
+                pt = _bezier_eval_quad(p0, p1, p2, t)
+                n = _seg_normal_at("quad", pts, t, ccw)
+                op.append(_vadd(pt, _vmul(d, n)))
+            return ("quad", (op[0], op[1], op[2]))
+        case _:
+            p0, p1, p2, p3 = pts
+            samples = (0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0)
+            op = []
+            for t in samples:
+                pt = _bezier_eval_cubic(p0, p1, p2, p3, t)
+                n = _seg_normal_at("cubic", pts, t, ccw)
+                op.append(_vadd(pt, _vmul(d, n)))
+            return ("cubic", (op[0], op[1], op[2], op[3]))
 
 
 def _offset_pathops_contour(contour, distance: float):
@@ -400,22 +406,23 @@ def _offset_pathops_contour(contour, distance: float):
             first = False
         elif prev_end is not None and _hypot(_vsub(prev_end, pts[0])) > 1e-6:
             out.lineTo(pts[0][0], pts[0][1])
-        if kind == "line":
-            out.lineTo(pts[1][0], pts[1][1])
-            prev_end = pts[1]
-        elif kind == "quad":
-            out.quadTo(pts[1][0], pts[1][1], pts[2][0], pts[2][1])
-            prev_end = pts[2]
-        else:
-            out.curveTo(
-                pts[1][0],
-                pts[1][1],
-                pts[2][0],
-                pts[2][1],
-                pts[3][0],
-                pts[3][1],
-            )
-            prev_end = pts[3]
+        match kind:
+            case "line":
+                out.lineTo(pts[1][0], pts[1][1])
+                prev_end = pts[1]
+            case "quad":
+                out.quadTo(pts[1][0], pts[1][1], pts[2][0], pts[2][1])
+                prev_end = pts[2]
+            case _:
+                out.curveTo(
+                    pts[1][0],
+                    pts[1][1],
+                    pts[2][0],
+                    pts[2][1],
+                    pts[3][0],
+                    pts[3][1],
+                )
+                prev_end = pts[3]
     out.close()
     try:
         return pathops.simplify(out, fix_winding=True)
@@ -522,19 +529,21 @@ def _ray_flat_curve_hits(
     *,
     depth: int = 0,
 ) -> List[Tuple[float, Point, Point]]:
-    if kind == "quad":
-        p0, p1, p2 = pts
-        end = p2
-    else:
-        p0, p1, p2, p3 = pts
-        end = p3
+    match kind:
+        case "quad":
+            p0, p1, p2 = pts
+            end = p2
+        case _:
+            p0, p1, p2, p3 = pts
+            end = p3
     if depth >= 14 or _hypot(_vsub(end, p0)) < 0.5:
         hit = _ray_line_hit(origin, direction, p0, end)
         return [hit] if hit else []
-    if kind == "quad":
-        left, right = _split_quad(p0, p1, p2)
-    else:
-        left, right = _split_cubic(p0, p1, p2, p3)
+    match kind:
+        case "quad":
+            left, right = _split_quad(p0, p1, p2)
+        case _:
+            left, right = _split_cubic(p0, p1, p2, p3)
     return _ray_flat_curve_hits(
         origin, direction, left[0], left[1], depth=depth + 1
     ) + _ray_flat_curve_hits(
@@ -548,17 +557,18 @@ def _ray_segment_hit(
     kind: str,
     pts: Tuple[Point, ...],
 ) -> Optional[Tuple[float, Point, Point]]:
-    if kind == "line":
-        hit = _ray_line_hit(origin, direction, pts[0], pts[1])
-        return hit
-    hits = _ray_flat_curve_hits(origin, direction, kind, pts)
-    best: Optional[Tuple[float, Point, Point]] = None
-    for hit in hits:
-        if hit is None:
-            continue
-        if best is None or hit[0] > best[0]:
-            best = hit
-    return best
+    match kind:
+        case "line":
+            return _ray_line_hit(origin, direction, pts[0], pts[1])
+        case _:
+            hits = _ray_flat_curve_hits(origin, direction, kind, pts)
+            best: Optional[Tuple[float, Point, Point]] = None
+            for hit in hits:
+                if hit is None:
+                    continue
+                if best is None or hit[0] > best[0]:
+                    best = hit
+            return best
 
 
 def _ray_farthest_contour_hit(
@@ -587,15 +597,17 @@ def _baked_glyph(
     glyph: TTGlyph,
     glyph_set: Dict[str, TTGlyph],
 ) -> Optional[TTGlyph]:
-    if glyph.isComposite():
-        try:
-            baked, _, _ = _bake_transformed_glyph(
-                glyph, Transform(), 0, glyph_set=glyph_set
-            )
-            return baked
-        except Exception:
-            return None
-    return glyph
+    match glyph.isComposite():
+        case True:
+            try:
+                baked, _, _ = _bake_transformed_glyph(
+                    glyph, Transform(), 0, glyph_set=glyph_set
+                )
+                return baked
+            except Exception:
+                return None
+        case False:
+            return glyph
 
 
 def _ink_centroid(
