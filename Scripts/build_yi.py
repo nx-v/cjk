@@ -51,6 +51,7 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
 from fontTools.ttLib import TTFont
+from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from hangul_diacritics import (
     DAKUTEN_SLOT_CYCLE,
@@ -300,8 +301,8 @@ def _prepare_yi_segment_glyphs(
     target_upem: int,
     variants: Set[str],
 ) -> None:
+    """Bake third / quarter clips for ``yi_names`` (typically one bucket)."""
     if "t" in variants:
-        print("  Baking third-cell segments (VS17–VS26)...", flush=True)
         prepare_third_cells(
             cjk_bases=yi_names,
             glyph_order=glyph_order,
@@ -317,7 +318,6 @@ def _prepare_yi_segment_glyphs(
     ):
         if key not in variants:
             continue
-        print(f"  Baking quarter segments ({key})...", flush=True)
         prepare_quarter_cells(
             face=face,
             cjk_bases=yi_names,
@@ -514,13 +514,186 @@ def _save_yi_face(
     return face_id, variant, n_glyphs - 1, sorted(cmap.keys())
 
 
-_WORKER_CACHE: Optional[dict] = None
+_WORKER_MASTER: Optional[dict] = None
+_WORKER_CACHE_DIR: Optional[str] = None
 
 
-def _init_yi_worker(cache_path: str) -> None:
-    global _WORKER_CACHE
-    with open(cache_path, "rb") as f:
-        _WORKER_CACHE = pickle.load(f)
+def _face_pkl_path(cache_dir: str, face_id: str) -> str:
+    """One pickle per output font file (CJK-style face cache)."""
+    return os.path.join(cache_dir, f"{face_id}.pkl")
+
+
+def _init_yi_face_cache_worker(master_path: str, cache_dir: str) -> None:
+    global _WORKER_MASTER, _WORKER_CACHE_DIR
+    _WORKER_CACHE_DIR = cache_dir
+    with open(master_path, "rb") as f:
+        _WORKER_MASTER = pickle.load(f)
+
+
+def _init_yi_face_ttf_worker(cache_dir: str) -> None:
+    global _WORKER_CACHE_DIR
+    _WORKER_CACHE_DIR = cache_dir
+
+
+def _yi_face_anchors(
+    master_anchors: Dict[str, Dict[int, Tuple[int, int]]],
+    glyphs: Dict[str, TTGlyph],
+) -> Dict[str, Dict[int, Tuple[int, int]]]:
+    stems = {k: v for k, v in master_anchors.items() if k in glyphs}
+    return inherit_kana_dakuten_anchors(stems, list(glyphs))
+
+
+def _prepare_yi_face_state(
+    spec: Tuple[str, Optional[int]],
+    m: dict,
+) -> dict:
+    kind, bucket_id = spec
+    glyph_order = m["glyph_order"]
+    glyphs = m["glyphs"]
+    metrics = m["metrics"]
+    cmap = m["cmap"]
+    target_upem = m["target_upem"]
+
+    if kind in ("h", "t", "q", "qv", "qh"):
+        assert bucket_id is not None
+        bases = _yi_bases_in_bucket(m["yi_names"], m["yi_cps"], bucket_id)
+        keep: Set[str] = {".notdef", *m["dakuten_keep"], *m["vs_keep"]}
+        for cp, name in cmap.items():
+            if name in glyphs and (cp >> 8) == bucket_id:
+                keep.add(name)
+        keep |= keep_names_for_segment_face(kind, bases, glyphs)
+        go, gl, mt, cm = subset_tables(glyph_order, glyphs, metrics, cmap, keep)
+        cm = filter_segment_face_cmap(kind, cm, list(bases))
+        face_id = bucket_face_id(bucket_id, kind)
+        if kind == "h":
+            add_slice_halves(
+                bases,
+                glyph_order=go,
+                glyphs=gl,
+                metrics=mt,
+                target_upem=target_upem,
+                modes=YI_ORIENTATION_MODES,
+            )
+            inject_slice_marks(go, gl, mt, cm)
+            base_cps = {m["yi_cps"][n] for n in bases}
+            face_uvs = [
+                row for row in m["uvs_rows"] if row[0] in base_cps and row[2] in gl
+            ]
+            return {
+                "face_kind": "dakuten",
+                "face_id": face_id,
+                "variant": "h",
+                "glyph_order": go,
+                "glyphs": gl,
+                "metrics": mt,
+                "cmap": cm,
+                "uvs_rows": face_uvs,
+                "yi_names": bases,
+                "mark_names": m["mark_names"],
+                "mark_cps": m["mark_cps"],
+                "base_anchors": _yi_face_anchors(m["base_anchors"], gl),
+                "out_dir": m["out_dir"],
+                "target_upem": target_upem,
+                "mark_ink_height": m.get("mark_ink_height"),
+                "slices": True,
+            }
+        _prepare_yi_segment_glyphs(
+            yi_names=bases,
+            glyph_order=go,
+            glyphs=gl,
+            metrics=mt,
+            cmap=cm,
+            target_upem=target_upem,
+            variants={kind},
+        )
+        return {
+            "face_kind": "segment",
+            "face_id": face_id,
+            "variant": kind,
+            "glyph_order": go,
+            "glyphs": gl,
+            "metrics": mt,
+            "cmap": cm,
+            "bases": bases,
+            "out_dir": m["out_dir"],
+            "target_upem": target_upem,
+        }
+
+    go, gl, mt, cm = subset_glyph_tables(
+        glyph_order, glyphs, metrics, cmap, set(glyph_order)
+    )
+    return {
+        "face_kind": "dakuten",
+        "face_id": PS_NAME,
+        "variant": "",
+        "glyph_order": go,
+        "glyphs": gl,
+        "metrics": mt,
+        "cmap": cm,
+        "uvs_rows": list(m["uvs_rows"]),
+        "yi_names": m["yi_names"],
+        "mark_names": m["mark_names"],
+        "mark_cps": m["mark_cps"],
+        "base_anchors": _yi_face_anchors(m["base_anchors"], gl),
+        "out_dir": m["out_dir"],
+        "target_upem": target_upem,
+        "mark_ink_height": m.get("mark_ink_height"),
+        "slices": False,
+    }
+
+
+def _yi_face_cache_task(spec: Tuple[str, Optional[int]]) -> str:
+    assert _WORKER_MASTER is not None
+    assert _WORKER_CACHE_DIR is not None
+    state = _prepare_yi_face_state(spec, _WORKER_MASTER)
+    face_id = state["face_id"]
+    path = _face_pkl_path(_WORKER_CACHE_DIR, face_id)
+    with open(path, "wb") as f:
+        pickle.dump(state, f, protocol=pickle.HIGHEST_PROTOCOL)
+    n_glyf = len(state["glyphs"]) - 1
+    print(f"  cached {face_id}.pkl ({n_glyf} glyphs)", flush=True)
+    return face_id
+
+
+def _emit_yi_face_from_state(state: dict) -> Tuple[str, str, int, List[int]]:
+    if state["face_kind"] == "segment":
+        return _save_yi_segment_face(
+            face_id=state["face_id"],
+            variant=state["variant"],
+            glyph_order=state["glyph_order"],
+            glyphs=state["glyphs"],
+            metrics=state["metrics"],
+            cmap=state["cmap"],
+            bases=state["bases"],
+            out_dir=state["out_dir"],
+            target_upem=state["target_upem"],
+        )
+    return _save_yi_face(
+        face_id=state["face_id"],
+        variant=state["variant"],
+        glyph_order=state["glyph_order"],
+        glyphs=state["glyphs"],
+        metrics=state["metrics"],
+        cmap=state["cmap"],
+        uvs_rows=state["uvs_rows"],
+        yi_names=state["yi_names"],
+        mark_names=state["mark_names"],
+        mark_cps=state["mark_cps"],
+        base_anchors=state["base_anchors"],
+        out_dir=state["out_dir"],
+        target_upem=state["target_upem"],
+        mark_ink_height=state.get("mark_ink_height"),
+        slices=state["slices"],
+    )
+
+
+def _yi_face_ttf_task(face_id: str) -> Tuple[str, str, int, List[int], str]:
+    assert _WORKER_CACHE_DIR is not None
+    path = _face_pkl_path(_WORKER_CACHE_DIR, face_id)
+    with open(path, "rb") as f:
+        state = pickle.load(f)
+    meta = _emit_yi_face_from_state(state)
+    return (*meta, os.path.join(state["out_dir"], f"{meta[0]}.ttf"))
 
 
 def _yi_standalone_task(
@@ -537,105 +710,6 @@ def _yi_standalone_task(
         horizontal_weight=YI_HORIZONTAL_STEM_WEIGHT,
     )
     return idx, sa
-
-
-def _yi_face_task(
-    spec: Tuple[str, Optional[int]],
-) -> Tuple[str, str, int, List[int], str]:
-    """Process-pool worker: subset + slices + TTF for one Yi face."""
-    assert _WORKER_CACHE is not None
-    m = _WORKER_CACHE
-    kind, bucket_id = spec
-    glyph_order = m["glyph_order"]
-    glyphs = m["glyphs"]
-    metrics = m["metrics"]
-    cmap = m["cmap"]
-    if kind in ("h", "t", "q", "qv", "qh"):
-        assert bucket_id is not None
-        bases = _yi_bases_in_bucket(m["yi_names"], m["yi_cps"], bucket_id)
-        keep: Set[str] = {".notdef", *m["dakuten_keep"], *m["vs_keep"]}
-        for cp, name in cmap.items():
-            if name in glyphs and (cp >> 8) == bucket_id:
-                keep.add(name)
-        keep |= keep_names_for_segment_face(kind, bases, glyphs)
-        go, gl, mt, cm = subset_tables(glyph_order, glyphs, metrics, cmap, keep)
-        cm = filter_segment_face_cmap(kind, cm, list(bases))
-        face_id = bucket_face_id(bucket_id, kind)
-        if kind == "h":
-            print(
-                f"  Installing FE08–FE0F slices on {face_id} "
-                f"({len(bases)} Yi CPs)...",
-                flush=True,
-            )
-            add_slice_halves(
-                bases,
-                glyph_order=go,
-                glyphs=gl,
-                metrics=mt,
-                target_upem=m["target_upem"],
-                modes=YI_ORIENTATION_MODES,
-            )
-            inject_slice_marks(go, gl, mt, cm)
-            base_cps = {m["yi_cps"][n] for n in bases}
-            face_uvs = [
-                row for row in m["uvs_rows"] if row[0] in base_cps and row[2] in gl
-            ]
-            meta = _save_yi_face(
-                face_id=face_id,
-                variant="h",
-                glyph_order=go,
-                glyphs=gl,
-                metrics=mt,
-                cmap=cm,
-                uvs_rows=face_uvs,
-                yi_names=bases,
-                mark_names=m["mark_names"],
-                mark_cps=m["mark_cps"],
-                base_anchors=m["base_anchors"],
-                out_dir=m["out_dir"],
-                target_upem=m["target_upem"],
-                mark_ink_height=m.get("mark_ink_height"),
-                slices=True,
-            )
-        else:
-            print(
-                f"  Segment face {face_id} ({len(bases)} Yi CPs)...",
-                flush=True,
-            )
-            meta = _save_yi_segment_face(
-                face_id=face_id,
-                variant=kind,
-                glyph_order=go,
-                glyphs=gl,
-                metrics=mt,
-                cmap=cm,
-                bases=bases,
-                out_dir=m["out_dir"],
-                target_upem=m["target_upem"],
-            )
-    else:
-        go, gl, mt, cm = subset_glyph_tables(
-            glyph_order, glyphs, metrics, cmap, set(glyph_order)
-        )
-        face_uvs = list(m["uvs_rows"])
-        meta = _save_yi_face(
-            face_id=PS_NAME,
-            variant="",
-            glyph_order=go,
-            glyphs=gl,
-            metrics=mt,
-            cmap=cm,
-            uvs_rows=face_uvs,
-            yi_names=m["yi_names"],
-            mark_names=m["mark_names"],
-            mark_cps=m["mark_cps"],
-            base_anchors=m["base_anchors"],
-            out_dir=m["out_dir"],
-            target_upem=m["target_upem"],
-            mark_ink_height=m.get("mark_ink_height"),
-            slices=False,
-        )
-    return (*meta, os.path.join(m["out_dir"], f"{meta[0]}.ttf"))
 
 
 def build_edenia_yi_font(
@@ -813,17 +887,7 @@ def build_edenia_yi_font(
 
         _inject_d4_vs(glyph_order, glyphs, metrics, cmap)
 
-        seg_variants = want & {"h", "t", "q", "qv", "qh"}
-        if seg_variants - {"h"}:
-            _prepare_yi_segment_glyphs(
-                yi_names=yi_names,
-                glyph_order=glyph_order,
-                glyphs=glyphs,
-                metrics=metrics,
-                cmap=cmap,
-                target_upem=target_upem,
-                variants=seg_variants,
-            )
+        # Third/quarter clips bake per face pickle (bucket-local), not on master.
 
         built: List[Tuple[str, str, int, List[int]]] = []
         os.makedirs(out_dir, exist_ok=True)
@@ -845,8 +909,13 @@ def build_edenia_yi_font(
         if not face_specs:
             return built
 
-        cache_path = os.path.join(cache_dir, "master.pkl")
-        with open(cache_path, "wb") as f:
+        master_path = os.path.join(cache_dir, "master.pkl")
+        print(
+            f"  Writing slim master.pkl ({len(glyphs) - 1} glyphs)...",
+            flush=True,
+        )
+        t_cache = time.perf_counter()
+        with open(master_path, "wb") as f:
             pickle.dump(
                 {
                     "glyph_order": glyph_order,
@@ -868,18 +937,40 @@ def build_edenia_yi_font(
                 f,
                 protocol=pickle.HIGHEST_PROTOCOL,
             )
-        t0 = time.perf_counter()
-        pool_workers = min(workers, max(1, len(face_specs)))
         print(
-            f"Stage 2/4: face TTFs ({len(face_specs)} jobs, {pool_workers} workers)...",
+            f"  master written in {time.perf_counter() - t_cache:.1f}s",
+            flush=True,
+        )
+
+        pool_workers = min(workers, max(1, len(face_specs)))
+        t0 = time.perf_counter()
+        print(
+            f"Stage 1/4: face pickles ({len(face_specs)} fonts, "
+            f"{pool_workers} workers)...",
             flush=True,
         )
         with ProcessPoolExecutor(
             max_workers=pool_workers,
-            initializer=_init_yi_worker,
-            initargs=(cache_path,),
+            initializer=_init_yi_face_cache_worker,
+            initargs=(master_path, cache_dir),
         ) as executor:
-            results = list(executor.map(_yi_face_task, face_specs))
+            face_ids = list(executor.map(_yi_face_cache_task, face_specs))
+        print(
+            f"  stage 1 done in {time.perf_counter() - t0:.1f}s",
+            flush=True,
+        )
+
+        t0 = time.perf_counter()
+        print(
+            f"Stage 2/4: face TTFs ({len(face_ids)} jobs, {pool_workers} workers)...",
+            flush=True,
+        )
+        with ProcessPoolExecutor(
+            max_workers=pool_workers,
+            initializer=_init_yi_face_ttf_worker,
+            initargs=(cache_dir,),
+        ) as executor:
+            results = list(executor.map(_yi_face_ttf_task, face_ids))
             print(
                 f"  stage 2 done in {time.perf_counter() - t0:.1f}s",
                 flush=True,
