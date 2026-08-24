@@ -33,10 +33,32 @@ from shared_half_cells import (
     _bake_transformed_glyph,
     orientation_form_names,
     overlay_glyph_name,
-    slice_form_name,
 )
+from shared_quarter_cells import (
+    GRID_VS_SLOTS,
+    QUARTER_VS_SLOTS_H,
+    QUARTER_VS_SLOTS_V,
+)
+from shared_third_cells import THIRD_VS_SLOTS
 
 Point = Tuple[float, float]
+
+# Segment / overlay suffixes stripped to find the full D4 stem that owns
+# dakuten slots. Longest first so ``q4th`` wins over ``th``, ``t3tm`` over ``tm``.
+_KANA_DAKUTEN_DERIVED_SUFFIXES: Tuple[str, ...] = tuple(
+    sorted(
+        {
+            "ov",
+            *SLICE_SUFFIXES,
+            *(suf for _cp, _sel, suf, _a, _b0, _b1 in THIRD_VS_SLOTS),
+            *(suf for _cp, _sel, suf, _b0, _b1 in QUARTER_VS_SLOTS_V),
+            *(suf for _cp, _sel, suf, _b0, _b1 in QUARTER_VS_SLOTS_H),
+            *(suf for _cp, _sel, suf in GRID_VS_SLOTS),
+        },
+        key=len,
+        reverse=True,
+    )
+)
 
 # Air gap between kana ink and the nearest mark contour (fraction of dakuten H).
 KANA_MARK_GAP_FRAC = 0.08
@@ -73,11 +95,49 @@ _KANA_DAKUTEN_MARK_CPS: Tuple[int, ...] = (
 
 
 def kana_d4_form_names(bases: Sequence[str]) -> List[str]:
-    """Identity + all D4 orientation names for each base."""
+    """Identity + all D4 orientation names for each base (8 per base)."""
     names: List[str] = []
     for base in bases:
         names.extend(orientation_form_names(base, modes=YI_ORIENTATION_MODES))
     return names
+
+
+def kana_dakuten_stem_name(name: str) -> str:
+    """Full D4 form that owns dakuten slots for a slice / segment / overlay.
+
+    Digraphs attach marks only to the last cluster member; that glyph may be a
+    half/third/quarter slice, but its eight compass slots come from the
+    matching full-cell D4 outline (e.g. ``り.top`` / ``り.t3b`` ← ``り``,
+    ``り.r90.t3b`` ← ``り.r90``).
+    """
+    while True:
+        for suf in _KANA_DAKUTEN_DERIVED_SUFFIXES:
+            token = f".{suf}"
+            if name.endswith(token) and len(name) > len(token):
+                name = name[: -len(token)]
+                break
+        else:
+            return name
+
+
+def kana_dakuten_placement_stems(
+    bases: Sequence[str],
+    *,
+    glyphs: Dict[str, TTGlyph],
+) -> List[str]:
+    """Unique full-cell D4 stems to contour-place (8 per logical base that exists).
+
+    Kana: pass full + small + hw-full + hw-small bases.
+    Yi: pass syllable bases only (no small / halfwidth).
+    Segment / overlay faces inherit these slots; they are never placed separately.
+    """
+    stems: List[str] = []
+    seen: set[str] = set()
+    for form in kana_d4_form_names(bases):
+        if form in glyphs and form not in seen:
+            seen.add(form)
+            stems.append(form)
+    return stems
 
 
 def kana_coord_liga_names(
@@ -85,20 +145,41 @@ def kana_coord_liga_names(
     *,
     glyphs: Dict[str, TTGlyph],
 ) -> List[str]:
-    """D4 forms plus overlay / slice / slice-overlay ligature glyphs that exist."""
+    """D4 forms plus overlay / slice / third / quarter ligature glyphs that exist."""
     names: List[str] = []
     seen: set[str] = set()
+    segment_sufs = _KANA_DAKUTEN_DERIVED_SUFFIXES
     for form in kana_d4_form_names(bases):
         candidates = [form, overlay_glyph_name(form)]
-        for suf in SLICE_SUFFIXES:
-            sl = slice_form_name(form, suf)
-            candidates.append(sl)
-            candidates.append(overlay_glyph_name(sl))
+        for suf in segment_sufs:
+            if suf == "ov":
+                continue
+            seg = f"{form}.{suf}"
+            candidates.append(seg)
+            candidates.append(overlay_glyph_name(seg))
         for name in candidates:
             if name in glyphs and name not in seen:
                 seen.add(name)
                 names.append(name)
     return names
+
+
+def inherit_kana_dakuten_anchors(
+    anchors: Dict[str, Dict[int, Tuple[int, int]]],
+    glyph_names: Sequence[str],
+) -> Dict[str, Dict[int, Tuple[int, int]]]:
+    """Transpose stem-slot maps onto every slice / segment / overlay form present.
+
+    Same cell coordinates as the full D4 stem (last cluster member); no re-fit.
+    """
+    out = dict(anchors)
+    for name in glyph_names:
+        if name in out:
+            continue
+        stem = kana_dakuten_stem_name(name)
+        if stem != name and stem in out:
+            out[name] = out[stem]
+    return out
 
 
 def kana_mark_center_anchor(
@@ -862,7 +943,7 @@ def _collect_kana_dakuten_anchors_sequential(
 
 
 def collect_kana_dakuten_anchors(
-    base_names: Sequence[str],
+    bases: Sequence[str],
     *,
     glyphs: Dict[str, TTGlyph],
     glyph_set: Dict[str, TTGlyph],
@@ -873,8 +954,13 @@ def collect_kana_dakuten_anchors(
     jobs: int = 1,
     cache_dir: Optional[str] = None,
 ) -> Dict[str, Dict[int, Tuple[int, int]]]:
-    """Per-glyph `{mark_class: (x, y)}` for every named form that exists."""
-    names = [n for n in base_names if n in glyphs]
+    """Contour-place dakuten on the 8 D4 forms of each logical base only.
+
+    ``bases`` are upright inventory names (kana: full, small, hw-full, hw-small;
+    Yi: syllables only). Placement runs once per existing D4 stem; slice /
+    third / quarter / overlay faces inherit via ``inherit_kana_dakuten_anchors``.
+    """
+    names = kana_dakuten_placement_stems(bases, glyphs=glyphs)
     if not names:
         return {}
     if cache_dir:

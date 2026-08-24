@@ -106,7 +106,9 @@ from cape_weightor import (
 )
 from kana_yi_diacritics import (
     collect_kana_dakuten_anchors,
+    inherit_kana_dakuten_anchors,
     kana_coord_liga_names,
+    kana_dakuten_placement_stems,
     kana_mark_center_anchor,
     kana_mark_chain_parent_anchor,
     kana_representative_mark_points,
@@ -1588,7 +1590,10 @@ def _install_kana_dakuten_layout(
         [*full_bases, *small_bases, *hw_full_bases, *hw_small_bases],
         glyphs=glyphs,
     )
-    face_anchors = {k: v for k, v in base_anchors.items() if k in glyphs}
+    face_anchors = inherit_kana_dakuten_anchors(
+        {k: v for k, v in base_anchors.items() if k in glyphs},
+        all_forms,
+    )
     if not face_anchors:
         return
     if all_forms:
@@ -1614,8 +1619,8 @@ def _install_kana_dakuten_layout(
     ]
     if face_marks and face_anchors:
         print(
-            f"  Compiling GPOS (dakuten @ {len(face_anchors)} contour "
-            f"forms, incl. overlay/slice ligas)...",
+            f"  Compiling GPOS (dakuten @ {len(face_anchors)} forms; "
+            f"slots from full D4 stems)...",
             flush=True,
         )
         install_dakuten_gpos(
@@ -2181,23 +2186,25 @@ def build_edenia_kana_font(
                 )
                 mark_names = list(mark_names) + chain_names
 
-                anchor_names = kana_coord_liga_names(
-                    [
-                        *full_bases,
-                        *small_bases,
-                        *hw_full_bases,
-                        *hw_small_bases,
-                    ],
-                    glyphs=glyphs,
+                dakuten_bases = [
+                    *full_bases,
+                    *small_bases,
+                    *hw_full_bases,
+                    *hw_small_bases,
+                ]
+                stem_names = kana_dakuten_placement_stems(
+                    dakuten_bases, glyphs=glyphs
                 )
+                n_logical = sum(1 for b in dakuten_bases if b in glyphs)
                 print(
-                    f"Stage 1/4: dakuten anchors ({len(anchor_names)} forms, "
-                    f"{workers} chunk workers, sharded pickle cache)...",
+                    f"Stage 1/4: dakuten anchors ({len(stem_names)} stems = "
+                    f"{n_logical} bases × ≤8 D4; segments inherit; "
+                    f"{workers} chunk workers)...",
                     flush=True,
                 )
                 t_anchors = time.perf_counter()
                 base_anchors = collect_kana_dakuten_anchors(
-                    anchor_names,
+                    dakuten_bases,
                     glyphs=glyphs,
                     glyph_set=glyphs,
                     target_upem=target_upem,
@@ -2208,7 +2215,7 @@ def build_edenia_kana_font(
                 )
                 print(
                     f"  stage 1 done in {time.perf_counter() - t_anchors:.1f}s "
-                    f"({len(base_anchors)} bases)",
+                    f"({len(base_anchors)} D4 stems placed)",
                     flush=True,
                 )
                 print(

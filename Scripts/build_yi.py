@@ -68,7 +68,9 @@ from hangul_diacritics import (
 )
 from kana_yi_diacritics import (
     collect_kana_dakuten_anchors,
+    inherit_kana_dakuten_anchors,
     kana_coord_liga_names,
+    kana_dakuten_placement_stems,
     kana_mark_center_anchor,
     kana_mark_chain_parent_anchor,
     kana_representative_mark_points,
@@ -458,11 +460,14 @@ def _save_yi_face(
     print(f"  Compiling GSUB ({gsub_note})...", flush=True)
     install_yi_gsub(fb.font, yi_names, glyphs, glyph_order, slices=slices)
 
-    face_anchors = {k: v for k, v in base_anchors.items() if k in glyphs}
+    all_forms = kana_coord_liga_names(yi_names, glyphs=glyphs)
+    face_anchors = inherit_kana_dakuten_anchors(
+        {k: v for k, v in base_anchors.items() if k in glyphs},
+        all_forms,
+    )
     face_marks = [
         n for n in mark_names if n in glyphs and not is_dakuten_chain_glyph(n)
     ]
-    all_forms = kana_coord_liga_names(yi_names, glyphs=glyphs)
     if face_marks and face_anchors and all_forms:
         print(f"  Compiling GSUB (dakuten slots {DAKUTEN_SLOT_CYCLE})...", flush=True)
         install_dakuten_slot_gsub(
@@ -479,7 +484,8 @@ def _save_yi_face(
             glyph_order=glyph_order,
         )
         print(
-            f"  Compiling GPOS (dakuten @ {len(face_anchors)} contour forms)...",
+            f"  Compiling GPOS (dakuten @ {len(face_anchors)} forms; "
+            f"slots from full D4 stems)...",
             flush=True,
         )
         install_dakuten_gpos(
@@ -770,15 +776,17 @@ def build_edenia_yi_font(
                 metrics=metrics,
             )
             mark_names = list(mark_names) + chain_names
-            anchor_names = kana_coord_liga_names(yi_names, glyphs=glyphs)
+            stem_names = kana_dakuten_placement_stems(yi_names, glyphs=glyphs)
+            n_logical = sum(1 for b in yi_names if b in glyphs)
             print(
-                f"  Dakuten anchors ({len(anchor_names)} forms, "
-                f"{workers} chunk workers, sharded pickle cache)...",
+                f"  Dakuten anchors ({len(stem_names)} stems = "
+                f"{n_logical} Yi × ≤8 D4; segments inherit; "
+                f"{workers} chunk workers)...",
                 flush=True,
             )
             t_anchors = time.perf_counter()
             base_anchors = collect_kana_dakuten_anchors(
-                anchor_names,
+                yi_names,
                 glyphs=glyphs,
                 glyph_set=glyphs,
                 target_upem=target_upem,
@@ -789,7 +797,7 @@ def build_edenia_yi_font(
             )
             print(
                 f"  dakuten anchors done in {time.perf_counter() - t_anchors:.1f}s "
-                f"({len(base_anchors)} bases)",
+                f"({len(base_anchors)} D4 stems placed)",
                 flush=True,
             )
             h_note = (
