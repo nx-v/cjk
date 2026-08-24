@@ -125,10 +125,14 @@ def to_cdn_url(url: str) -> str:
 def load_css(kind: str, *, local: bool) -> str:
     if local:
         path = LOCAL_CSS[kind]
-        if not path.is_file():
-            raise FileNotFoundError(path)
-        print(f"  local {path.relative_to(REPO_ROOT)}")
-        return path.read_text(encoding="utf-8")
+        if path.is_file():
+            print(f"  local {path.relative_to(REPO_ROOT)}")
+            return path.read_text(encoding="utf-8")
+        print(
+            f"  [!] missing local {path.relative_to(REPO_ROOT)}; "
+            f"fetching CDN for {kind}",
+            flush=True,
+        )
     sources: list[tuple[str, str]] = [("raw", CSS_URLS[kind])]
     for i, url in enumerate(CSS_URLS_FALLBACK[kind]):
         label = ("statically", "jsdelivr", "fastly", "gcore")[min(i, 3)]
@@ -143,7 +147,12 @@ def load_css(kind: str, *, local: bool) -> str:
     if path.is_file():
         print(f"  [!] falling back to {path.name}")
         return path.read_text(encoding="utf-8")
-    raise FileNotFoundError(f"no CSS source for {kind}")
+    print(
+        f"  [!] no CSS for {kind} — skipping "
+        f"(build with Scripts/build_{kind}.py, or --css-only for CJK)",
+        flush=True,
+    )
+    return ""
 
 
 def sync_woff2(dest_root: Path) -> int:
@@ -337,12 +346,16 @@ def edenia_cjk_stack_families(css: str) -> list[str]:
             out.append(name)
     if out:
         return out
-    return families
+    if families:
+        return families
+    # No edenia-cjk.css yet — keep stack names so Appearance still lists them.
+    return ["edenia cjk h", "edenia cjk"]
 
 
 def collect_faces(css: str, *, folder: str) -> list[dict]:
     """Parse @font-face list for the Edenia plugin (family + unicode-range)."""
     out: list[dict] = []
+    src_dir = DIST_DIR / folder
     for m in re.finditer(r"@font-face\s*\{([^{}]*)\}", css, flags=re.S):
         block = m.group(1)
         fam_m = re.search(r"font-family:\s*['\"]([^'\"]+)['\"]", block)
@@ -352,10 +365,16 @@ def collect_faces(css: str, *, folder: str) -> list[dict]:
         )
         if not (fam_m and name_m):
             continue
+        woff2_name = name_m.group(2)
+        # Skip stale CSS entries whose dist file was never built / was removed
+        # (e.g. old halfwidth F00h faces while base still owns U+F0000).
+        if not (src_dir / woff2_name).is_file():
+            print(f"  [!] skip missing {folder}/{woff2_name}", flush=True)
+            continue
         family = fam_m.group(1)
         face: dict = {
             "family": family,
-            "file": f"{PLUGIN_ASSET}/{folder}/{name_m.group(2)}",
+            "file": f"{PLUGIN_ASSET}/{folder}/{woff2_name}",
         }
         ur_m = re.search(r"unicode-range:\s*([^;]+);", block)
         ur = " ".join(ur_m.group(1).split()) if ur_m else None

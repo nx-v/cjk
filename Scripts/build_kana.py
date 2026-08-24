@@ -1223,6 +1223,20 @@ def _kana_bases_in_bucket(
     return out
 
 
+def _kana_bucket_has_bases(
+    *,
+    full_bases: Sequence[str],
+    hw_full_bases: Sequence[str],
+    cmap: Dict[int, str],
+    bucket_id: int,
+) -> bool:
+    """True if this page has fullwidth and/or halfwidth kana stems."""
+    return bool(
+        _kana_bases_in_bucket(full_bases, cmap, bucket_id)
+        or _kana_bases_in_bucket(hw_full_bases, cmap, bucket_id)
+    )
+
+
 def _kana_pigeonhole_pages(cmap: Dict[int, str]) -> List[int]:
     return sorted(
         {
@@ -1803,19 +1817,23 @@ def _prepare_kana_face_state(
 
     if kind in ("h", "t", "q", "qv", "qh"):
         assert bucket_id is not None
-        bases = _kana_bases_in_bucket(m["full_bases"], cmap, bucket_id)
+        full_b = _kana_bases_in_bucket(m["full_bases"], cmap, bucket_id)
+        small_b = _kana_bases_in_bucket(m["small_bases"], cmap, bucket_id)
+        hw_full_b = _kana_bases_in_bucket(m["hw_full_bases"], cmap, bucket_id)
+        hw_small_b = _kana_bases_in_bucket(m["hw_small_bases"], cmap, bucket_id)
+        # Stem names for keep/GSUB: fullwidth and/or halfwidth on this page.
+        bases = list(dict.fromkeys([*full_b, *hw_full_b]))
         keep: Set[str] = {".notdef", *m.get("dakuten_keep", ())}
         for cp, name in cmap.items():
             if (cp >> 8) == bucket_id:
                 keep.add(name)
         keep |= keep_names_for_segment_face(kind, bases, glyphs)
+        keep |= keep_names_for_segment_face(
+            kind, list(dict.fromkeys([*small_b, *hw_small_b])), glyphs
+        )
         go, gl, mt, cm = subset_tables(glyph_order, glyphs, metrics, cmap, keep)
         cm = filter_segment_face_cmap(kind, cm, list(bases))
         face_id = bucket_face_id(bucket_id, kind)
-        full_b = [b for b in m["full_bases"] if b in bases]
-        small_b = [b for b in m["small_bases"] if b in bases]
-        hw_full_b = [b for b in m["hw_full_bases"] if b in bases]
-        hw_small_b = [b for b in m["hw_small_bases"] if b in bases]
         if kind == "h":
             _add_kana_slices(
                 full_bases=full_b,
@@ -1849,8 +1867,10 @@ def _prepare_kana_face_state(
                 "mark_contour_points": m.get("mark_contour_points"),
                 "slices": True,
             }
+        # Third/quarter clips: prefer fullwidth stems; else halfwidth-only page.
+        segment_bases = full_b if full_b else hw_full_b
         _prepare_kana_segment_glyphs(
-            full_bases=full_b,
+            full_bases=segment_bases,
             glyph_order=go,
             glyphs=gl,
             metrics=mt,
@@ -2309,17 +2329,22 @@ def build_edenia_kana_font(
 
             built: List[Tuple[str, str, int, List[int]]] = []
             os.makedirs(out_dir, exist_ok=True)
-            face_specs: List[Tuple[str, Optional[int]]] = []
-            if "" in want:
-                face_specs.append(("", None))
+            # Unsuffixed base face is assembled in-process (full inventory +
+            # dakuten). Pigeonholed segment faces use the pickle pool.
+            seg_specs: List[Tuple[str, Optional[int]]] = []
             pages = _kana_pigeonhole_pages(cmap)
             for seg in SEGMENT_FACE_BUILD_ORDER:
                 if seg not in want or not seg:
                     continue
                 for bucket_id in pages:
-                    if _kana_bases_in_bucket(full_bases, cmap, bucket_id):
-                        face_specs.append((seg, bucket_id))
-            if not face_specs:
+                    if _kana_bucket_has_bases(
+                        full_bases=full_bases,
+                        hw_full_bases=hw_full_bases,
+                        cmap=cmap,
+                        bucket_id=bucket_id,
+                    ):
+                        seg_specs.append((seg, bucket_id))
+            if "" not in want and not seg_specs:
                 return built
 
             master_path = os.path.join(cache_dir, "master.pkl")
@@ -2328,26 +2353,27 @@ def build_edenia_kana_font(
                 flush=True,
             )
             t_cache = time.perf_counter()
+            master_state = {
+                "glyph_order": glyph_order,
+                "glyphs": glyphs,
+                "metrics": metrics,
+                "cmap": cmap,
+                "full_bases": full_bases,
+                "small_bases": small_bases,
+                "hw_full_bases": hw_full_bases,
+                "hw_small_bases": hw_small_bases,
+                "mark_names": mark_names,
+                "mark_cps": mark_cps,
+                "base_anchors": base_anchors,
+                "mark_ink_height": mark_ink_h,
+                "mark_contour_points": mark_contour_pts,
+                "dakuten_keep": dakuten_keep,
+                "out_dir": out_dir,
+                "target_upem": target_upem,
+            }
             with open(master_path, "wb") as f:
                 pickle.dump(
-                    {
-                        "glyph_order": glyph_order,
-                        "glyphs": glyphs,
-                        "metrics": metrics,
-                        "cmap": cmap,
-                        "full_bases": full_bases,
-                        "small_bases": small_bases,
-                        "hw_full_bases": hw_full_bases,
-                        "hw_small_bases": hw_small_bases,
-                        "mark_names": mark_names,
-                        "mark_cps": mark_cps,
-                        "base_anchors": base_anchors,
-                        "mark_ink_height": mark_ink_h,
-                        "mark_contour_points": mark_contour_pts,
-                        "dakuten_keep": dakuten_keep,
-                        "out_dir": out_dir,
-                        "target_upem": target_upem,
-                    },
+                    master_state,
                     f,
                     protocol=pickle.HIGHEST_PROTOCOL,
                 )
@@ -2356,49 +2382,94 @@ def build_edenia_kana_font(
                 flush=True,
             )
 
-            pool_workers = min(workers, max(1, len(face_specs)))
-            t0 = time.perf_counter()
-            print(
-                f"Stage 1/4: face pickles ({len(face_specs)} fonts, "
-                f"{pool_workers} workers)...",
-                flush=True,
-            )
-            with ProcessPoolExecutor(
-                max_workers=pool_workers,
-                initializer=_init_kana_face_cache_worker,
-                initargs=(master_path, cache_dir),
-            ) as executor:
-                face_ids = list(executor.map(_kana_face_cache_task, face_specs))
-            print(
-                f"  stage 1 done in {time.perf_counter() - t0:.1f}s",
-                flush=True,
-            )
-
-            t0 = time.perf_counter()
-            print(
-                f"Stage 2/4: face TTFs ({len(face_ids)} jobs, "
-                f"{pool_workers} workers)...",
-                flush=True,
-            )
-            with ProcessPoolExecutor(
-                max_workers=pool_workers,
-                initializer=_init_kana_face_ttf_worker,
-                initargs=(cache_dir,),
-            ) as executor:
-                results = list(executor.map(_kana_face_ttf_task, face_ids))
+            ttf_paths: List[str] = []
+            if "" in want:
+                t0 = time.perf_counter()
                 print(
-                    f"  stage 2 done in {time.perf_counter() - t0:.1f}s",
+                    f"Stage 1/4: base face {PS_NAME} (main process)...",
                     flush=True,
                 )
-                ttf_paths = [r[4] for r in results]
-                built = [(r[0], r[1], r[2], r[3]) for r in results]
-                finish_font_outputs(
-                    ttf_paths,
-                    hint=hint,
-                    write_woff2=write_woff2,
-                    write_ttf=write_ttf,
-                    executor=executor,
+                base_meta = _save_kana_face(
+                    face_id=PS_NAME,
+                    variant="",
+                    glyph_order=glyph_order,
+                    glyphs=glyphs,
+                    metrics=metrics,
+                    cmap=cmap,
+                    full_bases=full_bases,
+                    small_bases=small_bases,
+                    hw_full_bases=hw_full_bases,
+                    hw_small_bases=hw_small_bases,
+                    mark_names=mark_names,
+                    mark_cps=mark_cps,
+                    base_anchors=_kana_face_anchors(base_anchors, glyphs),
+                    out_dir=out_dir,
+                    target_upem=target_upem,
+                    mark_ink_height=mark_ink_h,
+                    mark_contour_points=mark_contour_pts,
+                    slices=False,
                 )
+                built.append(base_meta)
+                ttf_paths.append(os.path.join(out_dir, f"{PS_NAME}.ttf"))
+                print(
+                    f"  base done in {time.perf_counter() - t0:.1f}s "
+                    f"({base_meta[2]} glyphs)",
+                    flush=True,
+                )
+
+            if seg_specs:
+                pool_workers = min(workers, max(1, len(seg_specs)))
+                t0 = time.perf_counter()
+                print(
+                    f"Stage 1/4: segment pickles ({len(seg_specs)} fonts, "
+                    f"{pool_workers} workers)...",
+                    flush=True,
+                )
+                with ProcessPoolExecutor(
+                    max_workers=pool_workers,
+                    initializer=_init_kana_face_cache_worker,
+                    initargs=(master_path, cache_dir),
+                ) as executor:
+                    face_ids = list(executor.map(_kana_face_cache_task, seg_specs))
+                print(
+                    f"  segment pickles done in {time.perf_counter() - t0:.1f}s",
+                    flush=True,
+                )
+
+                t0 = time.perf_counter()
+                print(
+                    f"Stage 2/4: segment TTFs ({len(face_ids)} jobs, "
+                    f"{pool_workers} workers)...",
+                    flush=True,
+                )
+                with ProcessPoolExecutor(
+                    max_workers=pool_workers,
+                    initializer=_init_kana_face_ttf_worker,
+                    initargs=(cache_dir,),
+                ) as executor:
+                    results = list(executor.map(_kana_face_ttf_task, face_ids))
+                    print(
+                        f"  stage 2 done in {time.perf_counter() - t0:.1f}s",
+                        flush=True,
+                    )
+                    ttf_paths.extend(r[4] for r in results)
+                    built.extend((r[0], r[1], r[2], r[3]) for r in results)
+                    finish_font_outputs(
+                        ttf_paths,
+                        hint=hint,
+                        write_woff2=write_woff2,
+                        write_ttf=write_ttf,
+                        executor=executor,
+                    )
+            elif ttf_paths:
+                with ProcessPoolExecutor(max_workers=1) as executor:
+                    finish_font_outputs(
+                        ttf_paths,
+                        hint=hint,
+                        write_woff2=write_woff2,
+                        write_ttf=write_ttf,
+                        executor=executor,
+                    )
         finally:
             shutil.rmtree(cache_dir, ignore_errors=True)
         return built
@@ -2484,11 +2555,21 @@ def build_all(
         write_css(out_dir, built)
         keep_names = {f"{fid}.woff2" for fid, *_ in built}
         keep_names |= {f"{fid}.ttf" for fid, *_ in built}
+        want_base = "" in variants
         for name in os.listdir(out_dir):
             stem, ext = os.path.splitext(name)
             if ext.lower() not in {".woff2", ".ttf"}:
                 continue
+            # Only prune base + h pigeonholes; never delete q/t/qv/qh here.
             if stem != PS_NAME and parse_h_bucket_face_id(stem) is None:
+                continue
+            # Never drop the unsuffixed base when this run requested it.
+            if stem == PS_NAME and want_base:
+                if name not in keep_names:
+                    print(
+                        f"  [!] expected base face missing from built: {name}",
+                        flush=True,
+                    )
                 continue
             if name in keep_names:
                 continue

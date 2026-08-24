@@ -16,7 +16,11 @@ param(
   [switch]$YiQ,
   # Unicode spans for CJK rebuild (same as build_cjk --range). Repeatable /
   # comma-ok, e.g. -Range U+2F00-9FFF or -Range 4E00-4FFF,4E
-  [string[]]$Range = @()
+  [string[]]$Range = @(),
+  # Parallel workers for yi / kana / cjk builders (`-j` / `--jobs`).
+  [Alias('j')]
+  [ValidateRange(1, 512)]
+  [int]$Jobs = 61
 )
 
 $py = "c:/python314/python.exe"
@@ -52,6 +56,9 @@ if ($YiH) { $yiFaceArgs += "--h" }
 if ($YiT) { $yiFaceArgs += "--t" }
 if ($YiQ) { $yiFaceArgs += "--q" }
 
+$jobArgs = @("-j", "$Jobs")
+Write-Host "Jobs: $Jobs"
+
 if ($doCjk) {
   & $py "$scripts/cjk_diacritics_html.py"
   & $py "$scripts/cjk_multigraphs_html.py"
@@ -64,14 +71,14 @@ if ($doHangul) {
   & $py "$scripts/build_hangul.py" --woff2-only
 }
 if ($doYi) {
-  & $py "$scripts/build_yi.py" --woff2-only -j 61 @yiFaceArgs
+  & $py "$scripts/build_yi.py" --woff2-only @jobArgs @yiFaceArgs
 }
 if ($doKana) {
-  & $py "$scripts/build_kana.py" --woff2-only -j 61 @kanaFaceArgs
+  & $py "$scripts/build_kana.py" --woff2-only @jobArgs @kanaFaceArgs
 }
 if ($doCjk) {
-  # & $py "$scripts/build_cjk.py" --woff2-only --hint-base-only -j 61 @cjkFaceArgs
-  & $py "$scripts/build_cjk.py" --css-only @cjkFaceArgs
+  & $py "$scripts/build_cjk.py" --woff2-only --hint-base-only @jobArgs @cjkFaceArgs
+  # & $py "$scripts/build_cjk.py" --css-only @cjkFaceArgs
 }
 
 # & $py "$scripts/edenia_app.py"
