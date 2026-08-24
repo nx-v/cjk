@@ -23,10 +23,6 @@
           <select id="face">
             <option value="">base (ca/nhay)</option>
             <option value="h">h halves</option>
-            <option value="t">t thirds</option>
-            <option value="q">q 2×2</option>
-            <option value="qv">qv vertical</option>
-            <option value="qh">qh horizontal</option>
           </select>
         </div>
         <div class="field">
@@ -50,14 +46,13 @@
         <p id="bootWarn" class="warn" hidden></p>
 
         <section class="pane active" id="pane-cjk">
-          <p class="hint">Up to four characters + D4. Pick H/V/grid, then a template. Insert uses that face’s GSUB.</p>
+          <p class="hint">Up to four characters + D4. Pick H/V, then a half-cell template. Insert uses <code>edenia cjk h</code>.</p>
           <div class="chars" id="cjkChars"></div>
           <div class="field">
             <label for="axis">Axis</label>
             <select id="axis">
               <option value="v">V — top → bottom</option>
               <option value="h">H — left → right</option>
-              <option value="g">G — 2×2 grid</option>
             </select>
           </div>
           <div id="templates"></div>

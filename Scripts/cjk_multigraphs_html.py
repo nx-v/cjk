@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Build a graphic CJK segment composer (half / third / quarter).
+"""Build a graphic CJK half-cell digraph composer.
 
 Interactive HTML::
 
   • up to 4 character codes + D4 orientation each
-  • H / V axis (horizontal vs vertical segments)
-  • clickable templates for every half / third / quarter tiling
+  • H / V axis (horizontal vs vertical halves)
+  • clickable templates for half-cell digraphs
 
 Usage
 -----
@@ -36,19 +36,9 @@ from cjk_diacritics import (
     SQUISH_RIGHT_CP,
     SQUISH_TOP_CP,
 )
-from shared_quarter_cells import GRID_VS_SLOTS, QUARTER_VS_SLOTS_H, QUARTER_VS_SLOTS_V
-from shared_third_cells import THIRD_VS_SLOTS
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "cjk", "multigraph-cjk.html")
-
-
-def _third_vs_map() -> Dict[str, int]:
-    return {suf: cp for cp, _sel, suf, _axis, _b0, _b1 in THIRD_VS_SLOTS}
-
-
-def _quarter_vs_map(slots) -> Dict[str, int]:
-    return {slot[2]: slot[0] for slot in slots}
 
 
 def write_html(
@@ -82,7 +72,7 @@ def write_html(
                 continue
             face_id = os.path.splitext(name)[0]
             _core, var = split_cjk_face_id(face_id)
-            if var not in ("", "h", "t", "q", "qv", "qh"):
+            if var not in ("", "h"):
                 continue
             face_css.append(
                 f"@font-face{{font-family:'{family_cjk(face_id)}';"
@@ -91,10 +81,6 @@ def write_html(
 
     stack_all = edenia_cjk_font_stack(font_dir, ranges=ranges)
     stack_h = edenia_cjk_font_stack(font_dir, ranges=ranges, variants=("h",))
-    stack_t = edenia_cjk_font_stack(font_dir, ranges=ranges, variants=("t",))
-    stack_q = edenia_cjk_font_stack(font_dir, ranges=ranges, variants=("q",))
-    stack_qv = edenia_cjk_font_stack(font_dir, ranges=ranges, variants=("qv",))
-    stack_qh = edenia_cjk_font_stack(font_dir, ranges=ranges, variants=("qh",))
 
     half_vs = {
         "T": SQUISH_TOP_CP,
@@ -107,16 +93,8 @@ def write_html(
         "ORIENTs": list(BASE_ORIENT_VS),
         "ORIENT_LABELS": list(BASE_ORIENT_LABEL),
         "HALF_VS": half_vs,
-        "THIRD_VS": _third_vs_map(),
-        "QV_VS": _quarter_vs_map(QUARTER_VS_SLOTS_V),
-        "QH_VS": _quarter_vs_map(QUARTER_VS_SLOTS_H),
-        "Q_VS": _quarter_vs_map(GRID_VS_SLOTS),
         "FACES": {
             "h": stack_h,
-            "t": stack_t,
-            "q": stack_q,
-            "qv": stack_qv,
-            "qh": stack_qh,
         },
         "SAMPLE": [f"{cp:04X}" for cp in sample],
     }
@@ -344,7 +322,7 @@ h1 {{
 <div class="app">
   <header>
     <h1>CJK segment composer</h1>
-    <p class="lead">Enter up to four characters, set orientations, pick H/V/grid, then a band-ratio template. Uses shared families (<code>edenia cjk h</code>, …) so cross-bucket stacks liga in one run.</p>
+    <p class="lead">Enter up to four characters, set orientations, pick H/V, then a half-cell template. Uses <code>edenia cjk h</code> so cross-bucket stacks liga in one run.</p>
   </header>
 
   <section class="panel">
@@ -356,7 +334,6 @@ h1 {{
           <select id="axis">
             <option value="v">V — top → bottom</option>
             <option value="h">H — left → right</option>
-            <option value="g">G — 2×2 grid</option>
           </select>
         </div>
       </div>
@@ -391,76 +368,12 @@ const TEMPLATES = {{
         {{ id: "1:1", kind: "half", face: "h", slots: ["T","B"], diagram: "v-2", labels: ["1","1"], name: "1:1" }},
       ],
     }},
-    {{
-      group: "Thirds",
-      items: [
-        {{ id: "2:1", kind: "third", face: "t", slots: ["t3tm","t3b"], diagram: "v-2u", labels: ["2","1"], name: "2:1" }},
-        {{ id: "1:2", kind: "third", face: "t", slots: ["t3t","t3mb"], diagram: "v-2d", labels: ["1","2"], name: "1:2" }},
-        {{ id: "1:1:1", kind: "third", face: "t", slots: ["t3t","t3m","t3b"], diagram: "v-3", labels: ["1","1","1"], name: "1:1:1" }},
-      ],
-    }},
-    {{
-      group: "Quarters",
-      items: [
-        {{ id: "3:1", kind: "quarter", face: "qv", slots: ["q4t3","q4b"], diagram: "v-31", labels: ["3","1"], name: "3:1" }},
-        {{ id: "1:3", kind: "quarter", face: "qv", slots: ["q4t","q4b3"], diagram: "v-13", labels: ["1","3"], name: "1:3" }},
-        {{ id: "2:1:1", kind: "quarter", face: "qv", slots: ["q4th","q4nb","q4b"], diagram: "v-211", labels: ["2","1","1"], name: "2:1:1" }},
-        {{ id: "1:2:1", kind: "quarter", face: "qv", slots: ["q4t","q4mh","q4b"], diagram: "v-121", labels: ["1","2","1"], name: "1:2:1" }},
-        {{ id: "1:1:2", kind: "quarter", face: "qv", slots: ["q4t","q4nt","q4bh"], diagram: "v-112", labels: ["1","1","2"], name: "1:1:2" }},
-        {{ id: "1:1:1:1", kind: "quarter", face: "qv", slots: ["q4t","q4nt","q4nb","q4b"], diagram: "v-4", labels: ["1","1","1","1"], name: "1:1:1:1" }},
-      ],
-    }},
   ],
   h: [
     {{
       group: "Halves",
       items: [
         {{ id: "1:1", kind: "half", face: "h", slots: ["L","R"], diagram: "h-2", labels: ["1","1"], name: "1:1" }},
-      ],
-    }},
-    {{
-      group: "Thirds",
-      items: [
-        {{ id: "2:1", kind: "third", face: "t", slots: ["t3lc","t3r"], diagram: "h-2l", labels: ["2","1"], name: "2:1" }},
-        {{ id: "1:2", kind: "third", face: "t", slots: ["t3l","t3cr"], diagram: "h-2r", labels: ["1","2"], name: "1:2" }},
-        {{ id: "1:1:1", kind: "third", face: "t", slots: ["t3l","t3c","t3r"], diagram: "h-3", labels: ["1","1","1"], name: "1:1:1" }},
-      ],
-    }},
-    {{
-      group: "Quarters",
-      items: [
-        {{ id: "3:1", kind: "quarter", face: "qh", slots: ["q4t3","q4b"], diagram: "h-31", labels: ["3","1"], name: "3:1" }},
-        {{ id: "1:3", kind: "quarter", face: "qh", slots: ["q4t","q4b3"], diagram: "h-13", labels: ["1","3"], name: "1:3" }},
-        {{ id: "2:1:1", kind: "quarter", face: "qh", slots: ["q4th","q4nb","q4b"], diagram: "h-211", labels: ["2","1","1"], name: "2:1:1" }},
-        {{ id: "1:2:1", kind: "quarter", face: "qh", slots: ["q4t","q4mh","q4b"], diagram: "h-121", labels: ["1","2","1"], name: "1:2:1" }},
-        {{ id: "1:1:2", kind: "quarter", face: "qh", slots: ["q4t","q4nt","q4bh"], diagram: "h-112", labels: ["1","1","2"], name: "1:1:2" }},
-        {{ id: "1:1:1:1", kind: "quarter", face: "qh", slots: ["q4t","q4nt","q4nb","q4b"], diagram: "h-4", labels: ["1","1","1","1"], name: "1:1:1:1" }},
-      ],
-    }},
-  ],
-  g: [
-    {{
-      group: "2×2",
-      items: [
-        {{ id: "2x2", kind: "grid", face: "q", slots: ["q2tl","q2tr","q2bl","q2br"], diagram: "g-2x2", labels: ["1","1","1","1"], name: "2×2" }},
-      ],
-    }},
-    {{
-      group: "L + corner",
-      items: [
-        {{ id: "Ltl", kind: "grid", face: "q", slots: ["q2tl3","q2br"], diagram: "g-2x2", labels: ["3","3","3","1"], name: "L⌜ + br" }},
-        {{ id: "Ltr", kind: "grid", face: "q", slots: ["q2tr3","q2bl"], diagram: "g-2x2", labels: ["3","3","1","3"], name: "L⌝ + bl" }},
-        {{ id: "Lbl", kind: "grid", face: "q", slots: ["q2bl3","q2tr"], diagram: "g-2x2", labels: ["3","1","3","3"], name: "L⌞ + tr" }},
-        {{ id: "Lbr", kind: "grid", face: "q", slots: ["q2br3","q2tl"], diagram: "g-2x2", labels: ["1","3","3","3"], name: "L⌟ + tl" }},
-      ],
-    }},
-    {{
-      group: "Adjacent",
-      items: [
-        {{ id: "top", kind: "grid", face: "q", slots: ["q2tl","q2tr"], diagram: "h-2", labels: ["1","1"], name: "top" }},
-        {{ id: "bot", kind: "grid", face: "q", slots: ["q2bl","q2br"], diagram: "h-2", labels: ["1","1"], name: "bottom" }},
-        {{ id: "left", kind: "grid", face: "q", slots: ["q2tl","q2bl"], diagram: "v-2", labels: ["1","1"], name: "left" }},
-        {{ id: "right", kind: "grid", face: "q", slots: ["q2tr","q2br"], diagram: "v-2", labels: ["1","1"], name: "right" }},
       ],
     }},
   ],
@@ -493,11 +406,7 @@ function faceFamily(face) {{
 }}
 
 function vsFor(kind, face, slot) {{
-  if (kind === "half") return DATA.HALF_VS[slot];
-  if (kind === "third") return DATA.THIRD_VS[slot];
-  if (kind === "grid" || face === "q") return DATA.Q_VS[slot];
-  if (face === "qh") return DATA.QH_VS[slot];
-  return DATA.QV_VS[slot];
+  return DATA.HALF_VS[slot];
 }}
 
 function findTemplate(id, axis) {{

@@ -7,76 +7,12 @@ const TEMPLATES = {
         { id: "1:1", kind: "half", face: "h", slots: ["T", "B"], diagram: "v-2", labels: ["1", "1"], name: "1:1" },
       ],
     },
-    {
-      group: "Thirds",
-      items: [
-        { id: "2:1", kind: "third", face: "t", slots: ["t3tm", "t3b"], diagram: "v-2u", labels: ["2", "1"], name: "2:1" },
-        { id: "1:2", kind: "third", face: "t", slots: ["t3t", "t3mb"], diagram: "v-2d", labels: ["1", "2"], name: "1:2" },
-        { id: "1:1:1", kind: "third", face: "t", slots: ["t3t", "t3m", "t3b"], diagram: "v-3", labels: ["1", "1", "1"], name: "1:1:1" },
-      ],
-    },
-    {
-      group: "Quarters",
-      items: [
-        { id: "3:1", kind: "quarter", face: "qv", slots: ["q4t3", "q4b"], diagram: "v-31", labels: ["3", "1"], name: "3:1" },
-        { id: "1:3", kind: "quarter", face: "qv", slots: ["q4t", "q4b3"], diagram: "v-13", labels: ["1", "3"], name: "1:3" },
-        { id: "2:1:1", kind: "quarter", face: "qv", slots: ["q4th", "q4nb", "q4b"], diagram: "v-211", labels: ["2", "1", "1"], name: "2:1:1" },
-        { id: "1:2:1", kind: "quarter", face: "qv", slots: ["q4t", "q4mh", "q4b"], diagram: "v-121", labels: ["1", "2", "1"], name: "1:2:1" },
-        { id: "1:1:2", kind: "quarter", face: "qv", slots: ["q4t", "q4nt", "q4bh"], diagram: "v-112", labels: ["1", "1", "2"], name: "1:1:2" },
-        { id: "1:1:1:1", kind: "quarter", face: "qv", slots: ["q4t", "q4nt", "q4nb", "q4b"], diagram: "v-4", labels: ["1", "1", "1", "1"], name: "1:1:1:1" },
-      ],
-    },
   ],
   h: [
     {
       group: "Halves",
       items: [
         { id: "1:1", kind: "half", face: "h", slots: ["L", "R"], diagram: "h-2", labels: ["1", "1"], name: "1:1" },
-      ],
-    },
-    {
-      group: "Thirds",
-      items: [
-        { id: "2:1", kind: "third", face: "t", slots: ["t3lc", "t3r"], diagram: "h-2l", labels: ["2", "1"], name: "2:1" },
-        { id: "1:2", kind: "third", face: "t", slots: ["t3l", "t3cr"], diagram: "h-2r", labels: ["1", "2"], name: "1:2" },
-        { id: "1:1:1", kind: "third", face: "t", slots: ["t3l", "t3c", "t3r"], diagram: "h-3", labels: ["1", "1", "1"], name: "1:1:1" },
-      ],
-    },
-    {
-      group: "Quarters",
-      items: [
-        { id: "3:1", kind: "quarter", face: "qh", slots: ["q4t3", "q4b"], diagram: "h-31", labels: ["3", "1"], name: "3:1" },
-        { id: "1:3", kind: "quarter", face: "qh", slots: ["q4t", "q4b3"], diagram: "h-13", labels: ["1", "3"], name: "1:3" },
-        { id: "2:1:1", kind: "quarter", face: "qh", slots: ["q4th", "q4nb", "q4b"], diagram: "h-211", labels: ["2", "1", "1"], name: "2:1:1" },
-        { id: "1:2:1", kind: "quarter", face: "qh", slots: ["q4t", "q4mh", "q4b"], diagram: "h-121", labels: ["1", "2", "1"], name: "1:2:1" },
-        { id: "1:1:2", kind: "quarter", face: "qh", slots: ["q4t", "q4nt", "q4bh"], diagram: "h-112", labels: ["1", "1", "2"], name: "1:1:2" },
-        { id: "1:1:1:1", kind: "quarter", face: "qh", slots: ["q4t", "q4nt", "q4nb", "q4b"], diagram: "h-4", labels: ["1", "1", "1", "1"], name: "1:1:1:1" },
-      ],
-    },
-  ],
-  g: [
-    {
-      group: "2×2",
-      items: [
-        { id: "2x2", kind: "grid", face: "q", slots: ["q2tl", "q2tr", "q2bl", "q2br"], diagram: "g-2x2", labels: ["1", "1", "1", "1"], name: "2×2" },
-      ],
-    },
-    {
-      group: "L + corner",
-      items: [
-        { id: "Ltl", kind: "grid", face: "q", slots: ["q2tl3", "q2br"], diagram: "g-2x2", labels: ["3", "3", "3", "1"], name: "L⌜ + br" },
-        { id: "Ltr", kind: "grid", face: "q", slots: ["q2tr3", "q2bl"], diagram: "g-2x2", labels: ["3", "3", "1", "3"], name: "L⌝ + bl" },
-        { id: "Lbl", kind: "grid", face: "q", slots: ["q2bl3", "q2tr"], diagram: "g-2x2", labels: ["3", "1", "3", "3"], name: "L⌞ + tr" },
-        { id: "Lbr", kind: "grid", face: "q", slots: ["q2br3", "q2tl"], diagram: "g-2x2", labels: ["1", "3", "3", "3"], name: "L⌟ + tl" },
-      ],
-    },
-    {
-      group: "Adjacent",
-      items: [
-        { id: "top", kind: "grid", face: "q", slots: ["q2tl", "q2tr"], diagram: "h-2", labels: ["1", "1"], name: "top" },
-        { id: "bot", kind: "grid", face: "q", slots: ["q2bl", "q2br"], diagram: "h-2", labels: ["1", "1"], name: "bottom" },
-        { id: "left", kind: "grid", face: "q", slots: ["q2tl", "q2bl"], diagram: "v-2", labels: ["1", "1"], name: "left" },
-        { id: "right", kind: "grid", face: "q", slots: ["q2tr", "q2br"], diagram: "v-2", labels: ["1", "1"], name: "right" },
       ],
     },
   ],
@@ -122,11 +58,7 @@ function editorStack(face) {
 }
 
 function vsFor(kind, face, slot) {
-  if (kind === "half") return DATA.HALF_VS[slot];
-  if (kind === "third") return DATA.THIRD_VS[slot];
-  if (kind === "grid" || face === "q") return DATA.Q_VS[slot];
-  if (face === "qh") return DATA.QH_VS[slot];
-  return DATA.QV_VS[slot];
+  return DATA.HALF_VS[slot];
 }
 
 function findTemplate(id, axis) {

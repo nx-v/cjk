@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Build `edenia kana` (PUA D4 cmap + smalls + dakuten) and pigeonholed
-`edenia kana h` (FE00 overlay + FE08–FE0F slices), matching CJK base vs `h`.
+Build `edenia kana` (PUA D4 cmap + smalls + dakuten) and pigeonholed segment
+faces (`h` / `t` / `qv` / `qh` / optional `q`), matching CJK.
 
 Encoding
 --------
@@ -152,14 +152,34 @@ from yi_slice import (
     inject_slice_marks,
     install_slice_gsub,
 )
+from shared_third_cells import prepare_third_cells
+from shared_quarter_cells import (
+    QUARTER_FACE_GRID,
+    QUARTER_FACE_H,
+    QUARTER_FACE_V,
+    prepare_quarter_cells,
+)
+from segment_faces import (
+    filter_segment_face_cmap,
+    install_segment_face_gsub,
+    keep_names_for_segment_face,
+    oriented_forms,
+    subset_tables,
+)
 from edenia_names import (
+    SEGMENT_FACE_BUILD_ORDER,
+    SEGMENT_FACE_CSS_ORDER,
     CSS_KANA,
     FAMILY_KANA,
     PS_KANA,
+    add_cjk_variant_arguments,
+    bucket_face_id,
     family_kana_variant,
     h_bucket_face_id,
+    parse_bucket_face_id,
     parse_h_bucket_face_id,
     ps_kana,
+    resolve_kana_yi_variants,
 )
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
@@ -1184,6 +1204,138 @@ def form_name_for_orient(base: str, orient: int) -> str:
         return base
     return variant_glyph_name(base, suffix)
 
+def _kana_bases_in_bucket(
+    full_bases: Sequence[str],
+    cmap: Dict[int, str],
+    bucket_id: int,
+) -> List[str]:
+    """Logical kana bases with any D4 form encoded on `bucket_id` page."""
+    name_to_cp = {name: cp for cp, name in cmap.items()}
+    out: List[str] = []
+    for base in full_bases:
+        for form in orientation_form_names(base, modes=YI_ORIENTATION_MODES):
+            cp = name_to_cp.get(form)
+            if cp is not None and (cp >> 8) == bucket_id:
+                out.append(base)
+                break
+    return out
+
+
+def _kana_pigeonhole_pages(cmap: Dict[int, str]) -> List[int]:
+    return sorted(
+        {
+            cp >> 8
+            for cp in cmap
+            if (PUA_START <= cp <= PUA_END) or (HW_PUA_START <= cp <= HW_PUA_LAST)
+        }
+    )
+
+
+def _prepare_kana_segment_glyphs(
+    *,
+    full_bases: Sequence[str],
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    cmap: Dict[int, str],
+    target_upem: int,
+    variants: Set[str],
+) -> None:
+    """Bake third / quarter segment clips on the master glyf."""
+    if "t" in variants:
+        print("  Baking third-cell segments (VS17–VS26)...", flush=True)
+        prepare_third_cells(
+            cjk_bases=full_bases,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            cmap=cmap,
+            target_upem=target_upem,
+        )
+    for face, key in (
+        (QUARTER_FACE_GRID, "q"),
+        (QUARTER_FACE_V, "qv"),
+        (QUARTER_FACE_H, "qh"),
+    ):
+        if key not in variants:
+            continue
+        print(f"  Baking quarter segments ({key})...", flush=True)
+        prepare_quarter_cells(
+            face=face,
+            cjk_bases=full_bases,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            cmap=cmap,
+            target_upem=target_upem,
+        )
+
+
+def _save_kana_segment_face(
+    *,
+    face_id: str,
+    variant: str,
+    glyph_order: List[str],
+    glyphs: Dict,
+    metrics: Dict[str, Tuple[int, int]],
+    cmap: Dict[int, str],
+    bases: Sequence[str],
+    out_dir: str,
+    target_upem: int,
+) -> Tuple[str, str, int, List[int]]:
+    family = family_kana_variant(variant)
+    ps = ps_kana(face_id)
+    out_path = os.path.join(out_dir, f"{face_id}.ttf")
+    n_glyphs = len(glyphs)
+    print(
+        f"  Assembling {family} / {face_id} "
+        f"({n_glyphs - 1} glyphs, {len(bases)} bases)...",
+        flush=True,
+    )
+    fb = FontBuilder(target_upem, isTTF=True)
+    fb.setupGlyphOrder(glyph_order)
+    fb.setupGlyf(glyphs)
+    fb.setupHorizontalMetrics(metrics)
+    fb.setupHorizontalHeader(
+        ascent=otRound(target_upem * TYPO_ASCENDER_FRAC),
+        descent=otRound(target_upem * TYPO_DESCENDER_FRAC),
+    )
+    fb.setupCharacterMap(cmap)
+    fb.setupNameTable(
+        {
+            "familyName": family,
+            "styleName": "Regular",
+            "uniqueFontIdentifier": ps,
+            "fullName": family,
+            "psName": ps,
+            "version": "Version 1.000",
+        }
+    )
+    fb.setupOS2(
+        sTypoAscender=otRound(target_upem * TYPO_ASCENDER_FRAC),
+        sTypoDescender=otRound(target_upem * TYPO_DESCENDER_FRAC),
+        sTypoLineGap=0,
+        usWinAscent=otRound(target_upem * TYPO_ASCENDER_FRAC),
+        usWinDescent=abs(otRound(target_upem * TYPO_DESCENDER_FRAC)),
+        achVendID="pKa ",
+    )
+    fb.setupPost()
+    slice_forms = oriented_forms(bases, glyphs) if variant == "q" else []
+    print(f"  Compiling GSUB ({variant} segment VS)...", flush=True)
+    install_segment_face_gsub(
+        fb.font,
+        variant=variant,
+        bases=bases,
+        glyphs=glyphs,
+        glyph_order=glyph_order,
+        slice_gsub_fn=install_slice_gsub,
+        slice_forms=slice_forms,
+    )
+    os.makedirs(out_dir, exist_ok=True)
+    setup_head_timestamps(fb)
+    fb.save(out_path)
+    return face_id, variant, n_glyphs - 1, sorted(cmap.keys())
+
 
 def unicode_range_css(codepoints: Sequence[int]) -> str:
     cps = sorted(set(codepoints))
@@ -1216,7 +1368,8 @@ def _css_cps_for_kana_face(
     cps = {cp for cp in codepoints if not (0xFE00 <= cp <= 0xFE0F)}
     if variant == "h":
         cps |= KANA_H_FE
-    cps |= set(mark_cps)
+    elif variant == "":
+        cps |= set(mark_cps)
     return sorted(cps)
 
 
@@ -1241,14 +1394,17 @@ def write_css(out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]) ->
 
     def _face_sort(item: Tuple[str, str, int, List[int]]) -> Tuple[int, int, str]:
         face_id, variant, _n, _cps = item
-        if variant == "h":
-            bid = parse_h_bucket_face_id(face_id)
-            return (0, bid if bid is not None else 0, face_id)
-        return (1, 0, face_id)
+        pri = (
+            SEGMENT_FACE_CSS_ORDER.index(variant)
+            if variant in SEGMENT_FACE_CSS_ORDER
+            else len(SEGMENT_FACE_CSS_ORDER)
+        )
+        bucket, _ = parse_bucket_face_id(face_id)
+        return (pri, bucket if bucket is not None else 999, face_id)
 
     lines: List[str] = [
-        "/* Auto-generated Edenia kana: 'edenia kana h' (slices, pigeonholed)",
-        "   then 'edenia kana' (PUA D4 + dakuten). Pin h for FE00/FE08–F.",
+        "/* Auto-generated Edenia kana: segment faces (h/t/q/qv/qh, pigeonholed)",
+        "   then 'edenia kana' (PUA D4 + dakuten). Pin segment faces for VS/FE*.",
         "   Kana must not claim FE01–FE07 (CJK/Yi D4). */",
         "",
     ]
@@ -1289,11 +1445,13 @@ def write_css(out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]) ->
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
-    has_h = any(v == "h" for _fid, v, _n, _cps in built)
+    has_seg = any(v in SEGMENT_FACE_CSS_ORDER[:-1] for _fid, v, _n, _cps in built)
     has_base = any(v == "" for _fid, v, _n, _cps in built)
     stack_parts: List[str] = []
-    if has_h:
-        stack_parts.append(f"'{family_kana_variant('h')}'")
+    if has_seg:
+        for v in SEGMENT_FACE_CSS_ORDER:
+            if v and any(fv == v for _fid, fv, _n, _cps in built):
+                stack_parts.append(f"'{family_kana_variant(v)}'")
     if has_base:
         stack_parts.append(f"'{family_kana_variant('')}'")
     stack = ", ".join(stack_parts) or f"'{FAMILY_NAME}'"
@@ -1623,59 +1781,97 @@ def _kana_face_task(
     glyphs = m["glyphs"]
     metrics = m["metrics"]
     cmap = m["cmap"]
-    if kind == "h":
+    if kind in ("h", "t", "q", "qv", "qh"):
         assert bucket_id is not None
-        keep: Set[str] = {".notdef", *m["dakuten_keep"]}
+        bases = _kana_bases_in_bucket(m["full_bases"], cmap, bucket_id)
+        keep: Set[str] = {".notdef", *m.get("dakuten_keep", ())}
         for cp, name in cmap.items():
             if (cp >> 8) == bucket_id:
                 keep.add(name)
-        go, gl, mt, cm = subset_glyph_tables(glyph_order, glyphs, metrics, cmap, keep)
-        print(
-            f"  Slice face {h_bucket_face_id(bucket_id)} "
-            f"({sum(1 for cp in cm if (cp >> 8) == bucket_id)} CPs)...",
-            flush=True,
+        keep |= keep_names_for_segment_face(kind, bases, glyphs)
+        go, gl, mt, cm = subset_tables(
+            glyph_order, glyphs, metrics, cmap, keep
         )
-        _add_kana_slices(
-            full_bases=m["full_bases"],
-            small_bases=m["small_bases"],
-            hw_full_bases=m["hw_full_bases"],
-            hw_small_bases=m["hw_small_bases"],
-            glyph_order=go,
-            glyphs=gl,
-            metrics=mt,
-            target_upem=m["target_upem"],
-        )
-        inject_slice_marks(go, gl, mt, cm)
-        face_id = h_bucket_face_id(bucket_id)
-        variant = "h"
-        slices = True
+        cm = filter_segment_face_cmap(kind, cm, list(bases))
+        face_id = bucket_face_id(bucket_id, kind)
+        if kind == "h":
+            print(
+                f"  Slice face {face_id} "
+                f"({sum(1 for cp in cm if (cp >> 8) == bucket_id)} CPs)...",
+                flush=True,
+            )
+            _add_kana_slices(
+                full_bases=[b for b in m["full_bases"] if b in bases],
+                small_bases=[b for b in m["small_bases"] if b in bases],
+                hw_full_bases=[b for b in m["hw_full_bases"] if b in bases],
+                hw_small_bases=[b for b in m["hw_small_bases"] if b in bases],
+                glyph_order=go,
+                glyphs=gl,
+                metrics=mt,
+                target_upem=m["target_upem"],
+            )
+            inject_slice_marks(go, gl, mt, cm)
+            meta = _save_kana_face(
+                face_id=face_id,
+                variant="h",
+                glyph_order=go,
+                glyphs=gl,
+                metrics=mt,
+                cmap=cm,
+                full_bases=m["full_bases"],
+                small_bases=m["small_bases"],
+                hw_full_bases=m["hw_full_bases"],
+                hw_small_bases=m["hw_small_bases"],
+                mark_names=m["mark_names"],
+                mark_cps=m["mark_cps"],
+                base_anchors=m["base_anchors"],
+                out_dir=m["out_dir"],
+                target_upem=m["target_upem"],
+                mark_ink_height=m.get("mark_ink_height"),
+                mark_contour_points=m.get("mark_contour_points"),
+                slices=True,
+            )
+        else:
+            print(
+                f"  Segment face {face_id} ({len(bases)} bases)...",
+                flush=True,
+            )
+            meta = _save_kana_segment_face(
+                face_id=face_id,
+                variant=kind,
+                glyph_order=go,
+                glyphs=gl,
+                metrics=mt,
+                cmap=cm,
+                bases=bases,
+                out_dir=m["out_dir"],
+                target_upem=m["target_upem"],
+            )
     else:
         go, gl, mt, cm = subset_glyph_tables(
             glyph_order, glyphs, metrics, cmap, set(glyph_order)
         )
         face_id = PS_NAME
-        variant = ""
-        slices = False
-    meta = _save_kana_face(
-        face_id=face_id,
-        variant=variant,
-        glyph_order=go,
-        glyphs=gl,
-        metrics=mt,
-        cmap=cm,
-        full_bases=m["full_bases"],
-        small_bases=m["small_bases"],
-        hw_full_bases=m["hw_full_bases"],
-        hw_small_bases=m["hw_small_bases"],
-        mark_names=m["mark_names"],
-        mark_cps=m["mark_cps"],
-        base_anchors=m["base_anchors"],
-        out_dir=m["out_dir"],
-        target_upem=m["target_upem"],
-        mark_ink_height=m.get("mark_ink_height"),
-        mark_contour_points=m.get("mark_contour_points"),
-        slices=slices,
-    )
+        meta = _save_kana_face(
+            face_id=face_id,
+            variant="",
+            glyph_order=go,
+            glyphs=gl,
+            metrics=mt,
+            cmap=cm,
+            full_bases=m["full_bases"],
+            small_bases=m["small_bases"],
+            hw_full_bases=m["hw_full_bases"],
+            hw_small_bases=m["hw_small_bases"],
+            mark_names=m["mark_names"],
+            mark_cps=m["mark_cps"],
+            base_anchors=m["base_anchors"],
+            out_dir=m["out_dir"],
+            target_upem=m["target_upem"],
+            mark_ink_height=m.get("mark_ink_height"),
+            mark_contour_points=m.get("mark_contour_points"),
+            slices=False,
+        )
     return (*meta, os.path.join(m["out_dir"], f"{meta[0]}.ttf"))
 
 
@@ -2024,23 +2220,31 @@ def build_edenia_kana_font(
             except FileNotFoundError as exc:
                 print(f"  Skipping dakuten marks: {exc}", flush=True)
 
+            dakuten_keep = {n for n in glyph_order if ".mk" in n}
+            seg_variants = want & {"h", "t", "q", "qv", "qh"}
+            if seg_variants - {"h"}:
+                _prepare_kana_segment_glyphs(
+                    full_bases=full_bases,
+                    glyph_order=glyph_order,
+                    glyphs=glyphs,
+                    metrics=metrics,
+                    cmap=cmap,
+                    target_upem=target_upem,
+                    variants=seg_variants,
+                )
+
             built: List[Tuple[str, str, int, List[int]]] = []
             os.makedirs(out_dir, exist_ok=True)
             face_specs: List[Tuple[str, Optional[int]]] = []
             if "" in want:
                 face_specs.append(("", None))
-            dakuten_keep = {n for n in glyph_order if ".mk" in n}
-            if "h" in want:
-                pages = sorted(
-                    {
-                        cp >> 8
-                        for cp in cmap
-                        if (PUA_START <= cp <= PUA_END)
-                        or (HW_PUA_START <= cp <= HW_PUA_LAST)
-                    }
-                )
+            pages = _kana_pigeonhole_pages(cmap)
+            for seg in SEGMENT_FACE_BUILD_ORDER:
+                if seg not in want or not seg:
+                    continue
                 for bucket_id in pages:
-                    face_specs.append(("h", bucket_id))
+                    if _kana_bases_in_bucket(full_bases, cmap, bucket_id):
+                        face_specs.append((seg, bucket_id))
             if not face_specs:
                 return built
 
@@ -2221,8 +2425,8 @@ def build_all(
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=(
-            "Build edenia kana (PUA D4 + dakuten) and edenia kana h "
-            "(pigeonholed FE00/FE08–F slices)"
+            "Build edenia kana (PUA D4 + dakuten) and pigeonholed segment faces "
+            "(h / t / q / qv / qh)"
         )
     )
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
@@ -2234,11 +2438,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Use only the first N logical chart cells (smoke test)",
     )
-    p.add_argument(
-        "--base-only",
-        action="store_true",
-        help="Build only the PUA D4 face (skip slice h pigeonholes)",
-    )
+    add_cjk_variant_arguments(p)
     fmt = p.add_mutually_exclusive_group()
     fmt.add_argument(
         "--ttf-only",
@@ -2258,7 +2458,7 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
-    variants: Tuple[str, ...] = ("",) if args.base_only else ("", "h")
+    variants = resolve_kana_yi_variants(args)
     build_all(
         args.in_dir,
         args.out_dir,

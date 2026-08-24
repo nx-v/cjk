@@ -377,6 +377,7 @@ def third_vs_liga_map(
     from shared_half_cells import vs_glyph_name
 
     vs01 = vs_glyph_name(TRANSFORM_MODES[0][0])
+    has_vs01 = vs01 in glyphs
     ov = OV_SELECTOR_NAME
     liga: Dict[Tuple[str, ...], str] = {}
     for form in bases:
@@ -385,7 +386,8 @@ def third_vs_liga_map(
         form_ov = overlay_glyph_name(form)
         if form_ov in glyphs and ov in glyphs:
             liga[(form, ov)] = form_ov
-            liga[(form, vs01, ov)] = form_ov
+            if has_vs01:
+                liga[(form, vs01, ov)] = form_ov
         for vs_cp, sel_name, suf, _axis, _b0, _b1 in THIRD_VS_SLOTS:
             out = third_form_name(form, suf)
             if out not in glyphs:
@@ -394,15 +396,23 @@ def third_vs_liga_map(
             if sel not in glyphs:
                 continue
             liga[(form, sel)] = out
-            liga[(form, vs01, sel)] = out
+            if has_vs01:
+                liga[(form, vs01, sel)] = out
             out_ov = overlay_glyph_name(out)
             if out_ov not in glyphs or ov not in glyphs:
                 continue
             liga[(form, ov, sel)] = out_ov
             liga[(form, sel, ov)] = out_ov
-            liga[(form, vs01, ov, sel)] = out_ov
-            liga[(form, vs01, sel, ov)] = out_ov
+            if has_vs01:
+                liga[(form, vs01, ov, sel)] = out_ov
+                liga[(form, vs01, sel, ov)] = out_ov
             liga[(out, ov)] = out_ov
+            # Residual when a prior lookup already applied FE00 → `.ov`
+            # (same pattern as quarter grid face vs half-cell GSUB order).
+            if form_ov in glyphs:
+                liga[(form_ov, sel)] = out_ov
+                if has_vs01:
+                    liga[(form_ov, vs01, sel)] = out_ov
     return liga
 
 

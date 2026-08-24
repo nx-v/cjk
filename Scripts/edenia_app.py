@@ -48,8 +48,6 @@ from cjk_diacritics import (
     SQUISH_TOP_CP,
 )
 from cjk_diacritics_html import BASE_ORIENT_LABEL, BASE_ORIENT_VS
-from shared_quarter_cells import GRID_VS_SLOTS, QUARTER_VS_SLOTS_H, QUARTER_VS_SLOTS_V
-from shared_third_cells import THIRD_VS_SLOTS
 from hangul_html import L_RANGES, T_RANGES, V_RANGES, assigned_cps
 from yi_slice import (
     SLICE_BL_CP,
@@ -74,13 +72,13 @@ CSS_MAP = {
 }
 FONT_FOLDERS = frozenset(v[0] for v in CSS_MAP.values())
 _URL_RE = re.compile(r"url\(\s*(['\"]?)([^'\")]+)\1\s*\)")
-_CJK_FAMILY_RE = re.compile(r"font-family:\s*'edenia cjk(?: (qh|qv|q|[ht]))?'")
+_CJK_FAMILY_RE = re.compile(r"font-family:\s*'edenia cjk(?: (h))?'")
 
 
 def available_cjk_variants() -> List[str]:
     """Face suffixes actually listed in dist edenia-cjk.css."""
     path = DIST_DIR / "cjk" / CSS_CJK
-    order = ["", "h", "t", "q", "qv", "qh"]
+    order = ["", "h"]
     if not path.is_file():
         return order
     text = path.read_text(encoding="utf-8")
@@ -138,17 +136,9 @@ def build_data() -> dict:
             "L": SQUISH_LEFT_CP,
             "R": SQUISH_RIGHT_CP,
         },
-        "THIRD_VS": {suf: cp for cp, _sel, suf, _a, _b0, _b1 in THIRD_VS_SLOTS},
-        "QV_VS": {slot[2]: slot[0] for slot in QUARTER_VS_SLOTS_V},
-        "QH_VS": {slot[2]: slot[0] for slot in QUARTER_VS_SLOTS_H},
-        "Q_VS": {slot[2]: slot[0] for slot in GRID_VS_SLOTS},
         "FAMILIES": {
             "": family_cjk_variant(""),
             "h": family_cjk_variant("h"),
-            "t": family_cjk_variant("t"),
-            "q": family_cjk_variant("q"),
-            "qv": family_cjk_variant("qv"),
-            "qh": family_cjk_variant("qh"),
             "hangul": FAMILY_HANGUL,
             "hanguls": FAMILY_HANGULS,
             "kana": FAMILY_KANA,

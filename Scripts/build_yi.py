@@ -27,6 +27,14 @@ Contents
   contour-hugging eight-slot placement (`kana_yi_diacritics`) on D4 forms
   plus slice/overlay ligatures. Successive marks fill TR→CR→…→BL then chain
   outward. No left-squish `.dk` forms.
+
+Segment faces (pigeonholed by `cp>>8`, matching CJK)::
+
+    h    half-cell slices (FE00 + FE08–FE0F)
+    t    third-cell segments (VS17–VS26)
+    qv   vertical quarter segments
+    qh   horizontal quarter segments
+    q    2×2 grid (optional; ``--q``)
 """
 
 from __future__ import annotations
@@ -65,14 +73,34 @@ from kana_yi_diacritics import (
     kana_mark_chain_parent_anchor,
     kana_representative_mark_points,
 )
+from shared_third_cells import prepare_third_cells
+from shared_quarter_cells import (
+    QUARTER_FACE_GRID,
+    QUARTER_FACE_H,
+    QUARTER_FACE_V,
+    prepare_quarter_cells,
+)
+from segment_faces import (
+    filter_segment_face_cmap,
+    install_segment_face_gsub,
+    keep_names_for_segment_face,
+    oriented_forms,
+    subset_tables,
+)
 from edenia_names import (
+    SEGMENT_FACE_BUILD_ORDER,
+    SEGMENT_FACE_CSS_ORDER,
     CSS_YI,
     FAMILY_YI,
     PS_YI,
+    add_cjk_variant_arguments,
+    bucket_face_id,
     family_yi_variant,
     h_bucket_face_id,
+    parse_bucket_face_id,
     parse_h_bucket_face_id,
     ps_yi,
+    resolve_kana_yi_variants,
 )
 from shared_half_cells import (
     COMPOSITION_FEATURE_TAGS,
@@ -254,6 +282,114 @@ def _dakuten_keep_names(
     return keep
 
 
+def _yi_bases_in_bucket(yi_names: Sequence[str], yi_cps: Dict[str, int], bucket_id: int) -> List[str]:
+    return [n for n in yi_names if (yi_cps[n] >> 8) == bucket_id]
+
+
+def _prepare_yi_segment_glyphs(
+    *,
+    yi_names: Sequence[str],
+    glyph_order: List[str],
+    glyphs: Dict,
+    metrics: Dict[str, Tuple[int, int]],
+    cmap: Dict[int, str],
+    target_upem: int,
+    variants: Set[str],
+) -> None:
+    if "t" in variants:
+        print("  Baking third-cell segments (VS17–VS26)...", flush=True)
+        prepare_third_cells(
+            cjk_bases=yi_names,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            cmap=cmap,
+            target_upem=target_upem,
+        )
+    for face, key in (
+        (QUARTER_FACE_GRID, "q"),
+        (QUARTER_FACE_V, "qv"),
+        (QUARTER_FACE_H, "qh"),
+    ):
+        if key not in variants:
+            continue
+        print(f"  Baking quarter segments ({key})...", flush=True)
+        prepare_quarter_cells(
+            face=face,
+            cjk_bases=yi_names,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            cmap=cmap,
+            target_upem=target_upem,
+        )
+
+
+def _save_yi_segment_face(
+    *,
+    face_id: str,
+    variant: str,
+    glyph_order: List[str],
+    glyphs: Dict,
+    metrics: Dict[str, Tuple[int, int]],
+    cmap: Dict[int, str],
+    bases: Sequence[str],
+    out_dir: str,
+    target_upem: int,
+) -> Tuple[str, str, int, List[int]]:
+    family = family_yi_variant(variant)
+    ps = ps_yi(face_id)
+    out_path = os.path.join(out_dir, f"{face_id}.ttf")
+    n_glyphs = len(glyphs)
+    print(
+        f"  Assembling {family} / {face_id} "
+        f"({n_glyphs - 1} glyphs, {len(bases)} Yi CPs)...",
+        flush=True,
+    )
+    ascent = otRound(target_upem * 0.88)
+    descent = otRound(target_upem * -0.12)
+    fb = FontBuilder(target_upem, isTTF=True)
+    fb.setupGlyphOrder(glyph_order)
+    fb.setupGlyf(glyphs)
+    fb.setupHorizontalMetrics(metrics)
+    fb.setupHorizontalHeader(ascent=ascent, descent=descent)
+    fb.setupCharacterMap(cmap)
+    fb.setupNameTable(
+        {
+            "familyName": family,
+            "styleName": "Regular",
+            "uniqueFontIdentifier": ps,
+            "fullName": family,
+            "psName": ps,
+            "version": "Version 1.000",
+        }
+    )
+    fb.setupOS2(
+        sTypoAscender=ascent,
+        sTypoDescender=descent,
+        sTypoLineGap=0,
+        usWinAscent=ascent,
+        usWinDescent=abs(descent),
+        achVendID="pYi ",
+    )
+    fb.setupPost()
+    slice_forms = oriented_forms(bases, glyphs) if variant == "q" else []
+    print(f"  Compiling GSUB ({variant} segment VS)...", flush=True)
+    install_segment_face_gsub(
+        fb.font,
+        variant=variant,
+        bases=bases,
+        glyphs=glyphs,
+        glyph_order=glyph_order,
+        slice_gsub_fn=install_slice_gsub,
+        slice_forms=slice_forms,
+    )
+    os.makedirs(out_dir, exist_ok=True)
+    setup_head_timestamps(fb)
+    fb.save(out_path)
+    return face_id, variant, n_glyphs - 1, sorted(cmap.keys())
+
+
 def _save_yi_face(
     *,
     face_id: str,
@@ -406,59 +542,93 @@ def _yi_face_task(
     glyphs = m["glyphs"]
     metrics = m["metrics"]
     cmap = m["cmap"]
-    if kind == "h":
+    if kind in ("h", "t", "q", "qv", "qh"):
         assert bucket_id is not None
-        bases = [n for n in m["yi_names"] if (m["yi_cps"][n] >> 8) == bucket_id]
+        bases = _yi_bases_in_bucket(m["yi_names"], m["yi_cps"], bucket_id)
         keep: Set[str] = {".notdef", *m["dakuten_keep"], *m["vs_keep"]}
-        for base in bases:
-            keep.update(orientation_form_names(base, modes=YI_ORIENTATION_MODES))
-        go, gl, mt, cm = subset_glyph_tables(glyph_order, glyphs, metrics, cmap, keep)
-        print(
-            f"  Installing FE08–FE0F slices on {h_bucket_face_id(bucket_id)} "
-            f"({len(bases)} Yi CPs)...",
-            flush=True,
+        for cp, name in cmap.items():
+            if name in glyphs and (cp >> 8) == bucket_id:
+                keep.add(name)
+        keep |= keep_names_for_segment_face(kind, bases, glyphs)
+        go, gl, mt, cm = subset_tables(
+            glyph_order, glyphs, metrics, cmap, keep
         )
-        add_slice_halves(
-            bases,
-            glyph_order=go,
-            glyphs=gl,
-            metrics=mt,
-            target_upem=m["target_upem"],
-            modes=YI_ORIENTATION_MODES,
-        )
-        inject_slice_marks(go, gl, mt, cm)
-        base_cps = {m["yi_cps"][n] for n in bases}
-        face_uvs = [row for row in m["uvs_rows"] if row[0] in base_cps and row[2] in gl]
-        face_id = h_bucket_face_id(bucket_id)
-        variant = "h"
-        slices = True
-        yi_names = bases
+        cm = filter_segment_face_cmap(kind, cm, list(bases))
+        face_id = bucket_face_id(bucket_id, kind)
+        if kind == "h":
+            print(
+                f"  Installing FE08–FE0F slices on {face_id} "
+                f"({len(bases)} Yi CPs)...",
+                flush=True,
+            )
+            add_slice_halves(
+                bases,
+                glyph_order=go,
+                glyphs=gl,
+                metrics=mt,
+                target_upem=m["target_upem"],
+                modes=YI_ORIENTATION_MODES,
+            )
+            inject_slice_marks(go, gl, mt, cm)
+            base_cps = {m["yi_cps"][n] for n in bases}
+            face_uvs = [
+                row for row in m["uvs_rows"] if row[0] in base_cps and row[2] in gl
+            ]
+            meta = _save_yi_face(
+                face_id=face_id,
+                variant="h",
+                glyph_order=go,
+                glyphs=gl,
+                metrics=mt,
+                cmap=cm,
+                uvs_rows=face_uvs,
+                yi_names=bases,
+                mark_names=m["mark_names"],
+                mark_cps=m["mark_cps"],
+                base_anchors=m["base_anchors"],
+                out_dir=m["out_dir"],
+                target_upem=m["target_upem"],
+                mark_ink_height=m.get("mark_ink_height"),
+                slices=True,
+            )
+        else:
+            print(
+                f"  Segment face {face_id} ({len(bases)} Yi CPs)...",
+                flush=True,
+            )
+            meta = _save_yi_segment_face(
+                face_id=face_id,
+                variant=kind,
+                glyph_order=go,
+                glyphs=gl,
+                metrics=mt,
+                cmap=cm,
+                bases=bases,
+                out_dir=m["out_dir"],
+                target_upem=m["target_upem"],
+            )
     else:
         go, gl, mt, cm = subset_glyph_tables(
             glyph_order, glyphs, metrics, cmap, set(glyph_order)
         )
         face_uvs = list(m["uvs_rows"])
-        face_id = PS_NAME
-        variant = ""
-        slices = False
-        yi_names = m["yi_names"]
-    meta = _save_yi_face(
-        face_id=face_id,
-        variant=variant,
-        glyph_order=go,
-        glyphs=gl,
-        metrics=mt,
-        cmap=cm,
-        uvs_rows=face_uvs,
-        yi_names=yi_names,
-        mark_names=m["mark_names"],
-        mark_cps=m["mark_cps"],
-        base_anchors=m["base_anchors"],
-        out_dir=m["out_dir"],
-        target_upem=m["target_upem"],
-        mark_ink_height=m.get("mark_ink_height"),
-        slices=slices,
-    )
+        meta = _save_yi_face(
+            face_id=PS_NAME,
+            variant="",
+            glyph_order=go,
+            glyphs=gl,
+            metrics=mt,
+            cmap=cm,
+            uvs_rows=face_uvs,
+            yi_names=m["yi_names"],
+            mark_names=m["mark_names"],
+            mark_cps=m["mark_cps"],
+            base_anchors=m["base_anchors"],
+            out_dir=m["out_dir"],
+            target_upem=m["target_upem"],
+            mark_ink_height=m.get("mark_ink_height"),
+            slices=False,
+        )
     return (*meta, os.path.join(m["out_dir"], f"{meta[0]}.ttf"))
 
 
@@ -629,6 +799,18 @@ def build_edenia_yi_font(
 
         _inject_d4_vs(glyph_order, glyphs, metrics, cmap)
 
+        seg_variants = want & {"h", "t", "q", "qv", "qh"}
+        if seg_variants - {"h"}:
+            _prepare_yi_segment_glyphs(
+                yi_names=yi_names,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+                cmap=cmap,
+                target_upem=target_upem,
+                variants=seg_variants,
+            )
+
         built: List[Tuple[str, str, int, List[int]]] = []
         os.makedirs(out_dir, exist_ok=True)
         face_specs: List[Tuple[str, Optional[int]]] = []
@@ -636,13 +818,16 @@ def build_edenia_yi_font(
             face_specs.append(("", None))
         dakuten_keep = _dakuten_keep_names(glyph_order, mark_names)
         vs_keep = {n for n in glyph_order if n.startswith("vs")}
-        if "h" in want:
-            buckets: Dict[int, List[str]] = {}
-            for name in yi_names:
-                cp = yi_cps[name]
-                buckets.setdefault(cp >> 8, []).append(name)
+        buckets: Dict[int, List[str]] = {}
+        for name in yi_names:
+            cp = yi_cps[name]
+            buckets.setdefault(cp >> 8, []).append(name)
+        for seg in SEGMENT_FACE_BUILD_ORDER:
+            if seg not in want or not seg:
+                continue
             for bucket_id in sorted(buckets):
-                face_specs.append(("h", bucket_id))
+                if buckets[bucket_id]:
+                    face_specs.append((seg, bucket_id))
         if not face_specs:
             return built
 
@@ -729,14 +914,16 @@ YI_PUA_SELECTORS = set(range(0xE000, 0xE011))
 def _css_cps_for_yi_face(
     codepoints: Sequence[int], variant: str, *, mark_cps: Sequence[int]
 ) -> List[int]:
-    fe = YI_H_FE if variant == "h" else YI_BASE_FE
     cps = {
         cp
         for cp in codepoints
         if cp not in YI_PUA_SELECTORS and not (0xFE00 <= cp <= 0xFE0F)
     }
-    cps |= fe
-    cps |= set(mark_cps)
+    if variant == "h":
+        cps |= YI_H_FE
+    elif variant == "":
+        cps |= YI_BASE_FE
+        cps |= set(mark_cps)
     return sorted(cps)
 
 
@@ -761,14 +948,17 @@ def write_css(out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]) ->
 
     def _face_sort(item: Tuple[str, str, int, List[int]]) -> Tuple[int, int, str]:
         face_id, variant, _n, _cps = item
-        if variant == "h":
-            bid = parse_h_bucket_face_id(face_id)
-            return (0, bid if bid is not None else 0, face_id)
-        return (1, 0, face_id)
+        pri = (
+            SEGMENT_FACE_CSS_ORDER.index(variant)
+            if variant in SEGMENT_FACE_CSS_ORDER
+            else len(SEGMENT_FACE_CSS_ORDER)
+        )
+        bucket, _ = parse_bucket_face_id(face_id)
+        return (pri, bucket if bucket is not None else 999, face_id)
 
     lines: List[str] = [
-        "/* Auto-generated Edenia Yi: 'edenia yi h' (slices, pigeonholed)",
-        "   then 'edenia yi' (D4 + dakuten). Pin h for FE00/FE08–F GSUB. */",
+        "/* Auto-generated Edenia Yi: segment faces (h/t/q/qv/qh, pigeonholed)",
+        "   then 'edenia yi' (D4 + dakuten). Pin segment faces for VS/FE*. */",
         "",
     ]
 
@@ -808,11 +998,13 @@ def write_css(out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]) ->
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
-    has_h = any(v == "h" for _fid, v, _n, _cps in built)
+    has_seg = any(v in SEGMENT_FACE_CSS_ORDER[:-1] for _fid, v, _n, _cps in built)
     has_base = any(v == "" for _fid, v, _n, _cps in built)
     stack_parts: List[str] = []
-    if has_h:
-        stack_parts.append(f"'{family_yi_variant('h')}'")
+    if has_seg:
+        for v in SEGMENT_FACE_CSS_ORDER:
+            if v and any(fv == v for _fid, fv, _n, _cps in built):
+                stack_parts.append(f"'{family_yi_variant(v)}'")
     if has_base:
         stack_parts.append(f"'{family_yi_variant('')}'")
     stack = ", ".join(stack_parts) or f"'{FAMILY_NAME}'"
@@ -906,8 +1098,8 @@ def build_all(
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=(
-            "Build edenia yi (D4 + dakuten) and edenia yi h "
-            "(pigeonholed FE00/FE08–F slices)"
+            "Build edenia yi (D4 + dakuten) and pigeonholed segment faces "
+            "(h / t / q / qv / qh)"
         )
     )
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
@@ -919,11 +1111,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Use only the first N inventory codepoints (smoke test)",
     )
-    p.add_argument(
-        "--base-only",
-        action="store_true",
-        help="Build only the identity/D4 face (skip slice h pigeonholes)",
-    )
+    add_cjk_variant_arguments(p)
     fmt = p.add_mutually_exclusive_group()
     fmt.add_argument(
         "--ttf-only",
@@ -943,7 +1131,7 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
-    variants: Tuple[str, ...] = ("",) if args.base_only else ("", "h")
+    variants = resolve_kana_yi_variants(args)
     build_all(
         args.in_dir,
         args.out_dir,

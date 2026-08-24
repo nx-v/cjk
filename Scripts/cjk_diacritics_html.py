@@ -17,7 +17,7 @@ Encoding (matches `cjk_diacritics` / `build_cjk`)::
 
       A (D4)? FE08 FE00   B (D4)? FE09
 
-    Third / quarter stacks: see `cjk_multigraphs_html.py` (faces `t` / `q` / `qv` / `qh`).
+    Third / quarter segment faces are kana/yi only (not CJK).
 
 Usage
 -----
@@ -339,7 +339,7 @@ THIRD_TRIGRAPH_SETS: Tuple[Tuple[str, ...], ...] = (
     ("t3t", "t3m", "t3b"),
 )
 
-# Quarter pairs that tile one cell (same keys on qv / qh faces).
+# Quarter pairs that tile one cell (qv suffixes; qh uses q4l*/q4r*).
 QUARTER_TILE_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("q4th", "q4bh"),  # top/bottom half
     ("q4t", "q4b3"),  # top quarter + bottom 3/4

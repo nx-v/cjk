@@ -6,16 +6,13 @@ Claims CJK/Tangut codepoints from priority-ordered source fonts, buckets them
 into 256-codepoint blocks (cp >> 8), and builds each TTF/WOFF2 from scratch by
 copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
 
-Six faces per bucket (filename / family stem = `{hex}` / `{hex}h` /
-`{hex}t` / `{hex}q` / `{hex}qv` / `{hex}qh`)::
+Two faces per bucket (filename / family stem = `{hex}` / `{hex}h`)::
 
     (none)  base forms + ca/nhay (all mark orientations); mark segment = 1/4
                 (base occupies 3/4)
     h       base forms + D4 + half-cell slices (FE00 overlay, FE08–FE0F)
-    t       base forms + D4 + third-cell segments (VS17–VS26; FE00 zero-width)
-    q       2×2 corners + L 3/4 (VS41–48), derived from `h` halves
-    qv      vertical quarter segments (VS13–14, VS27–33), derived from `h`
-    qh      horizontal quarter segments (VS15–16, VS34–40), derived from `h`
+
+Third / quarter segment faces are kana/yi only (not built for CJK).
 
 Every bucket is a process-pool job (`--jobs` defaults to all CPUs). Build runs
 in four parallel stages across all workers: master glyf cache, face TTFs,
@@ -91,22 +88,6 @@ from shared_half_cells import (
     uvs_selector_for_mode,
     variant_glyph_name,
     vs_glyph_name,
-)
-from shared_third_cells import (
-    THIRD_VS_SLOTS,
-    install_third_cell_gsub,
-    prepare_third_cells,
-)
-from shared_quarter_cells import (
-    GRID_VS_SLOTS,
-    QUARTER_FACE_GRID,
-    QUARTER_FACE_H,
-    QUARTER_FACE_V,
-    quarter_form_name,
-    quarter_slot_parts,
-    quarter_slots_for_face,
-    install_quarter_cell_gsub,
-    prepare_quarter_cells,
 )
 from edenia_names import (
     CJK_FACE_BUILD_ORDER,
@@ -807,14 +788,10 @@ def build_bucket_font(
 
         ""   identity bases + ca/nhay (mark segment 1/4, base 3/4); no CJK D4
         "h"  bases + D4 + half-cell slice/overlay
-        "t"  bases + D4 + third-cell segments (VS17–VS26 on standard CPs)
-        "q"  2×2 / L segments (VS41–48); multi-face path subsets the master
-        "qv" vertical quarter segments; multi-face path subsets the master
-        "qh" horizontal quarter segments; multi-face path subsets the master
 
     `_build_all_bucket_faces` copies sources **once** (with D4 + halves) and
-    subsets base / t / q / qv / qh from that seed. This function is the
-    single-variant fallback and still walks sources for the requested face.
+    subsets base / h from that seed. This function is the single-variant
+    fallback and still walks sources for the requested face.
 
     Returns (ttf_path, glyph_count, codepoints).
     """
@@ -826,7 +803,7 @@ def build_bucket_font(
     face_id = cjk_face_id(bucket_hex, variant)
     out_path = os.path.join(out_dir, f"{face_id}.ttf")
 
-    with_d4 = variant in ("h", "t", "q", "qv", "qh")
+    with_d4 = variant == "h"
     glyph_order, glyphs, metrics, cmap, base_names = _import_bucket_glyphs(
         entries, sources, target_upem, with_d4=with_d4
     )
@@ -841,9 +818,6 @@ def build_bucket_font(
     mark_state: Optional[Dict] = None
     squishable: List[str] = []
     mark_cps: List[int] = []
-    third_forms: List[str] = []
-    quarter_forms: List[str] = []
-    quarter_face: Optional[str] = None
 
     match variant:
         case "":
@@ -896,50 +870,8 @@ def build_bucket_font(
                 height_factor=SQUISH_FACTOR,
                 in_dir=in_dir,
             )
-        case "t":
-            third_forms = prepare_third_cells(
-                cjk_bases=base_names,
-                glyph_order=glyph_order,
-                glyphs=glyphs,
-                metrics=metrics,
-                cmap=cmap,
-                target_upem=target_upem,
-            )
-        case "q":
-            squishable = prepare_squish_vs_access(
-                cjk_bases=base_names,
-                glyph_order=glyph_order,
-                glyphs=glyphs,
-                metrics=metrics,
-                cmap=cmap,
-                target_upem=target_upem,
-                liga_rules=_liga_unused,
-                uvs_rows=uvs_rows,
-                width_factor=SQUISH_FACTOR,
-                height_factor=SQUISH_FACTOR,
-                in_dir=in_dir,
-            )
-            quarter_face = variant
-            quarter_forms = prepare_quarter_cells(
-                face=variant,
-                cjk_bases=base_names,
-                glyph_order=glyph_order,
-                glyphs=glyphs,
-                metrics=metrics,
-                cmap=cmap,
-                target_upem=target_upem,
-            )
-        case "qv" | "qh":
-            quarter_face = variant
-            quarter_forms = prepare_quarter_cells(
-                face=variant,
-                cjk_bases=base_names,
-                glyph_order=glyph_order,
-                glyphs=glyphs,
-                metrics=metrics,
-                cmap=cmap,
-                target_upem=target_upem,
-            )
+        case _:
+            raise ValueError(f"unsupported CJK face {variant!r}; only '' and 'h'")
 
     ascent = otRound(target_upem * 0.88)
     descent = otRound(target_upem * -0.12)
@@ -976,55 +908,14 @@ def build_bucket_font(
     )
     fb.setupPost()
 
-    match variant:
-        case "" | "h":
-            install_cjk_composition_gsub(
-                fb.font,
-                cjk_bases=base_names,
-                glyphs=glyphs,
-                glyph_order=glyph_order,
-                squishable=squishable,
-                mark_cps=mark_cps,
-            )
-        case "q":
-            install_cjk_composition_gsub(
-                fb.font,
-                cjk_bases=base_names,
-                glyphs=glyphs,
-                glyph_order=glyph_order,
-                squishable=squishable,
-                mark_cps=[],
-            )
-            install_quarter_cell_gsub(
-                fb.font,
-                face=QUARTER_FACE_GRID,
-                bases=quarter_forms,
-                glyphs=glyphs,
-            )
-        case _:
-            # D4 only, then segment-face VS ligatures.
-            install_cjk_composition_gsub(
-                fb.font,
-                cjk_bases=base_names,
-                glyphs=glyphs,
-                glyph_order=glyph_order,
-                squishable=[],
-                mark_cps=[],
-            )
-            match variant:
-                case "t":
-                    install_third_cell_gsub(
-                        fb.font,
-                        bases=third_forms,
-                        glyphs=glyphs,
-                    )
-                case "qv" | "qh" if quarter_face is not None:
-                    install_quarter_cell_gsub(
-                        fb.font,
-                        face=quarter_face,
-                        bases=quarter_forms,
-                        glyphs=glyphs,
-                    )
+    install_cjk_composition_gsub(
+        fb.font,
+        cjk_bases=base_names,
+        glyphs=glyphs,
+        glyph_order=glyph_order,
+        squishable=squishable,
+        mark_cps=mark_cps,
+    )
     if mark_state is not None:
         compile_marks_layout(
             fb.font,
@@ -1105,25 +996,6 @@ _D4_SUFFIXES: Tuple[str, ...] = tuple(
     suf for _vs, _r, _fx, _fy, suf in TRANSFORM_MODES if suf is not None
 )
 _HALF_SUFFIXES: Tuple[str, ...] = tuple(suf for _cp, _sel, suf in SQUISH_VS_SLOTS)
-_THIRD_SUFFIXES: Tuple[str, ...] = tuple(
-    suf for _cp, _sel, suf, _a, _b0, _b1 in THIRD_VS_SLOTS
-)
-
-
-def _oriented_forms(bases: Sequence[str], glyphs: Dict[str, TTGlyph]) -> List[str]:
-    forms: List[str] = []
-    seen: set = set()
-    for base in bases:
-        if base not in glyphs or base in seen:
-            continue
-        forms.append(base)
-        seen.add(base)
-        for suf in _D4_SUFFIXES:
-            name = variant_glyph_name(base, suf)
-            if name in glyphs and name not in seen:
-                forms.append(name)
-                seen.add(name)
-    return forms
 
 
 def _close_component_names(keep: set, glyphs: Dict[str, TTGlyph]) -> set:
@@ -1176,23 +1048,9 @@ def _keep_names_for_face(
         ]
         for stem in oriented:
             _add_stem_family(keep, stem, glyphs)
-            if variant in ("h", "q"):
+            if variant == "h":
                 for hs in _HALF_SUFFIXES:
                     _add_stem_family(keep, f"{stem}.{hs}", glyphs)
-            if variant == "t":
-                for ts in _THIRD_SUFFIXES:
-                    _add_stem_family(keep, f"{stem}.{ts}", glyphs)
-            if variant == "q":
-                for gs in (s[2] for s in GRID_VS_SLOTS):
-                    _add_stem_family(keep, quarter_form_name(stem, gs), glyphs)
-            if variant in ("qv", "qh"):
-                for slot in quarter_slots_for_face(variant):
-                    suf = quarter_slot_parts(slot)[2]
-                    _add_stem_family(
-                        keep,
-                        quarter_form_name(stem, suf, face=variant),
-                        glyphs,
-                    )
     return _close_component_names(keep, glyphs)
 
 
@@ -1224,28 +1082,16 @@ def _filter_face_cmap(
 ) -> Dict[int, str]:
     """Drop other faces' VS pages from a shared master cmap."""
     base_set = set(bases)
-    vs_page = {
-        "t": set(range(0xE0100, 0xE010A)),
-        "qv": set(range(0xE010A, 0xE0111)),
-        "qh": set(range(0xE0111, 0xE0118)),
-        "q": set(range(0xE0118, 0xE0120)),
-    }.get(variant, set())
-    # FE* + VS17+ supplement only — no BMP PUA (kana owns U+E000–F8FF).
+    # FE* only — no BMP PUA (kana owns U+E000–F8FF).
     fe_ok = {OV_SELECTOR_CP}
-    if variant in ("h", "t", "q", "qv", "qh"):
-        fe_ok |= set(range(0xFE01, 0xFE08))
-    if variant in ("h", "q"):
-        fe_ok |= set(range(0xFE08, 0xFE10))
-    elif variant == "qv":
-        fe_ok |= {0xFE08, 0xFE09}
-    elif variant == "qh":
-        fe_ok |= {0xFE0A, 0xFE0B}
+    if variant == "h":
+        fe_ok |= set(range(0xFE01, 0xFE10))
     if variant == "":
         fe_ok |= set(range(0xFE00, 0xFE10))
         fe_ok |= set(MARK_CPS)
     out: Dict[int, str] = {}
     for cp, name in cmap.items():
-        if name in base_set or cp in fe_ok or cp in vs_page:
+        if name in base_set or cp in fe_ok:
             out[cp] = name
     return out
 
@@ -1302,54 +1148,17 @@ def _install_face_gsub(
     glyph_order: List[str],
     squishable: Sequence[str],
     mark_cps: Sequence[int],
-    third_forms: Sequence[str],
-    quarter_forms: Sequence[str],
-    quarter_face: Optional[str],
 ) -> None:
-    match variant:
-        case "" | "h":
-            install_cjk_composition_gsub(
-                font,
-                cjk_bases=base_names,
-                glyphs=glyphs,
-                glyph_order=glyph_order,
-                squishable=squishable,
-                mark_cps=list(mark_cps),
-            )
-        case "q":
-            install_cjk_composition_gsub(
-                font,
-                cjk_bases=base_names,
-                glyphs=glyphs,
-                glyph_order=glyph_order,
-                squishable=squishable,
-                mark_cps=[],
-            )
-            install_quarter_cell_gsub(
-                font,
-                face=QUARTER_FACE_GRID,
-                bases=quarter_forms,
-                glyphs=glyphs,
-            )
-        case _:
-            install_cjk_composition_gsub(
-                font,
-                cjk_bases=base_names,
-                glyphs=glyphs,
-                glyph_order=glyph_order,
-                squishable=[],
-                mark_cps=[],
-            )
-            match variant:
-                case "t":
-                    install_third_cell_gsub(font, bases=third_forms, glyphs=glyphs)
-                case "qv" | "qh" if quarter_face is not None:
-                    install_quarter_cell_gsub(
-                        font,
-                        face=quarter_face,
-                        bases=quarter_forms,
-                        glyphs=glyphs,
-                    )
+    if variant not in ("", "h"):
+        raise ValueError(f"unsupported CJK face {variant!r}; only '' and 'h'")
+    install_cjk_composition_gsub(
+        font,
+        cjk_bases=base_names,
+        glyphs=glyphs,
+        glyph_order=glyph_order,
+        squishable=squishable,
+        mark_cps=list(mark_cps),
+    )
 
 
 def _build_bucket_master_state(
@@ -1370,8 +1179,7 @@ def _build_bucket_master_state(
         return None
 
     in_dir = os.path.dirname(next(iter(sources.keys()))) if sources else IN_DIR
-    need_halves = bool(want & {"h", "q"})
-    if need_halves:
+    if "h" in want:
         t0 = time.perf_counter()
         prepare_squish_vs_access(
             cjk_bases=base_names,
@@ -1388,37 +1196,6 @@ def _build_bucket_master_state(
         )
         if timings is not None:
             timings["halves"] = time.perf_counter() - t0
-    if "t" in want:
-        t0 = time.perf_counter()
-        prepare_third_cells(
-            cjk_bases=base_names,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-            cmap=cmap,
-            target_upem=target_upem,
-        )
-        if timings is not None:
-            timings["thirds"] = time.perf_counter() - t0
-    for qface, qkey in (
-        (QUARTER_FACE_GRID, "q"),
-        (QUARTER_FACE_V, "qv"),
-        (QUARTER_FACE_H, "qh"),
-    ):
-        if qkey not in want:
-            continue
-        t0 = time.perf_counter()
-        prepare_quarter_cells(
-            face=qface,
-            cjk_bases=base_names,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-            cmap=cmap,
-            target_upem=target_upem,
-        )
-        if timings is not None:
-            timings[qkey] = time.perf_counter() - t0
     return {
         "glyph_order": glyph_order,
         "glyphs": glyphs,
@@ -1447,7 +1224,6 @@ def _build_face_ttf_from_state(
     base_names = _identity_cjk_bases(cmap, glyphs)
     if not base_names:
         return None, None
-    oriented = _oriented_forms(base_names, glyphs)
     mark_scale = FONT_LOCAL_SCALE.get(PLANGOTHIC_P2_FILENAME, 0.96)
 
     face_id = cjk_face_id(bucket_hex, variant)
@@ -1465,9 +1241,6 @@ def _build_face_ttf_from_state(
     mark_state: Optional[Dict] = None
     mark_cps: List[int] = []
     squishable: List[str] = []
-    third_forms: List[str] = []
-    quarter_forms: List[str] = []
-    quarter_face: Optional[str] = None
     _liga: List[str] = []
     _uvs: List = []
 
@@ -1505,13 +1278,8 @@ def _build_face_ttf_from_state(
         else:
             squishable = mark_state["squishable"]
             mark_cps = list(mark_state.get("core_cps") or [])
-    elif variant in ("h", "q"):
+    elif variant == "h":
         squishable = squishable_forms(base_names)
-    if variant == "t":
-        third_forms = oriented
-    if variant in ("q", "qv", "qh"):
-        quarter_face = variant
-        quarter_forms = oriented
 
     fb_font = _build_tables_font(
         face_id=face_id,
@@ -1530,9 +1298,6 @@ def _build_face_ttf_from_state(
             glyph_order=go,
             squishable=squishable,
             mark_cps=mark_cps,
-            third_forms=third_forms,
-            quarter_forms=quarter_forms,
-            quarter_face=quarter_face,
         )
         if mark_state is not None:
             compile_marks_layout(
@@ -1580,10 +1345,6 @@ def _print_bucket_profile(bucket_hex: str, times: Dict[str, float]) -> None:
         "import",
         "d4",
         "halves",
-        "thirds",
-        "q",
-        "qv",
-        "qh",
         "faces",
         "hint",
         "woff",
@@ -1796,7 +1557,7 @@ def _woff2_face_task(ttf_path: str) -> str:
 
 
 def _face_sort_key(face_id: str) -> Tuple[int, int]:
-    """Sort faces as bucket then q / qv / qh / t / h / base (CSS stack order)."""
+    """Sort faces as bucket then h / base (CSS stack order)."""
     core, variant = split_cjk_face_id(face_id)
     order = {v: i for i, v in enumerate(CJK_FACE_CSS_ORDER)}
     try:
@@ -1816,14 +1577,8 @@ def parse_cjk_face_id(face_id: str) -> Optional[Tuple[int, str]]:
         return None
 
 
-# Extra VS pages claimed per segment face (not in the bucket ideograph block).
-# ``t`` VS17–26, ``qv`` VS27–33, ``qh`` VS34–40, ``q`` VS41–48.
-_CJK_FACE_VS_EXTRA: Dict[str, range] = {
-    "t": range(0xE0100, 0xE010A),
-    "qv": range(0xE010A, 0xE0111),
-    "qh": range(0xE0111, 0xE0118),
-    "q": range(0xE0118, 0xE0120),
-}
+# CJK no longer claims VS17+ segment pages (kana/yi only).
+_CJK_FACE_VS_EXTRA: Dict[str, range] = {}
 
 
 def unicode_range_for_bucket(
@@ -1840,17 +1595,12 @@ def unicode_range_for_bucket(
     `U+FE00–FE0F` (base: ca/nhay slots; `h`: overlay + D4 + slices).
     Blink drops unclaimed Default_Ignorables, so the sets must be listed.
 
-    Segment faces also list their VS17+ page (`t` E0100–E0109, `qv`
-    E010A–E0110, `qh` E0111–E0117, `q` E0118–E011F) even when
-    `codepoints` is empty (`--css-only`).
-
     Base faces may add U+16FF0/16FF1 (ca/nhay) via `include_marks`.
     """
     side_sels = set(SIDE_SELECTOR_CPS)
     fe0_sels = set(range(0xFE00, 0xFE10))
     # Overlay (FE00) + D4 (FE01–FE07) + slices (FE08–FE0F).
     fe0_cjk = set(range(0xFE00, 0xFE10))
-    vs17_page = set(range(0xE0100, 0xE01F0))
     bucket_cps = {
         cp
         for cp in codepoints
@@ -1859,7 +1609,6 @@ def unicode_range_for_bucket(
         and cp not in side_sels
         and cp not in fe0_sels
         and cp not in MARK_CPS
-        and cp not in vs17_page
     }
     cps: set = set(bucket_cps)
     if include_marks:
@@ -1909,18 +1658,18 @@ def unicode_range_for_bucket(
 def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     """Write edenia-cjk.css (@font-face) and fontlist.css (CSS-safe stack).
 
-    Each variant shares one family (`edenia cjk` / `… h` / `… t` / …)
-    with per-bucket `unicode-range` (ideographs + `U+FE00–FE0F`). Segment
-    GSUB is selected with `font-family: 'edenia cjk h'` (etc.).
+    Each variant shares one family (`edenia cjk` / `edenia cjk h`)
+    with per-bucket `unicode-range` (ideographs + `U+FE00–FE0F`). Half-cell
+    GSUB is selected with `font-family: 'edenia cjk h'`.
     """
     from edenia_names import family_cjk_variant
 
     css_path = os.path.join(out_dir, CSS_CJK)
     lines: List[str] = [
         "/* Auto-generated Edenia CJK pigeonhole @font-face rules */",
-        "/* Shared families: 'edenia cjk' / q / qv / qh / t / h.",
-        "   Per-file unicode-range = bucket ideographs + U+FE00-FE0F",
-        "   plus that face's VS17+ page. Digraphs: 'edenia cjk h'. */",
+        "/* Shared families: 'edenia cjk' / 'edenia cjk h'.",
+        "   Per-file unicode-range = bucket ideographs + U+FE00-FE0F.",
+        "   Digraphs: 'edenia cjk h'. */",
         "",
     ]
 
@@ -1977,7 +1726,7 @@ def write_css(out_dir: str, built: List[Tuple[str, int, List[int]]]) -> None:
     base_fam = family_cjk_variant(stack_variant)
     fontlist_path = os.path.join(out_dir, "fontlist.css")
     fontlist = f"""/* src/scss/index.scss — Edenia CJK pigeonhole font stack */
-/* Base family only. Digraphs/thirds/quarters: 'edenia cjk h' / t / q / qv / qh. */
+/* Base family only. Digraphs: 'edenia cjk h'. */
 body {{
   --font-editor-theme: '';
   --font-editor: var(--font-editor-theme), var(--font-text);

@@ -1,15 +1,17 @@
-"""CJK quarter-cell segments — three faces (2×2 grid / vertical / horizontal).
+"""Quarter-cell segments — three faces (2×2 grid / vertical / horizontal).
 
 Encoding
 --------
-* Standard CJK code points are used as-is.
+* Standard CJK / kana / yi code points are used as-is.
 * **Grid face** (`q`): 2×2 corners + L-shaped 3/4 via VS41–48.
-* **Vertical face** (`qv`): Y-axis bands via VS13–14 + VS27–33.
-* **Horizontal face** (`qh`): X-axis bands via VS15–16 + VS34–40.
+* **Vertical face** (`qv`): Y-axis bands via VS9–10 + VS27–33.
+* **Horizontal face** (`qh`): X-axis bands via VS11–12 + VS34–40.
   Label “top”/“bottom” on the horizontal face maps to **left**/**right**
-  (r90 CCW: top→left, bottom→right).
+  (r90 CCW: top→left, bottom→right); glyph suffixes are distinct (`q4l*`).
 * `FE00` → zero-width `.ov` for stacking.
 * GSUB `ccmp`/`rlig`/`liga` only — no cmap-14 UVS.
+
+Unicode VS numbers: VS1–16 = U+FE00–FE0F; VS17+ = U+E0100+.
 
 Grid (`q`) — 2×2; L for a corner is the 3/4 that includes that corner
 ======= ========== ========================= ========
@@ -29,8 +31,8 @@ Vertical (`qv`) — axis Y, bands 0=bottom … 3=top
 ======= ========== ========================= ========
 VS      Code point Segment                     Suffix
 ======= ========== ========================= ========
-VS13    U+FE08     top half                  `q4th`
-VS14    U+FE09     bottom half               `q4bh`
+VS9     U+FE08     top half                  `q4th`
+VS10    U+FE09     bottom half               `q4bh`
 VS27    U+E010A    top quarter               `q4t`
 VS28    U+E010B    near-top quarter          `q4nt`
 VS29    U+E010C    near-bottom quarter       `q4nb`
@@ -40,19 +42,19 @@ VS32    U+E010F    bottom three-quarters     `q4b3`
 VS33    U+E0110    middle half               `q4mh`
 ======= ========== ========================= ========
 
-Horizontal (`qh`) — axis X, same suffixes (top→left, bottom→right)
+Horizontal (`qh`) — axis X, bands 0=left … 3=right (distinct suffixes)
 ======= ========== ========================= ========
 VS      Code point Segment                     Suffix
 ======= ========== ========================= ========
-VS15    U+FE0A     top half (= left half)    `q4th`
-VS16    U+FE0B     bottom half (= right)     `q4bh`
-VS34    U+E0111    top quarter (= left)      `q4t`
-VS35    U+E0112    near-top (= near-left)    `q4nt`
-VS36    U+E0113    near-bottom (= near-right)`q4nb`
-VS37    U+E0114    bottom quarter (= right)  `q4b`
-VS38    U+E0115    top 3/4 (= left 3/4)      `q4t3`
-VS39    U+E0116    bottom 3/4 (= right 3/4)  `q4b3`
-VS40    U+E0117    middle half               `q4mh`
+VS11    U+FE0A     left half                 `q4lh`
+VS12    U+FE0B     right half                `q4rh`
+VS34    U+E0111    left quarter              `q4l`
+VS35    U+E0112    near-left quarter         `q4nl`
+VS36    U+E0113    near-right quarter        `q4nr`
+VS37    U+E0114    right quarter             `q4r`
+VS38    U+E0115    left three-quarters       `q4l3`
+VS39    U+E0116    right three-quarters      `q4r3`
+VS40    U+E0117    middle half               `q4mc`
 ======= ========== ========================= ========
 
 Segment forms are **slices** of already-baked fullwidth / half-cell outlines.
@@ -102,9 +104,10 @@ QUARTER_PAD_FRAC = 0.02
 QuarterSlot = Tuple[int, str, str, int, int]
 
 # Vertical face: Y axis. band 0 = bottom, band 3 = top.
+# Selector names match Unicode VS indices (VS9 = FE08, VS27 = E010A, …).
 QUARTER_VS_SLOTS_V: Tuple[QuarterSlot, ...] = (
-    (0xFE08, "vs13", "q4th", 2, 3),  # top half
-    (0xFE09, "vs14", "q4bh", 0, 1),  # bottom half
+    (0xFE08, "vs09", "q4th", 2, 3),  # top half
+    (0xFE09, "vs10", "q4bh", 0, 1),  # bottom half
     (0xE010A, "vs27", "q4t", 3, 3),  # top quarter
     (0xE010B, "vs28", "q4nt", 2, 2),  # near-top
     (0xE010C, "vs29", "q4nb", 1, 1),  # near-bottom
@@ -114,18 +117,18 @@ QUARTER_VS_SLOTS_V: Tuple[QuarterSlot, ...] = (
     (0xE0110, "vs33", "q4mh", 1, 2),  # middle half
 )
 
-# Horizontal face: X axis. top→left (low X), bottom→right (high X).
-# band 0 = left, band 3 = right.
+# Horizontal face: X axis. band 0 = left, band 3 = right.
+# Distinct suffixes (not shared with qv).
 QUARTER_VS_SLOTS_H: Tuple[QuarterSlot, ...] = (
-    (0xFE0A, "vs15", "q4th", 0, 1),  # top half → left half
-    (0xFE0B, "vs16", "q4bh", 2, 3),  # bottom half → right half
-    (0xE0111, "vs34", "q4t", 0, 0),  # top quarter → left
-    (0xE0112, "vs35", "q4nt", 1, 1),  # near-top → near-left
-    (0xE0113, "vs36", "q4nb", 2, 2),  # near-bottom → near-right
-    (0xE0114, "vs37", "q4b", 3, 3),  # bottom quarter → right
-    (0xE0115, "vs38", "q4t3", 0, 2),  # top 3/4 → left 3/4
-    (0xE0116, "vs39", "q4b3", 1, 3),  # bottom 3/4 → right 3/4
-    (0xE0117, "vs40", "q4mh", 1, 2),  # middle half
+    (0xFE0A, "vs11", "q4lh", 0, 1),  # left half
+    (0xFE0B, "vs12", "q4rh", 2, 3),  # right half
+    (0xE0111, "vs34", "q4l", 0, 0),  # left quarter
+    (0xE0112, "vs35", "q4nl", 1, 1),  # near-left
+    (0xE0113, "vs36", "q4nr", 2, 2),  # near-right
+    (0xE0114, "vs37", "q4r", 3, 3),  # right quarter
+    (0xE0115, "vs38", "q4l3", 0, 2),  # left 3/4
+    (0xE0116, "vs39", "q4r3", 1, 3),  # right 3/4
+    (0xE0117, "vs40", "q4mc", 1, 2),  # middle half
 )
 
 # 2×2 grid face. VS41–44 corners tl,tr,bl,br; VS45–48 L 3/4 for the same corners.
@@ -186,9 +189,12 @@ def quarter_slot_parts(slot: Tuple) -> Tuple[int, str, str]:
 
 
 def quarter_form_name(base_name: str, suffix: str, *, face: str = "") -> str:
-    """Segment glyph name. `qv`/`qh` are tagged so they can share a master."""
-    if face in ("qv", "qh"):
-        return f"{base_name}.{face}.{suffix}"
+    """Segment glyph name (`base.q4t`, `base.q4l`, …).
+
+    `face` is accepted for call-site compatibility; qv/qh suffixes are
+    already distinct so no face infix is required.
+    """
+    del face
     return f"{base_name}.{suffix}"
 
 
@@ -353,9 +359,17 @@ def add_quarter_forms(
     """
     axis = quarter_axis_for_face(face)
     if face == QUARTER_FACE_V:
-        inherit_th, inherit_bh = "dkb", "dkt"
+        inherit_hi, inherit_lo = "dkb", "dkt"
+        s_hi_h, s_lo_h = "q4th", "q4bh"
+        s_hi_q, s_lo_q = "q4t", "q4b"
+        s_near_hi, s_near_lo = "q4nt", "q4nb"
+        s_hi3, s_lo3, s_mid = "q4t3", "q4b3", "q4mh"
     else:
-        inherit_th, inherit_bh = "dk", "dkl"
+        inherit_hi, inherit_lo = "dk", "dkl"
+        s_hi_h, s_lo_h = "q4lh", "q4rh"
+        s_hi_q, s_lo_q = "q4l", "q4r"
+        s_near_hi, s_near_lo = "q4nl", "q4nr"
+        s_hi3, s_lo3, s_mid = "q4l3", "q4r3", "q4mc"
     bot, top, _ = ideographic_bounds(target_upem)
     span = top - bot
     inf = float(target_upem) * HALF_PLANE_INF_FRAC
@@ -381,19 +395,19 @@ def add_quarter_forms(
                     )
         else:
             match suf:
-                case "q4th":
+                case "q4lh":
                     return half_plane_rect(
                         float(target_upem) * 0.5, axis="x", keep="lo", inf=inf
                     )
-                case "q4t":
+                case "q4l":
                     return half_plane_rect(
                         float(target_upem) * 0.25, axis="x", keep="lo", inf=inf
                     )
-                case "q4b":
+                case "q4r":
                     return half_plane_rect(
                         float(target_upem) * 0.75, axis="x", keep="hi", inf=inf
                     )
-                case "q4bh":
+                case "q4rh":
                     return half_plane_rect(
                         float(target_upem) * 0.5, axis="x", keep="hi", inf=inf
                     )
@@ -431,84 +445,84 @@ def add_quarter_forms(
                 )
             return out
 
-        th = _qn(name, "q4th")
-        bh = _qn(name, "q4bh")
-        src_th = f"{name}.{inherit_th}"
-        src_bh = f"{name}.{inherit_bh}"
-        if src_th in glyphs:
+        hi_h = _qn(name, s_hi_h)
+        lo_h = _qn(name, s_lo_h)
+        src_hi = f"{name}.{inherit_hi}"
+        src_lo = f"{name}.{inherit_lo}"
+        if src_hi in glyphs:
             _put(
-                th,
-                copy_named_glyph(src_th, glyphs=glyphs, metrics=metrics, advance=adv),
+                hi_h,
+                copy_named_glyph(src_hi, glyphs=glyphs, metrics=metrics, advance=adv),
             )
         else:
-            _clip(name, "q4th")
-        if src_bh in glyphs:
+            _clip(name, s_hi_h)
+        if src_lo in glyphs:
             _put(
-                bh,
-                copy_named_glyph(src_bh, glyphs=glyphs, metrics=metrics, advance=adv),
+                lo_h,
+                copy_named_glyph(src_lo, glyphs=glyphs, metrics=metrics, advance=adv),
             )
-        elif th in glyphs:
+        elif hi_h in glyphs:
             _put(
-                bh,
+                lo_h,
                 boolean_subtract_named(
-                    name, th, glyphs=glyphs, metrics=metrics, advance=adv
+                    name, hi_h, glyphs=glyphs, metrics=metrics, advance=adv
                 ),
             )
         else:
-            _clip(name, "q4bh")
+            _clip(name, s_lo_h)
 
-        tq = _clip(th if th in glyphs else name, "q4t")
-        ntop = _qn(name, "q4nt")
-        if ntop not in glyphs and th in glyphs:
+        hi_q = _clip(hi_h if hi_h in glyphs else name, s_hi_q)
+        near_hi = _qn(name, s_near_hi)
+        if near_hi not in glyphs and hi_h in glyphs:
             _put(
-                ntop,
+                near_hi,
                 boolean_subtract_named(
-                    th, tq, glyphs=glyphs, metrics=metrics, advance=adv
+                    hi_h, hi_q, glyphs=glyphs, metrics=metrics, advance=adv
                 ),
             )
-        bq = _clip(bh if bh in glyphs else name, "q4b")
-        nbot = _qn(name, "q4nb")
-        if nbot not in glyphs and bh in glyphs:
+        lo_q = _clip(lo_h if lo_h in glyphs else name, s_lo_q)
+        near_lo = _qn(name, s_near_lo)
+        if near_lo not in glyphs and lo_h in glyphs:
             _put(
-                nbot,
+                near_lo,
                 boolean_subtract_named(
-                    bh, bq, glyphs=glyphs, metrics=metrics, advance=adv
+                    lo_h, lo_q, glyphs=glyphs, metrics=metrics, advance=adv
                 ),
             )
 
-        t3 = _qn(name, "q4t3")
-        b3 = _qn(name, "q4b3")
-        mh = _qn(name, "q4mh")
-        if t3 not in glyphs:
+        hi3 = _qn(name, s_hi3)
+        lo3 = _qn(name, s_lo3)
+        mid = _qn(name, s_mid)
+        if hi3 not in glyphs:
             _put(
-                t3,
+                hi3,
                 boolean_subtract_named(
-                    name, bq, glyphs=glyphs, metrics=metrics, advance=adv
+                    name, lo_q, glyphs=glyphs, metrics=metrics, advance=adv
                 ),
             )
-        if b3 not in glyphs:
+        if lo3 not in glyphs:
             _put(
-                b3,
+                lo3,
                 boolean_subtract_named(
-                    name, tq, glyphs=glyphs, metrics=metrics, advance=adv
+                    name, hi_q, glyphs=glyphs, metrics=metrics, advance=adv
                 ),
             )
-        if mh not in glyphs:
-            if ntop in glyphs and nbot in glyphs:
+        if mid not in glyphs:
+            if near_hi in glyphs and near_lo in glyphs:
                 _put(
-                    mh,
+                    mid,
                     boolean_union_named(
-                        [ntop, nbot],
+                        [near_hi, near_lo],
                         glyphs=glyphs,
                         metrics=metrics,
                         advance=adv,
                     ),
                 )
-            elif t3 in glyphs:
+            elif hi3 in glyphs:
                 _put(
-                    mh,
+                    mid,
                     boolean_subtract_named(
-                        t3, tq, glyphs=glyphs, metrics=metrics, advance=adv
+                        hi3, hi_q, glyphs=glyphs, metrics=metrics, advance=adv
                     ),
                 )
         added.append(name)
@@ -611,11 +625,17 @@ def quarter_vs_liga_map(
     face: str,
     glyphs: Dict[str, TTGlyph],
 ) -> Dict[Tuple[str, ...], str]:
-    """`base + VS` / `FE00` → quarter segment and/or zero-width `.ov`."""
+    """`base + VS` / `FE00` → quarter segment and/or zero-width `.ov`.
+
+    Includes residual ``base.ov + VS → segment.ov`` so segment ligas still
+    fire when a prior lookup (half-cell GSUB on face ``q``) already consumed
+    ``FE00``.
+    """
     from shared_half_cells import vs_glyph_name
 
     slots = quarter_slots_for_face(face)
     vs01 = vs_glyph_name(TRANSFORM_MODES[0][0])
+    has_vs01 = vs01 in glyphs
     ov = OV_SELECTOR_NAME
     liga: Dict[Tuple[str, ...], str] = {}
     for form in bases:
@@ -624,7 +644,8 @@ def quarter_vs_liga_map(
         form_ov = overlay_glyph_name(form)
         if form_ov in glyphs and ov in glyphs:
             liga[(form, ov)] = form_ov
-            liga[(form, vs01, ov)] = form_ov
+            if has_vs01:
+                liga[(form, vs01, ov)] = form_ov
         for slot in slots:
             _vs_cp, sel_name, suf = quarter_slot_parts(slot)
             out = quarter_form_name(form, suf, face=face)
@@ -633,15 +654,24 @@ def quarter_vs_liga_map(
             if sel_name not in glyphs:
                 continue
             liga[(form, sel_name)] = out
-            liga[(form, vs01, sel_name)] = out
+            if has_vs01:
+                liga[(form, vs01, sel_name)] = out
             out_ov = overlay_glyph_name(out)
             if out_ov not in glyphs or ov not in glyphs:
                 continue
             liga[(form, ov, sel_name)] = out_ov
             liga[(form, sel_name, ov)] = out_ov
-            liga[(form, vs01, ov, sel_name)] = out_ov
-            liga[(form, vs01, sel_name, ov)] = out_ov
+            if has_vs01:
+                liga[(form, vs01, ov, sel_name)] = out_ov
+                liga[(form, vs01, sel_name, ov)] = out_ov
             liga[(out, ov)] = out_ov
+            # On face `q`, half-cell GSUB runs first and may already have
+            # turned `form + FE00` into `form.ov` before these lookups see
+            # the segment selector (L 3/4 and corners). Residual ligas:
+            if form_ov in glyphs:
+                liga[(form_ov, sel_name)] = out_ov
+                if has_vs01:
+                    liga[(form_ov, vs01, sel_name)] = out_ov
     return liga
 
 
