@@ -4,7 +4,15 @@ const TEMPLATES = {
     {
       group: "Halves",
       items: [
-        { id: "1:1", kind: "half", face: "h", slots: ["T", "B"], diagram: "v-2", labels: ["1", "1"], name: "1:1" },
+        {
+          id: "1:1",
+          kind: "half",
+          face: "h",
+          slots: ["T", "B"],
+          diagram: "v-2",
+          labels: ["1", "1"],
+          name: "1:1",
+        },
       ],
     },
   ],
@@ -12,7 +20,15 @@ const TEMPLATES = {
     {
       group: "Halves",
       items: [
-        { id: "1:1", kind: "half", face: "h", slots: ["L", "R"], diagram: "h-2", labels: ["1", "1"], name: "1:1" },
+        {
+          id: "1:1",
+          kind: "half",
+          face: "h",
+          slots: ["L", "R"],
+          diagram: "h-2",
+          labels: ["1", "1"],
+          name: "1:1",
+        },
       ],
     },
   ],
@@ -24,10 +40,10 @@ const STACK =
 
 const cjkState = {
   chars: [
-    { hex: "4E00", orient: 0 },
-    { hex: "4E8C", orient: 0 },
-    { hex: "", orient: 0 },
-    { hex: "", orient: 0 },
+    {hex: "4E00", orient: 0},
+    {hex: "4E8C", orient: 0},
+    {hex: "", orient: 0},
+    {hex: "", orient: 0},
   ],
   axis: "v",
   templateId: "1:1",
@@ -73,8 +89,8 @@ function findTemplate(id, axis) {
 
 function activeCjk() {
   return cjkState.chars
-    .map((c) => ({ ...c, cp: parseCp(c.hex) }))
-    .filter((c) => c.cp != null);
+    .map(c => ({...c, cp: parseCp(c.hex)}))
+    .filter(c => c.cp != null);
 }
 
 function buildCjkSequence(tpl, chars) {
@@ -102,7 +118,12 @@ function buildCjkSequence(tpl, chars) {
     parts.push(chunk);
     debug.push(d);
   }
-  return { text: parts.join(""), debug, family: cjkFamily(tpl.face), face: tpl.face };
+  return {
+    text: parts.join(""),
+    debug,
+    family: cjkFamily(tpl.face),
+    face: tpl.face,
+  };
 }
 
 function insertText(text, family) {
@@ -117,7 +138,9 @@ function insertText(text, family) {
     sel.addRange(range);
   }
   const span = document.createElement("span");
-  span.style.fontFamily = family ? "'" + family + "', " + STACK : editor.style.fontFamily;
+  span.style.fontFamily = family
+    ? "'" + family + "', " + STACK
+    : editor.style.fontFamily;
   span.textContent = text;
   const range = sel.getRangeAt(0);
   range.deleteContents();
@@ -137,7 +160,7 @@ function editorPlain() {
 
 function toHex(text) {
   return Array.from(text)
-    .map((ch) => {
+    .map(ch => {
       const cp = ch.codePointAt(0);
       return "U+" + cp.toString(16).toUpperCase().padStart(4, "0");
     })
@@ -162,19 +185,19 @@ function renderCjkChars() {
     card.className = "char-card";
     const cp = parseCp(c.hex);
     card.innerHTML =
-      '<div class="idx">Character ' +
-      (i + 1) +
-      '</div><div class="char-preview" id="cjkp' +
-      i +
-      '">' +
-      (cp != null ? String.fromCodePoint(cp) : "") +
-      '</div><input data-i="' +
-      i +
-      '" data-k="hex" value="' +
-      (c.hex || "") +
-      '" spellcheck="false" placeholder="4E00 or 字"/><select data-i="' +
-      i +
-      '" data-k="orient"></select>';
+      '<div class="idx">Character '
+      + (i + 1)
+      + '</div><div class="char-preview" id="cjkp'
+      + i
+      + '">'
+      + (cp != null ? String.fromCodePoint(cp) : "")
+      + '</div><input data-i="'
+      + i
+      + '" data-k="hex" value="'
+      + (c.hex || "")
+      + '" spellcheck="false" placeholder="4E00 or 字"/><select data-i="'
+      + i
+      + '" data-k="orient"></select>';
     const sel = card.querySelector("select");
     DATA.ORIENT_LABELS.forEach((lab, oi) => {
       const opt = document.createElement("option");
@@ -185,7 +208,7 @@ function renderCjkChars() {
     });
     root.appendChild(card);
   });
-  root.querySelectorAll("input, select").forEach((el) => {
+  root.querySelectorAll("input, select").forEach(el => {
     el.addEventListener("input", onCjkEdit);
     el.addEventListener("change", onCjkEdit);
   });
@@ -212,29 +235,29 @@ function renderCjkTemplates() {
   const n = activeCjk().length;
   const groups = TEMPLATES[cjkState.axis] || [];
   let firstFit = null;
-  groups.forEach((group) => {
+  groups.forEach(group => {
     const wrap = document.createElement("div");
     wrap.innerHTML = '<div class="tpl-group-label">' + group.group + "</div>";
     const grid = document.createElement("div");
     grid.className = "tpl-grid";
-    group.items.forEach((item) => {
+    group.items.forEach(item => {
       const ok = n >= item.slots.length && cjkAvailable(item.face);
       if (ok && !firstFit) firstFit = item.id;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className =
-        "tpl" +
-        (cjkState.templateId === item.id ? " active" : "") +
-        (ok ? "" : " disabled");
+        "tpl"
+        + (cjkState.templateId === item.id ? " active" : "")
+        + (ok ? "" : " disabled");
       btn.dataset.id = item.id;
       btn.innerHTML =
-        '<div class="diagram ' +
-        item.diagram +
-        '">' +
-        item.labels.map((lab) => "<span>" + lab + "</span>").join("") +
-        '</div><span class="name">' +
-        item.name +
-        "</span>";
+        '<div class="diagram '
+        + item.diagram
+        + '">'
+        + item.labels.map(lab => "<span>" + lab + "</span>").join("")
+        + '</div><span class="name">'
+        + item.name
+        + "</span>";
       if (ok) {
         btn.addEventListener("click", () => {
           cjkState.templateId = item.id;
@@ -249,15 +272,15 @@ function renderCjkTemplates() {
   });
   const cur = findTemplate(cjkState.templateId);
   const stillValid =
-    cur &&
-    groups.some((g) =>
-      g.items.some((it) => it.id === cur.id && it.slots.length <= n)
+    cur
+    && groups.some(g =>
+      g.items.some(it => it.id === cur.id && it.slots.length <= n),
     );
   if (!stillValid && firstFit) {
     cjkState.templateId = firstFit;
-    root.querySelectorAll(".tpl").forEach((b) =>
-      b.classList.toggle("active", b.dataset.id === firstFit)
-    );
+    root
+      .querySelectorAll(".tpl")
+      .forEach(b => b.classList.toggle("active", b.dataset.id === firstFit));
   }
 }
 
@@ -298,7 +321,8 @@ function hangSeq() {
       cps.push(T.cp);
       const tv = HANGUL_VS[+document.getElementById("hangTv").value];
       if (tv) cps.push(tv);
-      if (document.getElementById("hangSwap").checked) cps.push(DATA.HANGUL.SWAP);
+      if (document.getElementById("hangSwap").checked)
+        cps.push(DATA.HANGUL.SWAP);
     }
   }
   return String.fromCodePoint(...cps);
@@ -310,7 +334,7 @@ function renderHang() {
 
 function yiChunk(id, oid) {
   const cp = parseCp(document.getElementById(id).value);
-  if (cp == null) return { text: "", debug: "" };
+  if (cp == null) return {text: "", debug: ""};
   const oi = +document.getElementById(oid).value;
   const vs = DATA.ORIENTs[oi] || 0;
   let text = String.fromCodePoint(cp);
@@ -319,7 +343,7 @@ function yiChunk(id, oid) {
     text += String.fromCodePoint(vs);
     debug += " + " + DATA.ORIENT_LABELS[oi];
   }
-  return { text, debug };
+  return {text, debug};
 }
 
 function yiSeq() {
@@ -331,8 +355,20 @@ function yiSeq() {
   const pair = DATA.YI.SLICE[slice];
   const ov = DATA.YI.OV || DATA.OV;
   return {
-    text: a.text + String.fromCodePoint(pair[0]) + String.fromCodePoint(ov) + b.text + String.fromCodePoint(pair[1]),
-    debug: a.debug + " · FE" + (pair[0] - 0xfe00).toString(16).toUpperCase().padStart(2, "0") + " FE00 · " + b.debug + " + FE" + (pair[1] - 0xfe00).toString(16).toUpperCase().padStart(2, "0"),
+    text:
+      a.text
+      + String.fromCodePoint(pair[0])
+      + String.fromCodePoint(ov)
+      + b.text
+      + String.fromCodePoint(pair[1]),
+    debug:
+      a.debug
+      + " · FE"
+      + (pair[0] - 0xfe00).toString(16).toUpperCase().padStart(2, "0")
+      + " FE00 · "
+      + b.debug
+      + " + FE"
+      + (pair[1] - 0xfe00).toString(16).toUpperCase().padStart(2, "0"),
   };
 }
 
@@ -366,7 +402,10 @@ function applyFace() {
   const face = document.getElementById("face").value;
   const editor = document.getElementById("editor");
   editor.style.fontFamily = editorStack(face);
-  document.documentElement.style.setProperty("--cjk", "'" + cjkFamily(face) + "'");
+  document.documentElement.style.setProperty(
+    "--cjk",
+    "'" + cjkFamily(face) + "'",
+  );
 }
 
 function updateStatus() {
@@ -385,18 +424,18 @@ function bootUi() {
     const el = document.getElementById("bootWarn");
     el.hidden = false;
     el.textContent =
-      "Missing font CSS: " +
-      DATA.missing.join(", ") +
-      ". Run the build scripts (or copy dist/*.css + woff2) then refresh.";
+      "Missing font CSS: "
+      + DATA.missing.join(", ")
+      + ". Run the build scripts (or copy dist/*.css + woff2) then refresh.";
   }
 
   const faceSel = document.getElementById("face");
-  [...faceSel.options].forEach((opt) => {
+  [...faceSel.options].forEach(opt => {
     opt.hidden = !cjkAvailable(opt.value);
     opt.disabled = opt.hidden;
   });
   if (!cjkAvailable(faceSel.value)) {
-    const first = [...faceSel.options].find((o) => !o.disabled);
+    const first = [...faceSel.options].find(o => !o.disabled);
     if (first) faceSel.value = first.value;
   }
 
@@ -407,24 +446,24 @@ function bootUi() {
   fillSelect(
     document.getElementById("hangL"),
     DATA.HANGUL.L,
-    (it) => it.ch + " " + it.s
+    it => it.ch + " " + it.s,
   );
   fillSelect(
     document.getElementById("hangV"),
     DATA.HANGUL.V,
-    (it) => it.ch + " " + it.s
+    it => it.ch + " " + it.s,
   );
   fillSelect(
     document.getElementById("hangT"),
     DATA.HANGUL.T,
-    (it) => it.ch + " " + it.s
+    it => it.ch + " " + it.s,
   );
   renderHang();
 
   const yiAo = document.getElementById("yiAo");
   const yiBo = document.getElementById("yiBo");
   DATA.ORIENT_LABELS.forEach((lab, i) => {
-    [yiAo, yiBo].forEach((sel) => {
+    [yiAo, yiBo].forEach(sel => {
       const opt = document.createElement("option");
       opt.value = String(i);
       opt.textContent = lab;
@@ -443,7 +482,7 @@ function bootUi() {
     });
   }
   const mk = document.getElementById("cjkMarks");
-  DATA.CJK_MARKS.forEach((m) => {
+  DATA.CJK_MARKS.forEach(m => {
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = m.ch + " " + m.label;
@@ -463,7 +502,7 @@ function bootUi() {
   fillSelect(
     document.getElementById("combining"),
     DATA.COMBINING,
-    (it) => it.ch + " U+" + it.cp.toString(16).toUpperCase() + " " + (it.s || "")
+    it => it.ch + " U+" + it.cp.toString(16).toUpperCase() + " " + (it.s || ""),
   );
 
   applyFace();
@@ -474,17 +513,19 @@ async function main() {
   window.DATA = await (await fetch("/api/data.json")).json();
   bootUi();
 
-  document.getElementById("tabs").addEventListener("click", (ev) => {
+  document.getElementById("tabs").addEventListener("click", ev => {
     const btn = ev.target.closest("button[data-tab]");
     if (!btn) return;
-    document.querySelectorAll(".tabs button").forEach((b) =>
-      b.classList.toggle("active", b === btn)
-    );
-    document.querySelectorAll(".pane").forEach((p) =>
-      p.classList.toggle("active", p.id === "pane-" + btn.dataset.tab)
-    );
+    document
+      .querySelectorAll(".tabs button")
+      .forEach(b => b.classList.toggle("active", b === btn));
+    document
+      .querySelectorAll(".pane")
+      .forEach(p =>
+        p.classList.toggle("active", p.id === "pane-" + btn.dataset.tab),
+      );
   });
-  document.getElementById("axis").addEventListener("change", (ev) => {
+  document.getElementById("axis").addEventListener("change", ev => {
     cjkState.axis = ev.target.value;
     renderCjkTemplates();
     renderCjkPreview();
@@ -496,23 +537,38 @@ async function main() {
     applyFace();
     insertText(seq.text, seq.family);
   });
-  ["hangL", "hangLv", "hangV", "hangVv", "hangT", "hangTv", "hangWantT", "hangSwap"].forEach(
-    (id) => document.getElementById(id).addEventListener("input", renderHang)
+  [
+    "hangL",
+    "hangLv",
+    "hangV",
+    "hangVv",
+    "hangT",
+    "hangTv",
+    "hangWantT",
+    "hangSwap",
+  ].forEach(id =>
+    document.getElementById(id).addEventListener("input", renderHang),
   );
   document.getElementById("btnInsertHang").addEventListener("click", () => {
     insertText(hangSeq(), "edenia hangul");
   });
-  ["yiA", "yiAo", "yiB", "yiBo", "yiSlice"].forEach((id) =>
-    document.getElementById(id).addEventListener("input", renderYi)
+  ["yiA", "yiAo", "yiB", "yiBo", "yiSlice"].forEach(id =>
+    document.getElementById(id).addEventListener("input", renderYi),
   );
   document.getElementById("btnInsertYi").addEventListener("click", () => {
-    insertText(yiSeq().text, (DATA.FAMILIES && DATA.FAMILIES.yi_h) || "edenia yi h");
+    insertText(
+      yiSeq().text,
+      (DATA.FAMILIES && DATA.FAMILIES.yi_h) || "edenia yi h",
+    );
   });
-  ["kanaA", "kanaB", "kanaSlice"].forEach((id) =>
-    document.getElementById(id).addEventListener("input", renderKana)
+  ["kanaA", "kanaB", "kanaSlice"].forEach(id =>
+    document.getElementById(id).addEventListener("input", renderKana),
   );
   document.getElementById("btnInsertKana").addEventListener("click", () => {
-    insertText(kanaSeq(), (DATA.FAMILIES && DATA.FAMILIES.kana_h) || "edenia kana h");
+    insertText(
+      kanaSeq(),
+      (DATA.FAMILIES && DATA.FAMILIES.kana_h) || "edenia kana h",
+    );
   });
   document.getElementById("btnCgj").addEventListener("click", () => {
     insertText("\u034f");
@@ -522,8 +578,11 @@ async function main() {
     if (m) insertText(String.fromCodePoint(m.cp));
   });
   document.getElementById("face").addEventListener("change", applyFace);
-  document.getElementById("size").addEventListener("input", (ev) => {
-    document.documentElement.style.setProperty("--editor-size", ev.target.value + "px");
+  document.getElementById("size").addEventListener("input", ev => {
+    document.documentElement.style.setProperty(
+      "--editor-size",
+      ev.target.value + "px",
+    );
   });
   document.getElementById("btnCopy").addEventListener("click", async () => {
     await navigator.clipboard.writeText(editorPlain());
@@ -541,7 +600,7 @@ async function main() {
   document.getElementById("editor").addEventListener("mouseup", updateStatus);
 }
 
-main().catch((err) => {
+main().catch(err => {
   const el = document.getElementById("bootWarn");
   el.hidden = false;
   el.textContent = "Failed to load /api/data.json: " + err;

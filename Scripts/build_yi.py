@@ -1056,6 +1056,12 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 YI_BASE_FE = set(range(0xFE01, 0xFE08))
 YI_H_FE = set(range(0xFE00, 0xFE10))
 YI_PUA_SELECTORS = set(range(0xE000, 0xE011))
+YI_T_VS = {0xFE00} | set(range(0xE0100, 0xE010A))
+YI_QV_VS = {0xFE00, 0xFE08, 0xFE09} | set(range(0xE010A, 0xE0111))
+YI_QH_VS = {0xFE00, 0xFE0A, 0xFE0B} | set(range(0xE0111, 0xE0118))
+YI_Q_VS = (
+    {0xFE00} | set(range(0xFE08, 0xFE10)) | set(range(0xE0118, 0xE0120))
+)
 
 
 def _css_cps_for_yi_face(
@@ -1068,6 +1074,14 @@ def _css_cps_for_yi_face(
     }
     if variant == "h":
         cps |= YI_H_FE
+    elif variant == "t":
+        cps |= YI_T_VS
+    elif variant == "qv":
+        cps |= YI_QV_VS
+    elif variant == "qh":
+        cps |= YI_QH_VS
+    elif variant == "q":
+        cps |= YI_Q_VS
     elif variant == "":
         cps |= YI_BASE_FE
         cps |= set(mark_cps)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build an HTML gallery of edenia kana chart × D4 × smalls × slices × dakuten.
 
-Slices need `edenia kana h` (with `edenia kana` as fallback for D4/dakuten).
+Segment faces (`h` / `t` / `qv` / `qh`, plus base) stack via CSS unicode-range.
 
 Encoding (matches `build_kana`)::
 
@@ -11,7 +11,8 @@ Encoding (matches `build_kana`)::
     hw_full[i]  = U+F0000 + 2*i
     hw_small[i] = U+F0000 + 2*i + 1
 
-Orientations are real PUA codepoints (not VS). Combining slices use FE00 overlay + FE08–FE0F.
+Orientations are real PUA codepoints (not VS). Combining slices: half FE08–FE0F,
+third VS17–26 (U+E0100–E0109), quarter VS on qv/qh — all with FE00 overlay.
 After each script block: length (h U+301C / k U+30FC) and gemination
 (h U+309D / k U+30FD), all D4.
 
@@ -66,6 +67,9 @@ from yi_slice import (
     SLICE_TR_CP,
 )
 from shared_half_cells import OV_SELECTOR_CP, YI_ORIENTATION_MODES
+from shared_third_cells import THIRD_VS_SLOTS
+from shared_quarter_cells import QUARTER_VS_SLOTS_H, QUARTER_VS_SLOTS_V
+from edenia_names import SEGMENT_FACE_CSS_ORDER, family_kana_variant
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "kana", "all-kana.html")
@@ -77,32 +81,94 @@ ORIENT_LABEL = [
     for _vs, _r, _fx, _fy, suffix in YI_ORIENTATION_MODES
 ]
 
-SLICE_MODES = [
-    {"id": "none", "a": None, "b": None, "label": "none"},
-    {
-        "id": "TB",
-        "a": SLICE_TOP_CP,
-        "b": SLICE_BOT_CP,
-        "label": "FE08 FE00 / FE09 (top+bot)",
-    },
-    {
-        "id": "LR",
-        "a": SLICE_LEFT_CP,
-        "b": SLICE_RIGHT_CP,
-        "label": "FE0A FE00 / FE0B (left+right)",
-    },
-    {
-        "id": "TLBR",
-        "a": SLICE_TL_CP,
-        "b": SLICE_BR_CP,
-        "label": "FE0C FE00 / FE0D (tl+br Δ)",
-    },
-    {
-        "id": "TRBL",
-        "a": SLICE_TR_CP,
-        "b": SLICE_BL_CP,
-        "label": "FE0E FE00 / FE0F (tr+bl Δ)",
-    },
+KANA_FONT_STACK = ", ".join(
+    f"'{family_kana_variant(v)}'" for v in SEGMENT_FACE_CSS_ORDER
+)
+
+
+def _vs_by_suffix(slots) -> dict:
+    return {suf: cp for cp, _sel, suf, *_rest in slots}
+
+
+def _slice_mode(id_: str, a: int | None, b: int | None, label: str) -> dict:
+    return {"id": id_, "a": a, "b": b, "label": label}
+
+
+def _pair_modes(
+    *,
+    prefix: str,
+    pairs: list[tuple[str, str]],
+    by_suf: dict,
+) -> list[dict]:
+    out: list[dict] = []
+    for a_suf, b_suf in pairs:
+        a_cp, b_cp = by_suf[a_suf], by_suf[b_suf]
+        out.append(
+            _slice_mode(
+                f"{prefix}:{a_suf}+{b_suf}",
+                a_cp,
+                b_cp,
+                f"{prefix} {a_suf}/{b_suf} "
+                f"(U+{a_cp:X} FE00 / U+{b_cp:X})",
+            )
+        )
+    return out
+
+
+SLICE_MODES: list[dict] = [
+    _slice_mode("none", None, None, "none"),
+    _slice_mode(
+        "TB",
+        SLICE_TOP_CP,
+        SLICE_BOT_CP,
+        "h FE08 FE00 / FE09 (top+bot)",
+    ),
+    _slice_mode(
+        "LR",
+        SLICE_LEFT_CP,
+        SLICE_RIGHT_CP,
+        "h FE0A FE00 / FE0B (left+right)",
+    ),
+    _slice_mode(
+        "TLBR",
+        SLICE_TL_CP,
+        SLICE_BR_CP,
+        "h FE0C FE00 / FE0D (tl+br Δ)",
+    ),
+    _slice_mode(
+        "TRBL",
+        SLICE_TR_CP,
+        SLICE_BL_CP,
+        "h FE0E FE00 / FE0F (tr+bl Δ)",
+    ),
+    *_pair_modes(
+        prefix="t",
+        pairs=[
+            ("t3t", "t3mb"),
+            ("t3tm", "t3b"),
+            ("t3l", "t3cr"),
+            ("t3lc", "t3r"),
+        ],
+        by_suf=_vs_by_suffix(THIRD_VS_SLOTS),
+    ),
+    *_pair_modes(
+        prefix="qv",
+        pairs=[
+            ("q4th", "q4bh"),
+            ("q4t", "q4b3"),
+            ("q4t3", "q4b"),
+        ],
+        by_suf=_vs_by_suffix(QUARTER_VS_SLOTS_V),
+    ),
+    *_pair_modes(
+        prefix="qh",
+        pairs=[
+            ("q4lh", "q4rh"),
+            ("q4l", "q4r3"),
+            ("q4l3", "q4r"),
+        ],
+        by_suf=_vs_by_suffix(QUARTER_VS_SLOTS_H),
+    ),
 ]
 
 
@@ -257,7 +323,7 @@ button:hover {{ background: #355a48; }}
 button.danger {{ background: #4a2a2a; border-color: #6a3a3a; }}
 #status {{ font-size: 13px; color: #8af; margin: 8px 0 16px; min-height: 1.2em; }}
 #out {{
-  font-family: 'edenia kana h', 'edenia kana', sans-serif;
+  font-family: {KANA_FONT_STACK}, sans-serif;
   font-size: var(--fs);
   line-height: 1.35;
   display: flex; flex-wrap: wrap; gap: 2px;
@@ -283,7 +349,7 @@ h2 {{
   grid-template-columns: auto repeat({n_cols}, minmax(2.2em, 1fr));
   gap: 2px 4px;
   width: 100%;
-  font-family: 'edenia kana h', 'edenia kana', sans-serif;
+  font-family: {KANA_FONT_STACK}, sans-serif;
   font-size: var(--fs);
   font-feature-settings: "rlig" 1, "liga" 1, "ccmp" 1, "mark" 1, "abvm" 1, "mkmk" 1;
   margin-bottom: 12px;
@@ -303,7 +369,8 @@ h2 {{
 <p class="meta">
   {n:,} logical ({HIRAGANA_COUNT} hiragana + {n - HIRAGANA_COUNT} katakana,
   phonetic rows + length/gemination each) · {D4_COUNT} D4 orientations as PUA
-  (even=full, odd=small @ U+E000…; halfwidth @ U+{HW_PUA_START:05X}…) · slices FE00/FE08–F ·
+  (even=full, odd=small @ U+E000…; halfwidth @ U+{HW_PUA_START:05X}…) ·
+  slices h/t/qv/qh (FE00 + FE08–F / VS17–26 / quarter VS) ·
   dakuten {len(marks)} (sample).<br/>
   Orientation gallery: {n_orient:,} · pairwise slices: {n_pair:,} each mode
   (on demand). Diacritics optional: 1–{DAKUTEN_SLOT_COUNT} marks →
@@ -546,18 +613,21 @@ function renderOrientations(indices) {{
   setStatus('Rendered ' + n.toLocaleString() + ' orientation cells');
 }}
 
+function cpTag(cp) {{
+  return 'U+' + cp.toString(16).toUpperCase();
+}}
 function sliceText(ai, ao, bi, bo, mode) {{
   let text = kanaChar(ai, ao);
   let tag = tagFor(ai, ao);
   if (mode.a != null) {{
     text += String.fromCodePoint(mode.a) + String.fromCodePoint(DATA.OV);
-    tag += '+FE' + (mode.a - 0xFE00).toString(16).toUpperCase().padStart(2, '0') + '+FE00';
+    tag += '+' + cpTag(mode.a) + '+FE00';
   }}
   text += kanaChar(bi, bo);
   tag += '+' + tagFor(bi, bo);
   if (mode.b != null) {{
     text += String.fromCodePoint(mode.b);
-    tag += '+FE' + (mode.b - 0xFE00).toString(16).toUpperCase().padStart(2, '0');
+    tag += '+' + cpTag(mode.b);
   }}
   text += markSuffix();
   tag += markTag();

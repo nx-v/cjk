@@ -11,10 +11,19 @@
   --editor-size: 28px;
   --cjk: "edenia cjk";
 }
-* { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; }
+* {
+  box-sizing: border-box;
+}
+html,
 body {
-  font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+  margin: 0;
+  height: 100%;
+}
+body {
+  font:
+    14px/1.45 "Segoe UI",
+    system-ui,
+    sans-serif;
   color: var(--ink);
   background:
     radial-gradient(ellipse 80% 50% at 10% -10%, #e4ebe2, transparent 55%),
@@ -38,18 +47,36 @@ header.top {
 }
 header.top h1 {
   margin: 0;
-  font: 600 1.1rem/1.2 Georgia, "Times New Roman", serif;
+  font:
+    600 1.1rem/1.2 Georgia,
+    "Times New Roman",
+    serif;
 }
-header.top .lead { margin: 0; color: var(--muted); font-size: 0.82rem; }
-.tools { display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: end; }
-.field { display: grid; gap: 0.2rem; }
+header.top .lead {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: end;
+}
+.field {
+  display: grid;
+  gap: 0.2rem;
+}
 .field label {
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
 }
-.field input, .field select, button, .tabs button {
+.field input,
+.field select,
+button,
+.tabs button {
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.35rem 0.5rem;
@@ -57,22 +84,31 @@ header.top .lead { margin: 0; color: var(--muted); font-size: 0.82rem; }
   background: #fff;
   color: inherit;
 }
-button, .tabs button { cursor: pointer; }
+button,
+.tabs button {
+  cursor: pointer;
+}
 button.primary {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
 }
-button.ghost { background: transparent; }
+button.ghost {
+  background: transparent;
+}
 main.work {
   display: grid;
   grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
   min-height: 0;
 }
 @media (max-width: 900px) {
-  main.work { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  main.work {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
 }
-.composer, .stage {
+.composer,
+.stage {
   min-height: 0;
   overflow: auto;
 }
@@ -84,13 +120,22 @@ main.work {
   align-content: start;
   gap: 0.7rem;
 }
-.tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
 .tabs button.active {
   background: var(--accent-soft);
   border-color: var(--accent);
 }
-.pane { display: none; gap: 0.65rem; }
-.pane.active { display: grid; }
+.pane {
+  display: none;
+  gap: 0.65rem;
+}
+.pane.active {
+  display: grid;
+}
 .chars {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -104,7 +149,10 @@ main.work {
   display: grid;
   gap: 0.3rem;
 }
-.char-card .idx { font-size: 0.68rem; color: var(--muted); }
+.char-card .idx {
+  font-size: 0.68rem;
+  color: var(--muted);
+}
 .char-preview {
   height: 2.2rem;
   display: grid;
@@ -112,9 +160,15 @@ main.work {
   font-size: 1.45rem;
   background: var(--slot);
   border-radius: 6px;
-  font-family: "edenia hangul", "edenia hanguls", "edenia kana h", "edenia kana", "edenia yi h", "edenia yi", "edenia cjk";
+  font-family:
+    "edenia hangul", "edenia hanguls", "edenia kana h", "edenia kana",
+    "edenia yi h", "edenia yi", "edenia cjk";
 }
-.tpl-group-label { font-size: 0.72rem; color: var(--muted); margin: 0.2rem 0; }
+.tpl-group-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin: 0.2rem 0;
+}
 .tpl-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
@@ -128,13 +182,23 @@ main.work {
   padding: 0.35rem;
   text-align: center;
 }
-.tpl:hover { border-color: var(--accent); }
+.tpl:hover {
+  border-color: var(--accent);
+}
 .tpl.active {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
-.tpl.disabled { opacity: 0.35; pointer-events: none; }
-.tpl .name { display: block; font-size: 0.64rem; margin-top: 0.2rem; color: var(--muted); }
+.tpl.disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.tpl .name {
+  display: block;
+  font-size: 0.64rem;
+  margin-top: 0.2rem;
+  color: var(--muted);
+}
 .diagram {
   width: 48px;
   height: 48px;
@@ -152,49 +216,136 @@ main.work {
   font-weight: 600;
   border: 0 solid var(--ink);
 }
-.diagram.v-2 { grid-template-rows: 1fr 1fr; }
-.diagram.v-2 span + span { border-top-width: 1px; }
-.diagram.h-2 { grid-template-columns: 1fr 1fr; }
-.diagram.h-2 span + span { border-left-width: 1px; }
-.diagram.v-3 { grid-template-rows: 1fr 1fr 1fr; }
-.diagram.v-3 span + span { border-top-width: 1px; }
-.diagram.h-3 { grid-template-columns: 1fr 1fr 1fr; }
-.diagram.h-3 span + span { border-left-width: 1px; }
-.diagram.v-4 { grid-template-rows: 1fr 1fr 1fr 1fr; }
-.diagram.v-4 span + span { border-top-width: 1px; }
-.diagram.h-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
-.diagram.h-4 span + span { border-left-width: 1px; }
-.diagram.v-2u { grid-template-rows: 2fr 1fr; }
-.diagram.v-2u span + span { border-top-width: 1px; }
-.diagram.v-2d { grid-template-rows: 1fr 2fr; }
-.diagram.v-2d span + span { border-top-width: 1px; }
-.diagram.h-2l { grid-template-columns: 2fr 1fr; }
-.diagram.h-2l span + span { border-left-width: 1px; }
-.diagram.h-2r { grid-template-columns: 1fr 2fr; }
-.diagram.h-2r span + span { border-left-width: 1px; }
-.diagram.v-31 { grid-template-rows: 3fr 1fr; }
-.diagram.v-31 span + span { border-top-width: 1px; }
-.diagram.v-13 { grid-template-rows: 1fr 3fr; }
-.diagram.v-13 span + span { border-top-width: 1px; }
-.diagram.h-31 { grid-template-columns: 3fr 1fr; }
-.diagram.h-31 span + span { border-left-width: 1px; }
-.diagram.h-13 { grid-template-columns: 1fr 3fr; }
-.diagram.h-13 span + span { border-left-width: 1px; }
-.diagram.v-211 { grid-template-rows: 2fr 1fr 1fr; }
-.diagram.v-211 span + span { border-top-width: 1px; }
-.diagram.v-121 { grid-template-rows: 1fr 2fr 1fr; }
-.diagram.v-121 span + span { border-top-width: 1px; }
-.diagram.v-112 { grid-template-rows: 1fr 1fr 2fr; }
-.diagram.v-112 span + span { border-top-width: 1px; }
-.diagram.h-211 { grid-template-columns: 2fr 1fr 1fr; }
-.diagram.h-211 span + span { border-left-width: 1px; }
-.diagram.h-121 { grid-template-columns: 1fr 2fr 1fr; }
-.diagram.h-121 span + span { border-left-width: 1px; }
-.diagram.h-112 { grid-template-columns: 1fr 1fr 2fr; }
-.diagram.h-112 span + span { border-left-width: 1px; }
-.diagram.g-2x2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
-.diagram.g-2x2 span:nth-child(2n) { border-left-width: 1px; }
-.diagram.g-2x2 span:nth-child(n+3) { border-top-width: 1px; }
+.diagram.v-2 {
+  grid-template-rows: 1fr 1fr;
+}
+.diagram.v-2 span + span {
+  border-top-width: 1px;
+}
+.diagram.h-2 {
+  grid-template-columns: 1fr 1fr;
+}
+.diagram.h-2 span + span {
+  border-left-width: 1px;
+}
+.diagram.v-3 {
+  grid-template-rows: 1fr 1fr 1fr;
+}
+.diagram.v-3 span + span {
+  border-top-width: 1px;
+}
+.diagram.h-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.diagram.h-3 span + span {
+  border-left-width: 1px;
+}
+.diagram.v-4 {
+  grid-template-rows: 1fr 1fr 1fr 1fr;
+}
+.diagram.v-4 span + span {
+  border-top-width: 1px;
+}
+.diagram.h-4 {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+}
+.diagram.h-4 span + span {
+  border-left-width: 1px;
+}
+.diagram.v-2u {
+  grid-template-rows: 2fr 1fr;
+}
+.diagram.v-2u span + span {
+  border-top-width: 1px;
+}
+.diagram.v-2d {
+  grid-template-rows: 1fr 2fr;
+}
+.diagram.v-2d span + span {
+  border-top-width: 1px;
+}
+.diagram.h-2l {
+  grid-template-columns: 2fr 1fr;
+}
+.diagram.h-2l span + span {
+  border-left-width: 1px;
+}
+.diagram.h-2r {
+  grid-template-columns: 1fr 2fr;
+}
+.diagram.h-2r span + span {
+  border-left-width: 1px;
+}
+.diagram.v-31 {
+  grid-template-rows: 3fr 1fr;
+}
+.diagram.v-31 span + span {
+  border-top-width: 1px;
+}
+.diagram.v-13 {
+  grid-template-rows: 1fr 3fr;
+}
+.diagram.v-13 span + span {
+  border-top-width: 1px;
+}
+.diagram.h-31 {
+  grid-template-columns: 3fr 1fr;
+}
+.diagram.h-31 span + span {
+  border-left-width: 1px;
+}
+.diagram.h-13 {
+  grid-template-columns: 1fr 3fr;
+}
+.diagram.h-13 span + span {
+  border-left-width: 1px;
+}
+.diagram.v-211 {
+  grid-template-rows: 2fr 1fr 1fr;
+}
+.diagram.v-211 span + span {
+  border-top-width: 1px;
+}
+.diagram.v-121 {
+  grid-template-rows: 1fr 2fr 1fr;
+}
+.diagram.v-121 span + span {
+  border-top-width: 1px;
+}
+.diagram.v-112 {
+  grid-template-rows: 1fr 1fr 2fr;
+}
+.diagram.v-112 span + span {
+  border-top-width: 1px;
+}
+.diagram.h-211 {
+  grid-template-columns: 2fr 1fr 1fr;
+}
+.diagram.h-211 span + span {
+  border-left-width: 1px;
+}
+.diagram.h-121 {
+  grid-template-columns: 1fr 2fr 1fr;
+}
+.diagram.h-121 span + span {
+  border-left-width: 1px;
+}
+.diagram.h-112 {
+  grid-template-columns: 1fr 1fr 2fr;
+}
+.diagram.h-112 span + span {
+  border-left-width: 1px;
+}
+.diagram.g-2x2 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.diagram.g-2x2 span:nth-child(2n) {
+  border-left-width: 1px;
+}
+.diagram.g-2x2 span:nth-child(n + 3) {
+  border-top-width: 1px;
+}
 .preview-mini {
   min-height: 4.5rem;
   display: grid;
@@ -211,8 +362,17 @@ main.work {
   color: var(--muted);
   word-break: break-all;
 }
-.row { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: end; }
-.hint { color: var(--muted); font-size: 0.8rem; margin: 0; }
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: end;
+}
+.hint {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
 .stage {
   display: grid;
   grid-template-rows: 1fr auto;
@@ -231,9 +391,19 @@ main.work {
   font-size: var(--editor-size);
   line-height: 1.45;
   font-family:
-    "edenia hangul", "edenia hanguls", "edenia kana h", "edenia kana", "edenia yi h", "edenia yi",
-    var(--cjk), Georgia, serif;
-  font-feature-settings: "liga" 1, "rlig" 1, "ccmp" 1, "mark" 1, "abvm" 1, "mkmk" 1, "rclt" 1, "ljmo" 1, "vjmo" 1, "tjmo" 1;
+    "edenia hangul", "edenia hanguls", "edenia kana h", "edenia kana",
+    "edenia yi h", "edenia yi", var(--cjk), Georgia, serif;
+  font-feature-settings:
+    "liga" 1,
+    "rlig" 1,
+    "ccmp" 1,
+    "mark" 1,
+    "abvm" 1,
+    "mkmk" 1,
+    "rclt" 1,
+    "ljmo" 1,
+    "vjmo" 1,
+    "tjmo" 1;
   outline: none;
 }
 #editor:empty:before {
@@ -252,5 +422,11 @@ main.work {
   font-size: 0.82rem;
   margin: 0;
 }
-.mark-btns { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-.mark-btns button { min-width: 2.4rem; }
+.mark-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.mark-btns button {
+  min-width: 2.4rem;
+}

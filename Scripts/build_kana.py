@@ -1377,6 +1377,12 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 
 KANA_H_FE = {0xFE00} | set(range(0xFE08, 0xFE10))
+KANA_T_VS = {0xFE00} | set(range(0xE0100, 0xE010A))
+KANA_QV_VS = {0xFE00, 0xFE08, 0xFE09} | set(range(0xE010A, 0xE0111))
+KANA_QH_VS = {0xFE00, 0xFE0A, 0xFE0B} | set(range(0xE0111, 0xE0118))
+KANA_Q_VS = (
+    {0xFE00} | set(range(0xFE08, 0xFE10)) | set(range(0xE0118, 0xE0120))
+)
 
 
 def _css_cps_for_kana_face(
@@ -1385,6 +1391,14 @@ def _css_cps_for_kana_face(
     cps = {cp for cp in codepoints if not (0xFE00 <= cp <= 0xFE0F)}
     if variant == "h":
         cps |= KANA_H_FE
+    elif variant == "t":
+        cps |= KANA_T_VS
+    elif variant == "qv":
+        cps |= KANA_QV_VS
+    elif variant == "qh":
+        cps |= KANA_QH_VS
+    elif variant == "q":
+        cps |= KANA_Q_VS
     elif variant == "":
         cps |= set(mark_cps)
     return sorted(cps)
