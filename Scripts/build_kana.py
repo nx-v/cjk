@@ -104,14 +104,14 @@ from cape_weightor import (
     layer_from_ttglyph,
     widen_ttglyph,
 )
-from kana_diacritics import (
+from kana_yi_diacritics import (
     collect_kana_dakuten_anchors,
     kana_coord_liga_names,
     kana_mark_center_anchor,
     kana_mark_chain_parent_anchor,
     kana_representative_mark_points,
 )
-from shared_diacritics import (
+from hangul_diacritics import (
     DAKUTEN_SLOT_CYCLE,
     DAKUTEN_SLOTS,
     add_dakuten_mark_glyphs,
@@ -421,6 +421,7 @@ def resolve_flop_family_paths(in_dir: str) -> List[str]:
             (
                 os.path.join(src_dir, name),
                 os.path.join(in_dir, name),
+                os.path.join(REPO_ROOT, "CJK", name),
                 os.path.join(REPO_ROOT, name),
             )
         )
@@ -433,13 +434,13 @@ def resolve_flop_family_paths(in_dir: str) -> List[str]:
         found.append(path)
     if not found:
         raise FileNotFoundError(
-            f"FlopDesignFONT not found under " f"Scripts/src / {in_dir!r} / repo root"
+            f"FlopDesignFONT not found under " f"Scripts/src / {in_dir!r} / CJK / repo root"
         )
     return found
 
 
 def resolve_mkana_path(in_dir: str) -> str:
-    """Prefer Scripts/src (mkanaplus lives there), then in_dir / Kana / repo."""
+    """Prefer Scripts/src (mkanaplus lives there), then in_dir / CJK / repo."""
     src_dir = os.path.join(SCRIPT_DIR, "src")
     candidates: List[str] = []
     # All names under Scripts/src first (user inventory lives there).
@@ -447,29 +448,31 @@ def resolve_mkana_path(in_dir: str) -> str:
         candidates.append(os.path.join(src_dir, name))
     for name in MKANA_FILENAMES:
         candidates.append(os.path.join(in_dir, name))
+        candidates.append(os.path.join(REPO_ROOT, "CJK", name))
         candidates.append(os.path.join(REPO_ROOT, "Kana", name))
         candidates.append(os.path.join(REPO_ROOT, name))
     found = _first_existing(candidates)
     if found is None:
         raise FileNotFoundError(
-            f"mkanaplus not found under Scripts/src / {in_dir!r} / Kana / repo root"
+            f"mkanaplus not found under Scripts/src / {in_dir!r} / CJK / repo root"
         )
     return found
 
 
 def resolve_genseki_path(in_dir: str) -> str:
-    """Prefer Scripts/src, then in_dir / repo root."""
+    """Prefer Scripts/src, then in_dir / CJK / repo root."""
     src_dir = os.path.join(SCRIPT_DIR, "src")
     candidates: List[str] = []
     for name in GENSEKI_FILENAMES:
         candidates.append(os.path.join(src_dir, name))
     for name in GENSEKI_FILENAMES:
         candidates.append(os.path.join(in_dir, name))
+        candidates.append(os.path.join(REPO_ROOT, "CJK", name))
         candidates.append(os.path.join(REPO_ROOT, name))
     found = _first_existing(candidates)
     if found is None:
         raise FileNotFoundError(
-            f"GenSeki Hentaigana not found under Scripts/src / {in_dir!r} / repo root"
+            f"GenSeki Hentaigana not found under Scripts/src / {in_dir!r} / CJK / repo root"
         )
     return found
 
@@ -484,7 +487,9 @@ def resolve_lxgw_family_paths(in_dir: str) -> List[str]:
             (
                 os.path.join(src_dir, name),
                 os.path.join(in_dir, name),
+                os.path.join(REPO_ROOT, "CJK", "LXGW", name),
                 os.path.join(REPO_ROOT, "LXGW", name),
+                os.path.join(REPO_ROOT, "CJK", name),
                 os.path.join(REPO_ROOT, name),
             )
         )
@@ -498,7 +503,7 @@ def resolve_lxgw_family_paths(in_dir: str) -> List[str]:
     if not found:
         raise FileNotFoundError(
             f"LXGW family (Clear Gothic / XiHei) not found under "
-            f"Scripts/src / {in_dir!r} / LXGW / repo root"
+            f"Scripts/src / {in_dir!r} / CJK/LXGW / repo root"
         )
     return found
 
@@ -1225,7 +1230,7 @@ def write_css(out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]) ->
             if not os.path.isfile(font_path):
                 continue
             try:
-                from shared_diacritics import combining_mark_codepoints_from_font
+                from hangul_diacritics import combining_mark_codepoints_from_font
 
                 mark_cps |= set(combining_mark_codepoints_from_font(font_path))
             except Exception as exc:

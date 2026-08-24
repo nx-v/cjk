@@ -100,7 +100,7 @@ def _combining_marks(limit: int = 48) -> List[dict]:
     if font.is_file():
         try:
             from fontTools.ttLib import TTFont
-            from shared_diacritics import iter_dakuten_codepoints, visible_dakuten_cps
+            from hangul_diacritics import iter_dakuten_codepoints, visible_dakuten_cps
 
             tt = TTFont(str(font))
             try:

@@ -49,7 +49,7 @@ from build_kana import (
     small_cp,
     trailing_mark_label,
 )
-from shared_diacritics import (
+from hangul_diacritics import (
     DAKUTEN_SLOT_COUNT,
     DAKUTEN_SLOT_CYCLE,
     dakuten_count_options_html,
@@ -169,7 +169,7 @@ def dakuten_mark_entries(limit: int = 64) -> List[dict]:
         finally:
             tt.close()
     if not cps:
-        from shared_diacritics import (
+        from hangul_diacritics import (
             load_dakuten_marks_from_stack,
             resolve_dakuten_mark_font_stack,
         )
@@ -181,7 +181,7 @@ def dakuten_mark_entries(limit: int = 64) -> List[dict]:
         except Exception:
             pass
 
-    from shared_diacritics import dakuten_mark_label, visible_dakuten_cps
+    from hangul_diacritics import dakuten_mark_label, visible_dakuten_cps
 
     out: List[dict] = []
     for cp in visible_dakuten_cps(cps)[: max(0, limit) or None]:

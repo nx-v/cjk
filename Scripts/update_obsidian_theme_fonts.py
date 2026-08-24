@@ -243,7 +243,7 @@ def _dakuten_unicode_range() -> str:
     global _DAKUTEN_UR_CACHE
     if _DAKUTEN_UR_CACHE is not None:
         return _DAKUTEN_UR_CACHE
-    from shared_diacritics import (
+    from hangul_diacritics import (
         combining_marks_unicode_range_from_font,
         combining_marks_unicode_range_from_stack,
     )

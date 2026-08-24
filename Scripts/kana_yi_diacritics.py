@@ -1,4 +1,4 @@
-"""Kana dakuten placement: eight compass slots hugging the ink contour.
+"""Kana / Yi dakuten placement: eight compass slots hugging the ink contour.
 
 Each of the first eight marks sits on its compass ray from the ink centroid,
 as close to the outline as the mark gap allows; separation bumps only when
@@ -22,7 +22,7 @@ from fontTools.misc.transform import Transform
 from fontTools.pens.basePen import BasePen
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
-from shared_diacritics import (
+from hangul_diacritics import (
     DAKUTEN_MARK_HEIGHT_FRAC,
     DAKUTEN_SLOTS,
     CGJ_CP,

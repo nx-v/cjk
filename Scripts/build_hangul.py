@@ -94,7 +94,7 @@ from shared_half_cells import (
     ideographic_center,
     variant_glyph_name,
 )
-from shared_diacritics import (
+from hangul_diacritics import (
     DAKUTEN_SLOT_CYCLE,
     DAKUTEN_SLOT_COUNT,
     add_dakuten_mark_glyphs,
@@ -1884,7 +1884,7 @@ def _attach_gpos_features(
     tags (e.g. a second `rclt`) are not ignored by shapers that enable each
     tag once.
     """
-    from shared_diacritics import _ensure_gpos_scripts
+    from hangul_diacritics import _ensure_gpos_scripts
 
     _ensure_gpos_scripts(gpos, scripts)
     if gpos.FeatureList is None:
@@ -1964,7 +1964,7 @@ def install_fe04_gpos(
 
     Returns `(dy_lv, dy_t, chain_lookup_count)`.
     """
-    from shared_diacritics import _ensure_gpos
+    from hangul_diacritics import _ensure_gpos
 
     if SWAP_GLYPH not in glyphs:
         return 0.0, 0.0, 0
@@ -2236,7 +2236,7 @@ def install_yflip_batchim_gpos(
     `T.sw` — FE04 owns that path. Pure Y-group also raises `V.my` a
     smaller amount; XY `V.my` is left alone.
     """
-    from shared_diacritics import _ensure_gpos
+    from hangul_diacritics import _ensure_gpos
 
     glyph_order = font.getGlyphOrder()
     glyph_map = {n: i for i, n in enumerate(glyph_order)}
@@ -2992,7 +2992,7 @@ def write_css(
                 if not os.path.isfile(font_path):
                     continue
                 try:
-                    from shared_diacritics import combining_mark_codepoints_from_font
+                    from hangul_diacritics import combining_mark_codepoints_from_font
 
                     cps_for_ur = list(
                         set(cps_for_ur)

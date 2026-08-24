@@ -24,8 +24,9 @@ Contents
   horizontal stems at 125% (Y-only Weight), then ~98% ideographic inset.
 
 * Dakuten marks (shared stack `\\p{M}` minus letter / overlay / oversized):
-  GPOS `mark` at fixed CJK corners on VS01..VS07 forms.
-  Successive marks fill TR → BR → TL → BL. No left-squish `.dk` forms.
+  contour-hugging eight-slot placement (`kana_yi_diacritics`) on D4 forms
+  plus slice/overlay ligatures. Successive marks fill TR→CR→…→BL then chain
+  outward. No left-squish `.dk` forms.
 """
 
 from __future__ import annotations
@@ -43,12 +44,11 @@ from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
 from fontTools.ttLib import TTFont
 
-from shared_diacritics import (
+from hangul_diacritics import (
     DAKUTEN_SLOT_CYCLE,
-    DAKUTEN_SLOT_COUNT,
+    DAKUTEN_SLOTS,
     add_dakuten_mark_glyphs,
     add_dakuten_chain_mark_glyphs,
-    collect_dakuten_base_anchors,
     dakuten_mark_stack_label,
     install_dakuten_chain_gsub,
     install_dakuten_gpos,
@@ -57,7 +57,13 @@ from shared_diacritics import (
     install_dakuten_slot_gsub,
     load_dakuten_marks_from_stack,
     resolve_dakuten_mark_font_stack,
-    yi_forms_for_dakuten,
+)
+from kana_yi_diacritics import (
+    collect_kana_dakuten_anchors,
+    kana_coord_liga_names,
+    kana_mark_center_anchor,
+    kana_mark_chain_parent_anchor,
+    kana_representative_mark_points,
 )
 from edenia_names import (
     CSS_YI,
@@ -110,6 +116,8 @@ PS_NAME = PS_YI
 
 # After shared sx/sy fit: uniform horizontal-stem Weight (Y-only CAPE).
 YI_HORIZONTAL_STEM_WEIGHT = 1.4
+# Slight CAPE Width after fit (0.06 → ~106% outer width; stems preserved).
+YI_STANDALONE_WIDEN = 0.07
 
 
 def glyph_name_for_cp(cp: int) -> str:
@@ -148,7 +156,10 @@ def _inject_vs(
 
 
 def install_yi_gsub(
-    font, yi_bases: Sequence[str], glyphs: Dict, glyph_order: Sequence[str],
+    font,
+    yi_bases: Sequence[str],
+    glyphs: Dict,
+    glyph_order: Sequence[str],
     *,
     slices: bool = True,
 ) -> None:
@@ -258,6 +269,7 @@ def _save_yi_face(
     base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
     out_dir: str,
     target_upem: int,
+    mark_ink_height: Optional[float] = None,
     slices: bool,
 ) -> Tuple[str, str, int, List[int]]:
     n_glyphs = len(glyphs)
@@ -312,14 +324,15 @@ def _save_yi_face(
     face_marks = [
         n for n in mark_names if n in glyphs and not is_dakuten_chain_glyph(n)
     ]
-    if face_marks and face_anchors:
+    all_forms = kana_coord_liga_names(yi_names, glyphs=glyphs)
+    if face_marks and face_anchors and all_forms:
         print(f"  Compiling GSUB (dakuten slots {DAKUTEN_SLOT_CYCLE})...", flush=True)
         install_dakuten_slot_gsub(
             fb.font,
             mark_cps,
             glyphs=glyphs,
             glyph_order=glyph_order,
-            base_names=list(face_anchors),
+            base_names=all_forms,
         )
         install_dakuten_chain_gsub(
             fb.font,
@@ -327,7 +340,10 @@ def _save_yi_face(
             glyphs=glyphs,
             glyph_order=glyph_order,
         )
-        print("  Compiling GPOS (dakuten mark @ CJK corners)...", flush=True)
+        print(
+            f"  Compiling GPOS (dakuten @ {len(face_anchors)} contour forms)...",
+            flush=True,
+        )
         install_dakuten_gpos(
             fb.font,
             base_anchors=face_anchors,
@@ -335,13 +351,17 @@ def _save_yi_face(
             mark_names=face_marks,
             glyph_order=glyph_order,
             glyphs=glyphs,
+            mark_anchor_fn=kana_mark_center_anchor,
         )
         install_dakuten_mark_chain_gpos(
             fb.font,
             mark_cps=mark_cps,
             glyphs=glyphs,
             glyph_order=glyph_order,
+            mark_height=mark_ink_height,
             target_upem=target_upem,
+            chain_parent_anchor_fn=kana_mark_chain_parent_anchor,
+            chain_child_anchor_fn=kana_mark_center_anchor,
         )
 
     os.makedirs(out_dir, exist_ok=True)
@@ -369,7 +389,7 @@ def _yi_standalone_task(
         source_advance=source_advance,
         source_center_y=source_center_y,
         source_max_height=source_max_height,
-        widen=0.0,
+        widen=YI_STANDALONE_WIDEN,
         horizontal_weight=YI_HORIZONTAL_STEM_WEIGHT,
     )
     return idx, sa
@@ -392,9 +412,7 @@ def _yi_face_task(
         keep: Set[str] = {".notdef", *m["dakuten_keep"], *m["vs_keep"]}
         for base in bases:
             keep.update(orientation_form_names(base, modes=YI_ORIENTATION_MODES))
-        go, gl, mt, cm = subset_glyph_tables(
-            glyph_order, glyphs, metrics, cmap, keep
-        )
+        go, gl, mt, cm = subset_glyph_tables(glyph_order, glyphs, metrics, cmap, keep)
         print(
             f"  Installing FE08–FE0F slices on {h_bucket_face_id(bucket_id)} "
             f"({len(bases)} Yi CPs)...",
@@ -410,9 +428,7 @@ def _yi_face_task(
         )
         inject_slice_marks(go, gl, mt, cm)
         base_cps = {m["yi_cps"][n] for n in bases}
-        face_uvs = [
-            row for row in m["uvs_rows"] if row[0] in base_cps and row[2] in gl
-        ]
+        face_uvs = [row for row in m["uvs_rows"] if row[0] in base_cps and row[2] in gl]
         face_id = h_bucket_face_id(bucket_id)
         variant = "h"
         slices = True
@@ -440,6 +456,7 @@ def _yi_face_task(
         base_anchors=m["base_anchors"],
         out_dir=m["out_dir"],
         target_upem=m["target_upem"],
+        mark_ink_height=m.get("mark_ink_height"),
         slices=slices,
     )
     return (*meta, os.path.join(m["out_dir"], f"{meta[0]}.ttf"))
@@ -547,68 +564,88 @@ def build_edenia_yi_font(
 
     mark_names: List[str] = []
     mark_cps: List[int] = []
+    mark_ink_h: Optional[float] = None
+    mark_contour_pts: Optional[List[Tuple[float, float]]] = None
     base_anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
-    try:
-        mark_fonts = resolve_dakuten_mark_font_stack(os.path.dirname(inv.source_path))
-        print(
-            f"  Loading dakuten marks from "
-            f"{dakuten_mark_stack_label(mark_fonts)}...",
-            flush=True,
-        )
-        mark_cps, mark_glyphs = load_dakuten_marks_from_stack(mark_fonts, target_upem)
-        mark_names = add_dakuten_mark_glyphs(
-            mark_cps,
-            mark_glyphs,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-            cmap=cmap,
-        )
-        chain_names = add_dakuten_chain_mark_glyphs(
-            mark_cps,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-        )
-        mark_names = list(mark_names) + chain_names
-        dakuten_bases = yi_forms_for_dakuten(yi_names, modes=YI_ORIENTATION_MODES)
-        anchor_bases = list(dakuten_bases)
-        base_anchors = collect_dakuten_base_anchors(
-            anchor_bases,
-            glyphs=glyphs,
-            target_upem=target_upem,
-        )
-        n_unique = len(mark_cps)
-        print(
-            f"  Dakuten: {n_unique} marks × {DAKUTEN_SLOT_COUNT} slots, "
-            f"{len(base_anchors)} bases "
-            f"({DAKUTEN_SLOT_CYCLE}; mark-to-mark chain; fixed H, L/R/mid align)",
-            flush=True,
-        )
-    except FileNotFoundError as exc:
-        print(f"  Skipping dakuten marks: {exc}", flush=True)
-
-    _inject_d4_vs(glyph_order, glyphs, metrics, cmap)
-
-    built: List[Tuple[str, str, int, List[int]]] = []
-    os.makedirs(out_dir, exist_ok=True)
-    face_specs: List[Tuple[str, Optional[int]]] = []
-    if "" in want:
-        face_specs.append(("", None))
-    dakuten_keep = _dakuten_keep_names(glyph_order, mark_names)
-    vs_keep = {n for n in glyph_order if n.startswith("vs")}
-    if "h" in want:
-        buckets: Dict[int, List[str]] = {}
-        for name in yi_names:
-            cp = yi_cps[name]
-            buckets.setdefault(cp >> 8, []).append(name)
-        for bucket_id in sorted(buckets):
-            face_specs.append(("h", bucket_id))
-    if not face_specs:
-        return built
-
     cache_dir = tempfile.mkdtemp(prefix="edenia-yi-")
     try:
+        try:
+            mark_fonts = resolve_dakuten_mark_font_stack(os.path.dirname(inv.source_path))
+            print(
+                f"  Loading dakuten marks from "
+                f"{dakuten_mark_stack_label(mark_fonts)}...",
+                flush=True,
+            )
+            mark_cps, mark_glyphs = load_dakuten_marks_from_stack(mark_fonts, target_upem)
+            mark_contour_pts = kana_representative_mark_points(mark_glyphs)
+            if mark_contour_pts:
+                ys = [y for _x, y in mark_contour_pts]
+                mark_ink_h = max(ys) - min(ys)
+            mark_names = add_dakuten_mark_glyphs(
+                mark_cps,
+                mark_glyphs,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+                cmap=cmap,
+            )
+            chain_names = add_dakuten_chain_mark_glyphs(
+                mark_cps,
+                glyph_order=glyph_order,
+                glyphs=glyphs,
+                metrics=metrics,
+            )
+            mark_names = list(mark_names) + chain_names
+            anchor_names = kana_coord_liga_names(yi_names, glyphs=glyphs)
+            print(
+                f"  Dakuten anchors ({len(anchor_names)} forms, "
+                f"{workers} chunk workers, sharded pickle cache)...",
+                flush=True,
+            )
+            t_anchors = time.perf_counter()
+            base_anchors = collect_kana_dakuten_anchors(
+                anchor_names,
+                glyphs=glyphs,
+                glyph_set=glyphs,
+                target_upem=target_upem,
+                mark_ink_height=mark_ink_h,
+                mark_points=mark_contour_pts,
+                jobs=workers,
+                cache_dir=cache_dir,
+            )
+            print(
+                f"  dakuten anchors done in {time.perf_counter() - t_anchors:.1f}s "
+                f"({len(base_anchors)} bases)",
+                flush=True,
+            )
+            h_note = f"dakuten H≈{mark_ink_h:.0f}" if mark_ink_h else "dakuten H default"
+            print(
+                f"  Dakuten: {len(mark_cps)} marks × {len(DAKUTEN_SLOTS)} slots "
+                f"(octagon ring + corner chain TR→BL; {h_note})",
+                flush=True,
+            )
+        except FileNotFoundError as exc:
+            print(f"  Skipping dakuten marks: {exc}", flush=True)
+
+        _inject_d4_vs(glyph_order, glyphs, metrics, cmap)
+
+        built: List[Tuple[str, str, int, List[int]]] = []
+        os.makedirs(out_dir, exist_ok=True)
+        face_specs: List[Tuple[str, Optional[int]]] = []
+        if "" in want:
+            face_specs.append(("", None))
+        dakuten_keep = _dakuten_keep_names(glyph_order, mark_names)
+        vs_keep = {n for n in glyph_order if n.startswith("vs")}
+        if "h" in want:
+            buckets: Dict[int, List[str]] = {}
+            for name in yi_names:
+                cp = yi_cps[name]
+                buckets.setdefault(cp >> 8, []).append(name)
+            for bucket_id in sorted(buckets):
+                face_specs.append(("h", bucket_id))
+        if not face_specs:
+            return built
+
         cache_path = os.path.join(cache_dir, "master.pkl")
         with open(cache_path, "wb") as f:
             pickle.dump(
@@ -623,6 +660,7 @@ def build_edenia_yi_font(
                     "mark_names": mark_names,
                     "mark_cps": mark_cps,
                     "base_anchors": base_anchors,
+                    "mark_ink_height": mark_ink_h,
                     "dakuten_keep": dakuten_keep,
                     "vs_keep": vs_keep,
                     "out_dir": out_dir,
@@ -656,9 +694,9 @@ def build_edenia_yi_font(
                 write_ttf=write_ttf,
                 executor=executor,
             )
+        return built
     finally:
         shutil.rmtree(cache_dir, ignore_errors=True)
-    return built
 
 
 def unicode_range_css(codepoints: Sequence[int]) -> str:
@@ -702,9 +740,7 @@ def _css_cps_for_yi_face(
     return sorted(cps)
 
 
-def write_css(
-    out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]
-) -> None:
+def write_css(out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]) -> None:
     """Write edenia-yi.css: `h` pigeonholes then the base face."""
     css_path = os.path.join(out_dir, CSS_YI)
     mark_cps: set[int] = set()
@@ -714,7 +750,7 @@ def write_css(
             if not os.path.isfile(font_path):
                 continue
             try:
-                from shared_diacritics import combining_mark_codepoints_from_font
+                from hangul_diacritics import combining_mark_codepoints_from_font
 
                 mark_cps |= set(combining_mark_codepoints_from_font(font_path))
             except Exception as exc:

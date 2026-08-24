@@ -1,4 +1,4 @@
-"""Shared corner diacritics (Yi / Hangul) from a multi-font mark stack.
+"""Hangul corner diacritics from a multi-font mark stack.
 
 Inventory: `(\\p{M} ∩ stack) ∖ variation selectors` (VS1–16, IVS,
 Mongolian FVS). First font in the stack wins per codepoint. Wide thin
@@ -31,9 +31,8 @@ Successive marks fill slots via GSUB cycling (corners then edge midpoints)::
 `base + CGJ + mark` attaches at CR, `base + CGJ×2 + mark` at BR, etc.
 Interleaved CGJ skips the following slot.
 
-Bases include Yi identity + all D4 orientations (VS02..VS08 / FE01..FE07,
-including `r90my`). Combining slices keep the cell advance (no `sliceAdv`).
-No left-squish forms.
+Bases include Hangul jamo identity + oriented variants. Combining slices keep
+the cell advance (no `sliceAdv`). No left-squish forms.
 """
 
 from __future__ import annotations
@@ -170,11 +169,13 @@ def _first_existing(paths: Iterable[str]) -> Optional[str]:
 
 
 def _paths_for_names(in_dir: str, names: Sequence[str], *extra: str) -> Tuple[str, ...]:
-    """Candidate paths: `in_dir`, Scripts/src, repo root, then extras."""
+    """Candidate paths: `in_dir`, Scripts/src, CJK/, repo root, then extras."""
     out: List[str] = []
     for name in names:
         out.append(os.path.join(in_dir, name))
         out.append(os.path.join(_SCRIPTS_DIR, "src", name))
+        out.append(os.path.join(_REPO_ROOT, "CJK", name))
+        out.append(os.path.join(_REPO_ROOT, "CJK", "LXGW", name))
         out.append(os.path.join(_REPO_ROOT, name))
     out.extend(extra)
     return tuple(out)
@@ -192,6 +193,8 @@ def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
         _paths_for_names(
             in_dir,
             MKANAPLUS_FILENAMES,
+            os.path.join(_REPO_ROOT, "CJK", "mkanaplus.ttf"),
+            os.path.join(_REPO_ROOT, "CJK", "mkanaplus-regular.ttf"),
             os.path.join(_REPO_ROOT, "Kana", "mkanaplus.ttf"),
             os.path.join(_REPO_ROOT, "mkanaplus-regular.ttf"),
         ),

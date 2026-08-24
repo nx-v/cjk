@@ -9,7 +9,7 @@
  *
  * Encoding (matches Scripts/*_html.py / build_*):
  *   Hangul jamo: L/V/T × FE00–FE03; T + FE04 batchim swap; bangjeom;
- *                combining marks (shared_diacritics inventory) + CGJ
+ *                combining marks (hangul_diacritics inventory) + CGJ
  *   Yi:          base × FE01–FE07; digraph A FE08 FE00 B FE09 (etc.);
  *                same combining-mark + CGJ slot cycle
  *   Kana:        BMP PUA U+E000… (full/small D4) + halfwidth U+F0000… (SPUA-A);
@@ -21,7 +21,7 @@
  *                         ca/nhay U+16FF0/16FF1 only (no combining marks)
  *
  * Combining marks = ``\p{M}`` baked into Hangul/Yi/Kana (see
- * ``shared_diacritics.iter_dakuten_codepoints``), excluding variation
+ * ``hangul_diacritics.iter_dakuten_codepoints``), excluding variation
  * selectors; CGJ (U+034F) is a slot skip, not a random pick.
  *
  * Usage:
@@ -60,7 +60,7 @@ let FALLBACK_COMBINING_MARKS = [
 
 /**
  * Visible combining marks present in Edenia Hangul/Yi/Kana fonts
- * (``shared_diacritics`` inventory: ``\p{M}`` minus variation selectors,
+ * (``hangul_diacritics`` inventory: ``\p{M}`` minus variation selectors,
  * minus CGJ). Prefer a built ``.woff2`` cmap so the list matches what
  * Obsidian actually ships.
  */
@@ -87,7 +87,7 @@ function loadCombiningMarks() {
   let py = `
 import json, sys
 from fontTools.ttLib import TTFont
-from shared_diacritics import iter_dakuten_codepoints, visible_dakuten_cps
+from hangul_diacritics import iter_dakuten_codepoints, visible_dakuten_cps
 tt = TTFont(sys.argv[1])
 cmap = {}
 for table in tt["cmap"].tables:
@@ -837,7 +837,7 @@ function generateFeatureCatalog() {
         .join("　"),
     );
     lines.push(
-      `**Mark inventory** (${CHARACTERS.dakutenMarks.length} visible · shared_diacritics)`,
+      `**Mark inventory** (${CHARACTERS.dakutenMarks.length} visible · hangul_diacritics)`,
     );
     lines.push(
       [...Array(24)].map(() => randomItem(CHARACTERS.dakutenMarks)).join("　"),
