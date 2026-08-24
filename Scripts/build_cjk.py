@@ -129,7 +129,7 @@ IMPORT_THREADS = min(32, max(4, (os.cpu_count() or 4)))
 # Harmony ink target — 2% inset (960×960 @ 1000 UPM; cell fit still uses 5%).
 HARMONY_IDEO_PAD = 0.02
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("NGULIM.ttf", 1.2, 1.2),
+    ("NGULIM.ttf", 1.2, 1.25),
     ("Han-Nom Gothic 1.32.otf", 0.95, 1.15),
     ("msyh.ttc", 0.95, 1.15),
     ("ChironHeiHK-R.ttf", 1.0, 1.05),
