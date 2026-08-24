@@ -2789,6 +2789,116 @@ def average_ideo_ink(
     return min(cell_w, cell_h)
 
 
+def ngulim_largest_touch_params(
+    tt: TTFont,
+    target_upem: int,
+    *,
+    pad: float = 0.0,
+    pre_scale: float = 1.0,
+    target_avg_em: float = 920.0,
+) -> Tuple[float, float, float]:
+    """Ngulim sizing params from a fast glyf-bounds scan.
+
+    Finds the largest bbox-area outline (UPM × ``pre_scale``), returns:
+
+    * ``grow_scale`` — uniform factor so that glyph kisses the ideographic
+      cell (``pad=0`` → full em edge).
+    * ``mean_area`` — mean bbox area **after** that grow (``grow² × mean``).
+    * ``post_scale`` — further uniform scale so mean ``max(w, h)`` after
+      grow + mean-area cap lands near ``target_avg_em``.
+
+    Uses stored glyf ``xMin``/``xMax``/… for simple glyphs; BoundsPen only for
+    composites. Avoids redrawing every cmap glyph.
+    """
+    try:
+        source_upem = float(tt["head"].unitsPerEm)
+    except Exception:
+        return 1.0, 0.0, 1.0
+    if source_upem <= 0:
+        return 1.0, 0.0, 1.0
+    upem_scale = float(target_upem) / source_upem
+    geom = max(float(pre_scale), 1e-9)
+    inset = float(target_upem) * max(pad, 0.0)
+    cell_w = max(float(target_upem) - 2.0 * inset, 1.0)
+    _bottom, _top, cell_h = cjk_padded_floor(target_upem, pad=pad)
+    cell_h = max(float(cell_h), 1.0)
+
+    names: Set[str] = set()
+    try:
+        for table in tt["cmap"].tables:
+            if table.isUnicode():
+                names.update(table.cmap.values())
+    except Exception:
+        return 1.0, 0.0, 1.0
+
+    glyph_set = tt.getGlyphSet()
+    glyf = tt["glyf"] if "glyf" in tt else None
+    sizes: List[Tuple[float, float]] = []
+    max_area = 0.0
+    max_wh = (1.0, 1.0)
+
+    for name in names:
+        if name in {".notdef", ".null", "nonmarkingreturn"}:
+            continue
+        try:
+            w = h = 0.0
+            if glyf is not None and name in glyf:
+                g = glyf[name]
+                if g.isComposite():
+                    bpen = BoundsPen(glyph_set)
+                    glyph_set[name].draw(bpen)
+                    if bpen.bounds is None:
+                        continue
+                    x0, y0, x1, y1 = bpen.bounds
+                    w = (float(x1) - float(x0)) * upem_scale * geom
+                    h = (float(y1) - float(y0)) * upem_scale * geom
+                elif getattr(g, "numberOfContours", 0) > 0:
+                    w = (float(g.xMax) - float(g.xMin)) * upem_scale * geom
+                    h = (float(g.yMax) - float(g.yMin)) * upem_scale * geom
+                else:
+                    continue
+            else:
+                bpen = BoundsPen(glyph_set)
+                glyph_set[name].draw(bpen)
+                if bpen.bounds is None:
+                    continue
+                x0, y0, x1, y1 = bpen.bounds
+                w = (float(x1) - float(x0)) * upem_scale * geom
+                h = (float(y1) - float(y0)) * upem_scale * geom
+            if w < 1.0 or h < 1.0:
+                continue
+            area = w * h
+            sizes.append((w, h))
+            if area > max_area:
+                max_area = area
+                max_wh = (w, h)
+        except Exception:
+            continue
+
+    if not sizes:
+        return 1.0, 0.0, 1.0
+    wm, hm = max_wh
+    grow = min(cell_w / max(wm, 1.0), cell_h / max(hm, 1.0))
+    areas_grown = [(w * grow) * (h * grow) for w, h in sizes]
+    mean_area = sum(areas_grown) / float(len(areas_grown))
+
+    # Simulate mean-area cap, then measure mean max-extent.
+    extents: List[float] = []
+    for w, h in sizes:
+        gw, gh = w * grow, h * grow
+        area = gw * gh
+        if mean_area > 1.0 and area > mean_area:
+            s = math.sqrt(mean_area / area)
+            gw *= s
+            gh *= s
+        extents.append(max(gw, gh))
+    mean_extent = sum(extents) / float(len(extents))
+    post = 1.0
+    if mean_extent > 1.0 and float(target_avg_em) > 0:
+        post = float(target_avg_em) / mean_extent
+    return float(grow), float(mean_area), float(post)
+
+
 def fit_glyph_to_ideographic_cell(
     glyph: TTGlyph,
     advance: int,

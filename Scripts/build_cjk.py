@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import copy
+import math
 import os
 import pickle
 import re
@@ -73,14 +74,11 @@ from shared_half_cells import (
     VS_LAST,
     add_d4_variant_glyphs,
     fit_glyph_to_ideographic_cell,
-    clamp_overflow_axes_to_cell,
     grow_undersize_to_average_ideo,
-    cap_oversize_bbox_area,
     compensate_stems_after_geometric_scale,
     center_glyph_ink_in_advance,
     average_ideo_ink,
-    is_sparse_ideo_axes,
-    squish_flat_cap_ink,
+    ngulim_largest_touch_params,
     is_yi_cp,
     load_inventory,
     make_standalone_glyph,
@@ -130,10 +128,6 @@ IMPORT_THREADS = min(32, max(4, (os.cpu_count() or 4)))
 
 # Harmony ink target — 2% inset (960×960 @ 1000 UPM; cell fit still uses 5%).
 HARMONY_IDEO_PAD = 0.02
-# Ngulim flat-cap / square-block squish (fractions of average ideo ink).
-FLAT_CAP_INK_FRAC = 0.98
-SQUARE_BLOCK_INK_WIDTH_FRAC = 0.92
-SQUARE_BLOCK_INK_HEIGHT_FRAC = 0.95
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("NGULIM.ttf", 1.2, 1.2),
     ("Han-Nom Gothic 1.32.otf", 0.95, 1.15),
@@ -149,13 +143,12 @@ PRIORITY_FONTS: List[Tuple[str, float, float]] = [
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
 FONT_LOCAL_SCALE: Dict[str, float] = {name: scale for name, scale, _w in PRIORITY_FONTS}
-# Area-cap sizing applies to Ngulim only; other priority fonts are constants-only.
-AREA_CAP_FONTS = frozenset({"ngulim.ttf"})
+# Ngulim: largest→em grow, mean-area cap, then uniform scale to ~910 avg extent.
+NGULIM_FIT_FONTS = frozenset({"ngulim.ttf"})
+NGULIM_TARGET_AVG_EM = 900.0
 CONSTANTS_ONLY_FONTS = frozenset(
     os.path.basename(name).casefold() for name, _s, _w in PRIORITY_FONTS[1:]
 )
-AREA_FLOOR_FRAC = 0.65
-AREA_CEIL_FRAC = 1.0
 
 
 # ---------- Unicode ranges (inclusive) ----------
@@ -326,18 +319,57 @@ class SourceFont:
         path: str,
         local_scale: float = 1.0,
         weightor: float = 1.0,
+        *,
+        ngulim_grow_scale: Optional[float] = None,
+        ngulim_mean_area: Optional[float] = None,
+        ngulim_post_scale: Optional[float] = None,
     ):
         self.path = path
         self.local_scale = float(local_scale)
         self.weightor = float(weightor)
         base = os.path.basename(path).casefold()
-        self.area_cap = base in AREA_CAP_FONTS
+        self.ngulim_fit = base in NGULIM_FIT_FONTS
         self.constants_only = base in CONSTANTS_ONLY_FONTS
         self.tt = load_ttfont(path, fontNumber=0)
         self.upem = int(self.tt["head"].unitsPerEm)
         self.cmap = font_cmap(self.tt)
         self.glyph_set = self.tt.getGlyphSet()
         self.hmtx = self.tt["hmtx"].metrics
+        # Preset from main process so workers skip the inventory scan.
+        self._ngulim_grow_scale = ngulim_grow_scale
+        self._ngulim_mean_area = ngulim_mean_area
+        self._ngulim_post_scale = ngulim_post_scale
+
+    def ensure_ngulim_fit_params(self, target_upem: int) -> Tuple[float, float, float]:
+        """Largest grow, mean-area cap target, post uniform scale to ~920 (cached)."""
+        if (
+            self._ngulim_grow_scale is not None
+            and self._ngulim_mean_area is not None
+            and self._ngulim_post_scale is not None
+        ):
+            return (
+                float(self._ngulim_grow_scale),
+                float(self._ngulim_mean_area),
+                float(self._ngulim_post_scale),
+            )
+        grow, mean_area, post = ngulim_largest_touch_params(
+            self.tt,
+            target_upem,
+            pad=0.0,
+            pre_scale=self.local_scale,
+            target_avg_em=NGULIM_TARGET_AVG_EM,
+        )
+        self._ngulim_grow_scale = float(grow)
+        self._ngulim_mean_area = float(mean_area)
+        self._ngulim_post_scale = float(post)
+        print(
+            f"  {os.path.basename(self.path)}: largest->ideo grow {grow:.4f}, "
+            f"mean bbox area {mean_area:.0f}, post-scale {post:.4f} "
+            f"(target avg max-extent {NGULIM_TARGET_AVG_EM:g}; local_scale "
+            f"{self.local_scale:g})",
+            flush=True,
+        )
+        return float(grow), float(mean_area), float(post)
 
     def close(self) -> None:
         try:
@@ -359,10 +391,13 @@ class SourceFont:
         stays the UPM-scaled source advance. `weightor` boldens/lightens via
         CAPE Weight (bounds preserved).
 
-        Ngulim: stem restore after `local_scale`, then area-cap + cell clamp.
-        Han-Nom Gothic and lower priority fonts: only `local_scale` +
-        `weightor` — no grow, fit-to-average, or area-cap.
+        Ngulim: after `local_scale` + `weightor`, uniform grow so the
+        largest-contour glyph touches the ideographic em edge; glyphs larger
+        than the mean bbox area shrink to that mean; then one more uniform
+        scale brings mean max-extent near 920. Han-Nom Gothic and lower: only
+        `local_scale` + `weightor`.
         """
+        del codepoint
         if is_empty_outline(self.tt, src_name):
             return None
 
@@ -483,62 +518,87 @@ class SourceFont:
                     file=sys.stderr,
                 )
 
+        if self.ngulim_fit:
+            s_grow, mean_area, s_post = self.ensure_ngulim_fit_params(target_upem)
+            if abs(s_grow - 1.0) > 1e-3:
+                try:
+                    glyph = _scale_glyph_about_bounds_center(glyph, s_grow)
+                    glyph, advance, lsb = compensate_stems_after_geometric_scale(
+                        glyph, advance, scale_x=s_grow
+                    )
+                    if advance <= 0:
+                        advance = target_upem
+                except Exception as e:
+                    print(
+                        f"  [!] Ngulim largest grow failed "
+                        f"{os.path.basename(self.path)}:{src_name}: {e}",
+                        file=sys.stderr,
+                    )
+            # Shrink to mean bbox area only when larger; else leave alone.
+            if mean_area > 1.0:
+                try:
+                    glyph.recalcBounds(None)
+                    gw = max(float(glyph.xMax) - float(glyph.xMin), 1.0)
+                    gh = max(float(glyph.yMax) - float(glyph.yMin), 1.0)
+                    area = gw * gh
+                    if area > mean_area + 1.0:
+                        s_fit = math.sqrt(mean_area / area)
+                        if s_fit < 1.0 - 1e-3:
+                            glyph = _scale_glyph_about_bounds_center(glyph, s_fit)
+                            glyph, advance, lsb = (
+                                compensate_stems_after_geometric_scale(
+                                    glyph, advance, scale_x=s_fit
+                                )
+                            )
+                            if advance <= 0:
+                                advance = target_upem
+                except Exception as e:
+                    print(
+                        f"  [!] Ngulim mean-area shrink failed "
+                        f"{os.path.basename(self.path)}:{src_name}: {e}",
+                        file=sys.stderr,
+                    )
+            # Final uniform scale so inventory avg max-extent ~920.
+            if abs(s_post - 1.0) > 1e-3:
+                try:
+                    glyph = _scale_glyph_about_bounds_center(glyph, s_post)
+                    glyph, advance, lsb = compensate_stems_after_geometric_scale(
+                        glyph, advance, scale_x=s_post
+                    )
+                    if advance <= 0:
+                        advance = target_upem
+                except Exception as e:
+                    print(
+                        f"  [!] Ngulim post-scale failed "
+                        f"{os.path.basename(self.path)}:{src_name}: {e}",
+                        file=sys.stderr,
+                    )
+            if zero_advance_src:
+                glyph, advance, lsb = center_glyph_ink_in_advance(glyph, advance)
+            try:
+                glyph.recalcBounds(None)
+                lsb = int(glyph.xMin)
+            except Exception:
+                lsb = 0
+            return glyph, advance, lsb
+
         cell_adv = advance if advance > 0 else target_upem
         avg = average_ideo_ink(target_upem, pad=HARMONY_IDEO_PAD)
-        if self.area_cap:
-            # Sparse (either axis < floor×mean): no area grow/shrink. Else
-            # shrink area > ceil. Always clamp into the cell afterward —
-            # sparse uses uniform shrink (keep aspect); dense uses per-axis.
-            glyph, advance, lsb = cap_oversize_bbox_area(
-                glyph,
-                cell_adv,
-                target_upem,
-                avg_width=avg,
-                avg_height=avg,
-                area_floor=AREA_FLOOR_FRAC,
-                area_ceil=AREA_CEIL_FRAC,
-            )
-            cell_adv = advance if advance > 0 else target_upem
-            sparse = is_sparse_ideo_axes(
-                glyph,
-                avg_width=avg,
-                avg_height=avg,
-                sparse_frac=AREA_FLOOR_FRAC,
-            )
-            glyph, advance, lsb = clamp_overflow_axes_to_cell(
-                glyph,
-                cell_adv,
-                target_upem,
-                align_y="source",
-                uniform=sparse,
-            )
-            glyph, advance, lsb = squish_flat_cap_ink(
-                glyph,
-                advance,
-                target_upem,
-                avg_width=avg,
-                avg_height=avg,
-                codepoint=codepoint,
-                ink_frac=FLAT_CAP_INK_FRAC,
-                square_width_frac=SQUARE_BLOCK_INK_WIDTH_FRAC,
-                square_height_frac=SQUARE_BLOCK_INK_HEIGHT_FRAC,
-            )
-        else:
-            glyph, advance, lsb = grow_undersize_to_average_ideo(
-                glyph,
-                cell_adv,
-                target_upem,
-                avg_width=avg,
-                avg_height=avg,
-                align_y="source",
-            )
-            cell_adv = advance if advance > 0 else target_upem
-            glyph, advance, lsb = fit_glyph_to_ideographic_cell(
-                glyph,
-                cell_adv,
-                target_upem,
-                align_y="source",
-            )
+        glyph, advance, lsb = grow_undersize_to_average_ideo(
+            glyph,
+            cell_adv,
+            target_upem,
+            avg_width=avg,
+            avg_height=avg,
+            align_y="source",
+        )
+        cell_adv = advance if advance > 0 else target_upem
+        glyph, advance, lsb = fit_glyph_to_ideographic_cell(
+            glyph,
+            cell_adv,
+            target_upem,
+            align_y="source",
+        )
         if zero_advance_src:
             glyph, advance, lsb = center_glyph_ink_in_advance(glyph, advance)
         return glyph, advance, lsb
@@ -1476,6 +1536,7 @@ def _init_build_worker(
     hint: bool = True,
     variants: Tuple[str, ...] = CJK_FACE_BUILD_ORDER,
     hint_base_only: bool = False,
+    ngulim_fit_by_path: Optional[Dict[str, Tuple[float, float, float]]] = None,
 ) -> None:
     """Load source fonts once per process worker."""
     global _WORKER_SOURCES, _WORKER_OUT_DIR, _WORKER_CACHE_DIR, _WORKER_UPEM
@@ -1489,9 +1550,22 @@ def _init_build_worker(
     _WORKER_HINT = hint
     _WORKER_HINT_BASE_ONLY = hint_base_only
     _WORKER_VARIANTS = tuple(variants)
-    _WORKER_SOURCES = {
-        p: SourceFont(p, local_scale=s, weightor=w) for p, s, w in font_entries
-    }
+    fit = ngulim_fit_by_path or {}
+    sources: Dict[str, SourceFont] = {}
+    for p, s, w in font_entries:
+        grow_mean = fit.get(p)
+        if grow_mean is not None:
+            sources[p] = SourceFont(
+                p,
+                local_scale=s,
+                weightor=w,
+                ngulim_grow_scale=grow_mean[0],
+                ngulim_mean_area=grow_mean[1],
+                ngulim_post_scale=grow_mean[2],
+            )
+        else:
+            sources[p] = SourceFont(p, local_scale=s, weightor=w)
+    _WORKER_SOURCES = sources
 
 
 def _master_cache_task(
@@ -1821,13 +1895,11 @@ def build_all(
             notes.append(f"local_scale {scale:g}")
         if abs(weightor - 1.0) > 1e-9:
             notes.append(f"weightor {weightor:g}")
-        if os.path.basename(path).casefold() in AREA_CAP_FONTS:
+        if os.path.basename(path).casefold() in NGULIM_FIT_FONTS:
             notes.append(
-                f"area-cap: sparse either-axis <{AREA_FLOOR_FRAC:g}× mean "
-                f"no area change; shrink area >{AREA_CEIL_FRAC:g}× mean²; "
-                f"cell clamp; flat-cap/side squish "
-                f"({FLAT_CAP_INK_FRAC:.0%} mean; square blocks "
-                f"{SQUARE_BLOCK_INK_WIDTH_FRAC:.0%}×{SQUARE_BLOCK_INK_HEIGHT_FRAC:.0%} W×H)"
+                "largest-contour -> ideo edge grow; "
+                "above-mean bbox area -> shrink to mean; "
+                f"then uniform post-scale to avg max-extent ~{NGULIM_TARGET_AVG_EM:g}"
             )
         elif os.path.basename(path).casefold() in CONSTANTS_ONLY_FONTS:
             notes.append("constants-only (local_scale + weightor)")
@@ -1850,8 +1922,12 @@ def build_all(
     sources_list = [
         SourceFont(p, local_scale=s, weightor=w) for p, s, w in font_entries
     ]
+    ngulim_fit_by_path: Dict[str, Tuple[float, float, float]] = {}
     try:
         owner = claim_codepoints(sources_list, target)
+        for src in sources_list:
+            if src.ngulim_fit:
+                ngulim_fit_by_path[src.path] = src.ensure_ngulim_fit_params(target_upem)
     finally:
         for s in sources_list:
             s.close()
@@ -1917,6 +1993,7 @@ def build_all(
                 hint,
                 variants,
                 hint_base_only,
+                ngulim_fit_by_path,
             ),
         ) as executor:
             master_jobs = [(bid, buckets[bid]) for bid in bucket_ids]
