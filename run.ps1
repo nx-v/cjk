@@ -1,4 +1,10 @@
 param(
+  # Script filters: omit all → build everything. Any set → only those scripts.
+  [switch]$Yi,
+  [switch]$Kana,
+  [switch]$Hangul,
+  [switch]$Cjk,
+
   [switch]$CjkBaseOnly,
   [string]$CjkFaces = "",
   [switch]$CjkH,
@@ -15,6 +21,12 @@ param(
 
 $py = "c:/python314/python.exe"
 $scripts = "c:/Users/Admin/fonts/Scripts"
+
+$anyScript = $Yi -or $Kana -or $Hangul -or $Cjk
+$doYi = (-not $anyScript) -or $Yi
+$doKana = (-not $anyScript) -or $Kana
+$doHangul = (-not $anyScript) -or $Hangul
+$doCjk = (-not $anyScript) -or $Cjk
 
 # No h/t/q flags → builders use their full defaults (CJK base+h; kana/yi all
 # segment faces). Any selective switch limits that script to the named faces.
@@ -40,16 +52,28 @@ if ($YiH) { $yiFaceArgs += "--h" }
 if ($YiT) { $yiFaceArgs += "--t" }
 if ($YiQ) { $yiFaceArgs += "--q" }
 
-& $py "$scripts/cjk_diacritics_html.py"
-& $py "$scripts/cjk_multigraphs_html.py"
-& $py "$scripts/hangul_html.py"
-& $py "$scripts/yi_html.py"
-& $py "$scripts/kana_html.py"
-& $py "$scripts/build_hangul.py" --woff2-only
-& $py "$scripts/build_yi.py" --woff2-only -j 61 @yiFaceArgs
-& $py "$scripts/build_kana.py" --woff2-only -j 61 @kanaFaceArgs
-# & $py "$scripts/build_cjk.py" --woff2-only --hint-base-only -j 61 @cjkFaceArgs
-& $py "$scripts/build_cjk.py" --css-only @cjkFaceArgs
+if ($doCjk) {
+  & $py "$scripts/cjk_diacritics_html.py"
+  & $py "$scripts/cjk_multigraphs_html.py"
+}
+if ($doHangul) { & $py "$scripts/hangul_html.py" }
+if ($doYi) { & $py "$scripts/yi_html.py" }
+if ($doKana) { & $py "$scripts/kana_html.py" }
+
+if ($doHangul) {
+  & $py "$scripts/build_hangul.py" --woff2-only
+}
+if ($doYi) {
+  & $py "$scripts/build_yi.py" --woff2-only -j 61 @yiFaceArgs
+}
+if ($doKana) {
+  & $py "$scripts/build_kana.py" --woff2-only -j 61 @kanaFaceArgs
+}
+if ($doCjk) {
+  # & $py "$scripts/build_cjk.py" --woff2-only --hint-base-only -j 61 @cjkFaceArgs
+  & $py "$scripts/build_cjk.py" --css-only @cjkFaceArgs
+}
+
 # & $py "$scripts/edenia_app.py"
 & $py "$scripts/sync_edenian_fonts.py"
 & $py "$scripts/update_obsidian_theme_fonts.py" --bake --vault "C:/Users/Admin/Dropbox" --private-only

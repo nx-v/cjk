@@ -282,7 +282,9 @@ def _dakuten_keep_names(
     return keep
 
 
-def _yi_bases_in_bucket(yi_names: Sequence[str], yi_cps: Dict[str, int], bucket_id: int) -> List[str]:
+def _yi_bases_in_bucket(
+    yi_names: Sequence[str], yi_cps: Dict[str, int], bucket_id: int
+) -> List[str]:
     return [n for n in yi_names if (yi_cps[n] >> 8) == bucket_id]
 
 
@@ -550,9 +552,7 @@ def _yi_face_task(
             if name in glyphs and (cp >> 8) == bucket_id:
                 keep.add(name)
         keep |= keep_names_for_segment_face(kind, bases, glyphs)
-        go, gl, mt, cm = subset_tables(
-            glyph_order, glyphs, metrics, cmap, keep
-        )
+        go, gl, mt, cm = subset_tables(glyph_order, glyphs, metrics, cmap, keep)
         cm = filter_segment_face_cmap(kind, cm, list(bases))
         face_id = bucket_face_id(bucket_id, kind)
         if kind == "h":
@@ -740,13 +740,17 @@ def build_edenia_yi_font(
     cache_dir = tempfile.mkdtemp(prefix="edenia-yi-")
     try:
         try:
-            mark_fonts = resolve_dakuten_mark_font_stack(os.path.dirname(inv.source_path))
+            mark_fonts = resolve_dakuten_mark_font_stack(
+                os.path.dirname(inv.source_path)
+            )
             print(
                 f"  Loading dakuten marks from "
                 f"{dakuten_mark_stack_label(mark_fonts)}...",
                 flush=True,
             )
-            mark_cps, mark_glyphs = load_dakuten_marks_from_stack(mark_fonts, target_upem)
+            mark_cps, mark_glyphs = load_dakuten_marks_from_stack(
+                mark_fonts, target_upem
+            )
             mark_contour_pts = kana_representative_mark_points(mark_glyphs)
             if mark_contour_pts:
                 ys = [y for _x, y in mark_contour_pts]
@@ -788,7 +792,9 @@ def build_edenia_yi_font(
                 f"({len(base_anchors)} bases)",
                 flush=True,
             )
-            h_note = f"dakuten H≈{mark_ink_h:.0f}" if mark_ink_h else "dakuten H default"
+            h_note = (
+                f"dakuten H≈{mark_ink_h:.0f}" if mark_ink_h else "dakuten H default"
+            )
             print(
                 f"  Dakuten: {len(mark_cps)} marks × {len(DAKUTEN_SLOTS)} slots "
                 f"(octagon ring + corner chain TR→BL; {h_note})",
