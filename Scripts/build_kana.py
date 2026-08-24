@@ -238,6 +238,7 @@ MKANA_OVERRIDE_CPS: frozenset[int] = frozenset(
         0x0306A,  # な
         0x0306B,  # に
         0x03053,  # こ
+        0x03091,  # ゑ
         0x0304F,  # く
         0x03078,  # へ
         0x030A2,  # ア
@@ -456,7 +457,8 @@ def resolve_flop_family_paths(in_dir: str) -> List[str]:
         found.append(path)
     if not found:
         raise FileNotFoundError(
-            f"FlopDesignFONT not found under " f"Scripts/src / {in_dir!r} / CJK / repo root"
+            f"FlopDesignFONT not found under "
+            f"Scripts/src / {in_dir!r} / CJK / repo root"
         )
     return found
 
@@ -1205,6 +1207,7 @@ def form_name_for_orient(base: str, orient: int) -> str:
     if suffix is None:
         return base
     return variant_glyph_name(base, suffix)
+
 
 def _kana_bases_in_bucket(
     full_bases: Sequence[str],
@@ -2288,9 +2291,7 @@ def build_edenia_kana_font(
                     *hw_full_bases,
                     *hw_small_bases,
                 ]
-                stem_names = kana_dakuten_placement_stems(
-                    dakuten_bases, glyphs=glyphs
-                )
+                stem_names = kana_dakuten_placement_stems(dakuten_bases, glyphs=glyphs)
                 n_logical = sum(1 for b in dakuten_bases if b in glyphs)
                 print(
                     f"Dakuten anchors ({len(stem_names)} stems = "
