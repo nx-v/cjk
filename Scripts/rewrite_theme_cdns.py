@@ -1,7 +1,7 @@
 """Rewrite GitHub-hosted font urls in theme.css to multi-CDN fallback chains.
 
-Covers nexovolta/fonts and any other ``raw.githubusercontent.com`` /
-``cdn.jsdelivr.net/gh/…`` / ``cdn.statically.io/gh/…`` font ``src:`` lines.
+Covers nexovolta/fonts and any other `raw.githubusercontent.com` /
+`cdn.jsdelivr.net/gh/…` / `cdn.statically.io/gh/…` font `src:` lines.
 Leaves googleapis / donation / forum links alone.
 """
 

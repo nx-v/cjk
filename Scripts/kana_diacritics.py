@@ -367,7 +367,7 @@ def _ray_ink_reach(
     direction: Point,
     polylines: Sequence[Sequence[Point]],
 ) -> float:
-    """Farthest ink hit along ``direction`` from ``origin`` (font units)."""
+    """Farthest ink hit along `direction` from `origin` (font units)."""
     ux, uy = _unit(direction)
     best = 0.0
     for poly in polylines:
@@ -393,7 +393,7 @@ def _closest_center_radius(
     mark_h: float,
     mark_points: Sequence[Tuple[float, float]],
 ) -> float:
-    """Minimum center distance along ``direction`` clearing ink by ``gap``."""
+    """Minimum center distance along `direction` clearing ink by `gap`."""
     ux, uy = _unit(direction)
     reach = _ray_ink_reach(origin, direction, polylines)
     if mark_points:
@@ -471,7 +471,7 @@ def _conflicts(
     placed: Sequence[Tuple[float, float]],
     min_sep_sq: float,
 ) -> bool:
-    """True when ``(cx, cy)`` is too close to an already-placed slot center."""
+    """True when `(cx, cy)` is too close to an already-placed slot center."""
     for px, py in placed:
         dx, dy = cx - px, cy - py
         if dx * dx + dy * dy < min_sep_sq:
@@ -717,7 +717,7 @@ def _glyph_subset_for_names(
     names: Sequence[str],
     glyph_set: Dict[str, TTGlyph],
 ) -> Dict[str, TTGlyph]:
-    """Composite closure of ``names`` (minimal dict for worker pickling)."""
+    """Composite closure of `names` (minimal dict for worker pickling)."""
     needed: Set[str] = set()
     stack = [n for n in names if n in glyph_set]
     while stack:
@@ -873,7 +873,7 @@ def collect_kana_dakuten_anchors(
     jobs: int = 1,
     cache_dir: Optional[str] = None,
 ) -> Dict[str, Dict[int, Tuple[int, int]]]:
-    """Per-glyph ``{mark_class: (x, y)}`` for every named form that exists."""
+    """Per-glyph `{mark_class: (x, y)}` for every named form that exists."""
     names = [n for n in base_names if n in glyphs]
     if not names:
         return {}

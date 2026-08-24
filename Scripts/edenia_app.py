@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Local Edenia composer — type and build VS sequences in a browser.
 
-Serves ``Scripts/dist`` fonts with rewritten ``@font-face`` URLs so the
-browser lazy-loads pigeonhole WOFF2s via ``unicode-range`` (unlike the
+Serves `Scripts/dist` fonts with rewritten `@font-face` URLs so the
+browser lazy-loads pigeonhole WOFF2s via `unicode-range` (unlike the
 Obsidian plugin, which loaded every face into memory).
 
 Usage

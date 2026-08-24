@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
 """
-Build Yi fonts: ``edenia yi`` (D4 + dakuten) and pigeonholed ``edenia yi h``
-(D4 + FE00 overlay + FE08–FE0F slices), matching CJK base vs ``h``.
+Build Yi fonts: `edenia yi` (D4 + dakuten) and pigeonholed `edenia yi h`
+(D4 + FE00 overlay + FE08–FE0F slices), matching CJK base vs `h`.
 
 Contents
 --------
 * Standalone forms at real Unicode CPs (full CJK width) plus D4 orientations:
 
       yi + VS02..VS08 / FE01..FE07   →   oriented variant
-      (bare yi = identity; U+FE00 = overlay, on the ``h`` face)
+      (bare yi = identity; U+FE00 = overlay, on the `h` face)
 
-* Combining slices live on ``edenia yi h`` (full cell advance) + overlay::
+* Combining slices live on `edenia yi h` (full cell advance) + overlay::
 
       A FE08          →  A.top
       A FE08 FE00 B FE09  →  A.top.ov + B.bot
       FE08–FE0B halves; FE0C–FE0F triangles
 
-  ``h`` is one file per ``cp>>8`` page so D4 × 8 slices × overlays stay
+  `h` is one file per `cp>>8` page so D4 × 8 slices × overlays stay
   under the TTF 65535-glyph cap.
 
-  Standalone fit: shared ``sx`` from NuosuSIL monospace advance → em,
-  shared ``sy`` from inventory max ink height, Y centered in padded typo box,
+  Standalone fit: shared `sx` from NuosuSIL monospace advance → em,
+  shared `sy` from inventory max ink height, Y centered in padded typo box,
   horizontal stems at 125% (Y-only Weight), then ~98% ideographic inset.
 
-* Dakuten marks (shared stack ``\\p{M}`` minus letter / overlay / oversized):
-  GPOS ``mark`` at fixed CJK corners on VS01..VS07 forms.
-  Successive marks fill TR → BR → TL → BL. No left-squish ``.dk`` forms.
+* Dakuten marks (shared stack `\\p{M}` minus letter / overlay / oversized):
+  GPOS `mark` at fixed CJK corners on VS01..VS07 forms.
+  Successive marks fill TR → BR → TL → BL. No left-squish `.dk` forms.
 """
 
 from __future__ import annotations
@@ -44,7 +44,6 @@ from fontTools.misc.roundTools import otRound
 from fontTools.ttLib import TTFont
 
 from shared_diacritics import (
-    CGJ_CP,
     DAKUTEN_SLOT_CYCLE,
     DAKUTEN_SLOT_COUNT,
     add_dakuten_mark_glyphs,
@@ -446,7 +445,7 @@ def _yi_face_task(
     return (*meta, os.path.join(m["out_dir"], f"{meta[0]}.ttf"))
 
 
-def build_panyi_font(
+def build_edenia_yi_font(
     inv: YiInventory,
     out_dir: str,
     target_upem: int,
@@ -457,7 +456,7 @@ def build_panyi_font(
     variants: Sequence[str] = ("", "h"),
     jobs: int = 1,
 ) -> List[Tuple[str, str, int, List[int]]]:
-    """Build ``edenia yi`` and/or pigeonholed ``edenia yi h`` slice faces."""
+    """Build `edenia yi` and/or pigeonholed `edenia yi h` slice faces."""
     if not write_ttf and not write_woff2:
         raise ValueError("at least one of write_ttf / write_woff2 must be True")
     want = {v for v in variants}
@@ -706,7 +705,7 @@ def _css_cps_for_yi_face(
 def write_css(
     out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]
 ) -> None:
-    """Write edenia-yi.css: ``h`` pigeonholes then the base face."""
+    """Write edenia-yi.css: `h` pigeonholes then the base face."""
     css_path = os.path.join(out_dir, CSS_YI)
     mark_cps: set[int] = set()
     for face_id, _variant, _n, _cps in built:
@@ -844,7 +843,7 @@ def build_all(
     print(f"  Jobs: {max(1, jobs)}")
 
     os.makedirs(out_dir, exist_ok=True)
-    built = build_panyi_font(
+    built = build_edenia_yi_font(
         inv,
         out_dir,
         target_upem,

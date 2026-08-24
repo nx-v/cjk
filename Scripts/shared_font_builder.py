@@ -15,7 +15,7 @@ _HEAD_LOG = logging.getLogger("fontTools.ttLib.tables._h_e_a_d")
 
 @contextmanager
 def _quiet_head_timestamp_warnings():
-    """Suppress benign ``head`` timestamp warnings on third-party source fonts."""
+    """Suppress benign `head` timestamp warnings on third-party source fonts."""
     prev = _HEAD_LOG.level
     _HEAD_LOG.setLevel(logging.ERROR)
     try:
@@ -25,13 +25,13 @@ def _quiet_head_timestamp_warnings():
 
 
 def load_ttfont(path: str, **kwargs: Any) -> TTFont:
-    """Open a source font without logging legacy ``head`` timestamp warnings."""
+    """Open a source font without logging legacy `head` timestamp warnings."""
     with _quiet_head_timestamp_warnings():
         return TTFont(path, **kwargs)
 
 
 def setup_head_timestamps(fb: FontBuilder) -> None:
-    """Set ``head.created`` / ``head.modified`` (FontBuilder defaults are 0).
+    """Set `head.created` / `head.modified` (FontBuilder defaults are 0).
 
     fontTools warns on load when these look like unset Mac-era values; stamp
     them before the first save so hint/WOFF2 stages stay quiet.

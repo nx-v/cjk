@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Build an HTML gallery of CJK × VS1–8 × reading marks.
 
-Encoding (matches ``cjk_diacritics`` / ``build_cjk``)::
+Encoding (matches `cjk_diacritics` / `build_cjk`)::
 
-    Base face (``edenia cjk``) — ca/nhay in a 1/4 niche; FE00–FE0F on the
+    Base face (`edenia cjk`) — ca/nhay in a 1/4 segment; FE00–FE0F on the
     clipped CJK select position × axis-mirror (id / mx / my / mxy)::
 
       CJK MARK            → right, upright (FE00 no-op)
@@ -13,11 +13,11 @@ Encoding (matches ``cjk_diacritics`` / ``build_cjk``)::
       CJK FE08 MARK       → up, upright
       CJK FE0C MARK       → down, upright
 
-    Half digraphs use the ``h`` face (``edenia cjk h``)::
+    Half digraphs use the `h` face (`edenia cjk h`)::
 
       A (D4)? FE08 FE00   B (D4)? FE09
 
-    Third / quarter stacks: see ``cjk_multigraphs_html.py`` (faces ``t`` / ``q`` / ``qv`` / ``qh``).
+    Third / quarter stacks: see `cjk_multigraphs_html.py` (faces `t` / `q` / `qv` / `qh`).
 
 Usage
 -----
@@ -35,7 +35,7 @@ import json
 import os
 import re
 import unicodedata
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 from collections import defaultdict
 
 from build_cjk import CHAR_RANGES, IN_DIR, OUT_DIR as CJK_OUT
@@ -101,9 +101,9 @@ MARK_LABEL = {
     0x16FF1: "nhay",
 }
 
-# Opposing slice niches: first (FE08–F + FE00) zero-width, second keeps advance.
+# Opposing slice segments: first (FE08–F + FE00) zero-width, second keeps advance.
 # Labels match squishPiece keys (R=FE0A/.dk, L=FE0B/.dkl, T=FE08/.dkb, B=FE09/.dkt).
-DIGRAPH_NICHE_PAIRS: Tuple[Tuple[str, str], ...] = (
+DIGRAPH_SEGMENT_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("R", "L"),  # FE0A (.dk left)   + FE0B (.dkl right)
     ("L", "R"),  # FE0B (.dkl right)  + FE0A (.dk left)
     ("T", "B"),  # FE08 (.dkb top)    + FE09 (.dkt bottom)
@@ -135,7 +135,7 @@ def digraph_pairs(
     *,
     max_pairs: int = 24,
 ) -> List[Tuple[int, int, bool]]:
-    """Index pairs ``(i, j, cross_bucket)`` preferring different ``cp>>8`` fonts."""
+    """Index pairs `(i, j, cross_bucket)` preferring different `cp>>8` fonts."""
     by_bucket: Dict[int, List[int]] = defaultdict(list)
     index_by_cp = {int(c["cp"]): i for i, c in enumerate(cjk)}
     for i, c in enumerate(cjk):
@@ -198,7 +198,7 @@ def opposing_orient_index(label: str) -> int:
 
 
 def parse_range_spec(spec: str) -> List[Tuple[int, int]]:
-    """``URO`` / ``ExtA`` / ``4E00-4FFF`` / ``U+4E00..U+4E7F`` / hex bucket ``4E``."""
+    """`URO` / `ExtA` / `4E00-4FFF` / `U+4E00..U+4E7F` / hex bucket `4E`."""
     s = spec.strip()
     key = s.upper().replace(" ", "")
     if key in NAMED_RANGES:
@@ -305,7 +305,7 @@ def assigned_cps(ranges: Sequence[Tuple[int, int]], *, limit: int) -> List[dict]
     return out
 
 
-def pancjk_font_stack(
+def edenia_cjk_font_stack(
     font_dir: str,
     *,
     ranges: Optional[Sequence[Tuple[int, int]]] = None,
@@ -314,9 +314,9 @@ def pancjk_font_stack(
 ) -> str:
     """Quoted font stack for galleries (shared variant families).
 
-    ``variants`` defaults to CSS order (``q``, ``qv``, ``qh``, ``t``, ``h``, ``''``).
-    Each variant is one family (``edenia cjk h``, …); buckets are selected via
-    ``unicode-range`` on ``@font-face``.
+    `variants` defaults to CSS order (`q`, `qv`, `qh`, `t`, `h`, `''`).
+    Each variant is one family (`edenia cjk h`, …); buckets are selected via
+    `unicode-range` on `@font-face`.
     """
     from edenia_names import CJK_FACE_CSS_ORDER, family_cjk_variant
 
@@ -325,7 +325,7 @@ def pancjk_font_stack(
     return ", ".join(f"'{family_cjk_variant(v)}'" for v in face_vars)
 
 
-# Third-cell digraph pairs that tile one cell (opposing niches).
+# Third-cell digraph pairs that tile one cell (opposing segments).
 THIRD_DIGRAPH_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("t3l", "t3cr"),  # left + center-right
     ("t3lc", "t3r"),  # left-center + right
@@ -375,11 +375,11 @@ def write_html(
     n_with_mark = n * n_marks * n_slots
     n_base_vs_mark = n * n_slots * n_marks
     n_mark_vs = n_with_mark
-    n_digraph = len(pairs) * len(DIGRAPH_NICHE_PAIRS) * n_base_o
+    n_digraph = len(pairs) * len(DIGRAPH_SEGMENT_PAIRS) * n_base_o
     total = n_plain + n_with_mark + n_base_vs_mark + n_mark_vs + n_digraph
 
     force_stack = n_cross > 0 or len({c["cp"] >> 8 for c in cjk}) > 1
-    stack = pancjk_font_stack(font_dir, ranges=ranges, force_all=force_stack)
+    stack = edenia_cjk_font_stack(font_dir, ranges=ranges, force_all=force_stack)
     marks = [
         {
             "cp": cp,
@@ -409,7 +409,7 @@ def write_html(
         "SQUISH_TR": SQUISH_TR_CP,
         "SQUISH_BL": SQUISH_BL_CP,
         "DIGRAPH_PAIRS": [{"a": a, "b": b, "cross": cross} for a, b, cross in pairs],
-        "DIGRAPH_NICHES": [{"a": a, "b": b} for a, b in DIGRAPH_NICHE_PAIRS],
+        "DIGRAPH_SEGMENTS": [{"a": a, "b": b} for a, b in DIGRAPH_SEGMENT_PAIRS],
         "OPPOSING_ORIENT_OI": opposing_oi,
         "FACE_BASE": "",
         "FACE_H": "h",
@@ -491,7 +491,7 @@ h2 {{
     Base VS (h face): identity / FE01..FE07 (full D4)<br/>
     ca/nhay (base face): <code>CJK FE00–FE0F MARK</code> — 4 positions × id/mx/my/mxy<br/>
     Squish digraph: <code>A FE08 FE00 B FE09</code> on <code>edenia cjk h</code><br/>
-    Niche composer: <code>multigraph-cjk.html</code> (<code>edenia cjk h/t/q/qv/qh</code>)<br/>
+    Segment composer: <code>multigraph-cjk.html</code> (<code>edenia cjk h/t/q/qv/qh</code>)<br/>
     Digraph pairs: {len(pairs)} ({n_cross} cross-bucket) · gallery ≈ {total:,}
   </p>
   <div class="controls">
@@ -754,20 +754,20 @@ function renderSquish(indices, slot) {{
 function renderDigraphs(orientOi) {{
   clearOut();
   const pairs = DATA.DIGRAPH_PAIRS || [];
-  const niches = DATA.DIGRAPH_NICHES || [];
+  const segments = DATA.DIGRAPH_SEGMENTS || [];
   const opp = DATA.OPPOSING_ORIENT_OI || [];
   out.appendChild(heading(
-    'Half digraphs (face h) — FE00(+niche) + opposing niche'));
+    'Half digraphs (face h) — FE00(+segment) + opposing segment'));
   let n = 0;
   for (const p of pairs) {{
     const oia = orientOi;
     const oib = opp[oia] != null ? opp[oia] : oia;
-    for (const niche of niches) {{
+    for (const segment of segments) {{
       out.appendChild(digraphCell(
-        digraphFirst(p.a, oia, niche.a),
-        digraphSecond(p.b, oib, niche.b),
+        digraphFirst(p.a, oia, segment.a),
+        digraphSecond(p.b, oib, segment.b),
         DATA.CJK[p.a].cp, DATA.CJK[p.b].cp,
-        digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
+        digraphTag(p.a, oia, segment.a, p.b, oib, segment.b, !!p.cross),
         !!p.cross));
       n++;
     }}
@@ -779,7 +779,7 @@ function renderDigraphs(orientOi) {{
 function renderDigraphGrid() {{
   clearOut();
   const pairs = DATA.DIGRAPH_PAIRS || [];
-  const niches = DATA.DIGRAPH_NICHES || [];
+  const segments = DATA.DIGRAPH_SEGMENTS || [];
   const opp = DATA.OPPOSING_ORIENT_OI || [];
   out.appendChild(heading('Half digraphs × all base orients (face h)'));
   let n = 0;
@@ -788,12 +788,12 @@ function renderDigraphGrid() {{
     out.appendChild(heading((DATA.BASE_ORIENT_LABEL[oia] || 'id')
       + ' × ' + (DATA.BASE_ORIENT_LABEL[oib] || 'id')));
     for (const p of pairs) {{
-      for (const niche of niches) {{
+      for (const segment of segments) {{
         out.appendChild(digraphCell(
-          digraphFirst(p.a, oia, niche.a),
-          digraphSecond(p.b, oib, niche.b),
+          digraphFirst(p.a, oia, segment.a),
+          digraphSecond(p.b, oib, segment.b),
           DATA.CJK[p.a].cp, DATA.CJK[p.b].cp,
-          digraphTag(p.a, oia, niche.a, p.b, oib, niche.b, !!p.cross),
+          digraphTag(p.a, oia, segment.a, p.b, oib, segment.b, !!p.cross),
           !!p.cross));
         n++;
       }}
@@ -865,16 +865,16 @@ function renderEverything() {{
   }}
   out.appendChild(heading('Half digraphs (face h, id ↔ r180)'));
   const pairs = DATA.DIGRAPH_PAIRS || [];
-  const niches = DATA.DIGRAPH_NICHES || [];
+  const segments = DATA.DIGRAPH_SEGMENTS || [];
   const opp = DATA.OPPOSING_ORIENT_OI || [];
   const oib = opp[0] != null ? opp[0] : 0;
   for (const p of pairs) {{
-    for (const niche of niches) {{
+    for (const segment of segments) {{
       out.appendChild(digraphCell(
-        digraphFirst(p.a, 0, niche.a),
-        digraphSecond(p.b, oib, niche.b),
+        digraphFirst(p.a, 0, segment.a),
+        digraphSecond(p.b, oib, segment.b),
         DATA.CJK[p.a].cp, DATA.CJK[p.b].cp,
-        digraphTag(p.a, 0, niche.a, p.b, oib, niche.b, !!p.cross),
+        digraphTag(p.a, 0, segment.a, p.b, oib, segment.b, !!p.cross),
         !!p.cross));
       n++;
     }}

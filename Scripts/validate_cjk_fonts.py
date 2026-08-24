@@ -1,4 +1,4 @@
-"""Validate panCJK woff2 for load-blocking issues (cmap/OTS/OpenType)."""
+"""Validate edenia CJK woff2 for load-blocking issues (cmap/OTS/OpenType)."""
 
 from __future__ import annotations
 

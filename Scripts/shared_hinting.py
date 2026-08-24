@@ -1,9 +1,9 @@
-"""TrueType autohint helper via ``ttfautohint-py`` (fontTools ecosystem).
+"""TrueType autohint helper via `ttfautohint-py` (fontTools ecosystem).
 
-Install: ``pip install ttfautohint-py``
+Install: `pip install ttfautohint-py`
 
-Wheels bundle a ``ttfautohint`` binary; no separate system install needed.
-Core ``fontTools`` cannot invent TrueType bytecode — this package is the
+Wheels bundle a `ttfautohint` binary; no separate system install needed.
+Core `fontTools` cannot invent TrueType bytecode — this package is the
 supported integration.
 """
 
@@ -21,12 +21,12 @@ PathLike = Union[str, os.PathLike]
 
 NO_HINT_HELP = "Skip ttfautohint-py TrueType autohint step"
 HINT_BASE_ONLY_HELP = (
-    "Autohint only base faces (skip niche / slice faces such as h/t/q)"
+    "Autohint only base faces (skip segment / slice faces such as h/t/q)"
 )
 
 
 def add_no_hint_argument(parser: argparse.ArgumentParser) -> None:
-    """``--no-hint`` / ``--no-hinting`` on a build-script parser."""
+    """`--no-hint` / `--no-hinting` on a build-script parser."""
     parser.add_argument(
         "--no-hint",
         "--no-hinting",
@@ -36,7 +36,7 @@ def add_no_hint_argument(parser: argparse.ArgumentParser) -> None:
 
 
 def add_jobs_argument(parser: argparse.ArgumentParser) -> None:
-    """``--jobs`` / ``-j`` parallel workers (default: all CPUs)."""
+    """`--jobs` / `-j` parallel workers (default: all CPUs)."""
     parser.add_argument(
         "--jobs",
         "-j",
@@ -51,13 +51,13 @@ def add_jobs_argument(parser: argparse.ArgumentParser) -> None:
 
 
 def _parse_jobs(value: str) -> int:
-    """Worker count; negative is abs (``-j -61`` → 61, not one worker)."""
+    """Worker count; negative is abs (`-j -61` → 61, not one worker)."""
     n = int(value)
     return max(1, abs(n))
 
 
 def add_hint_mode_arguments(parser: argparse.ArgumentParser) -> None:
-    """Mutually exclusive ``--no-hint`` / ``--hint-base-only``."""
+    """Mutually exclusive `--no-hint` / `--hint-base-only`."""
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--no-hint",
@@ -73,12 +73,12 @@ def add_hint_mode_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def autohint_ttf(ttf_path: PathLike, *, enabled: bool = True) -> None:
-    """Autohint ``ttf_path`` in place with ttfautohint-py.
+    """Autohint `ttf_path` in place with ttfautohint-py.
 
     Reads the TTF into memory, hints, writes a sibling temp file, then
-    ``os.replace`` with retries (Windows AV / OneDrive often lock the
-    destination briefly under parallel builds). No-op when ``enabled`` is
-    false. Raises ``RuntimeError`` if the package is missing or hinting fails.
+    `os.replace` with retries (Windows AV / OneDrive often lock the
+    destination briefly under parallel builds). No-op when `enabled` is
+    false. Raises `RuntimeError` if the package is missing or hinting fails.
     """
     if not enabled:
         return
@@ -181,13 +181,13 @@ def drop_ttf(ttf_path: str) -> None:
 
 
 def hint_ttf_task(ttf_path: str) -> str:
-    """Process-pool worker: autohint ``ttf_path`` in place."""
+    """Process-pool worker: autohint `ttf_path` in place."""
     autohint_ttf(ttf_path, enabled=True)
     return ttf_path
 
 
 def woff2_face_task(item: Tuple[str, bool]) -> str:
-    """Process-pool worker: TTF→WOFF2; drop TTF when ``write_ttf`` is false."""
+    """Process-pool worker: TTF→WOFF2; drop TTF when `write_ttf` is false."""
     ttf_path, write_ttf = item
     print(
         f"  Compressing {os.path.basename(ttf_path).replace('.ttf', '.woff2')}...",

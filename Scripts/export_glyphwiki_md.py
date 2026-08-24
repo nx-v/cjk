@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Export GlyphWiki font preview markdown files (PUA ligature sequences).
 
-Reads ``Scripts/data/glyphwiki-cmap.json`` and writes one ``.md`` per SPUA
-marker font (same basename as the TTF, e.g. ``F0000.md``). Each file lists
+Reads `Scripts/data/glyphwiki-cmap.json` and writes one `.md` per SPUA
+marker font (same basename as the TTF, e.g. `F0000.md`). Each file lists
 the OpenType input sequences that render that font's glyphs ? identity
-(``marker + PUA``) and D4 variants (``marker + PUA + VS02..VS08``) ? chunked
-32 glyphs per line like ``CJK Unified Ideographs.md``.
+(`marker + PUA`) and D4 variants (`marker + PUA + VS02..VS08`) ? chunked
+32 glyphs per line like `CJK Unified Ideographs.md`.
 
 Examples:
   python Scripts/export_glyphwiki_md.py
@@ -58,7 +58,7 @@ def ligature_sequence(marker: int, pua: int, vs: int | None = None) -> str:
 
 
 def format_section(sequences: list[str]) -> str:
-    """Join sequences into markdown lines (32 glyphs, trailing ``  `` breaks)."""
+    """Join sequences into markdown lines (32 glyphs, trailing `  ` breaks)."""
     if not sequences:
         return ""
     lines: list[str] = []
@@ -75,7 +75,7 @@ def markdown_for_marker(
 ) -> str:
     """Build markdown body for one marker font.
 
-    ``pairs`` is ``(pua, glyph_name)`` sorted by PUA.
+    `pairs` is `(pua, glyph_name)` sorted by PUA.
     """
     parts: list[str] = [f"# U+{marker:X}", ""]
     sections = D4_SECTIONS if include_mirrors else D4_SECTIONS[:1]

@@ -1,33 +1,33 @@
 #!/usr/bin/env python3
 """
-Build ``edenia kana`` (PUA D4 cmap + smalls + dakuten) and pigeonholed
-``edenia kana h`` (FE00 overlay + FE08–FE0F slices), matching CJK base vs ``h``.
+Build `edenia kana` (PUA D4 cmap + smalls + dakuten) and pigeonholed
+`edenia kana h` (FE00 overlay + FE08–FE0F slices), matching CJK base vs `h`.
 
 Encoding
 --------
-BMP PUA ``U+E000``..``U+F8FF`` (full/small, 6400 CPs)::
+BMP PUA `U+E000`..`U+F8FF` (full/small, 6400 CPs)::
 
     i        = L * 8 + o          # L = 0..219, o = 0..7 (D4_MODES order)
     full[i]  = 0xE000 + 2 * i     # even — full-size oriented form
     small[i] = 0xE000 + 2 * i + 1 # odd  — small: ideo-scale + Weight once, D4 @ ideo
 
-Halfwidth companions (same ``i``) in Supplementary PUA-A::
+Halfwidth companions (same `i`) in Supplementary PUA-A::
 
     hw_full[i]  = 0xF0000 + 2 * i
     hw_small[i] = 0xF0000 + 2 * i + 1
 
-CAPE Width ``0.5`` holds the pre-squeeze stem thicknesses (match full-width
+CAPE Width `0.5` holds the pre-squeeze stem thicknesses (match full-width
 kana). Combining slices use the half-em cell (FE08–FE0F) plus FE00 overlay.
 
 Chart (18 consonant rows × 6 vowels, then trailing marks)
 ---------------------------------------------------------
-Row-major into logical ``L`` (hiragana block, then katakana block). Each cell
+Row-major into logical `L` (hiragana block, then katakana block). Each cell
 holds one **source** code point (Flop / mkanaplus PUA / GenSeki / LXGW); the
-built face maps it to PUA ``full`` / ``small`` (and halfwidth companions).
+built face maps it to PUA `full` / `small` (and halfwidth companions).
 
-Columns (``VOWELS``)::  a · i · u · e · o · ə
+Columns (`VOWELS`)::  a · i · u · e · o · ə
 
-Rows (``CONSONANTS`` — same order in ``HIRAGANA_ROWS`` and ``KATAKANA_ROWS``)::
+Rows (`CONSONANTS` — same order in `HIRAGANA_ROWS` and `KATAKANA_ROWS`)::
 
      0  ∅     vowel-only (あア …)
      1  k
@@ -55,7 +55,7 @@ Logical indices::
     L 110..217   katakana 18×6
     L 218..219   katakana length · gemination
 
-(220 logical cells total; ``i = L * 8 + o`` with ``L = 0..219``, ``o = 0..7``.)
+(220 logical cells total; `i = L * 8 + o` with `L = 0..219`, `o = 0..7`.)
 
 Source priority per cell: FlopDesignFONT, then mkanaplus (PUA/archaic +
 overrides), then GenSeki Hentaigana, then LXGW (Clear Gothic / XiHei). Glyphs
@@ -146,9 +146,7 @@ from shared_half_cells import (
 )
 from shared_half_cells import _bake_transformed_glyph  # composite → plain outlines
 from yi_slice import (
-    SLICE_H_CP as KANA_SLICE_H_CP,
     SLICE_SUFFIXES,
-    SLICE_V_CP as KANA_SLICE_V_CP,
     add_slice_halves,
     half_glyph_name,
     inject_slice_marks,
@@ -179,7 +177,6 @@ PS_NAME = PS_KANA
 PUA_START = 0xE000
 PUA_END = 0xF8FF  # inclusive; 6400 CPs
 D4_COUNT = 8
-LOGICAL_CAPACITY = 400  # 400 * 8 * 2 = 6400
 SMALL_WIDTH_FACTOR = 0.75
 # After uniform scale, CAPE Weight restores stroke thickness to match full-size.
 SMALL_WEIGHT_FACTOR = 1.0 / SMALL_WIDTH_FACTOR
@@ -215,13 +212,16 @@ LXGW_FAMILY_FILENAMES: Tuple[str, ...] = (
 # Source-shape overrides: always claim from mkanaplus when present.
 MKANA_OVERRIDE_CPS: frozenset[int] = frozenset(
     {
-        0x3053,  # こ
-        0x304F,  # く
-        0x3078,  # へ
-        0x30A2,  # ア
-        0x30BD,  # ソ
-        0x30EB,  # ル
-        0x30EF,  # ワ
+        0x0305F,  # た
+        0x0306A,  # な
+        0x0306B,  # に
+        0x03053,  # こ
+        0x0304F,  # く
+        0x03078,  # へ
+        0x030A2,  # ア
+        0x030BD,  # ソ
+        0x030EB,  # ル
+        0x030EF,  # ワ
     }
 )
 
@@ -355,7 +355,7 @@ def validate_chart_tables() -> None:
 
 
 def trailing_mark_label(logical: int) -> Optional[str]:
-    """``length`` / ``gemination`` if ``logical`` is a script trailer, else None."""
+    """`length` / `gemination` if `logical` is a script trailer, else None."""
     if HIRAGANA_PHONETIC_COUNT <= logical < HIRAGANA_COUNT:
         return SCRIPT_TRAILING_CPS[logical - HIRAGANA_PHONETIC_COUNT][0]
     kata0 = HIRAGANA_COUNT
@@ -682,7 +682,7 @@ def stretch_to_flop_average(
 
     Growing thickens strokes geometrically, so CAPE Width/Height restore the
     pre-stretch stem (slightly thinner relative to the new size). If a stem
-    cannot be measured, fall back to Weight lighten by ``1/scale``.
+    cannot be measured, fall back to Weight lighten by `1/scale`.
     """
     baked, adv0, lsb = _bake_simple(glyph, int(advance), glyph_set)
     work_adv = float(adv0 if adv0 > 0 else target_upem)
@@ -763,12 +763,12 @@ def _bottom_center_glyph(
     glyph: TTGlyph,
     target_upem: int,
 ) -> Tuple[TTGlyph, int]:
-    """Pin ink to typo floor and center horizontally; returns ``(glyph, lsb)``."""
+    """Pin ink to typo floor and center horizontally; returns `(glyph, lsb)`."""
     typo_bot = target_upem * TYPO_DESCENDER_FRAC
     try:
         glyph.recalcBounds(None)
         x0, y0 = float(glyph.xMin), float(glyph.yMin)
-        x1, y1 = float(glyph.xMax), float(glyph.yMax)
+        x1 = float(glyph.xMax)
         cx = (x0 + x1) / 2.0
         dx = (target_upem / 2.0) - cx
         dy = typo_bot - y0
@@ -806,7 +806,7 @@ def small_ideo_center(
 ) -> Tuple[float, float]:
     """Fixed pivot for all small D4: center of the scaled+floor-pinned ideo box.
 
-    Independent of any glyph contour — same ``(x, y)`` for every kana.
+    Independent of any glyph contour — same `(x, y)` for every kana.
     """
     bot, _top, height = ideographic_bounds(target_upem)
     s = float(size_factor)
@@ -821,7 +821,7 @@ def apply_small_floor_pin(
     target_upem: int,
     size_factor: float = SMALL_WIDTH_FACTOR,
 ) -> None:
-    """Drop glyphs so the scaled ideo box sits on the typo floor (shared ``dy``)."""
+    """Drop glyphs so the scaled ideo box sits on the typo floor (shared `dy`)."""
     dy = small_floor_pin_dy(target_upem, size_factor)
     if abs(dy) < 1e-6:
         return
@@ -909,11 +909,11 @@ def make_small_glyph(
     """Ideographic-space scale → optional CAPE Weight (once).
 
     Scale is about the CJK typo-box center (not contour bbox). D4 variants
-    must be derived from this identity via ``add_d4_variant_glyphs`` (ideo
+    must be derived from this identity via `add_d4_variant_glyphs` (ideo
     pivot) — do **not** run make_small on each orientation (that double-boldens
     and re-pins to contour bounds).
 
-    Slice halves: same Weight as bodies; ``pin_bottom=False`` (keep half-planes).
+    Slice halves: same Weight as bodies; `pin_bottom=False` (keep half-planes).
     """
     baked, adv, _ = _bake_simple(full_glyph, advance, glyph_set)
     small = baked
@@ -1054,10 +1054,10 @@ def replace_halfwidth_r90(
     size_factor: float = 1.0,
     pivot: Optional[Tuple[float, float]] = None,
 ) -> None:
-    """Install Y-squeezed ``.r90`` and re-bake r270 / r90mx / r90my from it.
+    """Install Y-squeezed `.r90` and re-bake r270 / r90mx / r90my from it.
 
     D4 sideways forms are baked outlines, not live composites — replacing
-    ``.r90`` alone leaves the others as a 90° turn of the X-squeezed identity.
+    `.r90` alone leaves the others as a 90° turn of the X-squeezed identity.
     """
     r90 = variant_glyph_name(hw_name, "r90")
     if r90 not in glyphs:
@@ -1216,7 +1216,7 @@ def _css_cps_for_kana_face(
 
 
 def write_css(out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]) -> None:
-    """Write edenia-kana.css: ``h`` pigeonholes then the base face."""
+    """Write edenia-kana.css: `h` pigeonholes then the base face."""
     css_path = os.path.join(out_dir, CSS_KANA)
     mark_cps: set[int] = set()
     for face_id, _variant, _n, _cps in built:
@@ -1312,7 +1312,7 @@ def _add_kana_slices(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
 ) -> None:
-    """Bake combining slices + overlays for bases present in ``glyphs``."""
+    """Bake combining slices + overlays for bases present in `glyphs`."""
     full_pairs = [
         (f, s) for f, s in zip(full_bases, small_bases) if f in glyphs and s in glyphs
     ]
@@ -1674,7 +1674,7 @@ def _kana_face_task(
     return (*meta, os.path.join(m["out_dir"], f"{meta[0]}.ttf"))
 
 
-def build_pankana_font(
+def build_edenia_kana_font(
     in_dir: str,
     out_dir: str,
     target_upem: int,
@@ -2173,7 +2173,7 @@ def build_all(
     print(f"  Jobs: {max(1, jobs)}")
 
     os.makedirs(out_dir, exist_ok=True)
-    built = build_pankana_font(
+    built = build_edenia_kana_font(
         in_dir,
         out_dir,
         target_upem,

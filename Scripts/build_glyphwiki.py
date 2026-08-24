@@ -8,8 +8,8 @@ CJK/Kangxi radicals), and writes TTF/WOFF2 per SPUA marker × KAGE style into
 Scripts/dist/glyphwiki/{mincho,gothic,rounded}/.
 
 Each font is named after its SPUA marker (the first ligature code point),
-e.g. mincho/F0000.ttf. Styles default to all three; pass ``--mincho``,
-``--gothic``, and/or ``--rounded`` to build a subset.
+e.g. mincho/F0000.ttf. Styles default to all three; pass `--mincho`,
+`--gothic`, and/or `--rounded` to build a subset.
 
 Examples:
   python Scripts/build_glyphwiki.py

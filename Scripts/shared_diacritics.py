@@ -1,6 +1,6 @@
 """Shared corner diacritics (Yi / Hangul) from a multi-font mark stack.
 
-Inventory: ``(\\p{M} ∩ stack) ∖ variation selectors`` (VS1–16, IVS,
+Inventory: `(\\p{M} ∩ stack) ∖ variation selectors` (VS1–16, IVS,
 Mongolian FVS). First font in the stack wins per codepoint. Wide thin
 marks (macron, overline) are box-fitted, not dropped.
 
@@ -10,8 +10,8 @@ Stack (priority order)::
     → Constructium → Droid Sans → Arial Unicode MS → Gentium-Regular
 
 Marks are copied at **native outline size** (only UPM harmonization when the
-source ``unitsPerEm`` differs). They attach via GPOS
-``mark`` / ``abvm`` at fixed CJK cell corners. Left / right slots pin the
+source `unitsPerEm` differs). They attach via GPOS
+`mark` / `abvm` at fixed CJK cell corners. Left / right slots pin the
 matching ink edge flush to the cell side. Top / bottom slots pin the
 mark's near edge to the **outer** face of the ideographic box so the
 diacritic sits clearly above or below the cell (not inset into it).
@@ -27,12 +27,12 @@ Successive marks fill slots via GSUB cycling (corners then edge midpoints)::
     7th → center-left
     8th → bottom-left
 
-``U+034F`` CGJ is an empty mark that occupies the next slot, so
-``base + CGJ + mark`` attaches at CR, ``base + CGJ×2 + mark`` at BR, etc.
+`U+034F` CGJ is an empty mark that occupies the next slot, so
+`base + CGJ + mark` attaches at CR, `base + CGJ×2 + mark` at BR, etc.
 Interleaved CGJ skips the following slot.
 
 Bases include Yi identity + all D4 orientations (VS02..VS08 / FE01..FE07,
-including ``r90my``). Combining slices keep the cell advance (no ``sliceAdv``).
+including `r90my`). Combining slices keep the cell advance (no `sliceAdv`).
 No left-squish forms.
 """
 
@@ -47,7 +47,7 @@ from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
 from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.recordingPen import DecomposingRecordingPen, RecordingPen
-from fontTools.ttLib import TTFont, newTable
+from fontTools.ttLib import newTable
 from fontTools.ttLib.tables import otTables as ot
 from fontTools.ttLib.tables._g_l_y_f import (
     ROUND_XY_TO_GRID,
@@ -170,7 +170,7 @@ def _first_existing(paths: Iterable[str]) -> Optional[str]:
 
 
 def _paths_for_names(in_dir: str, names: Sequence[str], *extra: str) -> Tuple[str, ...]:
-    """Candidate paths: ``in_dir``, Scripts/src, repo root, then extras."""
+    """Candidate paths: `in_dir`, Scripts/src, repo root, then extras."""
     out: List[str] = []
     for name in names:
         out.append(os.path.join(in_dir, name))
@@ -185,7 +185,7 @@ def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
 
     Priority: LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka → JuliaMono →
     Constructium → Droid Sans → Arial Unicode MS → Gentium.
-    Looks under ``in_dir`` first, then well-known repo locations.
+    Looks under `in_dir` first, then well-known repo locations.
     """
     groups: Tuple[Tuple[str, ...], ...] = (
         _paths_for_names(in_dir, LXGW_NEO_XIHEI_SCREEN_FULL_FILENAMES),
@@ -257,7 +257,7 @@ def _glyph_ink_size(glyph_set, glyph_name: str) -> Optional[Tuple[float, float]]
 
 
 def iter_dakuten_codepoints(cmap: Dict[int, str]) -> List[int]:
-    """All ``\\p{M}`` in ``cmap`` except variation selectors."""
+    """All `\\p{M}` in `cmap` except variation selectors."""
     out: List[int] = []
     for cp in sorted(cmap):
         if is_variation_selector(cp):
@@ -278,7 +278,7 @@ def dakuten_mark_slot_name(cp: int, slot_suffix: Optional[str]) -> str:
 
 
 def dakuten_mark_variant_name(cp: int, variant: str = "") -> str:
-    """``uXXXX.mk`` or ``uXXXX.mk.<variant>`` (e.g. ``.sm`` for small kana)."""
+    """`uXXXX.mk` or `uXXXX.mk.<variant>` (e.g. `.sm` for small kana)."""
     base = dakuten_mark_name(cp)
     return f"{base}.{variant}" if variant else base
 
@@ -296,7 +296,7 @@ def dakuten_mark_chain_slot_name(
     *,
     variant: str = "",
 ) -> str:
-    """Overflow mark glyph chaining to the diacritic at compass slot ``slot``."""
+    """Overflow mark glyph chaining to the diacritic at compass slot `slot`."""
     base = dakuten_mark_variant_name(cp, variant)
     for s, suf in DAKUTEN_SLOTS:
         if s == slot:
@@ -307,7 +307,7 @@ def dakuten_mark_chain_slot_name(
 
 
 def dakuten_mark_chain_name(cp: int, variant: str = "") -> str:
-    """Overflow mark for the TR slot (``uXXXX.mk.ch``)."""
+    """Overflow mark for the TR slot (`uXXXX.mk.ch`)."""
     return dakuten_mark_chain_slot_name(cp, "tr", variant=variant)
 
 
@@ -320,7 +320,7 @@ def dakuten_chain_mark_class_for_slot(slot: str) -> int:
 
 
 def dakuten_chain_target_slot_from_glyph(name: str) -> str:
-    """Compass slot whose diacritic an overflow ``.ch`` glyph chains to."""
+    """Compass slot whose diacritic an overflow `.ch` glyph chains to."""
     marker = f".{DAKUTEN_CHAIN_SUFFIX}."
     if marker in name:
         tail = name.rsplit(marker, 1)[-1]
@@ -334,12 +334,12 @@ def dakuten_chain_target_slot_from_glyph(name: str) -> str:
 
 
 def is_dakuten_chain_glyph(name: str) -> bool:
-    """True for overflow ``.mk.ch[.<slot>]`` glyphs (mark-to-mark only)."""
+    """True for overflow `.mk.ch[.<slot>]` glyphs (mark-to-mark only)."""
     return f".mk.{DAKUTEN_CHAIN_SUFFIX}" in name
 
 
 def dakuten_mark_label(cp: int) -> Tuple[str, str, str]:
-    """``(char, Unicode name, short picker label)``."""
+    """`(char, Unicode name, short picker label)`."""
     ch = chr(cp)
     if cp == CGJ_CP:
         return ch, "COMBINING GRAPHEME JOINER", "CGJ"
@@ -357,7 +357,7 @@ def visible_dakuten_cps(cps: Sequence[int]) -> List[int]:
 
 
 def unicode_range_css(codepoints: Sequence[int]) -> str:
-    """Compact CSS ``unicode-range`` from sorted codepoints."""
+    """Compact CSS `unicode-range` from sorted codepoints."""
     cps = sorted(set(int(cp) for cp in codepoints))
     if not cps:
         return ""
@@ -380,12 +380,12 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 
 def combining_mark_codepoints_from_cmap(cmap: Dict[int, str]) -> List[int]:
-    """``\\p{M}`` minus variation selectors (includes CGJ when present)."""
+    """`\\p{M}` minus variation selectors (includes CGJ when present)."""
     return iter_dakuten_codepoints(cmap)
 
 
 def combining_mark_codepoints_from_font(font_path: str) -> List[int]:
-    """``\\p{M}`` minus variation selectors from a font file's cmap."""
+    """`\\p{M}` minus variation selectors from a font file's cmap."""
     tt = load_ttfont(font_path, fontNumber=0)
     try:
         cmap: Dict[int, str] = {}
@@ -406,14 +406,14 @@ def combining_marks_unicode_range_from_stack(
     in_dir: str,
     target_upem: int = 1000,
 ) -> str:
-    """CSS unicode-range for the full mark-stack inventory (``\\p{M}`` union)."""
+    """CSS unicode-range for the full mark-stack inventory (`\\p{M}` union)."""
     paths = resolve_dakuten_mark_font_stack(in_dir)
     order, _glyphs = load_dakuten_marks_from_stack(paths, target_upem)
     return unicode_range_css(order)
 
 
 def dakuten_count_options_html(indent: str = "      ") -> str:
-    """``<option>`` list for mark-count (1..N, labels TR / +CR / …)."""
+    """`<option>` list for mark-count (1..N, labels TR / +CR / …)."""
     lines: List[str] = []
     for i, lab in enumerate(DAKUTEN_SLOT_LABELS, 1):
         tag = lab if i == 1 else f"+{lab}"
@@ -422,7 +422,7 @@ def dakuten_count_options_html(indent: str = "      ") -> str:
 
 
 def dakuten_skip_options_html(indent: str = "      ") -> str:
-    """``<option>`` list for CGJ skip (0 starts TR, 1 starts CR, …)."""
+    """`<option>` list for CGJ skip (0 starts TR, 1 starts CR, …)."""
     labs = DAKUTEN_SLOT_LABELS
     lines = [f'<option value="0">0 — start {labs[0]}</option>']
     for i, lab in enumerate(labs[1:], 1):
@@ -463,7 +463,7 @@ def yi_forms_for_dakuten(
     *,
     modes=None,
 ) -> List[str]:
-    """Identity + VS02..VS08 forms (incl. ``r90my``) that may take dakuten."""
+    """Identity + VS02..VS08 forms (incl. `r90my`) that may take dakuten."""
     names: List[str] = []
     for base in yi_bases:
         names.extend(
@@ -476,7 +476,7 @@ def cjk_corner_anchors(target_upem: int) -> Dict[str, Tuple[int, int]]:
     """Fixed dakuten positions at CJK typo-box corners and edge midpoints.
 
     Left / right stay inset from the em sides. Top / bottom attach on the
-    outer face of the ideographic box (``typo_top`` / ``typo_bot``) so marks
+    outer face of the ideographic box (`typo_top` / `typo_bot`) so marks
     sit clearly above or below the cell.
     """
     edge = target_upem * DAKUTEN_EDGE_PAD_FRAC
@@ -511,9 +511,9 @@ def make_dakuten_mark_glyph(
     target_height: float,
     max_width: Optional[float] = None,
 ) -> Optional[TTGlyph]:
-    """Scale mark to ``target_height``, shrink to ``max_width``, pin center.
+    """Scale mark to `target_height`, shrink to `max_width`, pin center.
 
-    Legacy normalizer — ``load_dakuten_marks`` uses ``copy_dakuten_mark_glyph``
+    Legacy normalizer — `load_dakuten_marks` uses `copy_dakuten_mark_glyph`
     (native size, UPM scale only) instead.
     """
     bounds = recording_bounds(rec)
@@ -595,8 +595,8 @@ def mark_corner_anchor(
 
     Right slots right-align, left slots left-align. Top slots pin the mark's
     bottom (sits above the ideographic top); bottom slots pin the mark's top
-    (sits below the ideographic bottom). Mid-side slots (``cr``/``cl``) pin
-    vertical center; mid-edge top/bottom (``tm``/``bm``) pin horizontal center.
+    (sits below the ideographic bottom). Mid-side slots (`cr`/`cl`) pin
+    vertical center; mid-edge top/bottom (`tm`/`bm`) pin horizontal center.
     """
     try:
         if glyph.isComposite() and glyph_set is not None:
@@ -625,7 +625,7 @@ def mark_corner_anchor(
 
 
 def _mark_slot_composite(base_name: str) -> TTGlyph:
-    """Zero-offset composite alias of ``base_name`` (extra mark-class GID)."""
+    """Zero-offset composite alias of `base_name` (extra mark-class GID)."""
     g = TTGlyph()
     g.numberOfContours = -1
     comp = GlyphComponent()
@@ -641,7 +641,7 @@ def load_dakuten_marks(
     font_path: str,
     target_upem: int,
 ) -> Tuple[List[int], Dict[int, TTGlyph]]:
-    """Load all ``\\p{M}`` marks except variation selectors; native ink size."""
+    """Load all `\\p{M}` marks except variation selectors; native ink size."""
     tt = load_ttfont(font_path, fontNumber=0)
     try:
         cmap: Dict[int, str] = {}
@@ -685,7 +685,7 @@ def load_dakuten_marks_from_stack(
     font_paths: Sequence[str],
     target_upem: int,
 ) -> Tuple[List[int], Dict[int, TTGlyph]]:
-    """Union marks across ``font_paths``; earlier fonts win per codepoint."""
+    """Union marks across `font_paths`; earlier fonts win per codepoint."""
     claimed: Dict[int, TTGlyph] = {}
     order: List[int] = []
     for path in font_paths:
@@ -751,7 +751,7 @@ def add_dakuten_mark_glyphs(
     metrics: Dict[str, Tuple[int, int]],
     cmap: Dict[int, str],
 ) -> List[str]:
-    """Install cmap ``.mk`` glyphs plus per-slot composites (``.cr``…``.bl``).
+    """Install cmap `.mk` glyphs plus per-slot composites (`.cr`…`.bl`).
 
     Returns every mark glyph name (all slots) for GPOS / GDEF.
     """
@@ -794,7 +794,7 @@ def add_dakuten_chain_mark_glyphs(
     metrics: Dict[str, Tuple[int, int]],
     variant: str = "",
 ) -> List[str]:
-    """Install ``.mk.ch[.<slot>]`` composites for mark-to-mark overflow (no cmap)."""
+    """Install `.mk.ch[.<slot>]` composites for mark-to-mark overflow (no cmap)."""
     names: List[str] = []
     for cp in mark_cps:
         base = dakuten_mark_variant_name(cp, variant)
@@ -838,7 +838,7 @@ def add_dakuten_mark_scale_variants(
     weight_factor: float = 1.0,
     variant: str = "sm",
 ) -> List[str]:
-    """Install scaled ``.mk.<variant>`` outlines + slot composites (no cmap)."""
+    """Install scaled `.mk.<variant>` outlines + slot composites (no cmap)."""
     if not variant:
         raise ValueError("variant must be non-empty (e.g. 'sm')")
     names: List[str] = []
@@ -880,7 +880,7 @@ def collect_dakuten_base_anchors(
     glyphs: Dict[str, TTGlyph],
     target_upem: int,
 ) -> Dict[str, Dict[int, Tuple[int, int]]]:
-    """Map bases → ``{mark_class: (x, y)}`` for all dakuten box slots."""
+    """Map bases → `{mark_class: (x, y)}` for all dakuten box slots."""
     corners = cjk_corner_anchors(target_upem)
     class_xy = {i: corners[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)}
     anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
@@ -1014,10 +1014,10 @@ def install_dakuten_mark_variant_gsub(
     base_names: Sequence[str],
     variant: str = "sm",
 ) -> int:
-    """After ``base_names`` (or prior ``.<variant>`` marks), ``.mk`` → ``.mk.<variant>``.
+    """After `base_names` (or prior `.<variant>` marks), `.mk` → `.mk.<variant>`.
 
     Lets successive marks after a small base all pick up the scaled outline
-    before slot cycling (``.mk.sm`` → ``.mk.sm.cr`` → …).
+    before slot cycling (`.mk.sm` → `.mk.sm.cr` → …).
     """
     from shared_half_cells import (
         build_chain_context_format2,
@@ -1116,17 +1116,17 @@ def install_dakuten_slot_gsub(
     base_names: Sequence[str],
     variant: str = "",
 ) -> int:
-    """Cycle successive marks through ``DAKUTEN_SLOTS`` (TR→…→BL).
+    """Cycle successive marks through `DAKUTEN_SLOTS` (TR→…→BL).
 
     Transitions::
 
         (base, TR) + TR  →  next slot
         <slot i> + TR    →  slot i+1
 
-    CGJ (empty ``u034F.mk``) uses the same cycle, so each CGJ skips one
+    CGJ (empty `u034F.mk`) uses the same cycle, so each CGJ skips one
     slot for the following mark.
 
-    ``variant`` (e.g. ``\"sm\"``) selects ``uXXXX.mk.sm`` / ``.sm.br`` names.
+    `variant` (e.g. `\"sm\"`) selects `uXXXX.mk.sm` / `.sm.br` names.
     Uses Format 2 ChainContext + Extension lookups (compact; no type-6 split).
     """
     from shared_half_cells import (
@@ -1237,7 +1237,7 @@ def install_dakuten_slot_gsub(
 
 
 def _ensure_gpos_scripts(gpos: ot.GPOS, script_tags: Sequence[str]) -> None:
-    """Ensure each ``script_tags`` entry exists on ``gpos.ScriptList``."""
+    """Ensure each `script_tags` entry exists on `gpos.ScriptList`."""
     existing = {sr.ScriptTag for sr in (gpos.ScriptList.ScriptRecord or [])}
     for tag in script_tags:
         if tag in existing:
@@ -1265,12 +1265,12 @@ def install_dakuten_gpos(
     base_chunk: int = 2048,
     mark_anchor_fn: Optional[Callable[..., Tuple[int, int]]] = None,
 ) -> int:
-    """Install ``mark``/``abvm`` MarkToBase at the given base slot anchors.
+    """Install `mark`/`abvm` MarkToBase at the given base slot anchors.
 
-    Mark anchors default to ``mark_corner_anchor`` (Yi/Hangul cell flush).
-    Pass ``mark_anchor_fn`` to override (kana pins the mark center).
-    ``extra_script_tags`` (e.g. ``hang``) merge into the GPOS script list
-    alongside ``COMPOSITION_LANGUAGE_SYSTEMS``. Large base inventories are
+    Mark anchors default to `mark_corner_anchor` (Yi/Hangul cell flush).
+    Pass `mark_anchor_fn` to override (kana pins the mark center).
+    `extra_script_tags` (e.g. `hang`) merge into the GPOS script list
+    alongside `COMPOSITION_LANGUAGE_SYSTEMS`. Large base inventories are
     split into Extension MarkToBase subtables.
     """
     if not base_anchors or not mark_names:
@@ -1460,10 +1460,10 @@ def install_dakuten_chain_gsub(
     glyph_order: Sequence[str],
     variant: str = "",
 ) -> int:
-    """Route 9th+ marks through per-slot ``.mk.ch`` glyphs (mark-to-mark cycle).
+    """Route 9th+ marks through per-slot `.mk.ch` glyphs (mark-to-mark cycle).
 
-  * BL + TR → ``.ch`` (9th stacks on TR diacritic).
-  * ``.ch`` + TR → ``.ch.cr`` (10th on CR), … through BL, then wrap to TR.
+  * BL + TR → `.ch` (9th stacks on TR diacritic).
+  * `.ch` + TR → `.ch.cr` (10th on CR), … through BL, then wrap to TR.
     """
     from shared_half_cells import (
         build_chain_context_format2,
@@ -1581,7 +1581,7 @@ def install_dakuten_mark_chain_gpos(
     extra_script_tags: Sequence[str] = (),
     cp_chunk: int = DAKUTEN_CHAIN_GPOS_CP_CHUNK,
 ) -> int:
-    """GPOS mark-to-mark: overflow ``.ch`` marks chain to matching slot diacritics."""
+    """GPOS mark-to-mark: overflow `.ch` marks chain to matching slot diacritics."""
     from fontTools.otlLib.builder import MarkMarkPosBuilder, buildAnchor
 
     parent_anchor = chain_parent_anchor_fn or mark_chain_parent_anchor

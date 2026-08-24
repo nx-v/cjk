@@ -64,7 +64,7 @@ def assigned_cps(ranges: Tuple[Tuple[int, int], ...]) -> List[dict]:
 
 
 def dakuten_mark_entries(limit: int = 64) -> List[dict]:
-    """Marks installed in edenia hangul (``.mk`` cmap), else JuliaMono inventory."""
+    """Marks installed in edenia hangul (`.mk` cmap), else JuliaMono inventory."""
     cps: List[int] = []
     if os.path.isfile(HANGUL_FONT):
         tt = TTFont(HANGUL_FONT)

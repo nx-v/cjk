@@ -54,9 +54,9 @@ class RoundStrokeDrawer:
         append_last: bool = False,
     ):
         delta1 = 0
-        if (temp := a1 % 10) == 0:
+        if a1 % 10 == 0:
             pass
-        # elif temp == 2:
+        # elif a1 % 10 == 2:
         #     delta1 = font.kWidth
         # elif temp == 3:
         #     delta1 = font.kWidth * font.kKakato
@@ -71,7 +71,7 @@ class RoundStrokeDrawer:
             vec_1 += vec_d1
 
         delta2 = 0
-        if (temp := a2 % 10) == 0:
+        if a2 % 10 == 0:
             pass
         # elif temp == 2:
         #     delta2 = self.font.kWidth

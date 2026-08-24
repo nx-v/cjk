@@ -1,63 +1,63 @@
-"""CJK quarter-cell niches — three faces (2×2 grid / vertical / horizontal).
+"""CJK quarter-cell segments — three faces (2×2 grid / vertical / horizontal).
 
 Encoding
 --------
 * Standard CJK code points are used as-is.
-* **Grid face** (``q``): 2×2 corners + L-shaped 3/4 via VS41–48.
-* **Vertical face** (``qv``): Y-axis bands via VS13–14 + VS27–33.
-* **Horizontal face** (``qh``): X-axis bands via VS15–16 + VS34–40.
+* **Grid face** (`q`): 2×2 corners + L-shaped 3/4 via VS41–48.
+* **Vertical face** (`qv`): Y-axis bands via VS13–14 + VS27–33.
+* **Horizontal face** (`qh`): X-axis bands via VS15–16 + VS34–40.
   Label “top”/“bottom” on the horizontal face maps to **left**/**right**
   (r90 CCW: top→left, bottom→right).
-* ``FE00`` → zero-width ``.ov`` for stacking.
-* GSUB ``ccmp``/``rlig``/``liga`` only — no cmap-14 UVS.
+* `FE00` → zero-width `.ov` for stacking.
+* GSUB `ccmp`/`rlig`/`liga` only — no cmap-14 UVS.
 
-Grid (``q``) — 2×2; L for a corner is the 3/4 that includes that corner
+Grid (`q`) — 2×2; L for a corner is the 3/4 that includes that corner
 ======= ========== ========================= ========
-VS      Code point Niche                     Suffix
+VS      Code point Segment                     Suffix
 ======= ========== ========================= ========
-VS41    U+E0118    top-left quarter          ``q2tl``
-VS42    U+E0119    top-right quarter         ``q2tr``
-VS43    U+E011A    bottom-left quarter       ``q2bl``
-VS44    U+E011B    bottom-right quarter      ``q2br``
-VS45    U+E011C    L at top-left (top∪left)  ``q2tl3``
-VS46    U+E011D    L at top-right            ``q2tr3``
-VS47    U+E011E    L at bottom-left          ``q2bl3``
-VS48    U+E011F    L at bottom-right         ``q2br3``
-======= ========== ========================= ========
-
-Vertical (``qv``) — axis Y, bands 0=bottom … 3=top
-======= ========== ========================= ========
-VS      Code point Niche                     Suffix
-======= ========== ========================= ========
-VS13    U+FE08     top half                  ``q4th``
-VS14    U+FE09     bottom half               ``q4bh``
-VS27    U+E010A    top quarter               ``q4t``
-VS28    U+E010B    near-top quarter          ``q4nt``
-VS29    U+E010C    near-bottom quarter       ``q4nb``
-VS30    U+E010D    bottom quarter            ``q4b``
-VS31    U+E010E    top three-quarters        ``q4t3``
-VS32    U+E010F    bottom three-quarters     ``q4b3``
-VS33    U+E0110    middle half               ``q4mh``
+VS41    U+E0118    top-left quarter          `q2tl`
+VS42    U+E0119    top-right quarter         `q2tr`
+VS43    U+E011A    bottom-left quarter       `q2bl`
+VS44    U+E011B    bottom-right quarter      `q2br`
+VS45    U+E011C    L at top-left (top∪left)  `q2tl3`
+VS46    U+E011D    L at top-right            `q2tr3`
+VS47    U+E011E    L at bottom-left          `q2bl3`
+VS48    U+E011F    L at bottom-right         `q2br3`
 ======= ========== ========================= ========
 
-Horizontal (``qh``) — axis X, same suffixes (top→left, bottom→right)
+Vertical (`qv`) — axis Y, bands 0=bottom … 3=top
 ======= ========== ========================= ========
-VS      Code point Niche                     Suffix
+VS      Code point Segment                     Suffix
 ======= ========== ========================= ========
-VS15    U+FE0A     top half (= left half)    ``q4th``
-VS16    U+FE0B     bottom half (= right)     ``q4bh``
-VS34    U+E0111    top quarter (= left)      ``q4t``
-VS35    U+E0112    near-top (= near-left)    ``q4nt``
-VS36    U+E0113    near-bottom (= near-right)``q4nb``
-VS37    U+E0114    bottom quarter (= right)  ``q4b``
-VS38    U+E0115    top 3/4 (= left 3/4)      ``q4t3``
-VS39    U+E0116    bottom 3/4 (= right 3/4)  ``q4b3``
-VS40    U+E0117    middle half               ``q4mh``
+VS13    U+FE08     top half                  `q4th`
+VS14    U+FE09     bottom half               `q4bh`
+VS27    U+E010A    top quarter               `q4t`
+VS28    U+E010B    near-top quarter          `q4nt`
+VS29    U+E010C    near-bottom quarter       `q4nb`
+VS30    U+E010D    bottom quarter            `q4b`
+VS31    U+E010E    top three-quarters        `q4t3`
+VS32    U+E010F    bottom three-quarters     `q4b3`
+VS33    U+E0110    middle half               `q4mh`
 ======= ========== ========================= ========
 
-Niche forms are **slices** of already-baked fullwidth / half-cell outlines.
-``qv``/``qh``/``q`` inherit CJK ``.dk*`` halves when present; remaining
-bands are ``full − piece`` or union. Zero-width ``.ov`` forms are composites
+Horizontal (`qh`) — axis X, same suffixes (top→left, bottom→right)
+======= ========== ========================= ========
+VS      Code point Segment                     Suffix
+======= ========== ========================= ========
+VS15    U+FE0A     top half (= left half)    `q4th`
+VS16    U+FE0B     bottom half (= right)     `q4bh`
+VS34    U+E0111    top quarter (= left)      `q4t`
+VS35    U+E0112    near-top (= near-left)    `q4nt`
+VS36    U+E0113    near-bottom (= near-right)`q4nb`
+VS37    U+E0114    bottom quarter (= right)  `q4b`
+VS38    U+E0115    top 3/4 (= left 3/4)      `q4t3`
+VS39    U+E0116    bottom 3/4 (= right 3/4)  `q4b3`
+VS40    U+E0117    middle half               `q4mh`
+======= ========== ========================= ========
+
+Segment forms are **slices** of already-baked fullwidth / half-cell outlines.
+`qv`/`qh`/`q` inherit CJK `.dk*` halves when present; remaining
+bands are `full − piece` or union. Zero-width `.ov` forms are composites
 of those fullwidth slices.
 """
 
@@ -83,18 +83,18 @@ from shared_half_cells import (
     half_plane_rect,
     ideographic_bounds,
     install_derived_glyph,
-    make_niche_slice_glyph,
+    make_segment_slice_glyph,
     overlay_glyph_name,
     variant_glyph_name,
     HALF_PLANE_INF_FRAC,
-    propagate_d4_niches,
+    propagate_d4_segments,
     OV_SELECTOR_CP,
     OV_SELECTOR_NAME,
 )
 
 # FE00 zero-width overlay.
 
-# Four bands along the niche axis.
+# Four bands along the segment axis.
 QUARTER_BANDS = 4
 QUARTER_PAD_FRAC = 0.02
 
@@ -176,17 +176,17 @@ def quarter_slots_for_face(face: str) -> Tuple:
 
 def quarter_axis_for_face(face: str) -> str:
     if face == QUARTER_FACE_GRID:
-        raise ValueError("grid face q has no single niche axis")
+        raise ValueError("grid face q has no single segment axis")
     return "y" if face == QUARTER_FACE_V else "x"
 
 
 def quarter_slot_parts(slot: Tuple) -> Tuple[int, str, str]:
-    """``(vs_cp, selector name, suffix)`` from a 3- or 5-tuple slot."""
+    """`(vs_cp, selector name, suffix)` from a 3- or 5-tuple slot."""
     return slot[0], slot[1], slot[2]
 
 
 def quarter_form_name(base_name: str, suffix: str, *, face: str = "") -> str:
-    """Niche glyph name. ``qv``/``qh`` are tagged so they can share a master."""
+    """Segment glyph name. `qv`/`qh` are tagged so they can share a master."""
     if face in ("qv", "qh"):
         return f"{base_name}.{face}.{suffix}"
     return f"{base_name}.{suffix}"
@@ -219,7 +219,7 @@ def _quarter_slot_rect(
     return x0, bot + pad, x1, top - pad
 
 
-def quarter_niche_windows(
+def quarter_segment_windows(
     face: str, target_upem: int
 ) -> Dict[str, Tuple[float, float, float, float]]:
     """Finite AABBs for qv/qh band suffixes (D4 matching)."""
@@ -292,7 +292,7 @@ def place_glyph_in_quarter(
     target_upem: int = 1000,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Clip ``glyph`` to a quarter / half / 3/4 slot (slice — no stretch)."""
+    """Clip `glyph` to a quarter / half / 3/4 slot (slice — no stretch)."""
     from shared_half_cells import clip_glyph_to_rect
 
     upem = float(target_upem)
@@ -318,8 +318,8 @@ def make_quarter_glyph(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     factor: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Upright quarter niche as a slice of ``base_name`` (clip; no stretch)."""
-    from shared_half_cells import make_niche_slice_glyph
+    """Upright quarter segment as a slice of `base_name` (clip; no stretch)."""
+    from shared_half_cells import make_segment_slice_glyph
 
     if glyph_set is None:
         raise ValueError("make_quarter_glyph requires glyph_set for slice bake")
@@ -328,7 +328,7 @@ def make_quarter_glyph(
     )
     del factor
     rect = _quarter_slot_rect(float(upem), axis=axis, band0=band0, band1=band1)
-    return make_niche_slice_glyph(
+    return make_segment_slice_glyph(
         base_name,
         advance=int(advance if advance > 0 else upem),
         rect=rect,
@@ -347,8 +347,8 @@ def add_quarter_forms(
 ) -> List[str]:
     """Slice each baked form: clip/inherit halves; derive the rest by boolean.
 
-    ``qv`` reuses CJK ``.dkb`` / ``.dkt`` (top / bottom) when present;
-    ``qh`` reuses ``.dk`` / ``.dkl`` (left / right). End quarters are clipped
+    `qv` reuses CJK `.dkb` / `.dkt` (top / bottom) when present;
+    `qh` reuses `.dk` / `.dkl` (left / right). End quarters are clipped
     from those halves; near-quarters, 3/4, and middle half are subtract/union.
     """
     axis = quarter_axis_for_face(face)
@@ -422,7 +422,7 @@ def add_quarter_forms(
             if out not in glyphs:
                 _put(
                     out,
-                    make_niche_slice_glyph(
+                    make_segment_slice_glyph(
                         src,
                         advance=adv,
                         rect=_plane_for(suf),
@@ -523,9 +523,9 @@ def add_grid_forms(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int = 1000,
 ) -> List[str]:
-    """2×2 corners and L 3/4 from CJK half slices (``.dk`` / ``.dkl`` / ``.dkb`` / ``.dkt``).
+    """2×2 corners and L 3/4 from CJK half slices (`.dk` / `.dkl` / `.dkb` / `.dkt`).
 
-    ``q2tl = left − bottom``, ``q2tl3 = top ∪ left``, and the same pattern
+    `q2tl = left − bottom`, `q2tl3 = top ∪ left`, and the same pattern
     for tr / bl / br.
     """
     bot, top, _ = ideographic_bounds(target_upem)
@@ -556,7 +556,7 @@ def add_grid_forms(
             if hname not in glyphs:
                 _put(
                     hname,
-                    make_niche_slice_glyph(
+                    make_segment_slice_glyph(
                         name,
                         advance=adv,
                         rect=_plane(axis, keep, cut),
@@ -611,7 +611,7 @@ def quarter_vs_liga_map(
     face: str,
     glyphs: Dict[str, TTGlyph],
 ) -> Dict[Tuple[str, ...], str]:
-    """``base + VS`` / ``FE00`` → quarter niche and/or zero-width ``.ov``."""
+    """`base + VS` / `FE00` → quarter segment and/or zero-width `.ov`."""
     from shared_half_cells import vs_glyph_name
 
     slots = quarter_slots_for_face(face)
@@ -655,7 +655,7 @@ def prepare_quarter_cells(
     cmap: Dict[int, str],
     target_upem: int = 1000,
 ) -> List[str]:
-    """Install face VS + FE00, bake quarter niches and ``.ov`` overlays."""
+    """Install face VS + FE00, bake quarter segments and `.ov` overlays."""
     slots = quarter_slots_for_face(face)
 
     if OV_SELECTOR_NAME not in glyphs:
@@ -695,7 +695,7 @@ def prepare_quarter_cells(
             metrics=metrics,
             target_upem=target_upem,
         )
-        propagate_d4_niches(
+        propagate_d4_segments(
             cjk_bases,
             suffixes=tuple(s[2] for s in GRID_VS_SLOTS),
             form_name=lambda form, suf: quarter_form_name(form, suf, face=face),
@@ -715,11 +715,11 @@ def prepare_quarter_cells(
             metrics=metrics,
             target_upem=target_upem,
         )
-        propagate_d4_niches(
+        propagate_d4_segments(
             cjk_bases,
             suffixes=tuple(quarter_slot_parts(s)[2] for s in slots),
             form_name=lambda form, suf: quarter_form_name(form, suf, face=face),
-            windows=quarter_niche_windows(face, target_upem),
+            windows=quarter_segment_windows(face, target_upem),
             glyph_order=glyph_order,
             glyphs=glyphs,
             metrics=metrics,
@@ -733,9 +733,9 @@ def prepare_quarter_cells(
         ov_sources.append(form)
         for slot in slots:
             _cp, _sel, suf = quarter_slot_parts(slot)
-            niche = quarter_form_name(form, suf, face=face)
-            if niche in glyphs:
-                ov_sources.append(niche)
+            segment = quarter_form_name(form, suf, face=face)
+            if segment in glyphs:
+                ov_sources.append(segment)
     add_overlay_forms(
         ov_sources,
         glyph_order=glyph_order,
@@ -752,7 +752,7 @@ def install_quarter_cell_gsub(
     bases: Sequence[str],
     glyphs: Dict[str, TTGlyph],
 ) -> int:
-    """Append quarter-cell VS + FE00 overlay ligatures to ``GSUB``."""
+    """Append quarter-cell VS + FE00 overlay ligatures to `GSUB`."""
     from fontTools.ttLib import newTable
     from fontTools.ttLib.tables import otTables as ot
 

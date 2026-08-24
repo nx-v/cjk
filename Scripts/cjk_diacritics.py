@@ -2,9 +2,9 @@
 
 Core marks from Plangothic P2: U+16FF0 (ca) / U+16FF1 (nhay) only.
 
-Base face (``edenia cjk``)
+Base face (`edenia cjk`)
 --------------------------
-ca/nhay sit in a 1/4 niche; the CJK outline occupies the other 3/4.
+ca/nhay sit in a 1/4 segment; the CJK outline occupies the other 3/4.
 FE00–FE0F on the **clipped CJK** select mark position × axis-mirror
 (Klein four-group only — no r90 / r270)::
 
@@ -14,19 +14,19 @@ FE00–FE0F on the **clipped CJK** select mark position × axis-mirror
     FE03  right, mxy / r180
     FE04–FE07  left  (id / mx / my / mxy)
     FE08–FE0B  up    (id / mx / my / mxy) — mark is r90 of LR upright
-    FE0C–FE0F  down  (id / mx / my / mxy) — same ``.T`` outlines
+    FE0C–FE0F  down  (id / mx / my / mxy) — same `.T` outlines
 
-    CJK  MARK              → ``base.dk_MARK``          (right, upright)
-    CJK  FE00  MARK        → ``base.dk_MARK``          (explicit no-op)
-    CJK  FE01  MARK        → ``base.dk_MARK.mx``
-    CJK  FE08  MARK        → ``base.dkt_MARK``         (up, upright)
-    CJK  FE0C  MARK        → ``base.dkb_MARK``         (down, upright)
+    CJK  MARK              → `base.dk_MARK`          (right, upright)
+    CJK  FE00  MARK        → `base.dk_MARK`          (explicit no-op)
+    CJK  FE01  MARK        → `base.dk_MARK.mx`
+    CJK  FE08  MARK        → `base.dkt_MARK`         (up, upright)
+    CJK  FE0C  MARK        → `base.dkb_MARK`         (down, upright)
 
-Half face (``edenia cjk h``)
+Half face (`edenia cjk h`)
 ----------------------------
-Half-cell niches are **slices** of already-baked fullwidth outlines.
-``FE00`` overlays; ``FE08``–``FE0F`` are halves / triangles. CJK D4 stays
-on ``FE01``–``FE07`` (BMP PUA is edenia kana). Digraphs::
+Half-cell segments are **slices** of already-baked fullwidth outlines.
+`FE00` overlays; `FE08`–`FE0F` are halves / triangles. CJK D4 stays
+on `FE01`–`FE07` (BMP PUA is edenia kana). Digraphs::
 
     A  FE08  FE00  B  FE09   →  A.top.ov + B.bot
 """
@@ -34,13 +34,13 @@ on ``FE01``–``FE07`` (BMP PUA is edenia kana). Digraphs::
 from __future__ import annotations
 
 import os
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
 from fontTools.pens.recordingPen import DecomposingRecordingPen, RecordingPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
-from fontTools.ttLib import TTFont, newTable
+from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables import otTables as ot
 from fontTools.ttLib.tables._g_l_y_f import (
     ROUND_XY_TO_GRID,
@@ -63,24 +63,16 @@ from shared_half_cells import (
     OV_SELECTOR_NAME,
     SLICE_LABELS,
     SLICE_PUA_CPS,
-    SLICE_PUA_SLOTS,
-    SLICE_VS_SLOTS,
     TRANSFORM_MODES,
-    TYPO_ASCENDER_FRAC,
-    TYPO_DESCENDER_FRAC,
     UPRIGHT_COMPOSITE_SUFFIXES,
     add_overlay_forms,
     boolean_subtract_glyphs,
     boolean_subtract_named,
-    build_chain_context_format2,
-    build_chunked_single_subst_lookup,
-    build_ext_gsub_lookup,
     clip_glyph_to_polygon,
     empty_glyph,
     ideographic_bounds,
-    ideographic_center,
     install_derived_glyph,
-    make_niche_slice_glyph,
+    make_segment_slice_glyph,
     metrics_for_glyph,
     orientation_form_names,
     overlay_glyph_name,
@@ -96,7 +88,6 @@ PLANGOTHIC_P2_FILENAME = "PlangothicP2-Regular.ttf"
 CORE_MARK_CPS: Tuple[int, ...] = (0x16FF0, 0x16FF1)
 # Runtime: ca/nhay only (updated by ``prepare_marks``).
 MARK_CPS: Tuple[int, ...] = CORE_MARK_CPS
-LR_MARK_CPS: Tuple[int, ...] = CORE_MARK_CPS  # compat export
 # Overlay + combining slices on the **h** face (FE00, FE08–FE0F).
 # Geometric selector names match shared_half_cells; .dk* suffixes stay
 # for occupancy clips (h = 1/2, base ca/nhay = 3/4).
@@ -117,14 +108,6 @@ SQUISH_TR_NAME = "vsTR"
 SQUISH_BL_CP = 0xFE0F
 SQUISH_BL_NAME = "vsBL"
 # PUA mirrors of FE00 / FE08–FE0F (Blink drops unlisted Default_Ignorables).
-SQUISH_TOP_PUA_CP = 0xE009
-SQUISH_BOT_PUA_CP = 0xE00A
-SQUISH_LEFT_PUA_CP = 0xE00B
-SQUISH_RIGHT_PUA_CP = 0xE00C
-SQUISH_TL_PUA_CP = 0xE00D
-SQUISH_BR_PUA_CP = 0xE00E
-SQUISH_TR_PUA_CP = 0xE00F
-SQUISH_BL_PUA_CP = 0xE010
 SQUISH_PUA_CPS: Tuple[int, ...] = SLICE_PUA_CPS
 SIDE_SELECTOR_CPS: Tuple[int, ...] = (
     OV_SELECTOR_CP,
@@ -148,9 +131,6 @@ SQUISH_VS_SLOTS: Tuple[Tuple[int, str, str], ...] = (
     (SQUISH_TR_CP, SQUISH_TR_NAME, "tr"),
     (SQUISH_BL_CP, SQUISH_BL_NAME, "bl"),
 )
-SQUISH_HALF_SLOTS: Tuple[Tuple[int, str, str], ...] = SQUISH_VS_SLOTS[:4]
-SQUISH_PUA_SLOTS: Tuple[Tuple[int, str], ...] = SLICE_PUA_SLOTS
-
 # Base-face ca/nhay: FE00–FE0F = 4 positions × {id, mx, my, mxy}.
 # (cp, selector name, mark position, mirror suffix or None)
 MarkSlot = Tuple[int, str, str, Optional[str]]
@@ -172,7 +152,7 @@ MARK_SLOT_VS: Tuple[MarkSlot, ...] = tuple(
     for mir_i, mir in enumerate(_MARK_MIRRORS)
 )
 MARK_SLOT_PUA_BASE = 0xE008
-MARK_POS_NICHE: Dict[str, str] = {
+MARK_POS_SEGMENT: Dict[str, str] = {
     "right": "dk",
     "left": "dkl",
     "up": "dkt",
@@ -185,22 +165,10 @@ BASE_VS_MODE_COUNT = 8
 # Slightly over half so digraph halves meet with less middle gutter
 # (exact 0.5 + half-pad left a wide TB seam).
 SQUISH_FACTOR = 0.55
-SQUISH_FACTOR_MIN = 0.55
-SQUISH_FACTOR_MAX = 0.55
 # Base face (ca/nhay): mark occupies 1/4; CJK squish fills the other 3/4.
-MARK_NICHE_FRAC = 1.0 / 4.0
-MARK_BASE_SQUISH_FACTOR = 1.0 - MARK_NICHE_FRAC  # 3/4
-EDGE_PAD_FRAC = 0.03
-GAP_FRAC = 0.02
+MARK_SEGMENT_FRAC = 1.0 / 4.0
+MARK_BASE_SQUISH_FACTOR = 1.0 - MARK_SEGMENT_FRAC  # 3/4
 HALF_PAD_FRAC = 0.02  # inset inside the occupied half (was 0.04)
-
-GDEF_CLASS_BASE = 1
-GDEF_CLASS_MARK = 3
-MARK_CLASS_RIGHT = 0
-MARK_CLASS_LEFT = 1
-MARK_CLASS_TOP = 2
-MARK_CLASS_BOTTOM = 3
-MARK_FEATURE_TAGS: Tuple[str, ...] = ("mark", "abvm")
 
 
 def resolve_plangothic_p2(in_dir: str) -> str:
@@ -211,22 +179,22 @@ def resolve_plangothic_p2(in_dir: str) -> str:
 
 
 def squish_name(base_name: str) -> str:
-    """Left half-slice (right niche free) — clip of upright id."""
+    """Left half-slice (right segment free) — clip of upright id."""
     return f"{base_name}.dk"
 
 
 def squish_left_name(base_name: str) -> str:
-    """Right half-slice (left niche free); clip of upright id."""
+    """Right half-slice (left segment free); clip of upright id."""
     return f"{base_name}.dkl"
 
 
 def squish_top_name(base_name: str) -> str:
-    """Bottom half-slice (top niche free); clip of upright id."""
+    """Bottom half-slice (top segment free); clip of upright id."""
     return f"{base_name}.dkt"
 
 
 def squish_bot_name(base_name: str) -> str:
-    """Top half-slice (bottom niche free); clip of upright id."""
+    """Top half-slice (bottom segment free); clip of upright id."""
     return f"{base_name}.dkb"
 
 
@@ -242,40 +210,6 @@ def bottom_mark_name(mark_name: str) -> str:
     return f"{mark_name}.B"
 
 
-def _mark_root_name(name: str) -> str:
-    return name.split(".", 1)[0]
-
-
-def _mark_cp_from_name(name: str) -> Optional[int]:
-    root = _mark_root_name(name)
-    if not root.startswith("u") or len(root) < 2:
-        return None
-    try:
-        return int(root[1:], 16)
-    except ValueError:
-        return None
-
-
-_D4_SUFFIXES: frozenset[str] = frozenset(
-    suffix for _vs, _r, _fx, _fy, suffix in TRANSFORM_MODES if suffix is not None
-)
-
-
-def _d4_suffix_of(name: str) -> Optional[str]:
-    """Return D4 suffix (``r90``, ``mx``, …) or ``None`` for identity."""
-    if "." not in name:
-        return None
-    suf = name.rsplit(".", 1)[1]
-    return suf if suf in _D4_SUFFIXES else None
-
-
-def _d4_root_name(name: str) -> str:
-    suf = _d4_suffix_of(name)
-    if suf is None:
-        return name
-    return name[: -(len(suf) + 1)]
-
-
 def make_tb_mark_glyph(
     glyph: TTGlyph,
     *,
@@ -286,7 +220,7 @@ def make_tb_mark_glyph(
     """TB mark = r90 of LR-fitted upright (pure rotation about origin).
 
     Upright ca/nhay already fills the LR half; 90° maps that box onto the TB
-    half, so no extra stretch/normalize. ``.B`` / D4 TB aliases composite this.
+    half, so no extra stretch/normalize. `.B` / D4 TB aliases composite this.
     """
     from shared_half_cells import make_composite_variant
 
@@ -346,24 +280,6 @@ def add_mark_mirror_composites(
         metrics[m_name] = (0, int(l))
         installed.append(m_name)
     return installed
-
-
-def add_mark_d4_composites(
-    base_name: str,
-    *,
-    target_upem: int,
-    glyph_order: List[str],
-    glyphs: Dict[str, TTGlyph],
-    metrics: Dict[str, Tuple[int, int]],
-) -> List[str]:
-    """Compat alias — ca/nhay only mirrors, never r90."""
-    return add_mark_mirror_composites(
-        base_name,
-        target_upem=target_upem,
-        glyph_order=glyph_order,
-        glyphs=glyphs,
-        metrics=metrics,
-    )
 
 
 def base_orientation_modes(
@@ -437,8 +353,8 @@ def _normalize_winding(
 ) -> TTGlyph:
     """Ensure outer-CCW winding so Width-mode stem offset expands fill.
 
-    Axis mirrors (``mx`` / ``my``) reverse contour orientation; without this,
-    CAPE ``apply_width`` thins verticals instead of restoring them.
+    Axis mirrors (`mx` / `my`) reverse contour orientation; without this,
+    CAPE `apply_width` thins verticals instead of restoring them.
     """
     if glyph.isComposite():
         glyph = _bake_simple_glyph(glyph, glyph_set)
@@ -468,7 +384,7 @@ def make_mark_glyph(
     *,
     scale: float,
 ) -> Optional[TTGlyph]:
-    """Scale mark outline and pin ink center to ``(0, 0)`` (GPOS attach)."""
+    """Scale mark outline and pin ink center to `(0, 0)` (GPOS attach)."""
     from shared_half_cells import apply_transform
 
     bounds = recording_bounds(rec)
@@ -497,7 +413,7 @@ def load_core_marks(
     local_scale: float = 0.96,
     mark_cps: Sequence[int] = CORE_MARK_CPS,
 ) -> Tuple[List[int], Dict[int, TTGlyph]]:
-    """Return ``(codepoints, cp → zero-origin mark glyph)`` from Plangothic P2."""
+    """Return `(codepoints, cp → zero-origin mark glyph)` from Plangothic P2."""
     tt = TTFont(plangothic_path, fontNumber=0)
     try:
         cmap: Dict[int, str] = {}
@@ -532,61 +448,10 @@ def load_core_marks(
 
 
 def set_mark_cps(cps: Sequence[int]) -> Tuple[int, ...]:
-    """Update module-level ``MARK_CPS`` (used by CSS unicode-range)."""
-    global MARK_CPS, LR_MARK_CPS
+    """Update module-level `MARK_CPS` (used by CSS unicode-range)."""
+    global MARK_CPS
     MARK_CPS = tuple(cps)
-    LR_MARK_CPS = tuple(c for c in cps if c in CORE_MARK_CPS) or CORE_MARK_CPS
     return MARK_CPS
-
-
-def mark_ink_width(
-    glyph: TTGlyph, glyph_set: Optional[Dict[str, TTGlyph]] = None
-) -> float:
-    try:
-        if glyph.isComposite() and glyph_set is not None:
-            glyph.recalcBounds(glyph_set)
-        else:
-            glyph.recalcBounds(None)
-        return float(glyph.xMax - glyph.xMin)
-    except Exception:
-        return 0.0
-
-
-def mark_ink_height(
-    glyph: TTGlyph, glyph_set: Optional[Dict[str, TTGlyph]] = None
-) -> float:
-    try:
-        if glyph.isComposite() and glyph_set is not None:
-            glyph.recalcBounds(glyph_set)
-        else:
-            glyph.recalcBounds(None)
-        return float(glyph.yMax - glyph.yMin)
-    except Exception:
-        return 0.0
-
-
-def squish_factor_for_marks(
-    mark_names: Sequence[str],
-    *,
-    glyphs: Dict[str, TTGlyph],
-    target_upem: int,
-    axis: str = "x",
-) -> float:
-    """Width/height factor so one side niche fits the largest mark + pads."""
-    if axis == "y":
-        sizes = [mark_ink_height(glyphs[n], glyphs) for n in mark_names if n in glyphs]
-    else:
-        sizes = [mark_ink_width(glyphs[n], glyphs) for n in mark_names if n in glyphs]
-    max_s = max((s for s in sizes if s > 1.0), default=0.0)
-    if max_s <= 1.0:
-        return SQUISH_FACTOR
-    gap = target_upem * GAP_FRAC
-    edge = target_upem * EDGE_PAD_FRAC
-    side_pad = target_upem * 0.06
-    niche = max_s + gap + edge
-    usable = max(target_upem - side_pad - niche, target_upem * 0.35)
-    factor = usable / max(target_upem - side_pad, 1.0)
-    return float(min(SQUISH_FACTOR_MAX, max(SQUISH_FACTOR_MIN, factor)))
 
 
 def mark_attach_anchor(
@@ -613,36 +478,6 @@ def mark_attach_anchor(
         return 0, 0
 
 
-def _mark_slot_composite(base_name: str) -> TTGlyph:
-    """Zero-offset composite alias (extra mark-class GID)."""
-    g = TTGlyph()
-    g.numberOfContours = -1
-    comp = GlyphComponent()
-    comp.glyphName = base_name
-    comp.x = 0
-    comp.y = 0
-    comp.flags = ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
-    g.components = [comp]
-    return g
-
-
-def _install_mark_slot(
-    slot_name: str,
-    source_name: str,
-    *,
-    glyph_order: List[str],
-    glyphs: Dict[str, TTGlyph],
-    metrics: Dict[str, Tuple[int, int]],
-) -> None:
-    if slot_name in glyphs:
-        return
-    if source_name not in glyphs:
-        return
-    glyph_order.append(slot_name)
-    glyphs[slot_name] = _mark_slot_composite(source_name)
-    metrics[slot_name] = (0, metrics[source_name][1])
-
-
 def add_mark_glyphs(
     mark_cps: Sequence[int],
     mark_glyphs: Dict[int, TTGlyph],
@@ -654,12 +489,12 @@ def add_mark_glyphs(
     target_upem: int,
     tb_glyphs: Optional[Dict[int, TTGlyph]] = None,
 ) -> Tuple[List[str], List[str], List[str], List[str]]:
-    """Install LR-fitted ca/nhay + mx/my/r180, and a TB ``.T`` family.
+    """Install LR-fitted ca/nhay + mx/my/r180, and a TB `.T` family.
 
-    ``tb_glyphs`` are origin-centered marks for up/down (r90 of the LR-fitted
+    `tb_glyphs` are origin-centered marks for up/down (r90 of the LR-fitted
     upright — not Height-stretched). Mirrors are applied *after* that rotation.
     Up and down slots share those TB outlines and differ only in composite
-    offset. Returns ``(right, left, top, bottom)`` name lists for compat callers.
+    offset. Returns `(right, left, top, bottom)` name lists for compat callers.
     """
     upright: List[str] = []
     for cp in mark_cps:
@@ -724,48 +559,20 @@ def add_mark_glyphs(
     return right_names, left_names, top_names, bottom_names
 
 
-def _mark_forms_for_cps(
-    mark_cps: Sequence[int], glyphs: Dict[str, TTGlyph]
-) -> List[str]:
-    forms: List[str] = []
-    for cp in mark_cps:
-        base = glyph_name_for_cp(cp)
-        if base in glyphs:
-            forms.append(base)
-        for _vs, _r, _fx, _fy, suffix in TRANSFORM_MODES:
-            if suffix is None:
-                continue
-            vname = variant_glyph_name(base, suffix)
-            if vname in glyphs:
-                forms.append(vname)
-    return forms
-
-
-def mark_liga_rules(
-    mark_cps: Sequence[int],
-    glyphs: Dict[str, TTGlyph],
-) -> List[str]:
-    """FEA lines (compat/debug); prefer ``mark_liga_map`` + programmatic GSUB."""
-    return [
-        f"  sub {' '.join(comps)} by {out};"
-        for comps, out in mark_liga_map(mark_cps, glyphs).items()
-    ]
-
-
 def fit_mark_to_halfcell(
     glyph: TTGlyph,
     target_upem: int,
     *,
     axis: str = "x",
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
-    niche_frac: float = 0.5,
+    segment_frac: float = 0.5,
 ) -> TTGlyph:
-    """Fit mark into one niche with uniform CAPE Width/Height.
+    """Fit mark into one segment with uniform CAPE Width/Height.
 
-    ``axis="x"`` → LR niche (``niche_frac`` × width × full ideo height).
-    ``axis="y"`` → TB niche (full width × ``niche_frac`` × ideo height).
+    `axis="x"` → LR segment (`segment_frac` × width × full ideo height).
+    `axis="y"` → TB segment (full width × `segment_frac` × ideo height).
     Ink is centered at the origin for GPOS attachment.
-    Default ``niche_frac=0.5`` (half-cell); base face uses ``1/4``.
+    Default `segment_frac=0.5` (half-cell); base face uses `1/4`.
     """
     pin = "right" if axis == "x" else "bottom"
     src = _normalize_winding(_bake_simple_glyph(glyph, glyph_set), glyph_set)
@@ -774,7 +581,7 @@ def fit_mark_to_halfcell(
         return src
 
     x0, y0, x1, y1 = _half_slot_rect(
-        float(target_upem), pin=pin, axis=axis, niche_frac=niche_frac
+        float(target_upem), pin=pin, axis=axis, segment_frac=segment_frac
     )
     tw = max(x1 - x0, 1.0)
     th = max(y1 - y0, 1.0)
@@ -806,16 +613,16 @@ def _half_slot_rect(
     *,
     pin: str,
     axis: str,
-    niche_frac: float = 0.5,
+    segment_frac: float = 0.5,
 ) -> Tuple[float, float, float, float]:
-    """Return ``(x0, y0, x1, y1)`` for the occupied niche slot.
+    """Return `(x0, y0, x1, y1)` for the occupied segment slot.
 
-    ``niche_frac`` is the fraction of the cell the niche occupies (0.5 half,
-    ``1/4`` for ca/nhay on the base face).
+    `segment_frac` is the fraction of the cell the segment occupies (0.5 half,
+    `1/4` for ca/nhay on the base face).
     """
     bot, top, _ = ideographic_bounds(int(target_upem))
     pad = target_upem * HALF_PAD_FRAC
-    frac = float(niche_frac)
+    frac = float(segment_frac)
     match (axis, pin):
         case ("y", "top"):
             span = top - bot
@@ -838,16 +645,16 @@ def _occupied_plane_rect(
     *,
     pin: str,
     axis: str,
-    niche_frac: float = 0.5,
+    segment_frac: float = 0.5,
 ) -> Tuple[float, float, float, float]:
-    """Half-plane covering the ``pin`` side; cut at ``frac``, pad only outward.
+    """Half-plane covering the `pin` side; cut at `frac`, pad only outward.
 
-    Used as the seed clip so the complementary niche can be ``full − seed``
+    Used as the seed clip so the complementary segment can be `full − seed`
     without leftover slivers from inset padding on the cut.
     """
     bot, top, _ = ideographic_bounds(int(target_upem))
     inf = target_upem * HALF_PLANE_INF_FRAC
-    frac = float(niche_frac)
+    frac = float(segment_frac)
     match (axis, pin):
         case ("y", "top"):
             span = top - bot
@@ -875,15 +682,15 @@ def place_glyph_in_half(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     slot_frac: float = 0.5,
 ) -> Tuple[TTGlyph, int, int]:
-    """Clip ``glyph`` to one niche slot (slice — no stretch / squish).
+    """Clip `glyph` to one segment slot (slice — no stretch / squish).
 
-    Prefer ``make_squished_glyph`` when the upright niche can be built from a
-    named base in ``glyph_set``.
+    Prefer `make_squished_glyph` when the upright segment can be built from a
+    named base in `glyph_set`.
     """
     from shared_half_cells import clip_glyph_to_rect
 
     upem = float(target_upem)
-    rect = _half_slot_rect(upem, pin=pin, axis=axis, niche_frac=slot_frac)
+    rect = _half_slot_rect(upem, pin=pin, axis=axis, segment_frac=slot_frac)
     clipped = clip_glyph_to_rect(glyph, rect, glyph_set=glyph_set)
     try:
         clipped.recalcBounds(None)
@@ -902,11 +709,11 @@ def _translate_ink_to_half_center(
     target_upem: int,
     slot_frac: float = 0.5,
 ) -> Tuple[TTGlyph, int, int]:
-    """Translate only so ink center sits at the niche-slot center (no re-scale)."""
+    """Translate only so ink center sits at the segment-slot center (no re-scale)."""
     from shared_half_cells import apply_transform, _recording_from_glyph
 
     upem = float(target_upem)
-    x0, y0, x1, y1 = _half_slot_rect(upem, pin=pin, axis=axis, niche_frac=slot_frac)
+    x0, y0, x1, y1 = _half_slot_rect(upem, pin=pin, axis=axis, segment_frac=slot_frac)
     dst_cx = (x0 + x1) / 2.0
     dst_cy = (y0 + y1) / 2.0
     try:
@@ -943,12 +750,12 @@ def make_squished_glyph(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     slot_frac: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Upright niche as a **slice** of ``base_name`` (clip; no stretch).
+    """Upright segment as a **slice** of `base_name` (clip; no stretch).
 
-    ``slot_frac`` is the niche band width (0.5 half-cell, 0.75 mark-base, …).
-    ``factor`` is kept for call-site compatibility and ignored (no scale).
+    `slot_frac` is the segment band width (0.5 half-cell, 0.75 mark-base, …).
+    `factor` is kept for call-site compatibility and ignored (no scale).
     """
-    from shared_half_cells import make_niche_slice_glyph
+    from shared_half_cells import make_segment_slice_glyph
 
     if glyph_set is None:
         raise ValueError("make_squished_glyph requires glyph_set for slice bake")
@@ -957,8 +764,8 @@ def make_squished_glyph(
     )
     del factor
     occ = float(slot_frac) if slot_frac is not None else 0.5
-    rect = _occupied_plane_rect(float(upem), pin=pin, axis=axis, niche_frac=occ)
-    return make_niche_slice_glyph(
+    rect = _occupied_plane_rect(float(upem), pin=pin, axis=axis, segment_frac=occ)
+    return make_segment_slice_glyph(
         base_name,
         advance=int(advance if advance > 0 else upem),
         rect=rect,
@@ -977,12 +784,12 @@ def add_squish_forms(
     target_upem: int = 1000,
     slot_frac: Optional[float] = None,
 ) -> List[str]:
-    """Slice each identity form into the four half-cell niches.
+    """Slice each identity form into the four half-cell segments.
 
-    D4 copies of those niches are filled later by ``propagate_d4_niches``
-    (clip identity once, then ``R(clip(g, R⁻¹(W)))``). Clip one side per
-    axis; the opposite is ``full − that side`` (or, for a 3/4 mark-base
-    slot, ``full − the complementary sliver``).
+    D4 copies of those segments are filled later by `propagate_d4_segments`
+    (clip identity once, then `R(clip(g, R⁻¹(W)))`). Clip one side per
+    axis; the opposite is `full − that side` (or, for a 3/4 mark-base
+    slot, `full − the complementary sliver`).
     """
     # Half-cell digraphs keep a 0.5 slot; mark-base (3/4) passes slot_frac=factor.
     occ_x = float(slot_frac) if slot_frac is not None else 0.5
@@ -1010,9 +817,9 @@ def add_squish_forms(
 
         def _minus_sliver(pin: str, axis: str, sliver_frac: float):
             rect = _occupied_plane_rect(
-                float(target_upem), pin=pin, axis=axis, niche_frac=sliver_frac
+                float(target_upem), pin=pin, axis=axis, segment_frac=sliver_frac
             )
-            cut, _, _ = make_niche_slice_glyph(
+            cut, _, _ = make_segment_slice_glyph(
                 name, advance=adv, rect=rect, glyph_set=glyphs
             )
             return metrics_for_glyph(
@@ -1126,13 +933,13 @@ def cjk_right_anchor(
     target_upem: int,
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
-    niche_frac: float = 0.5,
+    segment_frac: float = 0.5,
 ) -> Tuple[int, int]:
-    """Center of the free right niche (mark sits here)."""
+    """Center of the free right segment (mark sits here)."""
     del glyph, glyph_set
     bot, top, _ = ideographic_bounds(target_upem)
     right = float(advance) if advance > 0 else float(target_upem)
-    return otRound(right * (1.0 - niche_frac / 2.0)), otRound((bot + top) / 2.0)
+    return otRound(right * (1.0 - segment_frac / 2.0)), otRound((bot + top) / 2.0)
 
 
 def cjk_left_anchor(
@@ -1141,12 +948,12 @@ def cjk_left_anchor(
     target_upem: int,
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
-    niche_frac: float = 0.5,
+    segment_frac: float = 0.5,
 ) -> Tuple[int, int]:
-    """Center of the free left niche (mark sits here)."""
+    """Center of the free left segment (mark sits here)."""
     del glyph, glyph_set, advance
     bot, top, _ = ideographic_bounds(target_upem)
-    return otRound(target_upem * (niche_frac / 2.0)), otRound((bot + top) / 2.0)
+    return otRound(target_upem * (segment_frac / 2.0)), otRound((bot + top) / 2.0)
 
 
 def cjk_top_anchor(
@@ -1155,13 +962,13 @@ def cjk_top_anchor(
     target_upem: int,
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
-    niche_frac: float = 0.5,
+    segment_frac: float = 0.5,
 ) -> Tuple[int, int]:
-    """Center of the free top niche (mark sits here)."""
+    """Center of the free top segment (mark sits here)."""
     del glyph, glyph_set
     bot, top, _ = ideographic_bounds(target_upem)
     span = top - bot
-    mid_free = top - span * (niche_frac / 2.0)
+    mid_free = top - span * (segment_frac / 2.0)
     right = float(advance) if advance > 0 else float(target_upem)
     return otRound(right * 0.5), otRound(mid_free)
 
@@ -1172,58 +979,34 @@ def cjk_bottom_anchor(
     target_upem: int,
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
-    niche_frac: float = 0.5,
+    segment_frac: float = 0.5,
 ) -> Tuple[int, int]:
-    """Center of the free bottom niche (mark sits here)."""
+    """Center of the free bottom segment (mark sits here)."""
     del glyph, glyph_set
     bot, top, _ = ideographic_bounds(target_upem)
     span = top - bot
-    mid_free = bot + span * (niche_frac / 2.0)
+    mid_free = bot + span * (segment_frac / 2.0)
     right = float(advance) if advance > 0 else float(target_upem)
     return otRound(right * 0.5), otRound(mid_free)
 
 
-def collect_niche_base_anchors(
-    squishable_bases: Sequence[str],
-    *,
-    glyphs: Dict[str, TTGlyph],
-    metrics: Dict[str, Tuple[int, int]],
-    target_upem: int,
-) -> Dict[str, Dict[int, Tuple[int, int]]]:
-    """Map squish forms → ``{mark_class: (x, y)}`` (one niche each)."""
-    anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
-    for name in squishable_bases:
-        mapping = (
-            (squish_name(name), MARK_CLASS_RIGHT, cjk_right_anchor),
-            (squish_left_name(name), MARK_CLASS_LEFT, cjk_left_anchor),
-            (squish_top_name(name), MARK_CLASS_TOP, cjk_top_anchor),
-            (squish_bot_name(name), MARK_CLASS_BOTTOM, cjk_bottom_anchor),
-        )
-        for form, cls, fn in mapping:
-            if form not in glyphs:
-                continue
-            adv, _ = metrics.get(form, (target_upem, 0))
-            anchors[form] = {cls: fn(glyphs[form], adv, target_upem, glyph_set=glyphs)}
-    return anchors
-
-
 def marked_form_name(squish_form: str, mark_root: str) -> str:
-    """Precomposed squish+mark name, e.g. ``u4E00.dk_u16FF0``."""
+    """Precomposed squish+mark name, e.g. `u4E00.dk_u16FF0`."""
     return f"{squish_form}_{mark_root}"
 
 
 def _mark_component_for_slot(
     upright: str, position: str, mirror: Optional[str]
 ) -> str:
-    """LR-fitted mark for right/left; r90 ``.T`` for up/down; then mirror."""
+    """LR-fitted mark for right/left; r90 `.T` for up/down; then mirror."""
     root = upright if position in ("right", "left") else top_mark_name(upright)
     if mirror is None:
         return root
     return variant_glyph_name(root, mirror)
 
 
-def _niche_anchor_fn(niche_suf: str):
-    match niche_suf:
+def _segment_anchor_fn(segment_suf: str):
+    match segment_suf:
         case "dk":
             return cjk_right_anchor
         case "dkl":
@@ -1236,8 +1019,8 @@ def _niche_anchor_fn(niche_suf: str):
             return cjk_right_anchor
 
 
-def _niche_squish_of(base: str, niche_suf: str) -> str:
-    match niche_suf:
+def _segment_squish_of(base: str, segment_suf: str) -> str:
+    match segment_suf:
         case "dk":
             return squish_name(base)
         case "dkl":
@@ -1275,7 +1058,7 @@ def make_marked_composite(
 
 
 # Occupancy suffixes for the four mark positions (triangles skip ca/nhay).
-_MARKED_NICHE_SUFFIXES: Tuple[str, ...] = ("dk", "dkl", "dkb", "dkt")
+_MARKED_SEGMENT_SUFFIXES: Tuple[str, ...] = ("dk", "dkl", "dkb", "dkt")
 
 
 def add_marked_composites(
@@ -1286,11 +1069,11 @@ def add_marked_composites(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
-    niche_frac: float = 0.5,
+    segment_frac: float = 0.5,
 ) -> List[str]:
     """Bake precomposed CJK-clip + ca/nhay (4 positions × 4 mirrors).
 
-    One composite per ``(base × MARK_SLOT_VS × mark)``. Identity CJK only
+    One composite per `(base × MARK_SLOT_VS × mark)`. Identity CJK only
     is typical on the base face (no CJK D4).
     """
     added: List[str] = []
@@ -1299,17 +1082,17 @@ def add_marked_composites(
         if base not in glyphs:
             continue
         for _cp, _sel, position, mirror in MARK_SLOT_VS:
-            niche_suf = MARK_POS_NICHE[position]
-            sq = _niche_squish_of(base, niche_suf)
+            segment_suf = MARK_POS_SEGMENT[position]
+            sq = _segment_squish_of(base, segment_suf)
             if sq not in glyphs:
                 continue
             adv, lsb = metrics.get(sq, (target_upem, 0))
-            ax, ay = _niche_anchor_fn(niche_suf)(
+            ax, ay = _segment_anchor_fn(segment_suf)(
                 glyphs[sq],
                 adv,
                 target_upem,
                 glyph_set=glyphs,
-                niche_frac=niche_frac,
+                segment_frac=segment_frac,
             )
             for cp in mark_cps:
                 upright = glyph_name_for_cp(cp)
@@ -1350,7 +1133,7 @@ def marked_liga_map(
     *,
     glyphs: Dict[str, TTGlyph],
 ) -> Dict[Tuple[str, ...], str]:
-    """Base-face ca/nhay ligatures: ``CJK (+ FE00–FE0F) + MARK``.
+    """Base-face ca/nhay ligatures: `CJK (+ FE00–FE0F) + MARK`.
 
     ::
 
@@ -1368,8 +1151,8 @@ def marked_liga_map(
         for vs_cp, sel_name, position, mirror in MARK_SLOT_VS:
             if sel_name not in glyphs:
                 continue
-            niche_suf = MARK_POS_NICHE[position]
-            sq = _niche_squish_of(base, niche_suf)
+            segment_suf = MARK_POS_SEGMENT[position]
+            sq = _segment_squish_of(base, segment_suf)
             if sq not in glyphs:
                 continue
             if not (vs_cp == 0xFE00 and mirror is None):
@@ -1390,425 +1173,6 @@ def marked_liga_map(
     return liga
 
 
-def _langsys_with_features(feature_indices: Sequence[int]) -> ot.DefaultLangSys:
-    ls = ot.DefaultLangSys()
-    ls.ReqFeatureIndex = 0xFFFF
-    ls.FeatureCount = len(feature_indices)
-    ls.FeatureIndex = list(feature_indices)
-    return ls
-
-
-def _ensure_gpos(font, script_tags: Sequence[str]) -> ot.GPOS:
-    if "GPOS" in font:
-        gpos = font["GPOS"].table
-        existing = {sr.ScriptTag for sr in (gpos.ScriptList.ScriptRecord or [])}
-        for tag in script_tags:
-            if tag in existing:
-                continue
-            rec = ot.ScriptRecord()
-            rec.ScriptTag = tag
-            rec.Script = ot.Script()
-            rec.Script.DefaultLangSys = _langsys_with_features([])
-            rec.Script.LangSysCount = 0
-            rec.Script.LangSysRecord = []
-            gpos.ScriptList.ScriptRecord.append(rec)
-        gpos.ScriptList.ScriptCount = len(gpos.ScriptList.ScriptRecord)
-        return gpos
-
-    gpos = ot.GPOS()
-    gpos.Version = 0x00010000
-    gpos.ScriptList = ot.ScriptList()
-    gpos.ScriptList.ScriptRecord = []
-    for tag in script_tags:
-        rec = ot.ScriptRecord()
-        rec.ScriptTag = tag
-        rec.Script = ot.Script()
-        rec.Script.DefaultLangSys = _langsys_with_features([])
-        rec.Script.LangSysCount = 0
-        rec.Script.LangSysRecord = []
-        gpos.ScriptList.ScriptRecord.append(rec)
-    gpos.ScriptList.ScriptCount = len(script_tags)
-    gpos.FeatureList = ot.FeatureList()
-    gpos.FeatureList.FeatureRecord = []
-    gpos.FeatureList.FeatureCount = 0
-    gpos.LookupList = ot.LookupList()
-    gpos.LookupList.Lookup = []
-    gpos.LookupList.LookupCount = 0
-    table = newTable("GPOS")
-    table.table = gpos
-    font["GPOS"] = table
-    return gpos
-
-
-def _ensure_gdef_classes(
-    font,
-    *,
-    bases: Iterable[str],
-    marks: Iterable[str],
-    glyph_order: Sequence[str],
-) -> None:
-    if "GDEF" in font:
-        gdef = font["GDEF"].table
-    else:
-        gdef_table = newTable("GDEF")
-        gdef = ot.GDEF()
-        gdef.Version = 0x00010000
-        gdef.GlyphClassDef = None
-        gdef.AttachList = None
-        gdef.LigCaretList = None
-        gdef.MarkAttachClassDef = None
-        gdef_table.table = gdef
-        font["GDEF"] = gdef_table
-
-    if gdef.GlyphClassDef is None:
-        gdef.GlyphClassDef = ot.GlyphClassDef()
-        gdef.GlyphClassDef.classDefs = {}
-
-    class_defs = gdef.GlyphClassDef.classDefs
-    order = set(glyph_order)
-    for name in bases:
-        if name in order:
-            class_defs[name] = GDEF_CLASS_BASE
-    for name in marks:
-        if name in order:
-            class_defs[name] = GDEF_CLASS_MARK
-
-
-def install_squish_gsub(
-    font,
-    *,
-    squishable_bases: Sequence[str],
-    right_marks: Sequence[str],
-    left_marks: Sequence[str],
-    top_marks: Sequence[str],
-    bottom_marks: Sequence[str],
-    glyphs: Dict[str, TTGlyph],
-    glyph_order: Sequence[str],
-) -> int:
-    """Chain: base + mark-side → squished base (Format 2 + Extension)."""
-    if "GSUB" not in font:
-        return 0
-
-    order_index = {n: i for i, n in enumerate(glyph_order)}
-
-    def _gid_sort(names: Sequence[str]) -> List[str]:
-        return sorted(set(names), key=lambda n: order_index.get(n, 10**9))
-
-    bases = _gid_sort(
-        [
-            n
-            for n in squishable_bases
-            if n in glyphs
-            and squish_name(n) in glyphs
-            and squish_left_name(n) in glyphs
-            and squish_top_name(n) in glyphs
-            and squish_bot_name(n) in glyphs
-        ]
-    )
-    marks_r = _gid_sort([n for n in right_marks if n in glyphs])
-    marks_l = _gid_sort([n for n in left_marks if n in glyphs])
-    marks_t = _gid_sort([n for n in top_marks if n in glyphs])
-    marks_b = _gid_sort([n for n in bottom_marks if n in glyphs])
-    if not bases or not (marks_r or marks_l or marks_t or marks_b):
-        return 0
-
-    gsub = font["GSUB"].table
-    if gsub.LookupList is None:
-        gsub.LookupList = ot.LookupList()
-        gsub.LookupList.Lookup = []
-        gsub.LookupList.LookupCount = 0
-
-    feature_lookup_idxs: List[int] = []
-
-    def _append_chain(marks: Sequence[str], squish_fn) -> None:
-        if not marks:
-            return
-        squish_map = {n: squish_fn(n) for n in bases}
-        single_lu = build_chunked_single_subst_lookup(squish_map)
-        st = build_chain_context_format2(
-            coverage_glyphs=bases,
-            input_classes={n: 1 for n in bases},
-            input_class=1,
-            lookahead_classes={n: 1 for n in marks},
-            lookahead_seq=(1,),
-        )
-        chain_lu = build_ext_gsub_lookup([st])
-        chain_index = gsub.LookupList.LookupCount
-        single_index = chain_index + 1
-        st.ChainSubClassSet[1].ChainSubClassRule[0].SubstLookupRecord[
-            0
-        ].LookupListIndex = single_index
-        gsub.LookupList.Lookup.extend([chain_lu, single_lu])
-        gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
-        feature_lookup_idxs.append(chain_index)
-
-    # Bare MARK no longer auto-squishes — FE08–FE0B half VS required.
-    # L/T/B chains still squish when a side-slot mark (``.L``/``.T``/``.B``) follows.
-    del marks_r
-    _append_chain(marks_l, squish_left_name)
-    _append_chain(marks_t, squish_top_name)
-    _append_chain(marks_b, squish_bot_name)
-
-    tag_to_fr = {fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])}
-    for tag in COMPOSITION_FEATURE_TAGS:
-        fr = tag_to_fr.get(tag)
-        if fr is None:
-            continue
-        idxs = list(fr.Feature.LookupListIndex or [])
-        for li in feature_lookup_idxs:
-            if li not in idxs:
-                idxs.append(li)
-        fr.Feature.LookupListIndex = idxs
-        fr.Feature.LookupCount = len(idxs)
-    return len(bases)
-
-
-def install_mark_side_from_niche_gsub(
-    font,
-    *,
-    squishable_bases: Sequence[str],
-    right_marks: Sequence[str],
-    glyphs: Dict[str, TTGlyph],
-    glyph_order: Sequence[str],
-) -> int:
-    """After ``base+FE08/09/0B → .dkb/.dkt/.dkl``, map upright mark → T/B/L class.
-
-    ``FE0A`` keeps the default right-class upright mark. Required so
-    ``CJK FE0B MARK`` (etc.) gets a matching MarkToBase class.
-    """
-    if "GSUB" not in font:
-        return 0
-
-    order_index = {n: i for i, n in enumerate(glyph_order)}
-
-    def _gid_sort(names: Sequence[str]) -> List[str]:
-        return sorted(set(names), key=lambda n: order_index.get(n, 10**9))
-
-    niche_forms = {
-        "left": _gid_sort(
-            [
-                squish_left_name(n)
-                for n in squishable_bases
-                if squish_left_name(n) in glyphs
-            ]
-        ),
-        "top": _gid_sort(
-            [
-                squish_top_name(n)
-                for n in squishable_bases
-                if squish_top_name(n) in glyphs
-            ]
-        ),
-        "bottom": _gid_sort(
-            [
-                squish_bot_name(n)
-                for n in squishable_bases
-                if squish_bot_name(n) in glyphs
-            ]
-        ),
-    }
-    mark_maps = {
-        "left": {
-            m: left_mark_name(m)
-            for m in right_marks
-            if m in glyphs and left_mark_name(m) in glyphs
-        },
-        "top": {
-            m: top_mark_name(m)
-            for m in right_marks
-            if m in glyphs and top_mark_name(m) in glyphs
-        },
-        "bottom": {
-            m: bottom_mark_name(m)
-            for m in right_marks
-            if m in glyphs and bottom_mark_name(m) in glyphs
-        },
-    }
-    if not any(niche_forms[k] and mark_maps[k] for k in niche_forms):
-        return 0
-
-    gsub = font["GSUB"].table
-    if gsub.LookupList is None:
-        gsub.LookupList = ot.LookupList()
-        gsub.LookupList.Lookup = []
-        gsub.LookupList.LookupCount = 0
-
-    feature_lookup_idxs: List[int] = []
-
-    for key in ("left", "top", "bottom"):
-        backs = niche_forms[key]
-        mapping = mark_maps[key]
-        if not backs or not mapping:
-            continue
-        coverage = _gid_sort(mapping.keys())
-        single_lu = build_chunked_single_subst_lookup(mapping)
-        st = build_chain_context_format2(
-            coverage_glyphs=coverage,
-            input_classes={n: 1 for n in coverage},
-            input_class=1,
-            backtrack_classes={n: 1 for n in backs},
-            backtrack_seq=(1,),
-        )
-        chain_lu = build_ext_gsub_lookup([st])
-        chain_index = gsub.LookupList.LookupCount
-        single_index = chain_index + 1
-        st.ChainSubClassSet[1].ChainSubClassRule[0].SubstLookupRecord[
-            0
-        ].LookupListIndex = single_index
-        gsub.LookupList.Lookup.extend([chain_lu, single_lu])
-        gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
-        feature_lookup_idxs.append(chain_index)
-
-    tag_to_fr = {fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])}
-    for tag in COMPOSITION_FEATURE_TAGS:
-        fr = tag_to_fr.get(tag)
-        if fr is None:
-            continue
-        idxs = list(fr.Feature.LookupListIndex or [])
-        for li in feature_lookup_idxs:
-            if li not in idxs:
-                idxs.append(li)
-        fr.Feature.LookupListIndex = idxs
-        fr.Feature.LookupCount = len(idxs)
-    return len(feature_lookup_idxs)
-
-
-def install_niche_mark_gpos(
-    font,
-    *,
-    base_anchors: Dict[str, Dict[int, Tuple[int, int]]],
-    right_marks: Sequence[str],
-    left_marks: Sequence[str],
-    top_marks: Sequence[str],
-    bottom_marks: Sequence[str],
-    glyph_order: Sequence[str],
-    glyphs: Dict[str, TTGlyph],
-    base_chunk: int = 2048,
-) -> int:
-    """MarkToBase: R/L/T/B niche classes on squished bases."""
-    if not base_anchors:
-        return 0
-
-    from fontTools.otlLib.builder import (
-        buildAnchor,
-        buildLookup,
-        buildMarkBasePosSubtable,
-    )
-
-    script_tags: List[str] = []
-    for line in COMPOSITION_LANGUAGE_SYSTEMS:
-        parts = line.replace(";", "").split()
-        if len(parts) >= 2 and parts[0] == "languagesystem":
-            script_tags.append(parts[1].ljust(4)[:4])
-
-    order_index = {n: i for i, n in enumerate(glyph_order)}
-
-    def _sorted(names: Sequence[str]) -> List[str]:
-        return [
-            n
-            for n in sorted(set(names), key=lambda x: order_index.get(x, 10**9))
-            if n in order_index
-        ]
-
-    marks_r = _sorted(right_marks)
-    marks_l = _sorted(left_marks)
-    marks_t = _sorted(top_marks)
-    marks_b = _sorted(bottom_marks)
-    bases_sorted = _sorted(base_anchors)
-    if not bases_sorted or not (marks_r or marks_l or marks_t or marks_b):
-        return 0
-
-    glyph_map = {n: i for i, n in enumerate(glyph_order)}
-    marks = {}
-    for n, side, cls in (
-        *((n, "right", MARK_CLASS_RIGHT) for n in marks_r),
-        *((n, "left", MARK_CLASS_LEFT) for n in marks_l),
-        *((n, "top", MARK_CLASS_TOP) for n in marks_t),
-        *((n, "bottom", MARK_CLASS_BOTTOM) for n in marks_b),
-    ):
-        mx, my = (
-            mark_attach_anchor(glyphs[n], side=side, glyph_set=glyphs)
-            if n in glyphs
-            else (0, 0)
-        )
-        marks[n] = (cls, buildAnchor(mx, my))
-
-    subs = []
-    for i in range(0, len(bases_sorted), max(1, base_chunk)):
-        chunk = bases_sorted[i : i + base_chunk]
-        bases = {}
-        for n in chunk:
-            class_map = {
-                cls: buildAnchor(ax, ay) for cls, (ax, ay) in base_anchors[n].items()
-            }
-            bases[n] = class_map
-        subs.append(buildMarkBasePosSubtable(marks, bases, glyph_map))
-    lookup = buildLookup(subs, table="GPOS", extension=True)
-
-    gpos = _ensure_gpos(font, script_tags)
-    if gpos.LookupList is None:
-        gpos.LookupList = ot.LookupList()
-        gpos.LookupList.Lookup = []
-        gpos.LookupList.LookupCount = 0
-
-    lookup_index = gpos.LookupList.LookupCount
-    gpos.LookupList.Lookup.append(lookup)
-    gpos.LookupList.LookupCount = len(gpos.LookupList.Lookup)
-
-    if gpos.FeatureList is None:
-        gpos.FeatureList = ot.FeatureList()
-        gpos.FeatureList.FeatureRecord = []
-        gpos.FeatureList.FeatureCount = 0
-
-    tag_to_fr = {fr.FeatureTag: fr for fr in (gpos.FeatureList.FeatureRecord or [])}
-    feature_indices: List[int] = []
-    for tag in MARK_FEATURE_TAGS:
-        fr = tag_to_fr.get(tag)
-        if fr is None:
-            fr = ot.FeatureRecord()
-            fr.FeatureTag = tag
-            fr.Feature = ot.Feature()
-            fr.Feature.FeatureParams = None
-            fr.Feature.LookupListIndex = []
-            fr.Feature.LookupCount = 0
-            gpos.FeatureList.FeatureRecord.append(fr)
-            gpos.FeatureList.FeatureCount = len(gpos.FeatureList.FeatureRecord)
-            feature_index = gpos.FeatureList.FeatureCount - 1
-            tag_to_fr[tag] = fr
-        else:
-            feature_index = next(
-                i
-                for i, rec in enumerate(gpos.FeatureList.FeatureRecord)
-                if rec.FeatureTag == tag
-            )
-        idxs = list(fr.Feature.LookupListIndex or [])
-        if lookup_index not in idxs:
-            idxs.append(lookup_index)
-        fr.Feature.LookupListIndex = idxs
-        fr.Feature.LookupCount = len(idxs)
-        feature_indices.append(feature_index)
-
-    for sr in gpos.ScriptList.ScriptRecord:
-        ls = sr.Script.DefaultLangSys
-        if ls is None:
-            sr.Script.DefaultLangSys = _langsys_with_features(feature_indices)
-        else:
-            idxs = list(ls.FeatureIndex or [])
-            for fi in feature_indices:
-                if fi not in idxs:
-                    idxs.append(fi)
-            ls.FeatureIndex = idxs
-            ls.FeatureCount = len(idxs)
-
-    _ensure_gdef_classes(
-        font,
-        bases=bases_sorted,
-        marks=list(marks.keys()),
-        glyph_order=glyph_order,
-    )
-    return len(bases_sorted)
-
-
 def _ensure_side_selector(
     cp: int,
     name: str,
@@ -1825,8 +1189,8 @@ def _ensure_side_selector(
     cmap[cp] = name
 
 
-def _squish_form_name(base_form: str, niche_suffix: str) -> str:
-    return f"{base_form}.{niche_suffix}"
+def _squish_form_name(base_form: str, segment_suffix: str) -> str:
+    return f"{base_form}.{segment_suffix}"
 
 
 def squish_vs_liga_map(
@@ -1834,10 +1198,10 @@ def squish_vs_liga_map(
     *,
     glyphs: Dict[str, TTGlyph],
 ) -> Dict[Tuple[str, ...], str]:
-    """Ligature map: FE00 → ``.ov``; FE08–FE0F → slice; FE00+FE08–F → slice ``.ov``.
+    """Ligature map: FE00 → `.ov`; FE08–FE0F → slice; FE00+FE08–F → slice `.ov`.
 
-    Also spells explicit identity with PUA ``VS01`` so
-    ``base E000 FE00 FE08`` matches the same outputs as ``base FE00 FE08``.
+    Also spells explicit identity with PUA `VS01` so
+    `base E000 FE00 FE08` matches the same outputs as `base FE00 FE08`.
     """
     vs01 = vs_glyph_name(TRANSFORM_MODES[0][0])
     liga: Dict[Tuple[str, ...], str] = {}
@@ -1871,7 +1235,7 @@ def squish_vs_liga_rules(
     *,
     glyphs: Dict[str, TTGlyph],
 ) -> List[str]:
-    """FEA lines (compat/debug); prefer ``squish_vs_liga_map`` + programmatic GSUB."""
+    """FEA lines (compat/debug); prefer `squish_vs_liga_map` + programmatic GSUB."""
     rules: List[str] = []
     for comps, out in squish_vs_liga_map(squishable_bases, glyphs=glyphs).items():
         rules.append(f"  sub {' '.join(comps)} by {out};")
@@ -1904,10 +1268,10 @@ def d4_liga_map(
     glyphs: Dict[str, TTGlyph],
     vs01_forms: Optional[Sequence[str]] = None,
 ) -> Dict[Tuple[str, ...], str]:
-    """``base + vs02..vs08`` (FE01–FE07) → orientation form.
+    """`base + vs02..vs08` (FE01–FE07) → orientation form.
 
-    Glyph names still follow the historical VS01..VS08 scheme (``vs01`` =
-    identity). Identity is the bare character; optional ``vs01`` no-op ligas
+    Glyph names still follow the historical VS01..VS08 scheme (`vs01` =
+    identity). Identity is the bare character; optional `vs01` no-op ligas
     remain for internal forms. Access is FE* cmap only (not BMP PUA).
     """
     liga: Dict[Tuple[str, ...], str] = {}
@@ -1940,7 +1304,7 @@ def _vs01_noop_form_names(
     glyphs: Dict[str, TTGlyph],
     mark_cps: Sequence[int] = (),
 ) -> List[str]:
-    """Identity + D4 + ``.dk*`` + ``.ov`` + marked composites that accept PUA VS01."""
+    """Identity + D4 + `.dk*` + `.ov` + marked composites that accept PUA VS01."""
     out: List[str] = []
     seen: set = set()
     for form in squishable:
@@ -1979,9 +1343,9 @@ def install_cjk_composition_gsub(
     squishable: Optional[Sequence[str]] = None,
     mark_cps: Sequence[int] = (),
 ) -> int:
-    """Programmatic ``ccmp``/``rlig``/``liga``.
+    """Programmatic `ccmp`/`rlig`/`liga`.
 
-    Base face (``mark_cps`` set): ca/nhay position×mirror on FE00–FE0F.
+    Base face (`mark_cps` set): ca/nhay position×mirror on FE00–FE0F.
     Half face: D4 + FE00 overlay + FE08–FE0F slices.
     """
     from fontTools.ttLib import newTable
@@ -2067,10 +1431,10 @@ def build_squish_vs_uvs_entries(
 ) -> List[Tuple[int, int, Optional[str]]]:
     """No cmap-14 UVS for FE00 / FE08–FE0F — access is GSUB liga only.
 
-    UVS for slice selectors made browsers map ``base+FE08`` after dropping
+    UVS for slice selectors made browsers map `base+FE08` after dropping
     overlay, so digraphs became two full-advance halves instead of
-    ``.dk.ov`` + opposing niche. Overlay / slice / digraphs all use
-    ``ccmp``/``rlig``/``liga`` on ``U+FE00`` / ``U+FE08``–``U+FE0F``.
+    `.dk.ov` + opposing segment. Overlay / slice / digraphs all use
+    `ccmp`/`rlig`/`liga` on `U+FE00` / `U+FE08`–`U+FE0F`.
     """
     del base_cp, base_glyph, glyphs
     return []
@@ -2097,7 +1461,7 @@ def prepare_squish_vs_access(
     """Ensure squish forms + FE00 / FE08–FE0F overlay/slice access (liga).
 
     Returns the squishable form name list (identity + D4).
-    ``cmap_access=False`` skips overlay/slice cmap (base-face mark VS).
+    `cmap_access=False` skips overlay/slice cmap (base-face mark VS).
     """
     del in_dir  # kept for call-site compat
 
@@ -2126,23 +1490,23 @@ def prepare_squish_vs_access(
         slot_frac=slot_frac,
     )
     occ = float(slot_frac) if slot_frac is not None else 0.5
-    from shared_half_cells import propagate_d4_niches
+    from shared_half_cells import propagate_d4_segments
 
     half_windows = {
         "dk": _half_slot_rect(
-            float(target_upem), pin="left", axis="x", niche_frac=occ
+            float(target_upem), pin="left", axis="x", segment_frac=occ
         ),
         "dkl": _half_slot_rect(
-            float(target_upem), pin="right", axis="x", niche_frac=occ
+            float(target_upem), pin="right", axis="x", segment_frac=occ
         ),
         "dkb": _half_slot_rect(
-            float(target_upem), pin="top", axis="y", niche_frac=occ
+            float(target_upem), pin="top", axis="y", segment_frac=occ
         ),
         "dkt": _half_slot_rect(
-            float(target_upem), pin="bottom", axis="y", niche_frac=occ
+            float(target_upem), pin="bottom", axis="y", segment_frac=occ
         ),
     }
-    propagate_d4_niches(
+    propagate_d4_segments(
         cjk_bases,
         suffixes=("dk", "dkl", "dkb", "dkt", "tl", "br", "tr", "bl"),
         form_name=lambda form, suf: f"{form}.{suf}",
@@ -2239,12 +1603,12 @@ def prepare_marks(
     local_scale: float = 0.96,
     width_factor: float = MARK_BASE_SQUISH_FACTOR,
     height_factor: float = MARK_BASE_SQUISH_FACTOR,
-    mark_niche_frac: float = MARK_NICHE_FRAC,
+    mark_segment_frac: float = MARK_SEGMENT_FRAC,
 ) -> Optional[Dict]:
-    """Load ca/nhay + niche squish for the base CJK face.
+    """Load ca/nhay + segment squish for the base CJK face.
 
-    Default niche is **1/4** of the cell (mark) with the base occupying **3/4**.
-    Half-cell digraph access (``.dk*`` at 0.55) lives on the ``h`` face instead.
+    Default segment is **1/4** of the cell (mark) with the base occupying **3/4**.
+    Half-cell digraph access (`.dk*` at 0.55) lives on the `h` face instead.
     """
     try:
         path = resolve_plangothic_p2(in_dir)
@@ -2265,7 +1629,7 @@ def prepare_marks(
             target_upem,
             axis="x",
             glyph_set=None,
-            niche_frac=mark_niche_frac,
+            segment_frac=mark_segment_frac,
         )
         lr_glyphs[cp] = lr
         # Horizontal (up/down) marks: r90 of the LR-fitted upright, then
@@ -2315,7 +1679,7 @@ def prepare_marks(
         glyphs=glyphs,
         metrics=metrics,
         target_upem=target_upem,
-        niche_frac=mark_niche_frac,
+        segment_frac=mark_segment_frac,
     )
 
     return {
@@ -2329,7 +1693,7 @@ def prepare_marks(
         "marked": list(marked),
         "width_factor": width_factor,
         "height_factor": height_factor,
-        "mark_niche_frac": mark_niche_frac,
+        "mark_segment_frac": mark_segment_frac,
         "n_core": len(core_cps),
     }
 
@@ -2344,7 +1708,7 @@ def compile_marks_layout(
     target_upem: int,
 ) -> int:
     """Marked composites + their ligatures are installed in
-    ``prepare_marks`` / ``install_cjk_composition_gsub``.
+    `prepare_marks` / `install_cjk_composition_gsub`.
     """
     del font, state, glyphs, metrics, glyph_order, target_upem
     return 0

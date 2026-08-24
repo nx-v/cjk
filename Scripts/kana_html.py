@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Build an HTML gallery of edenia kana chart × D4 × smalls × slices × dakuten.
 
-Slices need ``edenia kana h`` (with ``edenia kana`` as fallback for D4/dakuten).
+Slices need `edenia kana h` (with `edenia kana` as fallback for D4/dakuten).
 
-Encoding (matches ``build_kana``)::
+Encoding (matches `build_kana`)::
 
     i        = L * 8 + o
     full[i]  = U+E000 + 2*i     # even

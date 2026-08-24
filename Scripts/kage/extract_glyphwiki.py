@@ -6,7 +6,7 @@ replacing all type-99 component references with actual stroke data.
 
 For each resolved glyph, also:
   - Tracks original component references with their bounding boxes
-  - Assigns a Private-Use ligature pair via ``kage.mapping`` (1→2)
+  - Assigns a Private-Use ligature pair via `kage.mapping` (1→2)
 
 Inputs:
   Scripts/dump/dump_all_versions.txt      (primary source; keeps highest @version)
@@ -47,7 +47,6 @@ from .mapping import (
     filter_empty_stroke_entries,
     filter_excluded_entries,
     filter_related_entries,
-    is_empty_stroke_data,
     is_unusable_stroke_data,
     ligature_capacity,
     mapping_to_dict,
@@ -122,7 +121,7 @@ def extract_component_names(html_path: Path) -> set[str]:
 # ---------------------------------------------------------------------------
 
 def parse_versioned_name(raw_name: str) -> tuple[str, int]:
-    """Split ``name\\@N`` / ``name@N`` into ``(base_name, version)``."""
+    """Split `name\\@N` / `name@N` into `(base_name, version)`."""
     at_idx = raw_name.find("\\@")
     if at_idx >= 0:
         base = raw_name[:at_idx]
@@ -193,7 +192,7 @@ def load_dump_subset(
     *,
     paths: Sequence[Path] | None = None,
 ) -> tuple[dict[str, str], dict[str, str]]:
-    """Stream dump files for ``names`` only → ``(raw_data, related)``."""
+    """Stream dump files for `names` only → `(raw_data, related)`."""
     need = set(names)
     glyphs: dict[str, str] = {}
     related: dict[str, str] = {}
@@ -241,8 +240,8 @@ def load_dump_subset(
 def remap_cmap_drop_empty_alias_dups(*, no_filters: bool = False) -> int:
     """Re-filter the existing cmap using resolved strokes (+ dump for aliases).
 
-    Faster than a full ``--cmap-only`` dump load: only touches cmap names.
-    With ``no_filters``, only drop redundant aliases (skip exclusion/empty/dedupe).
+    Faster than a full `--cmap-only` dump load: only touches cmap names.
+    With `no_filters`, only drop redundant aliases (skip exclusion/empty/dedupe).
     """
     if not CMAP_PATH.is_file() or not RESOLVED_PATH.is_file():
         print(
@@ -499,7 +498,7 @@ def collect_component_closure(
     seeds: set[str],
     all_glyphs: dict[str, str],
 ) -> set[str]:
-    """Transitive type-99 dependency closure of ``seeds`` inside ``all_glyphs``."""
+    """Transitive type-99 dependency closure of `seeds` inside `all_glyphs`."""
     needed: set[str] = set()
     stack = list(seeds)
     while stack:
@@ -767,10 +766,10 @@ def load_stroke_data_for_names(
     resolved_path: Path,
     names: set[str],
 ) -> dict[str, str]:
-    """Load ``name → stroke string`` for ``names`` from resolved JSON.
+    """Load `name → stroke string` for `names` from resolved JSON.
 
     Streams the custom one-entry-per-line format when possible; falls back
-    to a full ``json.load`` if the file is a single compact blob.
+    to a full `json.load` if the file is a single compact blob.
     """
     print(f"\nLoading stroke data for {len(names):,} cmap names from {resolved_path}...")
     out: dict[str, str] = {}
@@ -812,7 +811,7 @@ def resolve_names_to_strokes(
     names: Iterable[str],
     all_glyphs: dict[str, str],
 ) -> dict[str, str]:
-    """Resolve type-99 refs for ``names`` using ``all_glyphs`` as the pool."""
+    """Resolve type-99 refs for `names` using `all_glyphs` as the pool."""
     out: dict[str, str] = {}
     for name in names:
         raw = all_glyphs.get(name)
@@ -851,7 +850,7 @@ def dedupe_pack_entries(
 ) -> list[tuple[str, str]]:
     """Drop empties, redundant aliases, and duplicate resolved outlines.
 
-    With ``aliases_only``, skip empty/duplicate filters and only drop
+    With `aliases_only`, skip empty/duplicate filters and only drop
     full-frame aliases whose target is also packed.
     """
     if not aliases_only:
@@ -912,7 +911,7 @@ def _build_marker_task(
 ) -> tuple[int, str, int, int]:
     """Process-pool worker: build one marker font.
 
-    Returns ``(marker, style, rendered, total)``.
+    Returns `(marker, style, rendered, total)`.
     """
     rendered, total = build_marker_font(
         marker,
@@ -1042,7 +1041,7 @@ def resolve_and_build_pipelined(
     styles: Sequence[str] | None = None,
     jobs: int = 1,
 ) -> dict[str, str]:
-    """Resolve each marker's glyphs, overlapping font builds when ``jobs > 1``.
+    """Resolve each marker's glyphs, overlapping font builds when `jobs > 1`.
 
     Returns stroke data for all cmap names that were processed.
     """

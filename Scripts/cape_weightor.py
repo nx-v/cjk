@@ -7,13 +7,13 @@ Cape Arcona / Thomas Schostok) without vanilla/AppKit UI.
 * **Width mode** — horizontal stretch/condense with stem compensation
 * **Weight mode** — bolden/lighten via OffsetCurve, then restore outer box
 
-``GlyphsFilterOffsetCurve`` is replaced by contour-normal point offsets
+`GlyphsFilterOffsetCurve` is replaced by contour-normal point offsets
 (TrueType winding-aware). Build scripts use::
 
     apply_width(layer, factor)   # factor = target/original outer width
     apply_weight(layer, factor)  # factor > 1 bolden, < 1 lighten
 
-Convert with ``layer_from_ttglyph`` / ``ttglyph_from_layer``.
+Convert with `layer_from_ttglyph` / `ttglyph_from_layer`.
 """
 
 from __future__ import annotations
@@ -125,7 +125,7 @@ class _Bounds:
 
 
 class _ShapeList:
-    """``layer.shapes`` façade: append/remove paths (components ignored)."""
+    """`layer.shapes` façade: append/remove paths (components ignored)."""
 
     def __init__(self, layer: "Layer") -> None:
         self._layer = layer
@@ -305,7 +305,7 @@ class _LayerBuildPen(BasePen):
 
 
 def layer_from_ttglyph(glyph: TTGlyph, advance: float) -> Layer:
-    """Decompose a TrueType glyph into a ``Layer`` (no components kept)."""
+    """Decompose a TrueType glyph into a `Layer` (no components kept)."""
     layer = Layer()
     layer.width = float(advance)
     pen = _LayerBuildPen(layer)
@@ -323,7 +323,7 @@ def layer_from_ttglyph(glyph: TTGlyph, advance: float) -> Layer:
 
 
 def ttglyph_from_layer(layer: Layer) -> Tuple[TTGlyph, int, int]:
-    """Build a TT glyph from layer paths; return ``(glyph, advance, lsb)``."""
+    """Build a TT glyph from layer paths; return `(glyph, advance, lsb)`."""
     pen = TTGlyphPen(None)
     for path in layer.paths:
         nodes = path.nodes
@@ -547,7 +547,7 @@ def _offset_path(
 
     Sharp corners make the summed unit normals near-zero; renormalizing that
     sum into a full offset creates long miter spikes. When the corner is
-    sharper than ``miter_limit``, fall back to a bevel (average of the two
+    sharper than `miter_limit`, fall back to a bevel (average of the two
     segment offsets) so joins stay intact.
     """
     nodes = path.nodes
@@ -631,7 +631,7 @@ def offset_layer(
     offset_y: float,
     position: float = 0.5,
 ) -> None:
-    """Symmetric OffsetCurve stand-in (``position`` kept for API parity)."""
+    """Symmetric OffsetCurve stand-in (`position` kept for API parity)."""
     del position
     if abs(offset_x) < 1e-9 and abs(offset_y) < 1e-9:
         return
@@ -647,12 +647,12 @@ def width_scale_params(
     factor: float,
     stem: float,
 ) -> Tuple[bool, float, float]:
-    """Return ``(do_scale, s, offset_per_side)`` for Width mode.
+    """Return `(do_scale, s, offset_per_side)` for Width mode.
 
-    Stem compensation solves for scale ``s`` so that after X-scale and a
-    bilateral outline offset, outer width ≈ ``width * factor`` while stems
-    stay near ``stem``. When the niche is a quarter (or stem is fat relative
-    to the target), that equation forces ``s → 0`` and huge offsets — outlines
+    Stem compensation solves for scale `s` so that after X-scale and a
+    bilateral outline offset, outer width ≈ `width * factor` while stems
+    stay near `stem`. When the segment is a quarter (or stem is fat relative
+    to the target), that equation forces `s → 0` and huge offsets — outlines
     explode into blobs or collapse to threads. In those cases fall back to
     uniform scale with no offset.
     """
@@ -765,7 +765,7 @@ def apply_weight(
     preserve_width: bool = True,
     preserve_height: bool = True,
 ) -> None:
-    """Weight mode: bolden (``factor > 1``) or lighten (``factor < 1``)."""
+    """Weight mode: bolden (`factor > 1`) or lighten (`factor < 1`)."""
     if abs(factor - 1.0) < 1e-9:
         return
     b = layer.bounds
@@ -817,7 +817,7 @@ def apply_horizontal_weight(
 ) -> None:
     """Bolden/lighten **horizontal** strokes (Y-only OffsetCurve).
 
-    Same Weight-mode box restore as ``apply_weight``, but the offset is only
+    Same Weight-mode box restore as `apply_weight`, but the offset is only
     on Y so vertical stems stay put. Used when anisotropic CJK-cell stretch
     has thinned horizontals (Nuosu → ideograph square).
     """
@@ -870,7 +870,7 @@ def widen_ttglyph(
     stem: Optional[float] = None,
     center_x: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Width-mode widen a TT glyph; returns ``(glyph, advance, lsb)``."""
+    """Width-mode widen a TT glyph; returns `(glyph, advance, lsb)`."""
     if advance is None:
         try:
             glyph.recalcBounds(None)
@@ -890,7 +890,7 @@ def heighten_ttglyph(
     stem: Optional[float] = None,
     center_y: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Height-mode stretch a TT glyph; returns ``(glyph, advance, lsb)``."""
+    """Height-mode stretch a TT glyph; returns `(glyph, advance, lsb)`."""
     if advance is None:
         try:
             glyph.recalcBounds(None)
@@ -909,7 +909,7 @@ def bolden_ttglyph(
     advance: Optional[float] = None,
     stem: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Weight-mode bolden/lighten a TT glyph; returns ``(glyph, advance, lsb)``."""
+    """Weight-mode bolden/lighten a TT glyph; returns `(glyph, advance, lsb)`."""
     if advance is None:
         try:
             glyph.recalcBounds(None)
@@ -933,7 +933,7 @@ def bolden_horizontal_ttglyph(
 ) -> Tuple[TTGlyph, int, int]:
     """Y-only Weight-mode bolden for **horizontal** strokes.
 
-    Requires outer-CCW winding (see ``ensure_cape_expand_winding``); otherwise
+    Requires outer-CCW winding (see `ensure_cape_expand_winding`); otherwise
     the offset axis is inverted and vertical stems bold instead.
     """
     if advance is None:

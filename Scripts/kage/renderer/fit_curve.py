@@ -28,13 +28,13 @@ def fit_curve(
     """Fit one or more Bezier curves to a set of points.
 
     Args:
-        points: Digitized points, e.g. ``[[5,5],[5,50],[110,140],...]``
+        points: Digitized points, e.g. `[[5,5],[5,50],[110,140],...]`
         max_error: Tolerance, squared error between points and fitted curve
         progress_callback: Optional progress reporter
 
     Returns:
         Array of Bezier curves; each element is
-        ``[first-point, control-point-1, control-point-2, second-point]``.
+        `[first-point, control-point-1, control-point-2, second-point]`.
     """
     if not isinstance(points, (list, tuple)):
         raise TypeError("First argument should be an array")

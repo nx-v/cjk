@@ -8,7 +8,7 @@ Extracted SVGs are zipped and original directories are removed thereafter.
 """
 
 import os
-from typing import Dict, Iterable, List, Set, Tuple
+from typing import Dict, List
 from fontTools.ttLib import TTFont
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
@@ -277,7 +277,6 @@ def extract_glyphs_as_svgs(
         glyph_set = tt.getGlyphSet()
         cmap = font_cmap(tt)
         reverse_cmap = {v: k for k, v in cmap.items()}
-        glyf_table = tt.get("glyf")
         units_per_em = tt["head"].unitsPerEm
         ascent = int(getattr(tt["hhea"], "ascent", units_per_em))
 

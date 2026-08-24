@@ -2,7 +2,7 @@
 
 ## Roles
 
-* **Bucket / pigeonhole fonts** (``build_cjk.py``) cover real Unicode
+* **Bucket / pigeonhole fonts** (`build_cjk.py`) cover real Unicode
   Hanzi, Hangul, Tangut, and Yi. They run independently of the GlyphWiki
   PUA font. D4 variants use **VS01..VS08 directly** after the character
   (no Supplementary PUA marker).
@@ -20,45 +20,45 @@ Example::
     U+FEFE0  U+F400
 
 * **SPUA marker** — Supplementary PUA-A/B
-  (``U+F0000..U+FFFFD``, ``U+100000..U+10FFFD``), skipping noncharacters.
-* **BMP PUA index** — ``U+E000..U+F8FF`` (6400 slots per marker).
+  (`U+F0000..U+FFFFD`, `U+100000..U+10FFFD`), skipping noncharacters.
+* **BMP PUA index** — `U+E000..U+F8FF` (6400 slots per marker).
 
 OpenType GSUB ligates the pair to the rendered glyph.
 
-Assignment order: sort dump entries by ``(related code point,
-stroke count, name)``, then fill markers × PUA slots row-major
+Assignment order: sort dump entries by `(related code point,
+stroke count, name)`, then fill markers × PUA slots row-major
 (exhaust one marker's 6400 PUA indices, then advance the marker).
 
-Capacity ≈ ``131_068 × 6_400`` ≈ 838 million — far above the dump size.
+Capacity ≈ `131_068 × 6_400` ≈ 838 million — far above the dump size.
 
 ## GlyphWiki ligature fonts (57 600 glyphs per file)
 
-One TTF per SPUA marker (``build_glyphwiki_fonts``), **named after that
+One TTF per SPUA marker (`build_glyphwiki_fonts`), **named after that
 marker** (the first code point of every ligature in the file), e.g.
-``F0000.ttf``. Each file contains:
+`F0000.ttf`. Each file contains:
 
 * 6 400 BMP PUA selector glyphs (U+E000..U+F8FF)
 * 6 400 × 8 = 51 200 rendered outlines (identity + 7 unique D4 variants)
 
-Total **57 600** glyphs (plus ``.notdef`` and the SPUA marker). Identity is
+Total **57 600** glyphs (plus `.notdef` and the SPUA marker). Identity is
 rendered into the CJK typo box (ascender 0.88em / descender -0.12em),
-centered at ``y ≈ 0.38em`` like Han/Yi, then D4 flips/rotates about that
+centered at `y ≈ 0.38em` like Han/Yi, then D4 flips/rotates about that
 midpoint. Result glyph names are the GlyphWiki canonical names
-(e.g. ``u4e00``, ``cdp-81dd``), not ``g`` + hex. GSUB::
+(e.g. `u4e00`, `cdp-81dd`), not `g` + hex. GSUB::
 
     <SPUA marker>  <BMP PUA>   → identity outline
     <identity>     <VS02..08>  → D4 variant outline
 
-Only dump entries whose ``related`` code point falls in
-``build_cjk.CHAR_RANGES``, plus CJK Radicals Supplement
+Only dump entries whose `related` code point falls in
+`build_cjk.CHAR_RANGES`, plus CJK Radicals Supplement
 (U+2E80..2EFF), Kangxi Radicals (U+2F00..2FDF), and GETA MARK
 (U+3013 〓 — GlyphWiki's unencoded/placeholder related), are packed.
 HKCS annotation overlays, non-mincho styles (sans/gothic/calligraphy/bitmap/
-shape experiments), glyphs with non-mincho KAGE stroke types (``0:99:N``
+shape experiments), glyphs with non-mincho KAGE stroke types (`0:99:N`
 shotai ≠ mincho, exotic type codes), and glyphs that embed overlay pieces
-are excluded — see ``GLYPH_EXCLUSION_NAME_RES`` / ``GLYPH_EXCLUSION_DATA_MARKERS``
-/ ``is_non_mincho_stroke_data``.
-Empty placeholders (``0:-1:-1:-1``), full-frame aliases of another packed
+are excluded — see `GLYPH_EXCLUSION_NAME_RES` / `GLYPH_EXCLUSION_DATA_MARKERS`
+/ `is_non_mincho_stroke_data`.
+Empty placeholders (`0:-1:-1:-1`), full-frame aliases of another packed
 glyph, and duplicate resolved outlines (keep one canonical form) are also
 dropped before ligature assignment.
 
@@ -71,11 +71,11 @@ glyph. Variants are the two-codepoint GSUB ligature::
 
 No Supplementary PUA marker. VS01..VS08 (U+E000..U+E007) are also
 cmap'd into every bucket font as zero-width marks. UVS mirrors orientations
-at U+FE01..FE07 (identity is the bare character). ``U+FE00`` overlays the
-preceding glyph (zero-width ``.ov``; next glyph keeps advance).
+at U+FE01..FE07 (identity is the bare character). `U+FE00` overlays the
+preceding glyph (zero-width `.ov`; next glyph keeps advance).
 
 The 8 unique square symmetries (dihedral group D4); geometric duplicates
-such as ``mxy === r180`` are omitted:
+such as `mxy === r180` are omitted:
 
 ======= ========== =========================
 Name    Code point Transform
@@ -92,7 +92,7 @@ VS08    U+E007     r90my (other diagonal)
 
 GSUB distinguishes this from GlyphWiki pairs because the first code point
 is a real Unicode character, not an SPUA marker. There are **no**
-``+0x40000`` / ``+0x80000`` / ``+0xD0000`` cmap offsets.
+`+0x40000` / `+0x80000` / `+0xD0000` cmap offsets.
 """
 
 from __future__ import annotations
@@ -191,7 +191,7 @@ def is_spua(cp: int) -> bool:
 
 
 def iter_spua_markers(start: int = GLYPHWIKI_MARKER_START) -> Iterator[int]:
-    """Yield usable SPUA markers starting at ``start`` (A then B)."""
+    """Yield usable SPUA markers starting at `start` (A then B)."""
     ranges = (
         (SPUA_A_START, SPUA_A_END),
         (SPUA_B_START, SPUA_B_END),
@@ -227,7 +227,7 @@ def pack_capacity() -> int:
 
 
 def parse_related_key(related: str) -> tuple[int, str]:
-    """Sort key for a GlyphWiki ``related`` field."""
+    """Sort key for a GlyphWiki `related` field."""
     r = related.strip().lower()
     if r.startswith("u") and len(r) >= 2:
         hexpart = r[1:]
@@ -237,7 +237,7 @@ def parse_related_key(related: str) -> tuple[int, str]:
 
 
 def related_codepoint(related: str) -> int | None:
-    """Parse ``related`` as a Unicode scalar, or ``None`` if not ``uXXXX``."""
+    """Parse `related` as a Unicode scalar, or `None` if not `uXXXX`."""
     cp, _ = parse_related_key(related)
     return None if cp >= 0x110000 else cp
 
@@ -268,7 +268,7 @@ def related_allow_set(ranges: Sequence[tuple[int, int, str]] | None = None) -> s
 
 
 def is_allowed_related(related: str, allow: set[int] | None = None) -> bool:
-    """True if ``related`` is a uXXXX code point inside the allow set."""
+    """True if `related` is a uXXXX code point inside the allow set."""
     if allow is None:
         allow = related_allow_set()
     cp = related_codepoint(related)
@@ -343,7 +343,7 @@ def is_non_mincho_stroke_data(data: str) -> bool:
     """True if stroke data selects a non-mincho shotai or exotic stroke type.
 
     GlyphWiki marks gothic / other styles with a type-0 option stroke
-    ``0:99:N`` (N≠0). Mincho is the default (no marker, or ``0:99:0``).
+    `0:99:N` (N≠0). Mincho is the default (no marker, or `0:99:0`).
     """
     if not data:
         return False
@@ -425,7 +425,7 @@ _U_FORM_NAME = re.compile(r"^u[0-9a-f]+(-|$)", re.IGNORECASE)
 
 
 def is_empty_stroke_data(data: str | None) -> bool:
-    """True for missing/blank GlyphWiki placeholders (``0:-1:-1:-1``)."""
+    """True for missing/blank GlyphWiki placeholders (`0:-1:-1:-1`)."""
     if data is None:
         return True
     d = data.strip()
@@ -452,7 +452,7 @@ def is_unusable_stroke_data(data: str | None) -> bool:
 
 
 def alias_target(data: str | None) -> str | None:
-    """Return the target name if ``data`` is a single full-frame type-99 alias."""
+    """Return the target name if `data` is a single full-frame type-99 alias."""
     if not data:
         return None
     segs = [s for s in data.split("$") if s]
@@ -488,7 +488,7 @@ def filter_alias_entries(
 ) -> list[tuple[str, str]]:
     """Drop full-frame aliases whose target is also a packed entry.
 
-    If the alias target is not in ``entries``, the alias is kept so the
+    If the alias target is not in `entries`, the alias is kept so the
     outline is not lost.
     """
     names = {n for n, _ in entries}
@@ -510,7 +510,7 @@ def _duplicate_keep_key(
     raw: str,
     stroke_counts: Mapping[str, int],
 ) -> tuple:
-    """Lower is better: prefer non-alias, ``uXXXX`` forms, then normal sort."""
+    """Lower is better: prefer non-alias, `uXXXX` forms, then normal sort."""
     return (
         0 if alias_target(raw) is None else 1,
         0 if _U_FORM_NAME.match(name) else 1,
@@ -529,7 +529,7 @@ def filter_duplicate_stroke_entries(
 ) -> list[tuple[str, str]]:
     """Keep one glyph per unique resolved stroke string; drop empties.
 
-    Among duplicates, prefer a non-alias ``uXXXX…`` form, then the usual
+    Among duplicates, prefer a non-alias `uXXXX…` form, then the usual
     related-CP / stroke-count / name order.
     """
     raw_glyphs = raw_glyphs or {}
@@ -560,7 +560,7 @@ def sort_glyph_entries(
     entries: Sequence[tuple[str, str]],
     stroke_counts: Mapping[str, int] | None = None,
 ) -> list[tuple[str, str]]:
-    """Sort ``(name, related)`` by related CP, stroke count, then name."""
+    """Sort `(name, related)` by related CP, stroke count, then name."""
     counts = stroke_counts or {}
     return sorted(
         entries,
@@ -623,18 +623,18 @@ def mirror_vs(mode: int) -> int:
     """Return VS01..VS08 (U+E000..U+E007) for bucket/GlyphWiki D4 variants.
 
     Used directly after a Unicode character — no SPUA marker.
-    Example: ``<U+4E00><U+E001>`` → 90° CCW 一.
+    Example: `<U+4E00><U+E001>` → 90° CCW 一.
     """
     return MirrorVS.codepoint(mode)
 
 
 def mirror_sequence(base_cp: int, mode: int) -> list[int]:
-    """``[unicode_cp, VS0n]`` for a mirrored bucket-font character."""
+    """`[unicode_cp, VS0n]` for a mirrored bucket-font character."""
     return [base_cp, mirror_vs(mode)]
 
 
 def index_to_ligature(ordinal: int) -> VsSequence:
-    """Map a 0-based ordinal to ``(marker, pua)`` in row-major order."""
+    """Map a 0-based ordinal to `(marker, pua)` in row-major order."""
     if ordinal < 0:
         raise ValueError("ordinal must be >= 0")
     marker_i, pua_i = divmod(ordinal, BMP_PUA_COUNT)
@@ -655,7 +655,7 @@ def assign_ligatures(
     entries: Sequence[tuple[str, str]],
     stroke_counts: Mapping[str, int] | None = None,
 ) -> list[GlyphMapping]:
-    """Assign SPUA+BMP-PUA ligatures to ``(name, related)`` entries.
+    """Assign SPUA+BMP-PUA ligatures to `(name, related)` entries.
 
     Sorted by related code point, then stroke count, then name. Raises if
     the dump outgrows Supplementary PUA × 6400 (practically unreachable).
@@ -691,7 +691,7 @@ assign_codepoints = assign_ligatures
 
 
 def mapping_to_dict(mappings: Iterable[GlyphMapping]) -> dict[str, list[int]]:
-    """``glyph_name → [marker, pua]``."""
+    """`glyph_name → [marker, pua]`."""
     return {m.name: m.pair for m in mappings}
 
 
@@ -699,7 +699,7 @@ def mappings_from_cmap(
     cmap: dict[str, list[int] | tuple[int, int]],
     related: dict[str, str] | None = None,
 ) -> list[GlyphMapping]:
-    """Rebuild ``GlyphMapping`` rows from a saved ``name → [marker, pua]`` cmap."""
+    """Rebuild `GlyphMapping` rows from a saved `name → [marker, pua]` cmap."""
     related = related or {}
     out: list[GlyphMapping] = []
     for name, pair in cmap.items():

@@ -26,18 +26,13 @@ Export each glyph as SVGs named after their code points.
 """
 
 import os
-import sys
-import tempfile
-import shutil
-from typing import Dict, Iterable, List, Set, Tuple
+from typing import Iterable, List, Set, Tuple
 
 from fontTools.ttLib import TTFont
 from fontTools.subset import Subsetter, Options
 from fontTools.merge import Merger
-from fontTools.ttLib.tables._g_l_y_f import Glyph
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
-from fontTools.ttLib import newTable
 import argparse
 import json
 

@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """Refresh Obsidian theme.css Edenia font blocks from GitHub CDN or local dist.
 
-CJK faces share ``edenia cjk`` / ``edenia cjk h`` / … with per-bucket
-``unicode-range``. Each CJK face must list ``U+FE00–FE0F`` (overlay, D4,
+CJK faces share `edenia cjk` / `edenia cjk h` / … with per-bucket
+`unicode-range`. Each CJK face must list `U+FE00–FE0F` (overlay, D4,
 halves, triangles) or Blink drops those Default_Ignorables.
-Hangul / Kana / Yi faces get script ``unicode-range`` so bare cmap FE*
-does not steal selectors from later faces; Yi keeps ``FE00–FE0F``, Kana
-``FE00`` + ``FE08–FE0F`` for overlay/slices.
+Hangul / Kana / Yi faces get script `unicode-range` so bare cmap FE*
+does not steal selectors from later faces; Yi keeps `FE00–FE0F`, Kana
+`FE00` + `FE08–FE0F` for overlay/slices.
 
 Default: font files via **jsDelivr**.
 
-``--bake``: Obsidian cannot resolve relative ``url(./…)`` (becomes
-``app://obsidian.md/…``), blocks ``file://``, and truncates huge ``data:``
+`--bake`: Obsidian cannot resolve relative `url(./…)` (becomes
+`app://obsidian.md/…`), blocks `file://`, and truncates huge `data:`
 themes — so bake writes a tiny **plugin** that injects faces with
-``FontFace`` + ``readBinary``.
+`FontFace` + `readBinary`.
 
 Usage::
 
@@ -57,7 +57,6 @@ from edenia_names import (
     PLUGIN_DIR_NAME,
     PLUGIN_DISPLAY_NAME,
     PLUGIN_ID,
-    STACK_CJK_TAIL,
 )
 from sync_edenian_fonts import woff2_names_from_css_dir
 
@@ -92,7 +91,7 @@ _ANY_NEXOVOLTA_DIST = re.compile(
     r"Scripts/dist/",
     re.I,
 )
-_PANCJK_FAMILY = re.compile(
+_EDENIA_CJK_FAMILY = re.compile(
     r"font-family:\s*['\"](edenia cjk(?:\s+(?:qh|qv|q|[ht]))?)['\"]"
 )
 
@@ -150,7 +149,7 @@ def load_css(kind: str, *, local: bool) -> str:
 def sync_woff2(dest_root: Path) -> int:
     """Copy hangul/yi/kana/cjk .woff2 into dest_root/{folder}/.
 
-    CJK copies follow ``edenia-cjk.css`` so unused niche faces stay out of the plugin.
+    CJK copies follow `edenia-cjk.css` so unused segment faces stay out of the plugin.
     """
     n = 0
     for folder in BAKE_FOLDERS:
@@ -178,11 +177,11 @@ def sync_woff2(dest_root: Path) -> int:
     return n
 
 
-def pancjk_families_from_css(css: str) -> list[str]:
+def edenia_cjk_families_from_css(css: str) -> list[str]:
     """Ordered unique shared family names from edenia-cjk.css."""
     seen: set[str] = set()
     out: list[str] = []
-    for m in _PANCJK_FAMILY.finditer(css):
+    for m in _EDENIA_CJK_FAMILY.finditer(css):
         name = m.group(1)
         if name not in seen:
             seen.add(name)
@@ -329,9 +328,9 @@ def _script_unicode_range(family: str, ur: str | None) -> str | None:
     return _SCRIPT_UNICODE_RANGE.get(family)
 
 
-def pancjk_stack_families(css: str) -> list[str]:
-    """Body stack CJK families: ``h`` first (digraph/FE00+FE08–F GSUB), then base."""
-    families = pancjk_families_from_css(css)
+def edenia_cjk_stack_families(css: str) -> list[str]:
+    """Body stack CJK families: `h` first (digraph/FE00+FE08–F GSUB), then base."""
+    families = edenia_cjk_families_from_css(css)
     out: list[str] = []
     for name in ("edenia cjk h", "edenia cjk"):
         if name in families:
@@ -372,15 +371,15 @@ def collect_faces(css: str, *, folder: str) -> list[dict]:
     return out
 
 
-def build_stack_block(*, pancjk_families: list[str]) -> str:
-    if not pancjk_families:
+def build_stack_block(*, edenia_cjk_families: list[str]) -> str:
+    if not edenia_cjk_families:
         raise ValueError("no edenia cjk families found in CSS")
     scripts = (
         f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", '
         f'"{FAMILY_KANA_H}", "{FAMILY_KANA}", '
         f'"{FAMILY_YI_H}", "{FAMILY_YI}"'
     )
-    cjk = ", ".join(css_family_token(n) for n in pancjk_families)
+    cjk = ", ".join(css_family_token(n) for n in edenia_cjk_families)
     fallbacks = "FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2"
     stack = f"{STACK_LATIN}, {scripts}, {cjk}, {fallbacks}, {STACK_TAIL}"
     return "\n".join(
@@ -532,7 +531,7 @@ module.exports = class {PLUGIN_CLASS} extends Plugin {{
 
 
 def install_to_vault(vault: Path) -> None:
-    """Copy plugin + fonts only into ``.obsidian/plugins/obsidian-edenia``."""
+    """Copy plugin + fonts only into `.obsidian/plugins/obsidian-edenia`."""
     vault = vault.resolve()
     if not (vault / ".obsidian").is_dir():
         raise FileNotFoundError(f"not an Obsidian vault (no .obsidian): {vault}")
@@ -837,10 +836,10 @@ def main(argv: list[str] | None = None) -> int:
                 shutil.rmtree(stale)
                 print(f"  removed stale {stale.relative_to(REPO_ROOT)}")
 
-    pancjk_families = pancjk_stack_families(cjk)
-    print(f"  edenia cjk stack families: {pancjk_families}")
+    edenia_cjk_families = edenia_cjk_stack_families(cjk)
+    print(f"  edenia cjk stack families: {edenia_cjk_families}")
     faces = build_faces_block(hangul, yi, kana, cjk, bake=args.bake)
-    stack = build_stack_block(pancjk_families=pancjk_families)
+    stack = build_stack_block(edenia_cjk_families=edenia_cjk_families)
     if not args.bake:
         n = len(re.findall(r"@font-face", faces))
         print(f"Built Obsidian face block ({n} @font-face)")

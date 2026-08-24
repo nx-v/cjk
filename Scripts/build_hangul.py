@@ -4,13 +4,13 @@ Build Hangul fonts from Malgun Gothic.
 
 Two families
 ------------
-* ``edenia hangul`` — conjoining jamo (U+1100.., Ext-A/B) with Malgun
-  ``ljmo`` / ``vjmo`` / ``tjmo`` shaping.
-* ``edenia hanguls`` — precomposed syllables (U+AC00..D7A3) and compatibility
+* `edenia hangul` — conjoining jamo (U+1100.., Ext-A/B) with Malgun
+  `ljmo` / `vjmo` / `tjmo` shaping.
+* `edenia hanguls` — precomposed syllables (U+AC00..D7A3) and compatibility
   jamo (U+3131..318E).
 
-Glyphs use a **1000×1000 em square** (``--upem``, default 1000): full-width
-advances are forced to ``upem``; composed V/T overlays stay zero-width.
+Glyphs use a **1000×1000 em square** (`--upem`, default 1000): full-width
+advances are forced to `upem`; composed V/T overlays stay zero-width.
 
 VS1..VS4 (axis mirrors)
 -----------------------
@@ -23,27 +23,27 @@ VS3     U+FE02     my — negate Y about contour bbox center
 VS4     U+FE03     mxy — both axes
 ======= ========== ================================
 
-* **Jamo (``edenia hangul``):** VS may follow each jamo (``L+VS V+VS T+VS``).
-  ``U+FE0n`` uses cmap-14 UVS (and ``ccmp`` liga). Roles:
+* **Jamo (`edenia hangul`):** VS may follow each jamo (`L+VS V+VS T+VS`).
+  `U+FE0n` uses cmap-14 UVS (and `ccmp` liga). Roles:
 
   * **Choseong (initial) + VS** — bbox-flips that initial only (orientation).
   * **Jungseong (medial) + VS** — X/Y-flips about the **ideographic (typo)
-    center** (zero-advance V forms use local pivot ``ideo_x - upem``). The
+    center** (zero-advance V forms use local pivot `ideo_x - upem`). The
     choseong translates on **VS flip axes ∩ the medial's layout group**
-    (X-group ``ㅏ`` → right only, never down; Y-group → down; XY →
+    (X-group `ㅏ` → right only, never down; Y-group → down; XY →
     down-right), by amounts from that choseong's bounds. No rescale.
     Choseong orientation is only from a VS on the choseong itself.
   * **Jongseong (final) + VS** — bbox-flips the final independently.
-  * **Final present** — Malgun ``ljmo`` / ``vjmo`` / ``tjmo`` select
-    contextual positional outlines (full-height medials; mid-band ``.sq``
+  * **Final present** — Malgun `ljmo` / `vjmo` / `tjmo` select
+    contextual positional outlines (full-height medials; mid-band `.sq`
     disabled).
   * **Final + FE04** — after Hangul composition, GPOS ChainContext moves the
-    L+V unit down and the final up (``yPlacement``; XY medials may also get
-    ``xPlacement``). Same shared ``yPlacement`` on L and V so X-group vowels
-    stay aligned with the consonant. No outline rescale. ``vs05`` stays a
+    L+V unit down and the final up (`yPlacement`; XY medials may also get
+    `xPlacement`). Same shared `yPlacement` on L and V so X-group vowels
+    stay aligned with the consonant. No outline rescale. `vs05` stays a
     zero-width mark so GPOS can see it. Open syllables ignore FE04.
 
-* **Syllables (``edenia hanguls``):** ``char + VS`` / cmap-14 UVS flips the
+* **Syllables (`edenia hanguls`):** `char + VS` / cmap-14 UVS flips the
   whole precomposed (or compat) glyph about its bbox center.
 
 Dakuten (combining marks)
@@ -51,10 +51,10 @@ Dakuten (combining marks)
 Stack: LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka → JuliaMono →
 Constructium → Droid Sans → Arial Unicode MS → Gentium. Marks keep native
 left-/right-aligned to CJK cell corners. Same TR → BR → TL → BL slot order as
-``edenia yi`` via GSUB + GPOS ``mark``/``abvm``. Every orientation / layout form
-(identity + ``mx``/``my``/``mxy`` + ``.em*`` chains) gets corner anchors —
+`edenia yi` via GSUB + GPOS `mark`/`abvm`. Every orientation / layout form
+(identity + `mx`/`my`/`mxy` + `.em*` chains) gets corner anchors —
 no VS form is skipped. Installed in both families (zero-advance V/T bases
-shift local X by ``-upem``).
+shift local X by `-upem`).
 """
 
 from __future__ import annotations
@@ -95,7 +95,6 @@ from shared_half_cells import (
     variant_glyph_name,
 )
 from shared_diacritics import (
-    CGJ_CP,
     DAKUTEN_SLOT_CYCLE,
     DAKUTEN_SLOT_COUNT,
     add_dakuten_mark_glyphs,
@@ -164,7 +163,6 @@ FE04_T_SUFFIX = "sw"
 
 # VS ligas: ``ccmp`` early (before Hangul) for browser/DirectWrite paths where
 # mid-cluster marks break the Hangul FST; ``rlig``/``liga`` keep post-shape swap.
-CLUSTER_VS_FEATURE_TAGS: Tuple[str, ...] = ("ccmp", "rlig", "liga")
 # Whole-glyph VS on the syllables font may use early ``ccmp`` safely.
 SYLL_VS_FEATURE_TAGS: Tuple[str, ...] = ("ccmp", "rlig", "liga")
 
@@ -362,7 +360,7 @@ _JUNGSEONG_CP_RANGES: Tuple[Tuple[int, int], ...] = (
 
 
 def jungseong_axis_from_name(name: str) -> Optional[VowelAxis]:
-    """Return layout axes for a ``HANGUL JUNGSEONG …`` Unicode name."""
+    """Return layout axes for a `HANGUL JUNGSEONG …` Unicode name."""
     prefix = "HANGUL JUNGSEONG "
     if not name.startswith(prefix):
         return None
@@ -411,17 +409,17 @@ V_SUFFIX_AXES: Dict[str, Set[str]] = {
 
 
 def em_variant_name(base_name: str, suffix: str) -> str:
-    """Choseong layout shift from medial VS (``.emmx`` / ``.emmy`` / ``.emmxy``)."""
+    """Choseong layout shift from medial VS (`.emmx` / `.emmy` / `.emmxy`)."""
     return f"{base_name}.em{suffix}"
 
 
 def sq_variant_name(base_name: str) -> str:
-    """Y/XY medial Y-compressed form when a jongseong follows (``.sq``)."""
+    """Y/XY medial Y-compressed form when a jongseong follows (`.sq`)."""
     return f"{base_name}.{SQ_SUFFIX}"
 
 
 def hangul_orientation_forms(base: str, glyphs: Dict[str, TTGlyph]) -> List[str]:
-    """Identity + mirrors + ``.em*`` + ``.sq``."""
+    """Identity + mirrors + `.em*` + `.sq`."""
     out: List[str] = []
     stack = [base]
     seen: Set[str] = set()
@@ -443,10 +441,10 @@ def hangul_dakuten_bases(
     seed_names: Sequence[str],
     glyphs: Dict[str, TTGlyph],
 ) -> List[str]:
-    """All orientation / layout forms reachable from ``seed_names``.
+    """All orientation / layout forms reachable from `seed_names`.
 
-    Includes every ``mx`` / ``my`` / ``mxy`` (and ``.em*``) variant present
-    in ``glyphs`` so no VS form loses MarkToBase anchors.
+    Includes every `mx` / `my` / `mxy` (and `.em*`) variant present
+    in `glyphs` so no VS form loses MarkToBase anchors.
     """
     names: List[str] = []
     seen: Set[str] = set()
@@ -465,7 +463,7 @@ def collect_hangul_dakuten_base_anchors(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
 ) -> Dict[str, Dict[int, Tuple[int, int]]]:
-    """CJK box slots; zero-advance V/T forms shift anchors by ``-upem`` in X."""
+    """CJK box slots; zero-advance V/T forms shift anchors by `-upem` in X."""
     corners = cjk_corner_anchors(target_upem)
     class_xy = {i: corners[slot] for i, (slot, _suf) in enumerate(DAKUTEN_SLOTS)}
     anchors: Dict[str, Dict[int, Tuple[int, int]]] = {}
@@ -679,9 +677,9 @@ def ideo_local_box(
 ) -> Tuple[float, float, float, float]:
     """Axis-aligned ideographic square in this glyph's local coordinates.
 
-    Full-advance glyphs (choseong) use the em cell ``[0, upem] × [bottom, top]``.
+    Full-advance glyphs (choseong) use the em cell `[0, upem] × [bottom, top]`.
     Zero-advance V/T forms are drawn at pen x=upem, so the same absolute square
-    is ``[-upem, 0] × [bottom, top]`` locally.
+    is `[-upem, 0] × [bottom, top]` locally.
     """
     bottom, top, _h = ideographic_bounds(target_upem)
     if advance == 0:
@@ -693,7 +691,7 @@ def nudge_into_box(
     bounds: Tuple[float, float, float, float],
     box: Tuple[float, float, float, float],
 ) -> Transform:
-    """Translate only (no scale) so ``bounds`` edges sit inside ``box`` when possible."""
+    """Translate only (no scale) so `bounds` edges sit inside `box` when possible."""
     x0, y0, x1, y1 = bounds
     bx0, by0, bx1, by1 = box
     dx = 0.0
@@ -760,7 +758,7 @@ def make_layout_shift(
     * Y: drop so the glyph's top sits below the ideographic center with a
       clearance gap (room for a Y-flipped jungseong above). Tall initials
       get a little extra drop so they do not kiss the medial. Batchim
-      clearance is GPOS (see ``install_yflip_batchim_gpos``), not baked in —
+      clearance is GPOS (see `install_yflip_batchim_gpos`), not baked in —
       otherwise L.emmy climbs into V.my when no final is present.
     """
     bounds = _glyph_bounds(glyphs, base_name)
@@ -816,23 +814,12 @@ def padded_ideo_box(
     return (x0 + pad, y0 + pad, x1 - pad, y1 - pad)
 
 
-def fe04_y_bands(target_upem: int) -> Tuple[Tuple[float, float], Tuple[float, float]]:
-    """Return ``((lv_lo, lv_hi), (t_lo, t_hi))`` — equal halves with a mid-gap."""
-    bottom, top, ideo_h = ideographic_bounds(target_upem)
-    pad = ideo_h * _EDGE_PAD_FRAC
-    gap = ideo_h * _BAND_GAP_FRAC
-    u_bot, u_top = bottom + pad, top - pad
-    mid = (u_bot + u_top) * 0.5
-    half_gap = gap * 0.5
-    return (u_bot, mid - half_gap), (mid + half_gap, u_top)
-
-
 def fe04_swap_deltas(target_upem: int) -> Tuple[float, float]:
-    """Shared FE04 unit translates: ``(dy_lv, dy_t)``.
+    """Shared FE04 unit translates: `(dy_lv, dy_t)`.
 
-    Base ``dy_lv`` is for Y/XY choseong (and the X shared floor before the
-    X-only extra). X L+V take ``dy_lv + fe04_x_lv_extra_dy`` together. Y/XY
-    medials add ``fe04_medial_extra_dy``. ``dy_t`` clears the lowered LV top.
+    Base `dy_lv` is for Y/XY choseong (and the X shared floor before the
+    X-only extra). X L+V take `dy_lv + fe04_x_lv_extra_dy` together. Y/XY
+    medials add `fe04_medial_extra_dy`. `dy_t` clears the lowered LV top.
     """
     _bottom, _top, ideo_h = ideographic_bounds(target_upem)
     dy_lv = -(ideo_h * 0.22)
@@ -846,14 +833,8 @@ def fe04_x_lv_extra_dy(target_upem: int) -> int:
     return otRound(-(ideo_h * 0.12))
 
 
-def fe04_unflipped_l_extra_dy(target_upem: int) -> int:
-    """Unused legacy helper — upright Y/XY L uses ``fe04_unflipped_l_y_placement``."""
-    _bottom, _top, ideo_h = ideographic_bounds(target_upem)
-    return otRound(-(ideo_h * 0.08))
-
-
 def fe04_medial_is_y_flipped(name: str) -> bool:
-    """True when medial carries a Y-mirror suffix (``.my`` / ``.mxy``)."""
+    """True when medial carries a Y-mirror suffix (`.my` / `.mxy`)."""
     n = name
     if n.endswith(f".{SQ_SUFFIX}"):
         n = n[: -len(SQ_SUFFIX) - 1]
@@ -864,20 +845,13 @@ def fe04_l_is_emmy(name: str) -> bool:
     return name.endswith(".emmy") or name.endswith(".emmxy")
 
 
-def yflip_batchim_l_target_top(target_upem: int) -> float:
-    """Where ``L.em*`` tops after the upright-batchim Y-flip raise (image-2 pin)."""
-    bottom, _top, ideo_h = ideographic_bounds(target_upem)
-    # emmy bake tops near icy-clearance (~230) + dy_l (0.36·ideo_h).
-    return bottom + ideo_h * 0.71
-
-
 def fe04_unflipped_l_y_placement(
     name: str,
     *,
     glyphs: Dict[str, TTGlyph],
     target_upem: int,
 ) -> int:
-    """FE04 + upright Y/XY: park L top just under raised ``T.sw``."""
+    """FE04 + upright Y/XY: park L top just under raised `T.sw`."""
     bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
         return 0
@@ -909,7 +883,7 @@ def fe04_emmy_l_y_placement(
     target_upem: int,
     vowel_axis: VowelAxis = "y",
 ) -> int:
-    """FE04 + Y-flipped V: park ``L.em*`` on the floor under the medial tip.
+    """FE04 + Y-flipped V: park `L.em*` on the floor under the medial tip.
 
     Y-group flipped bars sit mid-cell; L goes to the very bottom (just below
     the bar). XY flipped stems already reach the floor — same L floor pin.
@@ -923,11 +897,11 @@ def fe04_medial_extra_dy(
     name: str,
     target_upem: int,
 ) -> int:
-    """Axis + flip-aware Y nudge for medials under FE04 (added to ``dy_lv``).
+    """Axis + flip-aware Y nudge for medials under FE04 (added to `dy_lv`).
 
-    * X: 0 here — X uses ``fe04_x_lv_extra_dy`` on both L and V.
-    * Y upright: unused — upright Y V uses ``fe04_y_floor_y_placement``.
-    * Y flipped: slight lift so the bar stays above floor-parked ``L.emmy``.
+    * X: 0 here — X uses `fe04_x_lv_extra_dy` on both L and V.
+    * Y upright: unused — upright Y V uses `fe04_y_floor_y_placement`.
+    * Y flipped: slight lift so the bar stays above floor-parked `L.emmy`.
     * XY upright: small extra down.
     * XY flipped: stronger extra down — upper-band bake otherwise stays high.
     """
@@ -955,10 +929,10 @@ def fe04_t_x_placement(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
 ) -> int:
-    """Translate ``T.sw`` so its bbox center sits on the ideographic mid-x.
+    """Translate `T.sw` so its bbox center sits on the ideographic mid-x.
 
     Zero-advance (combining) forms live in L-local overlay coords whose mid-x
-    is ``ideo_x - upem``; full-advance standalones use ``ideo_x``.
+    is `ideo_x - upem`; full-advance standalones use `ideo_x`.
     """
     bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
@@ -1005,7 +979,7 @@ def add_em_variant(
     metrics: Dict[str, Tuple[int, int]],
     overlay: bool = False,
 ) -> str:
-    """Bake choseong layout shift (``.emmx`` / ``.emmy`` / ``.emmxy``) — translate only."""
+    """Bake choseong layout shift (`.emmx` / `.emmy` / `.emmxy`) — translate only."""
     del overlay  # choseong shifts are always in L local space
     vname = em_variant_name(base_name, suffix)
     if vname not in glyphs:
@@ -1042,7 +1016,7 @@ def make_medial_batchim_squish(
 ) -> Tuple[TTGlyph, int, int]:
     """Y-scale (or translate) a medial into the closed-syllable mid band.
 
-    Horizontal metrics unchanged. Used as ``.sq`` when a jongseong follows.
+    Horizontal metrics unchanged. Used as `.sq` when a jongseong follows.
     """
     bounds = _glyph_bounds(glyphs, base_name)
     if bounds is None:
@@ -1081,45 +1055,12 @@ def add_medial_batchim_squish_variants(
     vowel_axes: Dict[str, VowelAxis],
     target_upem: int,
 ) -> int:
-    """Bake ``.sq`` for Y/XY medials when a jongseong follows.
+    """Bake `.sq` for Y/XY medials when a jongseong follows.
 
     Disabled: mid-band Y-compress made closed-syllable medials (e.g. ㅝ)
-    look crushed; Malgun ``vjmo`` already packs them with the batchim.
+    look crushed; Malgun `vjmo` already packs them with the batchim.
     """
     return 0
-
-    def _strip_mirror(name: str) -> str:  # pragma: no cover
-        for sfx in MIRROR_SUFFIXES:
-            if name.endswith(f".{sfx}"):
-                return name[: -len(sfx) - 1]
-        return name
-
-    n = 0
-    for base in v_forms:
-        axis = vowel_axes.get(base) or vowel_axes.get(_strip_mirror(base), "xy")
-        if axis not in ("y", "xy"):
-            continue
-        seeds = [base]
-        mx = variant_glyph_name(base, "mx")
-        if mx in glyphs:
-            seeds.append(mx)
-        for seed in seeds:
-            sq = sq_variant_name(seed)
-            if sq in glyphs:
-                continue
-            adv, lsb = metrics[seed]
-            vg, vadv, vlsb = make_medial_batchim_squish(
-                seed,
-                glyphs,
-                advance=adv,
-                lsb=lsb,
-                target_upem=target_upem,
-            )
-            glyph_order.append(sq)
-            glyphs[sq] = vg
-            metrics[sq] = (vadv, vlsb)
-            n += 1
-    return n
 
 
 def install_medial_batchim_squish_gsub(
@@ -1130,7 +1071,7 @@ def install_medial_batchim_squish_gsub(
     glyphs: Dict[str, TTGlyph],
     vowel_axes: Dict[str, VowelAxis],
 ) -> int:
-    """``V → V.sq`` when a jongseong follows (Y/XY upright / mx)."""
+    """`V → V.sq` when a jongseong follows (Y/XY upright / mx)."""
     glyph_map = {n: i for i, n in enumerate(font.getGlyphOrder())}
 
     def _strip_mirror(name: str) -> str:
@@ -1184,7 +1125,7 @@ def install_medial_fe04_unsquish_gsub(
     glyphs: Dict[str, TTGlyph],
     vowel_axes: Dict[str, VowelAxis],
 ) -> int:
-    """``V.sq → V`` when FE04 ``T.sw`` follows (no mid-band squish under top-swap)."""
+    """`V.sq → V` when FE04 `T.sw` follows (no mid-band squish under top-swap)."""
     glyph_map = {n: i for i, n in enumerate(font.getGlyphOrder())}
 
     def _strip_mirror(name: str) -> str:
@@ -1239,8 +1180,8 @@ def make_bbox_mirror(
 ) -> Tuple[TTGlyph, int, int]:
     """Bake axis mirror; jungseong uses ideo pivots and per-glyph Y rise + fit.
 
-    ``prefer_upper_on_y_flip``: Y/XY medials rise into the upper band after a
-    Y-flip (stack above ``L.em*``). Translate only — never Y-scale. Tall
+    `prefer_upper_on_y_flip`: Y/XY medials rise into the upper band after a
+    Y-flip (stack above `L.em*`). Translate only — never Y-scale. Tall
     compounds pin their top to the band ceiling and may extend below the
     split (avoids the open-syllable XY squish). X-group restores the
     unflipped vertical center so a Y-flipped ㅏ stays beside the consonant.
@@ -1440,7 +1381,7 @@ def build_jamo_uvs_entries(
     cmap: Dict[int, str],
     glyphs: Dict[str, TTGlyph],
 ) -> List[Tuple[int, int, Optional[str]]]:
-    """Cmap-14 UVS for conjoining L/V/T — consumes ``U+FE0n`` before Hangul FST.
+    """Cmap-14 UVS for conjoining L/V/T — consumes `U+FE0n` before Hangul FST.
 
     Browsers often fail mid-cluster mark+liga shaping for Hangul; UVS applies the
     bbox mirror at cmap time so L/V/T stay contiguous for composition.
@@ -1472,9 +1413,9 @@ def extend_hangul_gsub_for_mirrors(
     glyph_names: Set[str],
     glyph_order: Sequence[str],
 ) -> None:
-    """Add ``.mx``/``.my``/``.mxy`` parallels to Hangul chain coverages + singles.
+    """Add `.mx`/`.my`/`.mxy` parallels to Hangul chain coverages + singles.
 
-    Required when VS is applied before Hangul (UVS or early ``ccmp`` liga).
+    Required when VS is applied before Hangul (UVS or early `ccmp` liga).
     """
     if "GSUB" not in font:
         return
@@ -1588,7 +1529,7 @@ def hangul_lookups_ignore_marks(font) -> int:
 
 
 def install_hangul_rclt(font) -> None:
-    """Expose ljmo/vjmo/tjmo under ``rclt`` as an always-on fallback."""
+    """Expose ljmo/vjmo/tjmo under `rclt` as an always-on fallback."""
     if "GSUB" not in font:
         return
     gsub = font["GSUB"].table
@@ -1721,7 +1662,7 @@ def install_vs_ligas(
     *,
     feature_tags: Sequence[str] = SYLL_VS_FEATURE_TAGS,
 ) -> None:
-    """``base + vs → variant`` ligas (whole-glyph / syllables font)."""
+    """`base + vs → variant` ligas (whole-glyph / syllables font)."""
     if not pairs:
         return
     liga_map: Dict[Tuple[str, ...], str] = {(base, vs): var for base, vs, var in pairs}
@@ -1773,11 +1714,11 @@ def install_jamo_component_vs(
     glyphs: Dict[str, TTGlyph],
     vowel_axes: Dict[str, VowelAxis],
 ) -> Tuple[int, int]:
-    """BBox VS ligas; medial VS shifts choseong (``.em*``).
+    """BBox VS ligas; medial VS shifts choseong (`.em*`).
 
-    FE04 vertical swap is GPOS (see ``install_fe04_gpos``).
+    FE04 vertical swap is GPOS (see `install_fe04_gpos`).
 
-    Returns ``(liga_rule_count, layout_lookup_count)``.
+    Returns `(liga_rule_count, layout_lookup_count)`.
     """
     liga_pairs: List[Tuple[str, str, str]] = []
     for forms in (l_forms, v_forms, t_forms):
@@ -1811,8 +1752,6 @@ def install_jamo_component_vs(
         return {"x", "y"} if a == "xy" else {a}
 
     l_bases = _with_bbox(l_forms)
-    # Identity + bbox V forms (medial VS targets); also used as context.
-    v_bases = _with_bbox(v_forms)
 
     gsub = _ensure_gsub(font)
     staged: List[ot.Lookup] = []
@@ -1939,10 +1878,10 @@ def _attach_gpos_features(
     feature_tags: Sequence[str],
     scripts: Sequence[str] = ("DFLT", "hang", "latn"),
 ) -> None:
-    """Attach GPOS lookups to feature tags (mirrors ``_attach_features`` for GSUB).
+    """Attach GPOS lookups to feature tags (mirrors `_attach_features` for GSUB).
 
     Reuses an existing FeatureRecord with the same tag when present so duplicate
-    tags (e.g. a second ``rclt``) are not ignored by shapers that enable each
+    tags (e.g. a second `rclt`) are not ignored by shapers that enable each
     tag once.
     """
     from shared_diacritics import _ensure_gpos_scripts
@@ -1998,7 +1937,7 @@ def _attach_gpos_features(
 
 
 def fe04_t_name(base_name: str) -> str:
-    """Jongseong form after ``T + vs05`` liga (FE04 GPOS input)."""
+    """Jongseong form after `T + vs05` liga (FE04 GPOS input)."""
     return f"{base_name}.{FE04_T_SUFFIX}"
 
 
@@ -2014,16 +1953,16 @@ def install_fe04_gpos(
     vowel_axes: Dict[str, VowelAxis],
     target_upem: int,
 ) -> Tuple[float, float, int]:
-    """FE04 top-swap: ``T+vs05→T.sw`` liga, then ``L V T.sw`` placement.
+    """FE04 top-swap: `T+vs05→T.sw` liga, then `L V T.sw` placement.
 
-    Consuming ``vs05`` into ``T.sw`` keeps this chain from sharing an ``L V T``
+    Consuming `vs05` into `T.sw` keeps this chain from sharing an `L V T`
     prefix with the Y-flip batchim raise. X vowels use a deeper shared drop on
     L and V (identical Y). Y/XY upright drop L a little extra to clear the
-    raised batchim; flipped Y/XY keep base ``dy_lv`` on L with medial extras.
-    ``T.sw`` also gets ``xPlacement`` onto the ideographic mid-x. XY medials
-    may also get ``xPlacement``.
+    raised batchim; flipped Y/XY keep base `dy_lv` on L with medial extras.
+    `T.sw` also gets `xPlacement` onto the ideographic mid-x. XY medials
+    may also get `xPlacement`.
 
-    Returns ``(dy_lv, dy_t, chain_lookup_count)``.
+    Returns `(dy_lv, dy_t, chain_lookup_count)`.
     """
     from shared_diacritics import _ensure_gpos
 
@@ -2292,10 +2231,10 @@ def install_yflip_batchim_gpos(
 ) -> Tuple[float, int]:
     """Raise dropped choseong above jongseong when the medial is Y-flipped.
 
-    Fires on ``L.emmy/emmxy + V.my/mxy(+.sq) + T`` for every batchim
-    orientation (same L lift whether ``T`` is upright or Y-flipped). Skip
-    ``T.sw`` — FE04 owns that path. Pure Y-group also raises ``V.my`` a
-    smaller amount; XY ``V.my`` is left alone.
+    Fires on `L.emmy/emmxy + V.my/mxy(+.sq) + T` for every batchim
+    orientation (same L lift whether `T` is upright or Y-flipped). Skip
+    `T.sw` — FE04 owns that path. Pure Y-group also raises `V.my` a
+    smaller amount; XY `V.my` is left alone.
     """
     from shared_diacritics import _ensure_gpos
 
@@ -2375,7 +2314,7 @@ def install_yflip_batchim_gpos(
     _bottom, _top, ideo_h = ideographic_bounds(target_upem)
     # L needs a stronger lift than V: emmy bake sits near the floor after the
     # open-syllable clearance nudge, while Y ``V.my`` is already upper-banded.
-    # Lands near ``yflip_batchim_l_target_top`` (~590).
+    # Lands near ~590 UPM on a 1000-upem ideographic box.
     dy_l = otRound(ideo_h * 0.36)
     dy_v = otRound(ideo_h * 0.20)
 

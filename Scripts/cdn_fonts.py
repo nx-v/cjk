@@ -13,7 +13,7 @@ REF = "main"
 
 
 def github_mirror_urls(owner_repo: str, ref: str, path: str) -> List[str]:
-    """CDN fallbacks for ``owner/repo`` at ``ref`` with repo-relative ``path``."""
+    """CDN fallbacks for `owner/repo` at `ref` with repo-relative `path`."""
     owner_repo = owner_repo.strip("/")
     path = path.lstrip("/")
     ref = ref.strip("/")
@@ -38,7 +38,7 @@ def format_src_urls(
     local: Optional[Sequence[Tuple[str, str]]] = None,
     indent: str = "",
 ) -> str:
-    """Build a CSS ``src:`` line from an ordered URL list (+ optional locals)."""
+    """Build a CSS `src:` line from an ordered URL list (+ optional locals)."""
     pad = indent
     cont = indent + (" " * 5 if indent else "     ")
     parts: List[str] = [f'url("{u}") format("{fmt}")' for u in urls]
@@ -61,7 +61,7 @@ def format_src_line(
     local: Optional[Sequence[Tuple[str, str]]] = None,
     indent: str = "",
 ) -> str:
-    """Build a CSS ``src:`` for a path inside nexovolta/fonts."""
+    """Build a CSS `src:` for a path inside nexovolta/fonts."""
     return format_src_urls(
         remote_urls(repo_relpath), fmt=fmt, local=local, indent=indent
     )
@@ -76,7 +76,7 @@ def format_github_src(
     local: Optional[Sequence[Tuple[str, str]]] = None,
     indent: str = "",
 ) -> str:
-    """Build a CSS ``src:`` for any GitHub ``owner/repo@ref/path``."""
+    """Build a CSS `src:` for any GitHub `owner/repo@ref/path`."""
     return format_src_urls(
         github_mirror_urls(owner_repo, ref, path),
         fmt=fmt,
@@ -86,5 +86,5 @@ def format_github_src(
 
 
 def dist_rel(*parts: str) -> str:
-    """``Scripts/dist/...`` path under nexovolta/fonts."""
+    """`Scripts/dist/...` path under nexovolta/fonts."""
     return "/".join(("Scripts", "dist", *parts))

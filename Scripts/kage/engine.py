@@ -1,6 +1,6 @@
 """KAGE SVG stroke renderer adapter → font outlines.
 
-Uses the in-tree renderer under ``Scripts.kage.renderer`` (based on
+Uses the in-tree renderer under `Scripts.kage.renderer` (based on
 HowardZorn/kage-engine, GPL-3.0).
 """
 
@@ -42,7 +42,7 @@ def make_engine(
     style: str = "mincho",
     ignore_component_version: bool = False,
 ) -> _RendererKage:
-    """KAGE instance for ``style`` (``mincho`` / ``gothic`` / ``rounded``)."""
+    """KAGE instance for `style` (`mincho` / `gothic` / `rounded`)."""
     key = style.lower().strip()
     font_cls = _STYLE_FONT.get(key)
     if font_cls is None:
@@ -97,15 +97,15 @@ def mirror_stroke_data(
 ) -> str:
     """Mirror resolved KAGE stroke skeletons in design space (y-down).
 
-    ``flip_x`` → ``y → size - y`` (mirror across horizontal axis).
-    ``flip_y`` → ``x → size - x`` (mirror across vertical axis).
+    `flip_x` → `y → size - y` (mirror across horizontal axis).
+    `flip_y` → `x → size - x` (mirror across vertical axis).
 
     Coordinates are flipped, then — for a single-axis mirror — each drawable
-    stroke is reversed (swap ``a2``/``a3``, reverse control points) so serifs
+    stroke is reversed (swap `a2`/`a3`, reverse control points) so serifs
     and connectors stay attached. Double-axis mirrors preserve orientation, so
     strokes are not reversed.
 
-    Re-render with ``render_stroke_data`` (do not affine-flip SVG contours).
+    Re-render with `render_stroke_data` (do not affine-flip SVG contours).
     """
     if not data or not (flip_x or flip_y):
         return data
@@ -141,9 +141,9 @@ def mirror_stroke_data(
 
 
 def kage_mirror_transform(flip_x: bool, flip_y: bool) -> Transform:
-    """Mirror affine in KAGE 200×200 space (y-down). Prefer ``mirror_stroke_data``.
+    """Mirror affine in KAGE 200×200 space (y-down). Prefer `mirror_stroke_data`.
 
-    ``flip_x`` → ``y → 200 - y``; ``flip_y`` → ``x → 200 - x``.
+    `flip_x` → `y → 200 - y`; `flip_y` → `x → 200 - x`.
     """
     t = Transform()
     if flip_y:
@@ -215,17 +215,17 @@ def _svg_line_join(name: str | None):
 
 
 def iter_filled_paths(drawing: svgwrite.Drawing):
-    """Yield ``(d, local_transform)`` for filled path elements."""
+    """Yield `(d, local_transform)` for filled path elements."""
     for d, local, stroke in iter_outline_paths(drawing):
         if stroke is None:
             yield d, local
 
 
 def iter_outline_paths(drawing: svgwrite.Drawing):
-    """Yield ``(d, local_transform, stroke|None)`` for drawable paths.
+    """Yield `(d, local_transform, stroke|None)` for drawable paths.
 
-    ``stroke`` is ``None`` for filled mincho ribbons; for gothic/rounded it is
-    ``(width, line_cap, line_join)`` in KAGE design units.
+    `stroke` is `None` for filled mincho ribbons; for gothic/rounded it is
+    `(width, line_cap, line_join)` in KAGE design units.
     """
     for el in getattr(drawing, "elements", []) or []:
         if type(el).__name__ != "Path":

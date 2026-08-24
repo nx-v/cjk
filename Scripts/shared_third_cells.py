@@ -1,32 +1,32 @@
-"""CJK third-cell niches (VS17–VS26) + FE00 zero-width overlay.
+"""CJK third-cell segments (VS17–VS26) + FE00 zero-width overlay.
 
 Encoding
 --------
 * Standard CJK (etc.) code points are used as-is.
-* ``VS17``–``VS26`` (``U+E0100``–``U+E0109``) select which third niche the
+* `VS17`–`VS26` (`U+E0100`–`U+E0109`) select which third segment the
   preceding base occupies.
-* ``FE00`` makes the preceding form zero-width
-  (``.ov``) for trigraph / digraph stacking — same as half-cell overlays.
-* Access is GSUB ``ccmp``/``rlig``/``liga`` only — no cmap-14 UVS.
+* `FE00` makes the preceding form zero-width
+  (`.ov`) for trigraph / digraph stacking — same as half-cell overlays.
+* Access is GSUB `ccmp`/`rlig`/`liga` only — no cmap-14 UVS.
 
 ======= ========== ================================ ========
-VS      Code point Niche                            Suffix
+VS      Code point Segment                            Suffix
 ======= ========== ================================ ========
-VS17    U+E0100    top third                        ``t3t``
-VS18    U+E0101    top + middle third               ``t3tm``
-VS19    U+E0102    middle third                     ``t3m``
-VS20    U+E0103    middle + bottom third            ``t3mb``
-VS21    U+E0104    bottom third                     ``t3b``
-VS22    U+E0105    left third                       ``t3l``
-VS23    U+E0106    left + center third              ``t3lc``
-VS24    U+E0107    center third                     ``t3c``
-VS25    U+E0108    center + right third             ``t3cr``
-VS26    U+E0109    right third                      ``t3r``
+VS17    U+E0100    top third                        `t3t`
+VS18    U+E0101    top + middle third               `t3tm`
+VS19    U+E0102    middle third                     `t3m`
+VS20    U+E0103    middle + bottom third            `t3mb`
+VS21    U+E0104    bottom third                     `t3b`
+VS22    U+E0105    left third                       `t3l`
+VS23    U+E0106    left + center third              `t3lc`
+VS24    U+E0107    center third                     `t3c`
+VS25    U+E0108    center + right third             `t3cr`
+VS26    U+E0109    right third                      `t3r`
 ======= ========== ================================ ========
 
 Upright and D4 bases are **slices** of the already-baked fullwidth outline:
 clip the two end thirds per axis; middle and two-thirds bands are
-``full − end`` / ``(full − end) − other end``. Zero-width ``.ov``
+`full − end` / `(full − end) − other end`. Zero-width `.ov`
 forms are composites of those fullwidth slices.
 """
 
@@ -50,11 +50,11 @@ from shared_half_cells import (
     half_plane_rect,
     ideographic_bounds,
     install_derived_glyph,
-    make_niche_slice_glyph,
+    make_segment_slice_glyph,
     overlay_glyph_name,
     variant_glyph_name,
     HALF_PLANE_INF_FRAC,
-    propagate_d4_niches,
+    propagate_d4_segments,
     OV_SELECTOR_CP,
     OV_SELECTOR_NAME,
 )
@@ -75,7 +75,7 @@ THIRD_FACTOR = 1.0 / 3.0
 TWO_THIRD_FACTOR = 2.0 / 3.0
 THIRD_PAD_FRAC = 0.02
 
-# (vs_cp, selector glyph name, niche suffix, axis, band0, band1)
+# (vs_cp, selector glyph name, segment suffix, axis, band0, band1)
 # Bands are thirds along the axis: 0 = start (bottom/left), 1 = mid, 2 = end
 # (top/right). ``band0..band1`` inclusive occupy that span.
 ThirdSlot = Tuple[int, str, str, str, int, int]
@@ -113,7 +113,7 @@ def _third_slot_rect(
     band0: int,
     band1: int,
 ) -> Tuple[float, float, float, float]:
-    """Return ``(x0, y0, x1, y1)`` for bands ``band0..band1`` (inclusive)."""
+    """Return `(x0, y0, x1, y1)` for bands `band0..band1` (inclusive)."""
     bot, top, _ = ideographic_bounds(int(target_upem))
     pad = target_upem * THIRD_PAD_FRAC
     lo_b = min(band0, band1)
@@ -196,7 +196,7 @@ def place_glyph_in_third(
     target_upem: int = 1000,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Clip ``glyph`` to a third / two-thirds slot (slice — no stretch)."""
+    """Clip `glyph` to a third / two-thirds slot (slice — no stretch)."""
     from shared_half_cells import clip_glyph_to_rect
 
     upem = float(target_upem)
@@ -222,8 +222,8 @@ def make_third_glyph(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     factor: Optional[float] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Upright third niche as a slice of ``base_name`` (clip; no stretch)."""
-    from shared_half_cells import make_niche_slice_glyph
+    """Upright third segment as a slice of `base_name` (clip; no stretch)."""
+    from shared_half_cells import make_segment_slice_glyph
 
     if glyph_set is None:
         raise ValueError("make_third_glyph requires glyph_set for slice bake")
@@ -232,7 +232,7 @@ def make_third_glyph(
     )
     del factor
     rect = _third_slot_rect(float(upem), axis=axis, band0=band0, band1=band1)
-    return make_niche_slice_glyph(
+    return make_segment_slice_glyph(
         base_name,
         advance=int(advance if advance > 0 else upem),
         rect=rect,
@@ -305,7 +305,7 @@ def add_third_forms(
                 )
             _put(
                 out_name,
-                make_niche_slice_glyph(
+                make_segment_slice_glyph(
                     name,
                     advance=adv,
                     rect=rect,
@@ -364,7 +364,7 @@ def third_vs_liga_map(
     *,
     glyphs: Dict[str, TTGlyph],
 ) -> Dict[Tuple[str, ...], str]:
-    """``base + VS17..VS26`` / ``FE00`` → third niche and/or zero-width ``.ov``.
+    """`base + VS17..VS26` / `FE00` → third segment and/or zero-width `.ov`.
 
     Mirrors half-cell overlay spelling::
 
@@ -415,7 +415,7 @@ def prepare_third_cells(
     cmap: Dict[int, str],
     target_upem: int = 1000,
 ) -> List[str]:
-    """Install VS17–26 + FE00 marks, bake third niches and ``.ov`` overlays.
+    """Install VS17–26 + FE00 marks, bake third segments and `.ov` overlays.
 
     Returns the form list that accepts third-cell VS (identity + D4).
     """
@@ -460,7 +460,7 @@ def prepare_third_cells(
         suf: _third_slot_rect(float(target_upem), axis=axis, band0=b0, band1=b1)
         for _cp, _sel, suf, axis, b0, b1 in THIRD_VS_SLOTS
     }
-    propagate_d4_niches(
+    propagate_d4_segments(
         cjk_bases,
         suffixes=tuple(suf for _cp, _sel, suf, _a, _b0, _b1 in THIRD_VS_SLOTS),
         form_name=third_form_name,
@@ -471,16 +471,16 @@ def prepare_third_cells(
         target_upem=target_upem,
     )
 
-    # Zero-width overlays for bases and every third niche (trigraph stacking).
+    # Zero-width overlays for bases and every third segment (trigraph stacking).
     ov_sources: List[str] = []
     for form in forms:
         if form not in glyphs:
             continue
         ov_sources.append(form)
         for _cp, _sel, suf, _axis, _b0, _b1 in THIRD_VS_SLOTS:
-            niche = third_form_name(form, suf)
-            if niche in glyphs:
-                ov_sources.append(niche)
+            segment = third_form_name(form, suf)
+            if segment in glyphs:
+                ov_sources.append(segment)
     add_overlay_forms(
         ov_sources,
         glyph_order=glyph_order,
@@ -496,7 +496,7 @@ def install_third_cell_gsub(
     bases: Sequence[str],
     glyphs: Dict[str, TTGlyph],
 ) -> int:
-    """Append third-cell VS + FE00 overlay ligatures to existing ``GSUB``."""
+    """Append third-cell VS + FE00 overlay ligatures to existing `GSUB`."""
     from fontTools.ttLib import newTable
     from fontTools.ttLib.tables import otTables as ot
 

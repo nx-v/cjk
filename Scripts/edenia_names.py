@@ -41,9 +41,9 @@ CJK_FACE_VARIANTS: tuple[str, ...] = ("", "h", "t", "q", "qv", "qh")
 # Sequential order *inside* each bucket worker. Base, then half TTF, then
 # q/qv/qh derived from that half font, then thirds.
 CJK_FACE_BUILD_ORDER: tuple[str, ...] = ("", "h", "q", "qv", "qh", "t")
-# @font-face emission order (niche faces before base). Body stacks use the
+# @font-face emission order (segment faces before base). Body stacks use the
 # shared ``edenia cjk`` family (base) only — pin ``edenia cjk h`` / ``t`` /
-# ``q`` / ``qv`` / ``qh`` for niche GSUB. CJK unicode-range lists FE00–FE0F
+# ``q`` / ``qv`` / ``qh`` for segment GSUB. CJK unicode-range lists FE00–FE0F
 # (overlay, D4, halves, triangles); Hangul/Kana/Yi faces restrict unicode-range
 # so bare cmap FE* does not steal those selectors. Yi/Kana ``h`` is the slice
 # family (pigeonholed like CJK ``h``); base keeps D4 / PUA without FE00/FE08–F.
@@ -67,7 +67,7 @@ _CJK_FACE_TOKEN: dict[str, str] = {
 
 
 def cjk_variant_from_token(token: str) -> str:
-    """``base`` / ``h`` / ``t`` / ``q`` / ``qv`` / ``qh`` → face suffix."""
+    """`base` / `h` / `t` / `q` / `qv` / `qh` → face suffix."""
     key = str(token).strip().lower()
     if key not in _CJK_FACE_TOKEN:
         raise ValueError(f"unknown CJK face {token!r}; use base, h, t, q, qv, qh")
@@ -84,7 +84,7 @@ def ordered_cjk_variants(variants: Iterable[str]) -> tuple[str, ...]:
 
 
 def add_cjk_variant_arguments(parser: argparse.ArgumentParser) -> None:
-    """``--base-only``, ``--faces``, and ``--h`` / ``--t`` / ``--q`` / ``--qv`` / ``--qh``."""
+    """`--base-only`, `--faces`, and `--h` / `--t` / `--q` / `--qv` / `--qh`."""
     g = parser.add_argument_group("CJK faces")
     g.add_argument(
         "--base-only",
@@ -167,21 +167,21 @@ def family_cjk(face_id: str) -> str:
     All buckets of one variant share a family so cross-bucket digraphs can
     shape in one run::
 
-        ``4E`` / ``66``  → ``edenia cjk``
-        ``4Eh`` / ``66h`` → ``edenia cjk h``
-        ``4Et``           → ``edenia cjk t``
-        ``4Eq``           → ``edenia cjk q``
-        ``4Eqv``          → ``edenia cjk qv``
-        ``4Eqh``          → ``edenia cjk qh``
+        `4E` / `66`  → `edenia cjk`
+        `4Eh` / `66h` → `edenia cjk h`
+        `4Et`           → `edenia cjk t`
+        `4Eq`           → `edenia cjk q`
+        `4Eqv`          → `edenia cjk qv`
+        `4Eqh`          → `edenia cjk qh`
 
-    Per-bucket coverage is applied with ``unicode-range`` on each ``@font-face``.
+    Per-bucket coverage is applied with `unicode-range` on each `@font-face`.
     """
     _core, variant = split_cjk_face_id(face_id)
     return family_cjk_variant(variant)
 
 
 def family_cjk_variant(variant: str = "") -> str:
-    """CSS family for a CJK face variant (``''`` / ``h`` / ``t`` / ``q`` / ``qv`` / ``qh``)."""
+    """CSS family for a CJK face variant (`''` / `h` / `t` / `q` / `qv` / `qh`)."""
     if variant and variant not in CJK_FACE_VARIANTS:
         raise ValueError(
             f"CJK face variant must be one of {CJK_FACE_VARIANTS}, got {variant!r}"
@@ -197,7 +197,7 @@ def ps_cjk(face_id: str) -> str:
 
 
 def cjk_face_id(bucket_hex: str, variant: str = "") -> str:
-    """Filename / family stem: ``4E``, ``4Eh``, ``4Et``, ``4Eq``, ``4Eqv``, ``4Eqh``."""
+    """Filename / family stem: `4E`, `4Eh`, `4Et`, `4Eq`, `4Eqv`, `4Eqh`."""
     if variant and variant not in CJK_FACE_VARIANTS:
         raise ValueError(
             f"CJK face variant must be one of {CJK_FACE_VARIANTS}, got {variant!r}"
@@ -206,7 +206,7 @@ def cjk_face_id(bucket_hex: str, variant: str = "") -> str:
 
 
 def split_cjk_face_id(face_id: str) -> tuple[str, str]:
-    """Split ``4Eqv`` → ``('4E', 'qv')``; ``4Eq`` → ``('4E', 'q')``."""
+    """Split `4Eqv` → `('4E', 'qv')`; `4Eq` → `('4E', 'q')`."""
     for suf in _CJK_FACE_SUFFIXES:
         if face_id.endswith(suf):
             return face_id[: -len(suf)], suf
@@ -214,26 +214,26 @@ def split_cjk_face_id(face_id: str) -> tuple[str, str]:
 
 
 def family_yi_variant(variant: str = "") -> str:
-    """``''`` → ``edenia yi``; ``h`` → ``edenia yi h``."""
+    """`''` → `edenia yi`; `h` → `edenia yi h`."""
     if variant and variant != "h":
         raise ValueError(f"Yi face variant must be '' or 'h', got {variant!r}")
     return FAMILY_YI_H if variant == "h" else FAMILY_YI
 
 
 def family_kana_variant(variant: str = "") -> str:
-    """``''`` → ``edenia kana``; ``h`` → ``edenia kana h``."""
+    """`''` → `edenia kana`; `h` → `edenia kana h`."""
     if variant and variant != "h":
         raise ValueError(f"Kana face variant must be '' or 'h', got {variant!r}")
     return FAMILY_KANA_H if variant == "h" else FAMILY_KANA
 
 
 def h_bucket_face_id(bucket_id: int) -> str:
-    """Pigeonhole slice-face stem: ``A0h``, ``E0h`` (CJK-style ``{page:02X}h``)."""
+    """Pigeonhole slice-face stem: `A0h`, `E0h` (CJK-style `{page:02X}h`)."""
     return f"{bucket_id:02X}h"
 
 
 def parse_h_bucket_face_id(face_id: str) -> int | None:
-    """``A0h`` → ``0xA0``; non-bucket stems (``edenia-yi``) → ``None``."""
+    """`A0h` → `0xA0`; non-bucket stems (`edenia-yi`) → `None`."""
     if len(face_id) < 3 or not face_id.endswith("h"):
         return None
     core = face_id[:-1]
@@ -243,14 +243,14 @@ def parse_h_bucket_face_id(face_id: str) -> int | None:
 
 
 def ps_yi(face_id: str) -> str:
-    """PostScript name: base ``edenia-yi``, slice files ``edenia-yi-A0h``."""
+    """PostScript name: base `edenia-yi`, slice files `edenia-yi-A0h`."""
     if not face_id or face_id == PS_YI:
         return PS_YI
     return f"{PS_YI}-{face_id}"
 
 
 def ps_kana(face_id: str) -> str:
-    """PostScript name: base ``edenia-kana``, slice files ``edenia-kana-E0h``."""
+    """PostScript name: base `edenia-kana`, slice files `edenia-kana-E0h`."""
     if not face_id or face_id == PS_KANA:
         return PS_KANA
     return f"{PS_KANA}-{face_id}"

@@ -4,18 +4,18 @@ Each output TTF corresponds to one Supplementary PUA marker and contains:
 
 * 6 400 BMP PUA selector glyphs (U+E000..U+F8FF, zero-width)
 * 6 400 × 8 = 51 200 rendered outlines (identity + 7 unique D4 variants)
-* FE00 overlay ``.ov`` forms (identity first; D4 variants if under 64k)
+* FE00 overlay `.ov` forms (identity first; D4 variants if under 64k)
 
 GSUB:
 
-* ``marker + pua`` → identity outline
-* ``identity + VS02..VS08`` / FE01..FE07 → D4 variant outlines
-* ``A FE00`` → ``A.ov`` (0-advance); ``A FE00 B`` stacks on ``B``
+* `marker + pua` → identity outline
+* `identity + VS02..VS08` / FE01..FE07 → D4 variant outlines
+* `A FE00` → `A.ov` (0-advance); `A FE00 B` stacks on `B`
 
 Rendering uses the in-tree KAGE Serif renderer (filled SVG paths), then
 Cu2Qu for TrueType. Contours are normalized to clockwise winding so
 overlaps fill solidly under nonzero fill. Result glyph names are the
-GlyphWiki canonical names (not ``g`` + hex).
+GlyphWiki canonical names (not `g` + hex).
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ def empty_glyph() -> TTGlyph:
 def kage_to_font_transform(upem: int = DEFAULT_UPEM) -> Transform:
     """Affine map from KAGE 200×200 (y-down) onto the CJK typo box (y-up).
 
-    The typo box matches ``build_yi`` / ``build_cjk`` metrics
+    The typo box matches `build_yi` / `build_cjk` metrics
     (ascender 0.88em, descender -0.12em), so GlyphWiki outlines share the
     same vertical band as Han/Yi rather than the geometric em midpoint.
     """
@@ -185,10 +185,10 @@ def svg_drawing_to_ttglyph(
     overlapping stroke ribbons fill solidly (nonzero winding). Opposite
     windings otherwise punch white holes at joints.
 
-    D4 variants are produced later via ``make_composite_variant`` (axis-aligned
-    composites; 2×2 rotates baked to outlines) and ``composition_fea`` GSUB.
+    D4 variants are produced later via `make_composite_variant` (axis-aligned
+    composites; 2×2 rotates baked to outlines) and `composition_fea` GSUB.
 
-    ``flatten`` (pathops.simplify) stays off by default: boolean union of
+    `flatten` (pathops.simplify) stays off by default: boolean union of
     Serif ribbons collapses to a solid black square over the glyph bbox.
     """
     if drawing is None:
@@ -337,7 +337,7 @@ def result_glyph_name(
     pua: int,
     suffix: str | None = None,
 ) -> str:
-    """Identity / D4 result name: GlyphWiki canonical, else ``gXXXX`` fallback."""
+    """Identity / D4 result name: GlyphWiki canonical, else `gXXXX` fallback."""
     if mapping is not None:
         base = ot_glyph_name(mapping.name)
     else:
@@ -363,17 +363,17 @@ def build_marker_font(
     include_mirrors: bool = True,
     hint: bool = True,
 ) -> tuple[int, int]:
-    """Build one font for a single SPUA ``marker``.
+    """Build one font for a single SPUA `marker`.
 
-    ``mappings`` must all share ``marker`` and cover up to 6400 PUA slots.
-    ``stroke_data`` maps glyph name → resolved KAGE stroke string.
-    ``style`` is the KAGE shotai (``mincho`` / ``gothic`` / ``rounded``).
+    `mappings` must all share `marker` and cover up to 6400 PUA slots.
+    `stroke_data` maps glyph name → resolved KAGE stroke string.
+    `style` is the KAGE shotai (`mincho` / `gothic` / `rounded`).
 
-    With ``include_mirrors`` (default), each slot gets identity + 7 D4
+    With `include_mirrors` (default), each slot gets identity + 7 D4
     variants (57 600 glyphs). Without mirrors, only identity outlines are
     stored (12 800 glyphs).
 
-    Returns ``(rendered_count, total_glyphs)``.
+    Returns `(rendered_count, total_glyphs)`.
     """
     style_key = style.lower().strip()
     if style_key not in SHOTAI_STYLES:
@@ -628,10 +628,10 @@ def write_css(
     font_dir: Path,
     built: Sequence[tuple[str, str]],
 ) -> None:
-    """Write pangw.css (@font-face) under ``font_dir``.
+    """Write pangw.css (@font-face) under `font_dir`.
 
-    ``built`` entries are ``(style, hex_id)`` for fonts already on disk
-    (e.g. ``("mincho", "F0000")`` → ``mincho/F0000.woff2``).
+    `built` entries are `(style, hex_id)` for fonts already on disk
+    (e.g. `("mincho", "F0000")` → `mincho/F0000.woff2`).
     """
     font_dir = Path(font_dir)
     font_dir.mkdir(parents=True, exist_ok=True)
@@ -684,7 +684,7 @@ def write_css(
 
 
 def regenerate_css_from_dist(font_dir: Path) -> None:
-    """Scan ``font_dir/{{style}}/*.woff2|ttf`` and rewrite pangw.css."""
+    """Scan `font_dir/{{style}}/*.woff2|ttf` and rewrite pangw.css."""
     font_dir = Path(font_dir)
     built: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()

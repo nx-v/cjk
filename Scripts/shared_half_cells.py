@@ -2,34 +2,34 @@
 
 Encoding
 --------
-* Base font (``edenia yi``) covering the whole inventory (D4, dakuten).
-  Combining slices live in pigeonholed ``edenia yi h`` faces (one 256-CP
-  page each), same split as CJK base vs ``h``.
+* Base font (`edenia yi`) covering the whole inventory (D4, dakuten).
+  Combining slices live in pigeonholed `edenia yi h` faces (one 256-CP
+  page each), same split as CJK base vs `h`.
 * Standalones: NuosuSIL is monospace (shared advance). Every glyph gets the
-  **same** ``sx`` from that advance and the **same** ``sy`` from the tallest
+  **same** `sx` from that advance and the **same** `sy` from the tallest
   ink height (no CAPE Width — that is kana-only). Y is centered in the padded
   CJK typo box, then horizontal strokes are Weight-boldened to
-  ``STANDALONE_HORIZONTAL_WEIGHT`` (125%) to recover thickness lost in the
-  anisotropic stretch, then uniformly downscaled to ``STANDALONE_CELL_SCALE``
+  `STANDALONE_HORIZONTAL_WEIGHT` (125%) to recover thickness lost in the
+  anisotropic stretch, then uniformly downscaled to `STANDALONE_CELL_SCALE`
   (~98%) about the ideographic center.
-* Orientations: D4 square symmetries on **UVS ``U+FE01``..``U+FE07``**
-  (identity is the bare character; BMP PUA ``U+E000``.. is edenia kana), including ``r90my``. Pipeline for the two
+* Orientations: D4 square symmetries on **UVS `U+FE01`..`U+FE07`**
+  (identity is the bare character; BMP PUA `U+E000`.. is edenia kana), including `r90my`. Pipeline for the two
   outline sources: **transform / reorient first**, then stem-normalize
-  (``id`` = identity; ``r90`` = rotate from the un-normalized upright).
+  (`id` = identity; `r90` = rotate from the un-normalized upright).
   Stem normalize probes targets pseudorandomly, then binary-searches toward
   the reference while keeping strokes thick and non-self-intersecting; only
   then falls back to the un-normalized transform.
-  Other D4 forms are TT composites of those two (``r180`` / ``mx`` / ``my`` ←
-  id; ``r270`` / ``r90mx`` / ``r90my`` ← r90). After each outline and each
+  Other D4 forms are TT composites of those two (`r180` / `mx` / `my` ←
+  id; `r270` / `r90mx` / `r90my` ← r90). After each outline and each
   composite, ink is re-pinned to the padded CJK floor, then downscaled ~98%
   about the ideographic center.
-* Overlay: **``U+FE00``** on the preceding glyph makes it zero-advance
-  (``.ov``) so the next glyph stacks in the same cell.
-* Combining slices (kanji / kana / Yi): ``U+FE08``–``U+FE0B`` half-planes
-  and ``U+FE0C``–``U+FE0F`` diagonal triangles. D4 orientations stay on
-  ``U+FE01``–``U+FE07`` (identity is the bare character).
+* Overlay: **`U+FE00`** on the preceding glyph makes it zero-advance
+  (`.ov`) so the next glyph stacks in the same cell.
+* Combining slices (kanji / kana / Yi): `U+FE08`–`U+FE0B` half-planes
+  and `U+FE0C`–`U+FE0F` diagonal triangles. D4 orientations stay on
+  `U+FE01`–`U+FE07` (identity is the bare character).
 * No side-by-side digraph compounds. Full D4 (8 modes) remains available for
-  build_cjk / GlyphWiki via ``TRANSFORM_MODES``.
+  build_cjk / GlyphWiki via `TRANSFORM_MODES`.
 """
 
 from __future__ import annotations
@@ -70,7 +70,6 @@ from cape_weightor import (
     bolden_ttglyph,
     estimate_horizontal_stem,
     estimate_vertical_stem,
-    heighten_ttglyph,
     layer_from_ttglyph,
     offset_layer,
     ttglyph_from_layer,
@@ -95,7 +94,7 @@ STACK_MARK_CP = OV_SELECTOR_CP  # alias — GlyphWiki / older call sites
 UVS_BASE = 0xFE01  # r90 .. r90my
 UVS_LAST = 0xFE07
 
-# Combining slices: preceding glyph occupies that niche.
+# Combining slices: preceding glyph occupies that segment.
 # (cp, selector glyph name, suffix)
 SliceSlot = Tuple[int, str, str]
 SLICE_VS_SLOTS: Tuple[SliceSlot, ...] = (
@@ -159,8 +158,8 @@ STANDALONE_CELL_SCALE = 0.98
 # Anisotropic CJK-cell fit (shared sx ≠ sy) thins horizontal strokes.
 # Y-only Weight-mode factor after that fit (1.25 = 125% horizontal stem).
 STANDALONE_HORIZONTAL_WEIGHT = 1.25
-# Legacy: was an extra shrink on scaled niche composites. Half / third /
-# quarter niches are now **slices** (clip, no stretch); this constant is
+# Legacy: was an extra shrink on scaled segment composites. Half / third /
+# quarter segments are now **slices** (clip, no stretch); this constant is
 # unused by that path and kept only for any external callers.
 COMPOUND_CELL_SCALE = 0.90
 
@@ -186,7 +185,7 @@ def build_ext_gsub_lookup(subtables: Sequence) -> object:
 
 
 def build_class_def(glyph_to_class: Dict[str, int]):
-    """``ClassDef`` from glyph→class map (class 0 omitted)."""
+    """`ClassDef` from glyph→class map (class 0 omitted)."""
     from fontTools.ttLib.tables import otTables as ot
 
     cd = ot.ClassDef()
@@ -206,8 +205,8 @@ def build_chain_context_format2(
 ):
     """Compact class-based ChainContextSubst (Format 2), single input glyph.
 
-    ``backtrack_seq`` is closest-to-input first (OpenType backtrack order).
-    ``SubstLookupRecord.LookupListIndex`` is left 0 for the caller to patch.
+    `backtrack_seq` is closest-to-input first (OpenType backtrack order).
+    `SubstLookupRecord.LookupListIndex` is left 0 for the caller to patch.
     """
     from fontTools.ttLib.tables import otTables as ot
 
@@ -289,8 +288,8 @@ def build_chunked_multiple_subst_lookup(
 def ideographic_center(target_upem: int) -> Tuple[float, float]:
     """Center of the CJK typo box (ascent 0.88em / descent -0.12em).
 
-    Geometric em midpoint is ``(upem/2, upem/2)``; CJK ink after uniform
-    UPM scale sits near ``(upem/2, 0.38·upem)``. Centering Yi there keeps
+    Geometric em midpoint is `(upem/2, upem/2)`; CJK ink after uniform
+    UPM scale sits near `(upem/2, 0.38·upem)`. Centering Yi there keeps
     mixed CJK+Yi lines vertically aligned.
     """
     bottom, top, _h = ideographic_bounds(target_upem)
@@ -298,7 +297,7 @@ def ideographic_center(target_upem: int) -> Tuple[float, float]:
 
 
 def ideographic_bounds(target_upem: int) -> Tuple[float, float, float]:
-    """CJK typo box ``(bottom, top, height)`` using ascent 0.88 / descent -0.12."""
+    """CJK typo box `(bottom, top, height)` using ascent 0.88 / descent -0.12."""
     top = target_upem * TYPO_ASCENDER_FRAC
     bottom = target_upem * TYPO_DESCENDER_FRAC
     return bottom, top, top - bottom
@@ -346,7 +345,7 @@ def ink_height(glyph: TTGlyph) -> float:
 
 
 def measure_upright_stems(glyph: TTGlyph, advance: float) -> Tuple[float, float]:
-    """``(vertical_stem, horizontal_stem)`` from an upright Yi standalone."""
+    """`(vertical_stem, horizontal_stem)` from an upright Yi standalone."""
     layer = layer_from_ttglyph(glyph, advance)
     return estimate_vertical_stem(layer), estimate_horizontal_stem(layer)
 
@@ -492,7 +491,7 @@ def _collapse_spike_points_on_glyph(
 ) -> TTGlyph:
     """Pull back needle-like miter spikes toward the neighbor chord.
 
-    Only true tips: angle APB acute (``cos > sharp_cos`` ≈ <60°) and P far
+    Only true tips: angle APB acute (`cos > sharp_cos` ≈ <60°) and P far
     from chord AB relative to |AB|. Ordinary corners / smooth curves are left
     alone — an earlier looser threshold melted whole outlines.
     """
@@ -579,7 +578,7 @@ def cleanup_ttglyph_contours(
 
 
 def resolve_cjk_stem_reference_font(in_dir: str) -> str:
-    """First font under ``in_dir`` that has both U+4E00 and U+4E28."""
+    """First font under `in_dir` that has both U+4E00 and U+4E28."""
     for name in CJK_STEM_REF_FONT_CANDIDATES:
         path = os.path.join(in_dir, name)
         if not os.path.isfile(path):
@@ -605,7 +604,7 @@ def _scaled_source_glyph(
     *,
     scale: float,
 ) -> Tuple[TTGlyph, float]:
-    """Decompose ``glyph_name`` and scale uniformly to target UPM space."""
+    """Decompose `glyph_name` and scale uniformly to target UPM space."""
     glyph_set = tt.getGlyphSet()
     rec = DecomposingRecordingPen(glyph_set)
     glyph_set[glyph_name].draw(rec)
@@ -624,10 +623,10 @@ def measure_cjk_reference_stems(
     font_path: str,
     target_upem: int,
 ) -> Tuple[float, float]:
-    """Fixed ``(vertical, horizontal)`` stroke weights from U+4E28 / U+4E00.
+    """Fixed `(vertical, horizontal)` stroke weights from U+4E28 / U+4E00.
 
     Single-stroke CJK radicals are measured by ink bbox thickness after a
-    uniform ``target_upem / source_upem`` scale (scanline stem estimators
+    uniform `target_upem / source_upem` scale (scanline stem estimators
     reject these glyphs as “too thick” relative to their own bbox).
     """
     tt = TTFont(font_path, fontNumber=0)
@@ -681,8 +680,8 @@ def normalize_glyph_stems_after_transform(
 
     1. Bake composites to outlines if needed (the glyph after conversion).
     2. Measure current vertical / horizontal stroke thickness.
-    3. Contour-offset X and Y so both match ``vertical_stem`` / ``horizontal_stem``
-       (typically from ``measure_cjk_reference_stems``: U+4E28 / U+4E00).
+    3. Contour-offset X and Y so both match `vertical_stem` / `horizontal_stem`
+       (typically from `measure_cjk_reference_stems`: U+4E28 / U+4E00).
     4. Optionally Width-fit outer ink (legacy; unused by the D4 path).
 
     Stem matching is iterated a few times because a single offset undershoots
@@ -800,9 +799,9 @@ def fit_sideways_yi_glyph(
     center_x: Optional[float] = None,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> GlyphMetrics:
-    """Normalize stems then Width-mode squash to ``target_ink_width``.
+    """Normalize stems then Width-mode squash to `target_ink_width`.
 
-    Thin wrapper around ``normalize_glyph_stems_after_transform`` for the
+    Thin wrapper around `normalize_glyph_stems_after_transform` for the
     sideways (r90-family) path.
     """
     return normalize_glyph_stems_after_transform(
@@ -822,7 +821,7 @@ def _measure_glyph_stems(
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[float, float]:
-    """``(vertical_stem, horizontal_stem)``; bakes composites first."""
+    """`(vertical_stem, horizontal_stem)`; bakes composites first."""
     g = glyph
     adv = int(advance)
     if g.isComposite():
@@ -1075,29 +1074,29 @@ def add_d4_variant_glyphs(
     anchor: str = "floor",
     pivot: Optional[Tuple[float, float]] = None,
 ) -> List[Tuple[int, str, str]]:
-    """Create D4 forms from two outlines: id + ``r90`` (transform, then normalize).
+    """Create D4 forms from two outlines: id + `r90` (transform, then normalize).
 
     Pipeline for each outline source::
 
         1. transform / reorient (id = identity; r90 = rotate from **un-normalized** upright)
         2. stem-normalize, retrying smaller/larger targets until strokes stay
            thick and non-self-intersecting (else keep step-1)
-        3. place ink: ``anchor="floor"`` pins to padded CJK floor then
+        3. place ink: `anchor="floor"` pins to padded CJK floor then
            downscales ~98% about the ideographic center (Yi);
-           ``anchor="cell"`` centers in the padded cell, shrink-only (CJK)
+           `anchor="cell"` centers in the padded cell, shrink-only (CJK)
 
-    Other orientations are baked rotate/reflect outlines of ``id`` or ``r90``
+    Other orientations are baked rotate/reflect outlines of `id` or `r90`
     (no further stem pass)::
 
         id  →  r180 / mx / my
         r90 →  r270 / r90mx / r90my
 
-    ``pivot`` overrides the rotation/reflection center (e.g. post-scale small
-    ideographic center). Default: ideographic center when ``anchor="cell"``.
+    `pivot` overrides the rotation/reflection center (e.g. post-scale small
+    ideographic center). Default: ideographic center when `anchor="cell"`.
 
-    ``sideways_target_width`` / ``sideways_center_x`` are unused (compat only).
+    `sideways_target_width` / `sideways_center_x` are unused (compat only).
 
-    Returns ``[(vs_cp, suffix, variant_glyph_name), ...]`` for GSUB wiring.
+    Returns `[(vs_cp, suffix, variant_glyph_name), ...]` for GSUB wiring.
     """
     del sideways_target_width, sideways_center_x
     if anchor not in ("floor", "cell"):
@@ -1310,10 +1309,10 @@ def rebuild_sideways_from_r90(
     pivot: Optional[Tuple[float, float]] = None,
     modes: Optional[Sequence[TransformMode]] = None,
 ) -> None:
-    """Re-bake r270 / r90mx / r90my from the current ``.r90`` outline.
+    """Re-bake r270 / r90mx / r90my from the current `.r90` outline.
 
-    ``add_d4_variant_glyphs`` bakes those from r90 (``allow_2x2=False``), so
-    replacing ``.r90`` later does not update them. Call this after any r90
+    `add_d4_variant_glyphs` bakes those from r90 (`allow_2x2=False`), so
+    replacing `.r90` later does not update them. Call this after any r90
     rewrite (halfwidth Y-squeeze-then-rotate).
     """
     r90_name = variant_glyph_name(base_name, "r90")
@@ -1378,7 +1377,7 @@ def build_d4_uvs_entries(
     glyphs: Dict[str, TTGlyph],
     modes: Optional[Sequence[TransformMode]] = None,
 ) -> List[Tuple[int, int, Optional[str]]]:
-    """``(base_cp, U+FE0n, variantName)`` rows for ``setupCharacterMap(uvs=...)``.
+    """`(base_cp, U+FE0n, variantName)` rows for `setupCharacterMap(uvs=...)`.
 
     Identity (default glyph) is omitted: cmap format 14 default UVS ranges use a
     uint8 length, so >256 consecutive bases (e.g. full Yi) overflow on compile.
@@ -1402,7 +1401,7 @@ def variant_glyph_name(base_name: str, suffix: str) -> str:
 
 
 def overlay_glyph_name(base_name: str) -> str:
-    """Zero-advance form of ``base_name`` for FE00 superposition."""
+    """Zero-advance form of `base_name` for FE00 superposition."""
     return f"{base_name}.ov"
 
 
@@ -1415,7 +1414,7 @@ def orientation_form_names(
     *,
     modes: Optional[Sequence[TransformMode]] = None,
 ) -> List[str]:
-    """Identity + non-identity D4 variant names for ``base_name``."""
+    """Identity + non-identity D4 variant names for `base_name`."""
     names = [base_name]
     for _vs, _r, _fx, _fy, suffix in modes if modes is not None else TRANSFORM_MODES:
         if suffix is not None:
@@ -1433,7 +1432,7 @@ def inject_stack_mark(
 ) -> str:
     """Ensure FE00 overlay mark exists (zero-width) and is cmap'd.
 
-    ``pua=True`` also maps BMP ``U+E008`` (legacy); leave off so kana owns PUA.
+    `pua=True` also maps BMP `U+E008` (legacy); leave off so kana owns PUA.
     """
     sname = stack_glyph_name()
     if sname not in glyphs:
@@ -1477,7 +1476,7 @@ TTF_GLYPH_LIMIT = 65535
 def close_component_names(
     keep: Set[str], glyphs: Dict[str, TTGlyph]
 ) -> Set[str]:
-    """Expand ``keep`` with TrueType composite component names."""
+    """Expand `keep` with TrueType composite component names."""
     stack = list(keep)
     out = set(keep)
     while stack:
@@ -1531,10 +1530,10 @@ def slice_overlay_liga_map(
     form_name: Optional[Callable[[str, str], str]] = None,
     include_vs01: bool = True,
 ) -> Dict[Tuple[str, ...], str]:
-    """``base + FE00/FE08–F`` → overlay and/or slice (either order).
+    """`base + FE00/FE08–F` → overlay and/or slice (either order).
 
     Longer sequences (overlay+slice) are included so the caller can sort by
-    length. Optional ``vs01`` prefixes keep legacy ``base + vs01 + FE08``
+    length. Optional `vs01` prefixes keep legacy `base + vs01 + FE08`
     sequences (glyph-name only; BMP PUA is not cmap'd).
     """
     name_of = form_name if form_name is not None else slice_form_name
@@ -1578,12 +1577,12 @@ def add_overlay_forms(
     metrics: Dict[str, Tuple[int, int]],
     limit: Optional[int] = None,
 ) -> List[str]:
-    """Create zero-advance ``.ov`` composites of each fullwidth ``form_names``.
+    """Create zero-advance `.ov` composites of each fullwidth `form_names`.
 
     Overlay glyphs inherit outlines from the matching fullwidth counterpart
-    (identity, D4, or niche slice) — they are not independently baked.
-    ``limit`` caps how many new ``.ov`` glyphs are added (GlyphWiki 64k budget).
-    Returns the list of base form names that received an ``.ov``.
+    (identity, D4, or segment slice) — they are not independently baked.
+    `limit` caps how many new `.ov` glyphs are added (GlyphWiki 64k budget).
+    Returns the list of base form names that received an `.ov`.
     """
     added_bases: List[str] = []
     for name in form_names:
@@ -1612,10 +1611,10 @@ def install_overlay_gsub(
     glyph_order: Sequence[str],
     max_stack: int = 8,
 ) -> int:
-    """Install ``glyph + FE00 → glyph.ov`` ligatures into ``font`` GSUB.
+    """Install `glyph + FE00 → glyph.ov` ligatures into `font` GSUB.
 
-    ``max_stack`` is kept for call-site compatibility and ignored — each
-    preceding glyph is zeroed independently, so ``A FE00 B FE00 C`` stacks
+    `max_stack` is kept for call-site compatibility and ignored — each
+    preceding glyph is zeroed independently, so `A FE00 B FE00 C` stacks
     without repeating lookups.
     """
     del max_stack, glyph_order
@@ -1719,10 +1718,10 @@ COMPOSITION_LANGUAGE_SYSTEMS: Tuple[str, ...] = (
 
 
 def composition_fea(*rule_groups: Sequence[str]) -> str:
-    """FEA for mandatory composition: ``ccmp`` + ``rlig`` + ``liga`` on common scripts.
+    """FEA for mandatory composition: `ccmp` + `rlig` + `liga` on common scripts.
 
-    Each ``rule_groups`` entry is a sequence of already-indented ``sub ...;`` lines.
-    Empty groups are skipped. Returns ``\"\"`` when there are no rules.
+    Each `rule_groups` entry is a sequence of already-indented `sub ...;` lines.
+    Empty groups are skipped. Returns `\"\"` when there are no rules.
     """
     body_lines: List[str] = []
     for group in rule_groups:
@@ -1814,7 +1813,7 @@ def variant_transform(
     flip_y: bool,
     center: Optional[Tuple[float, float]] = None,
 ) -> Transform:
-    """D4 map rotating/reflecting about ``center`` (default: ideographic mid)."""
+    """D4 map rotating/reflecting about `center` (default: ideographic mid)."""
     if rot90_quarters % 4 == 0 and not flip_x and not flip_y:
         return Transform()
     m = variant_matrix(rot90_quarters=rot90_quarters, flip_x=flip_x, flip_y=flip_y)
@@ -1830,7 +1829,7 @@ BoundsRect = Tuple[float, float, float, float]
 
 
 def transform_aabb(rect: BoundsRect, t: Transform) -> BoundsRect:
-    """Axis-aligned bounds of ``rect``'s corners after ``t``."""
+    """Axis-aligned bounds of `rect`'s corners after `t`."""
     x0, y0, x1, y1 = rect
     xs, ys = [], []
     for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
@@ -1857,7 +1856,7 @@ def aabb_iou(a: BoundsRect, b: BoundsRect) -> float:
 
 
 def _map_corner_label(lab: str, t: Transform, center: Tuple[float, float]) -> str:
-    """Send a tl/tr/bl/br label through ``t`` about ``center``."""
+    """Send a tl/tr/bl/br label through `t` about `center`."""
     cx, cy = center
     dx = -1.0 if "l" in lab else 1.0
     dy = 1.0 if lab.startswith("t") else -1.0
@@ -1873,7 +1872,7 @@ def match_d4_source_suffix(
     labels: Optional[Dict[str, FrozenSet[str]]] = None,
     center: Tuple[float, float],
 ) -> Optional[str]:
-    """Identity niche whose window/labels map to ``dest_suffix`` under ``t_inv``."""
+    """Identity segment whose window/labels map to `dest_suffix` under `t_inv`."""
     if labels and dest_suffix in labels:
         src_labs = frozenset(
             _map_corner_label(lab, t_inv, center) for lab in labels[dest_suffix]
@@ -1895,7 +1894,7 @@ def match_d4_source_suffix(
     return best if best_iou >= 0.55 else None
 
 
-def propagate_d4_niches(
+def propagate_d4_segments(
     identity_bases: Sequence[str],
     *,
     suffixes: Sequence[str],
@@ -1908,10 +1907,10 @@ def propagate_d4_niches(
     labels: Optional[Dict[str, FrozenSet[str]]] = None,
     center: Optional[Tuple[float, float]] = None,
 ) -> None:
-    """Fill D4 × niche glyphs from identity clips: ``R(clip(g, R⁻¹(W)))``.
+    """Fill D4 × segment glyphs from identity clips: `R(clip(g, R⁻¹(W)))`.
 
-    Identity niches (``form_name(base, suffix)``) must already exist. Each
-    oriented form is a cell-centered D4 of the matching identity niche —
+    Identity segments (`form_name(base, suffix)`) must already exist. Each
+    oriented form is a cell-centered D4 of the matching identity segment —
     no second pathops clip of the rotated outline.
     """
     if center is None:
@@ -1954,7 +1953,7 @@ def propagate_d4_niches(
                         glyphs[src], t, int(adv), glyph_set=glyphs
                     )
                 elif nsuf in windows:
-                    piece, _, _ = make_niche_slice_glyph(
+                    piece, _, _ = make_segment_slice_glyph(
                         base,
                         advance=int(adv),
                         rect=transform_aabb(windows[nsuf], t_inv),
@@ -1986,12 +1985,12 @@ def make_composite_variant(
     center: Optional[Tuple[float, float]] = None,
     allow_2x2: bool = False,
 ) -> GlyphMetrics:
-    """D4 variant of ``base_name`` about the contour bounding-box center.
+    """D4 variant of `base_name` about the contour bounding-box center.
 
     Every non-identity orientation (r90 / r180 / r270 / mx / my / diagonals)
     is **baked to outlines** by default — TT composites (axis-aligned or
-    ``WE_HAVE_A_TWO_BY_TWO``) are mishandled by some viewers. Pass
-    ``allow_2x2=True`` only when a true composite is required.
+    `WE_HAVE_A_TWO_BY_TWO`) are mishandled by some viewers. Pass
+    `allow_2x2=True` only when a true composite is required.
     """
     src = base_glyph
     if src is None and glyph_set is not None:
@@ -2076,7 +2075,7 @@ def boolean_union_glyphs(
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> TTGlyph:
-    """Boolean **union** of ``parts`` (decomposed via ``glyph_set``)."""
+    """Boolean **union** of `parts` (decomposed via `glyph_set`)."""
     import pathops
 
     acc = None
@@ -2100,10 +2099,10 @@ def boolean_subtract_glyphs(
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> TTGlyph:
-    """Boolean **difference** ``minuend − subtrahend``.
+    """Boolean **difference** `minuend − subtrahend`.
 
     Both operands are artefact-stripped first; the result is stripped again so
-    difference crumbs (specks / hairline slivers) do not survive into niches.
+    difference crumbs (specks / hairline slivers) do not survive into segments.
     """
     import pathops
 
@@ -2148,7 +2147,7 @@ def boolean_subtract_named(
     metrics: Dict[str, Tuple[int, int]],
     advance: Optional[int] = None,
 ) -> GlyphMetrics:
-    """``keep − cut``; advance defaults to ``keep``."""
+    """`keep − cut`; advance defaults to `keep`."""
     if keep not in glyphs:
         return empty_glyph(), 0, 0
     if cut not in glyphs:
@@ -2171,7 +2170,7 @@ def copy_named_glyph(
     metrics: Dict[str, Tuple[int, int]],
     advance: Optional[int] = None,
 ) -> GlyphMetrics:
-    """Independent outline copy of ``src`` (pathops round-trip)."""
+    """Independent outline copy of `src` (pathops round-trip)."""
     if src not in glyphs:
         return empty_glyph(), 0, 0
     out = boolean_union_glyphs([glyphs[src]], glyph_set=glyphs)
@@ -2188,7 +2187,7 @@ def install_derived_glyph(
     metrics: Dict[str, Tuple[int, int]],
     advance: Optional[int] = None,
 ) -> None:
-    """Append ``name`` unless it already exists."""
+    """Append `name` unless it already exists."""
     if name in glyphs:
         return
     g, a, l = gm
@@ -2207,7 +2206,7 @@ def half_plane_rect(
     keep: str,
     inf: float,
 ) -> Tuple[float, float, float, float]:
-    """Unbounded half-plane on ``axis``: ``keep`` ``'lo'`` or ``'hi'`` of ``cut``."""
+    """Unbounded half-plane on `axis`: `keep` `'lo'` or `'hi'` of `cut`."""
     if keep not in ("lo", "hi"):
         raise ValueError(f"keep must be 'lo' or 'hi', got {keep!r}")
     if axis == "y":
@@ -2309,11 +2308,11 @@ def clip_glyph_to_rect(
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> TTGlyph:
-    """Intersect ``glyph`` with axis-aligned ``(x0, y0, x1, y1)`` — no scale.
+    """Intersect `glyph` with axis-aligned `(x0, y0, x1, y1)` — no scale.
 
-    Used for CJK half / third / quarter niches and combining slices: ink
+    Used for CJK half / third / quarter segments and combining slices: ink
     outside the band is dropped; ink inside keeps its original size and place.
-    Complementary bands are ``boolean_subtract`` / ``boolean_union``, not a
+    Complementary bands are `boolean_subtract` / `boolean_union`, not a
     second clip. Artefacts are stripped before and after the intersection.
     """
     import pathops
@@ -2350,7 +2349,7 @@ def clip_glyph_to_polygon(
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> TTGlyph:
-    """Intersect ``glyph`` with a closed polygon (no scale)."""
+    """Intersect `glyph` with a closed polygon (no scale)."""
     import pathops
 
     if len(points) < 3:
@@ -2375,8 +2374,8 @@ def triangle_clip_points(
 ) -> Tuple[Tuple[float, float], ...]:
     """Huge triangle covering one diagonal half-plane of the cell.
 
-    ``tl``/``br`` share the anti-diagonal (TR–BL); ``tr``/``bl`` share the
-    main diagonal (TL–BR). ``inf`` extends the clip past cell-overflow ink.
+    `tl`/`br` share the anti-diagonal (TR–BL); `tr`/`bl` share the
+    main diagonal (TL–BR). `inf` extends the clip past cell-overflow ink.
     """
     match kind:
         case "tl":
@@ -2407,16 +2406,16 @@ def triangle_clip_points(
             raise ValueError(f"unknown triangle {kind!r}")
 
 
-def make_niche_slice_glyph(
+def make_segment_slice_glyph(
     base_name: str,
     *,
     advance: int,
     rect: Tuple[float, float, float, float],
     glyph_set: Dict[str, TTGlyph],
 ) -> GlyphMetrics:
-    """Bake ``base_name`` clipped to ``rect`` (slice niche; full advance)."""
+    """Bake `base_name` clipped to `rect` (slice segment; full advance)."""
     if base_name not in glyph_set:
-        raise KeyError(f"niche slice needs base glyph {base_name!r}")
+        raise KeyError(f"segment slice needs base glyph {base_name!r}")
     clipped = clip_glyph_to_rect(glyph_set[base_name], rect, glyph_set=glyph_set)
     try:
         clipped.recalcBounds(None)
@@ -2426,84 +2425,11 @@ def make_niche_slice_glyph(
     return clipped, int(advance), lsb
 
 
-def make_scaled_niche_composite(
-    base_name: str,
-    *,
-    advance: int,
-    scale_x: float,
-    scale_y: float,
-    pivot_x: float,
-    pivot_y: float,
-    dest_x: float,
-    dest_y: float,
-    glyph_set: Optional[Dict[str, TTGlyph]] = None,
-) -> GlyphMetrics:
-    """Deprecated stretch placer — niches use ``make_niche_slice_glyph`` now.
-
-    Kept for any external callers; prefer clip-to-rect slices.
-    """
-    g = float(COMPOUND_CELL_SCALE)
-    xx = float(scale_x) * g
-    yy = float(scale_y) * g
-    dx = float(dest_x) - xx * float(pivot_x)
-    dy = float(dest_y) - yy * float(pivot_y)
-    g = TTGlyph()
-    g.numberOfContours = -1
-    comp = GlyphComponent()
-    comp.glyphName = base_name
-    comp.x = otRound(dx)
-    comp.y = otRound(dy)
-    comp.flags = USE_MY_METRICS | ROUND_XY_TO_GRID | UNSCALED_COMPONENT_OFFSET
-    if abs(xx - 1.0) > 1e-9 or abs(yy - 1.0) > 1e-9:
-        # fontTools: ((xx, xy), (yx, yy)) with x' = xx·x + yx·y + dx
-        comp.transform = ((xx, 0.0), (0.0, yy))
-    g.components = [comp]
-    out_lsb = 0
-    if glyph_set is not None:
-        try:
-            g.recalcBounds(glyph_set)
-            out_lsb = int(g.xMin)
-        except Exception:
-            pass
-    return g, int(advance), out_lsb
-
-
-def make_axis_niche_composite(
-    base_name: str,
-    *,
-    advance: int,
-    axis: str,
-    factor: float,
-    dest_x: float,
-    dest_y: float,
-    target_upem: int,
-    glyph_set: Optional[Dict[str, TTGlyph]] = None,
-) -> GlyphMetrics:
-    """Deprecated axis stretch — niches use ``make_niche_slice_glyph`` now."""
-    cx, cy = ideographic_center(target_upem)
-    match axis:
-        case "y":
-            sx, sy = 1.0, float(factor)
-        case _:
-            sx, sy = float(factor), 1.0
-    return make_scaled_niche_composite(
-        base_name,
-        advance=advance,
-        scale_x=sx,
-        scale_y=sy,
-        pivot_x=cx,
-        pivot_y=cy,
-        dest_x=dest_x,
-        dest_y=dest_y,
-        glyph_set=glyph_set,
-    )
-
-
 def _recording_from_glyph(
     glyph: TTGlyph,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> RecordingPen:
-    """Expand ``glyph`` (including shallow composites) to a recording."""
+    """Expand `glyph` (including shallow composites) to a recording."""
     rec = RecordingPen()
     if not glyph.isComposite():
         glyph.draw(rec, None)
@@ -2567,7 +2493,7 @@ def make_right_half_composite(
     *,
     lsb: int = 0,
 ) -> GlyphMetrics:
-    """Zero-width right-slot composite: ``left_name`` shifted +½em (digraph overlay)."""
+    """Zero-width right-slot composite: `left_name` shifted +½em (digraph overlay)."""
     half = target_upem // 2
     g = TTGlyph()
     g.numberOfContours = -1
@@ -2585,7 +2511,7 @@ def make_overlay_composite(
     *,
     lsb: int = 0,
 ) -> GlyphMetrics:
-    """Zero-advance composite of ``base_name`` (inherits the fullwidth outline)."""
+    """Zero-advance composite of `base_name` (inherits the fullwidth outline)."""
     g = TTGlyph()
     g.numberOfContours = -1
     comp = GlyphComponent()
@@ -2620,7 +2546,7 @@ def center_glyph_in_cell(
     *,
     center: Optional[Tuple[float, float]] = None,
 ) -> TTGlyph:
-    """Translate ``glyph`` so its bbox center sits at the CJK typo midpoint."""
+    """Translate `glyph` so its bbox center sits at the CJK typo midpoint."""
     try:
         glyph.recalcBounds(None)
         x_min, y_min, x_max, y_max = glyph.xMin, glyph.yMin, glyph.xMax, glyph.yMax
@@ -2712,7 +2638,7 @@ def source_layout_metrics(tt: TTFont, sample_glyph: str) -> Tuple[int, float]:
 
 
 def inventory_max_ink_height(tt: TTFont, glyph_names: Sequence[str]) -> float:
-    """Tallest outline height among ``glyph_names`` (design units)."""
+    """Tallest outline height among `glyph_names` (design units)."""
     max_h = 0.0
     for gname in glyph_names:
         rec = record_glyph(tt, gname)
@@ -2815,7 +2741,7 @@ def _uniform_place(
     dst_cx: float,
     dst_cy: float,
 ) -> Optional[TTGlyph]:
-    """Axis scales ``(sx, sy)``, mapping ``(src_cx, src_cy)`` → destination center."""
+    """Axis scales `(sx, sy)`, mapping `(src_cx, src_cy)` → destination center."""
     if scale_x <= 0 or scale_y <= 0:
         return None
     t = Transform(
@@ -2835,7 +2761,7 @@ def _uniform_place(
 def cjk_padded_floor(
     target_upem: int, *, pad: float = STANDALONE_VERT_PAD
 ) -> Tuple[float, float, float]:
-    """Padded CJK cell ``(floor, ceiling, height)`` for Yi ink placement."""
+    """Padded CJK cell `(floor, ceiling, height)` for Yi ink placement."""
     typo_bottom, typo_top, _ = ideographic_bounds(target_upem)
     inset = target_upem * max(pad, 0.0)
     bottom = typo_bottom + inset
@@ -2853,8 +2779,8 @@ def average_ideo_ink(
 ) -> float:
     """Target square ink width/height for CJK harmony sizing.
 
-    Defaults to the padded ideographic cell (``STANDALONE_VERT_PAD`` = 5% →
-    900 @ 1000 UPM). CJK build passes a tighter ``pad`` (2% → 960) so harmony
+    Defaults to the padded ideographic cell (`STANDALONE_VERT_PAD` = 5% →
+    900 @ 1000 UPM). CJK build passes a tighter `pad` (2% → 960) so harmony
     targets sit above the old median (~874) without over-squishing.
     """
     inset = float(target_upem) * max(pad, 0.0)
@@ -2875,19 +2801,19 @@ def fit_glyph_to_ideographic_cell(
 ) -> GlyphMetrics:
     """Proportionally fit contour ink inside the padded ideo cell.
 
-    Uniform ``s = min(cell_w / ink_w, cell_h / ink_h)`` about the ink center,
+    Uniform `s = min(cell_w / ink_w, cell_h / ink_h)` about the ink center,
     then place horizontally at the cell mid-X. Overflowing glyphs shrink;
     aspect ratio is preserved. Composites bake once.
 
-    ``align_y``::
+    `align_y`::
 
-        ``"center"`` — move ink mid-Y to the cell mid (kana / D4 re-fit).
-        ``"source"`` — keep mid-Y (CJK optical seat: 日/月 stay lower than 木).
+        `"center"` — move ink mid-Y to the cell mid (kana / D4 re-fit).
+        `"source"` — keep mid-Y (CJK optical seat: 日/月 stay lower than 木).
 
-    By default ``grow=False`` so under-full ideographs (dots, ticks, sparse
+    By default `grow=False` so under-full ideographs (dots, ticks, sparse
     radicals) keep their designed stem weight — upscaling them to fill the
     cell made simple glyphs look bloated, and squish forms inherited that.
-    Pass ``grow=True`` only when intentionally filling the cell.
+    Pass `grow=True` only when intentionally filling the cell.
     """
     bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
     inset = float(target_upem) * max(pad, 0.0)
@@ -2971,10 +2897,10 @@ def clamp_overflow_axes_to_cell(
 ) -> GlyphMetrics:
     """Shrink overflowing ink so it fits the padded ideo cell.
 
-    By default ``sx = min(1, cell_w / ink_w)``, ``sy = min(1, cell_h / ink_h)``
-    (per-axis). Pass ``uniform=True`` to use ``min(sx, sy)`` on both axes so
-    sparse glyphs keep their aspect. Never grows. Then centers X; ``align_y``
-    matches ``fit_glyph_to_ideographic_cell``. Finally pins any remaining
+    By default `sx = min(1, cell_w / ink_w)`, `sy = min(1, cell_h / ink_h)`
+    (per-axis). Pass `uniform=True` to use `min(sx, sy)` on both axes so
+    sparse glyphs keep their aspect. Never grows. Then centers X; `align_y`
+    matches `fit_glyph_to_ideographic_cell`. Finally pins any remaining
     overhang into the cell.
     """
     bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
@@ -3102,7 +3028,7 @@ def compensate_stems_after_geometric_scale(
 ) -> GlyphMetrics:
     """CAPE Weight after geometric scale: thin if grown, thicken if shrunk.
 
-    Geometric scale multiplies stem thickness by ``s``. Weight ``1/s`` restores
+    Geometric scale multiplies stem thickness by `s`. Weight `1/s` restores
     optical weight (outer box preserved by CAPE). For anisotropic scale use the
     geometric mean of the two factors.
     """
@@ -3135,10 +3061,10 @@ def center_glyph_ink_in_advance(
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> GlyphMetrics:
-    """Translate so ink center X sits at ``advance / 2``.
+    """Translate so ink center X sits at `advance / 2`.
 
-    Some Ext-B / supplemental sources ship ``hmtx`` advance 0 with outlines
-    centered on the origin (large negative ``lsb``). Pan-CJK cells are full-em;
+    Some Ext-B / supplemental sources ship `hmtx` advance 0 with outlines
+    centered on the origin (large negative `lsb`). Pan-CJK cells are full-em;
     without this step the ink stays shifted left/right in the cell.
     """
     adv = int(advance if advance > 0 else DEFAULT_UPEM)
@@ -3181,9 +3107,9 @@ def grow_undersize_to_average_ideo(
 ) -> GlyphMetrics:
     """Uniform geometric grow until width or height touches average ideograph ink.
 
-    ``s = min(avg_w / ink_w, avg_h / ink_h)``; never below 1 (no shrink here)
+    `s = min(avg_w / ink_w, avg_h / ink_h)`; never below 1 (no shrink here)
     and never past the padded cell. Geometric grow thickens strokes, so CAPE
-    Weight ``1/s`` thins them back. Placement is left to the caller.
+    Weight `1/s` thins them back. Placement is left to the caller.
     """
     del align_y
     bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
@@ -3239,16 +3165,16 @@ def cap_oversize_bbox_area(
 ) -> GlyphMetrics:
     """Shrink oversize ink; leave sparse glyphs unchanged.
 
-    Mean size is ``(avg_width, avg_height)``. Relative area
-    ``(ink_w * ink_h) / (avg_w * avg_h)``:
+    Mean size is `(avg_width, avg_height)`. Relative area
+    `(ink_w * ink_h) / (avg_w * avg_h)`:
 
-    * if ``ink_w < area_floor × avg_w`` **or** ``ink_h < area_floor × avg_h``
+    * if `ink_w < area_floor × avg_w` **or** `ink_h < area_floor × avg_h`
       → unchanged (sparse on either axis — never grow/stretch)
-    * if relative area ``> area_ceil`` → isotropic shrink to ``area_ceil`` × mean
+    * if relative area `> area_ceil` → isotropic shrink to `area_ceil` × mean
     * otherwise → unchanged
 
-    Cell overflow is left to the caller (``clamp_overflow_axes_to_cell`` /
-    ``fit_glyph_to_ideographic_cell``).
+    Cell overflow is left to the caller (`clamp_overflow_axes_to_cell` /
+    `fit_glyph_to_ideographic_cell`).
     """
     adv = int(advance if advance > 0 else target_upem)
     src = glyph
@@ -3305,7 +3231,7 @@ def is_sparse_ideo_axes(
     sparse_frac: float,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> bool:
-    """True if either ink axis is below ``sparse_frac`` × the mean."""
+    """True if either ink axis is below `sparse_frac` × the mean."""
     src = glyph
     try:
         if glyph.isComposite():
@@ -3351,7 +3277,7 @@ def flat_horizontal_caps(
     tol_frac: float = 0.035,
     min_span_frac: float = 0.20,
 ) -> Tuple[bool, bool]:
-    """Return ``(flat_top, flat_bottom)`` when a horizontal edge spans the ink."""
+    """Return `(flat_top, flat_bottom)` when a horizontal edge spans the ink."""
     pts = _glyph_outline_points(glyph, glyph_set)
     if len(pts) < 4:
         return False, False
@@ -3380,7 +3306,7 @@ def flat_vertical_sides(
     tol_frac: float = 0.035,
     min_span_frac: float = 0.20,
 ) -> Tuple[bool, bool]:
-    """Return ``(flat_right, flat_left)`` when a vertical edge spans the ink."""
+    """Return `(flat_right, flat_left)` when a vertical edge spans the ink."""
     pts = _glyph_outline_points(glyph, glyph_set)
     if len(pts) < 4:
         return False, False
@@ -3444,7 +3370,7 @@ def _baked_ink_size(
     glyph: TTGlyph,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[TTGlyph, float, float]:
-    """Return ``(glyph, ink_width, ink_height)`` with composites baked."""
+    """Return `(glyph, ink_width, ink_height)` with composites baked."""
     src = glyph
     try:
         if glyph.isComposite():
@@ -3485,7 +3411,7 @@ def square_block_ideo(
     Open/partial enclosures (冂, 凵, 内, 凶, …), cliff radicals (厂…厲),
     full enclosures (囗…圞), gate radicals (門…闧), and walk radicals
     (辶…邐) match on frame geometry or explicit
-    ``SQUARE_BLOCK_CODEPOINT_RANGES``.
+    `SQUARE_BLOCK_CODEPOINT_RANGES`.
     """
     _src, sw, sh = _baked_ink_size(glyph, glyph_set)
     if cp_in_square_block_ranges(codepoint) and sw >= float(avg_width) * cp_fill_frac:
@@ -3542,8 +3468,8 @@ def squish_flat_cap_ink(
     sides often fill the padded cell after area-cap. Pull each oversize axis
     down to the mean ink size and thicken stems to match.
 
-    ``square_block_ideo`` glyphs (画, 囗, 冂, 凵, 内, 凸, …) use tighter
-    ``square_*_frac`` targets — especially on width.
+    `square_block_ideo` glyphs (画, 囗, 冂, 凵, 内, 凸, …) use tighter
+    `square_*_frac` targets — especially on width.
     """
     flat_top, flat_bottom = flat_horizontal_caps(glyph, glyph_set=glyph_set)
     flat_right, flat_left = flat_vertical_sides(glyph, glyph_set=glyph_set)
@@ -3610,7 +3536,7 @@ def squish_flat_cap_height(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     min_oversize_frac: float = 1.01,
 ) -> GlyphMetrics:
-    """Compat wrapper — prefer ``squish_flat_cap_ink``."""
+    """Compat wrapper — prefer `squish_flat_cap_ink`."""
     w = float(avg_width if avg_width is not None else avg_height)
     return squish_flat_cap_ink(
         glyph,
@@ -3637,14 +3563,14 @@ def normalize_axes_to_average_ideo(
     """Independent X/Y geometric scale so ink W and H match the averages.
 
     Stretch or squash each axis separately about the ink center
-    (``sx = avg_w / ink_w``, ``sy = avg_h / ink_h``). Each factor is clamped
+    (`sx = avg_w / ink_w`, `sy = avg_h / ink_h`). Each factor is clamped
     so the result still fits the padded ideographic cell. Stems scale with
     the axis (no CAPE). Hairline / empty axes are left alone.
 
-    Few-stroke / intentionally sparse axes (ink below ``sparse_frac`` of the
+    Few-stroke / intentionally sparse axes (ink below `sparse_frac` of the
     average on that axis — e.g. 一 short, 丨 narrow) are **not stretched**;
     they may still squash if they overflow the cell. Callers can follow with
-    ``grow_undersize_to_average_ideo`` for overall-small glyphs.
+    `grow_undersize_to_average_ideo` for overall-small glyphs.
     """
     bottom, top, _ = cjk_padded_floor(target_upem, pad=pad)
     inset = float(target_upem) * max(pad, 0.0)
@@ -3712,10 +3638,10 @@ def _fit_glyph_to_cjk_height(
     """Match ink to a vertically padded CJK typo box.
 
     * Taller than the padded box → squash Y to that height.
-    * Shorter (or equal) → ``align="floor"`` pins the ink bottom to the padded
-      floor; ``align="center"`` centers ink mid-Y in the padded cell.
+    * Shorter (or equal) → `align="floor"` pins the ink bottom to the padded
+      floor; `align="center"` centers ink mid-Y in the padded cell.
 
-    ``pad`` is a fraction of em inset from typo ascent/descent.
+    `pad` is a fraction of em inset from typo ascent/descent.
     """
     if align not in ("floor", "center"):
         raise ValueError(f"align must be 'floor' or 'center', got {align!r}")
@@ -3761,7 +3687,7 @@ def scale_glyph_in_ideographic_cell(
     """Uniformly scale about the ideographic center (post floor-pin inset).
 
     Used after stretch / stem-normalize and CJK floor pin so Yi ink sits at
-    ~``scale`` of the cell while remaining centered in that space.
+    ~`scale` of the cell while remaining centered in that space.
     """
     adv = int(advance if advance > 0 else target_upem)
     if scale <= 0:
@@ -3889,15 +3815,15 @@ def make_standalone_glyph(
     horizontal_weight: float = STANDALONE_HORIZONTAL_WEIGHT,
     stroke_weight: Optional[float] = None,  # unused; kept for call-site compat
 ) -> Optional[GlyphMetrics]:
-    """Shared ``sx`` from advance, shared ``sy`` from inventory max ink height.
+    """Shared `sx` from advance, shared `sy` from inventory max ink height.
 
-    ``sx = cell / source_advance`` — one factor for the whole inventory, mapping
-    the monospace advance box to the ideographic em. ``sy`` uses the tallest ink
+    `sx = cell / source_advance` — one factor for the whole inventory, mapping
+    the monospace advance box to the ideographic em. `sy` uses the tallest ink
     height the same way. Ink bbox center is mapped to the ideographic midline; Y
     is then fitted inside the padded typo box (squash if taller, else centered).
     Horizontal stems are Weight-boldened uniformly (Y-only offset, outer box
-    restored) by ``horizontal_weight`` (default 125%). Finally uniform
-    ``cell_scale`` (~98%) about the ideographic center keeps the syllable
+    restored) by `horizontal_weight` (default 125%). Finally uniform
+    `cell_scale` (~98%) about the ideographic center keeps the syllable
     inset and centered.
     """
     del stroke_weight
@@ -3960,7 +3886,7 @@ def make_halfwidth_glyph(
     pad: float = HALFWIDTH_PAD,
     stroke_weight: Optional[float] = None,  # unused; kept for call-site compat
 ) -> Optional[GlyphMetrics]:
-    """Half-em ``sx``; same inventory-wide ``sy`` as standalones (full cell height)."""
+    """Half-em `sx`; same inventory-wide `sy` as standalones (full cell height)."""
     del stroke_weight
     del source_center_y
     if source_advance <= 0 or source_max_height <= 0:

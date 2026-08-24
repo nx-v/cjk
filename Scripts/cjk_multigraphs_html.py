@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build a graphic CJK niche composer (half / third / quarter).
+"""Build a graphic CJK segment composer (half / third / quarter).
 
 Interactive HTML::
 
   • up to 4 character codes + D4 orientation each
-  • H / V axis (horizontal vs vertical niches)
+  • H / V axis (horizontal vs vertical segments)
   • clickable templates for every half / third / quarter tiling
 
 Usage
@@ -26,7 +26,7 @@ from cjk_diacritics_html import (
     BASE_ORIENT_LABEL,
     BASE_ORIENT_VS,
     assigned_cps,
-    pancjk_font_stack,
+    edenia_cjk_font_stack,
     parse_range_spec,
 )
 from cjk_diacritics import (
@@ -89,12 +89,12 @@ def write_html(
                 f"src:url('{rel_font}/{name}');}}"
             )
 
-    stack_all = pancjk_font_stack(font_dir, ranges=ranges)
-    stack_h = pancjk_font_stack(font_dir, ranges=ranges, variants=("h",))
-    stack_t = pancjk_font_stack(font_dir, ranges=ranges, variants=("t",))
-    stack_q = pancjk_font_stack(font_dir, ranges=ranges, variants=("q",))
-    stack_qv = pancjk_font_stack(font_dir, ranges=ranges, variants=("qv",))
-    stack_qh = pancjk_font_stack(font_dir, ranges=ranges, variants=("qh",))
+    stack_all = edenia_cjk_font_stack(font_dir, ranges=ranges)
+    stack_h = edenia_cjk_font_stack(font_dir, ranges=ranges, variants=("h",))
+    stack_t = edenia_cjk_font_stack(font_dir, ranges=ranges, variants=("t",))
+    stack_q = edenia_cjk_font_stack(font_dir, ranges=ranges, variants=("q",))
+    stack_qv = edenia_cjk_font_stack(font_dir, ranges=ranges, variants=("qv",))
+    stack_qh = edenia_cjk_font_stack(font_dir, ranges=ranges, variants=("qh",))
 
     half_vs = {
         "T": SQUISH_TOP_CP,
@@ -126,7 +126,7 @@ def write_html(
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>CJK niche composer</title>
+<title>CJK segment composer</title>
 <style>
 {chr(10).join(face_css)}
 :root {{
@@ -343,7 +343,7 @@ h1 {{
 <body>
 <div class="app">
   <header>
-    <h1>CJK niche composer</h1>
+    <h1>CJK segment composer</h1>
     <p class="lead">Enter up to four characters, set orientations, pick H/V/grid, then a band-ratio template. Uses shared families (<code>edenia cjk h</code>, …) so cross-bucket stacks liga in one run.</p>
   </header>
 
@@ -382,7 +382,7 @@ h1 {{
 <script>
 const DATA = {json.dumps(data, ensure_ascii=False)};
 
-/* Ratio templates → niche slots (canonical start→end along axis). */
+/* Ratio templates → segment slots (canonical start→end along axis). */
 const TEMPLATES = {{
   v: [
     {{

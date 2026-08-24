@@ -1,4 +1,3 @@
-from math import floor
 from ...vec2 import Vec2, normalize
 from ...stroke import Stroke
 from ..font import Font

@@ -2,25 +2,25 @@
 
 Encoding
 --------
-Preceding glyph + selector occupies that niche (full cell advance)::
+Preceding glyph + selector occupies that segment (full cell advance)::
 
-    U+FE08  top half          ``.top``
-    U+FE09  bottom half       ``.bot``
-    U+FE0A  left half         ``.left``
-    U+FE0B  right half        ``.right``
-    U+FE0C  top-left Δ        ``.tl``
-    U+FE0D  bottom-right Δ    ``.br``
-    U+FE0E  top-right Δ       ``.tr``
-    U+FE0F  bottom-left Δ     ``.bl``
+    U+FE08  top half          `.top`
+    U+FE09  bottom half       `.bot`
+    U+FE0A  left half         `.left`
+    U+FE0B  right half        `.right`
+    U+FE0C  top-left Δ        `.tl`
+    U+FE0D  bottom-right Δ    `.br`
+    U+FE0E  top-right Δ       `.tr`
+    U+FE0F  bottom-left Δ     `.bl`
 
-``U+FE00`` makes the preceding form zero-width (``.ov``) so the next
+`U+FE00` makes the preceding form zero-width (`.ov`) so the next
 glyph stacks in the same cell::
 
     A FE08 FE00 B FE09   →  A.top.ov + B.bot
 
 Identity + D4 forms store eight slices: clip one side of each complementary
-pair, then ``full − that piece``. Other orientations are D4 of the identity
-clips (``propagate_d4_niches``).
+pair, then `full − that piece`. Other orientations are D4 of the identity
+clips (`propagate_d4_segments`).
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ from shared_half_cells import (
     ideographic_center,
     inject_slice_selectors,
     install_derived_glyph,
-    propagate_d4_niches,
+    propagate_d4_segments,
     slice_form_name,
     slice_overlay_liga_map,
     triangle_clip_points,
@@ -90,7 +90,7 @@ def cjk_box(
     cell_width: Optional[float] = None,
     cell_x0: float = 0.0,
 ) -> Tuple[float, float, float, float]:
-    """``(x0, y0, x1, y1)`` of the CJK typo cell (or a narrower halfwidth cell)."""
+    """`(x0, y0, x1, y1)` of the CJK typo cell (or a narrower halfwidth cell)."""
     y1 = target_upem * TYPO_ASCENDER_FRAC
     y0 = target_upem * TYPO_DESCENDER_FRAC
     w = float(target_upem if cell_width is None else cell_width)
@@ -105,7 +105,7 @@ def clip_glyph_to_half(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     cell_width: Optional[float] = None,
 ) -> TTGlyph:
-    """Intersect ``glyph`` with one CJK-box half-plane (top/bot/left/right)."""
+    """Intersect `glyph` with one CJK-box half-plane (top/bot/left/right)."""
     x0, y0, x1, y1 = cjk_box(target_upem, cell_width=cell_width)
     mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
     inf = target_upem * HALF_PLANE_INF_FRAC
@@ -131,7 +131,7 @@ def clip_glyph_to_triangle(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     cell_width: Optional[float] = None,
 ) -> TTGlyph:
-    """Intersect ``glyph`` with one diagonal half-plane (tl/br/tr/bl)."""
+    """Intersect `glyph` with one diagonal half-plane (tl/br/tr/bl)."""
     x0, y0, x1, y1 = cjk_box(target_upem, cell_width=cell_width)
     inf = target_upem * HALF_PLANE_INF_FRAC
     pts = triangle_clip_points(kind, x0=x0, y0=y0, x1=x1, y1=y1, inf=inf)
@@ -171,7 +171,7 @@ def _bake_slices_for_form(
     target_upem: int,
     cell_width: Optional[float] = None,
 ) -> None:
-    """Clip one side of each complementary pair; the other is ``full − that``.
+    """Clip one side of each complementary pair; the other is `full − that`.
 
     Clip / subtract strip artefacts before and after pathops.
     """
@@ -243,10 +243,10 @@ def add_slice_halves(
     slice_adv_name: str = SLICE_ADV_NAME,
     overlays: bool = True,
 ) -> List[str]:
-    """Bake identity slices + D4 copies; optionally add ``.ov`` overlays.
+    """Bake identity slices + D4 copies; optionally add `.ov` overlays.
 
-    ``slice_adv_name`` is ignored (combining slices keep the cell advance).
-    ``base_names`` are identity glyph names (not pre-expanded orientations).
+    `slice_adv_name` is ignored (combining slices keep the cell advance).
+    `base_names` are identity glyph names (not pre-expanded orientations).
     Returns every form name (id + variants) that received a full slice set.
     """
     del modes, slice_adv_name
@@ -273,7 +273,7 @@ def add_slice_halves(
 
     cx = (float(adv) / 2.0, ideographic_center(target_upem)[1])
     if identity:
-        propagate_d4_niches(
+        propagate_d4_segments(
             identity,
             suffixes=SLICE_SUFFIXES,
             form_name=half_glyph_name,

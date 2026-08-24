@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build an HTML gallery of Yi orientations × slices × dakuten.
 
-Inventory: NuosuSIL Yi syllables / radicals present in ``edenia yi``.
-Slices render from ``edenia yi h`` (CSS stack: h then base).
+Inventory: NuosuSIL Yi syllables / radicals present in `edenia yi`.
+Slices render from `edenia yi h` (CSS stack: h then base).
 
 Combinations (rendered on demand):
 
