@@ -2337,6 +2337,40 @@ def _finalize_sliced_ttglyph(
     return cleanup_ttglyph_contours(glyph, upem=upem)
 
 
+def heal_sliced_glyph(
+    glyph: TTGlyph,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    upem: int = DEFAULT_UPEM,
+) -> TTGlyph:
+    """Heal geometry around a slice cut (before + after pipeline).
+
+    Before: decompose → spike/snap → strip crumbs → safe winding simplify  
+    After:  strip → heal joins → safe simplify → strip → final snap
+    """
+    if glyph is None:
+        return empty_glyph()
+    try:
+        if glyph.numberOfContours == 0 and not glyph.isComposite():
+            return glyph
+    except Exception:
+        pass
+    sk = _prepare_pathops_for_slice(glyph, glyph_set, upem=upem)
+    return _finalize_sliced_ttglyph(sk, upem=upem)
+
+
+def finalize_slice_metrics(
+    gm: GlyphMetrics,
+    *,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    upem: int = DEFAULT_UPEM,
+) -> GlyphMetrics:
+    """Run :func:`heal_sliced_glyph` on a ``(glyph, advance, lsb)`` triple."""
+    g, adv, _lsb = gm
+    out = heal_sliced_glyph(g, glyph_set=glyph_set, upem=upem)
+    return out, int(adv), _lsb_of(out)
+
+
 def _prepare_pathops_for_slice(
     glyph: TTGlyph,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,

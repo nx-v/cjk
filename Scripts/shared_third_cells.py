@@ -28,6 +28,11 @@ Upright and D4 bases are **slices** of the already-baked fullwidth outline:
 clip the two end thirds per axis; middle and two-thirds bands are
 `full − end` / `(full − end) − other end`. Zero-width `.ov`
 forms are composites of those fullwidth slices.
+
+Geometry around every cut (clip / subtract)::
+
+    Before: decompose → spike/snap → strip crumbs → safe winding simplify
+    After:  strip → heal joins → safe simplify → strip → final snap
 """
 
 from __future__ import annotations
@@ -47,6 +52,7 @@ from shared_half_cells import (
     boolean_subtract_named,
     build_chunked_ligature_subst_lookup,
     empty_glyph,
+    finalize_slice_metrics,
     half_plane_rect,
     ideographic_bounds,
     install_derived_glyph,
@@ -196,19 +202,18 @@ def place_glyph_in_third(
     target_upem: int = 1000,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """Clip `glyph` to a third / two-thirds slot (slice — no stretch)."""
-    from shared_half_cells import clip_glyph_to_rect
+    """Clip `glyph` to a third / two-thirds slot (slice — no stretch).
+
+    Geometry is healed before and after the cut (see module docstring).
+    """
+    from shared_half_cells import clip_glyph_to_rect, finalize_slice_metrics
 
     upem = float(target_upem)
     rect = _third_slot_rect(upem, axis=axis, band0=band0, band1=band1)
     clipped = clip_glyph_to_rect(glyph, rect, glyph_set=glyph_set)
-    try:
-        clipped.recalcBounds(None)
-        lsb = int(clipped.xMin)
-    except Exception:
-        lsb = 0
-    del advance
-    return clipped, int(upem), lsb
+    return finalize_slice_metrics(
+        (clipped, int(upem), 0), glyph_set=glyph_set, upem=int(upem)
+    )
 
 
 def make_third_glyph(
@@ -262,6 +267,9 @@ def add_third_forms(
         adv, _lsb = metrics.get(name, (target_upem, 0))
 
         def _put(out_name: str, gm: Tuple[TTGlyph, int, int]) -> None:
+            gm = finalize_slice_metrics(
+                gm, glyph_set=glyphs, upem=target_upem
+            )
             install_derived_glyph(
                 out_name,
                 gm,
