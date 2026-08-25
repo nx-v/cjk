@@ -41,10 +41,10 @@ SEGMENT_FACE_VARIANTS: tuple[str, ...] = ("", "h", "t", "q", "qv", "qh")
 SEGMENT_FACE_BUILD_ORDER: tuple[str, ...] = ("", "h", "q", "qv", "qh", "t")
 # @font-face emission order (each variant is its own family).
 SEGMENT_FACE_CSS_ORDER: tuple[str, ...] = ("q", "qv", "qh", "t", "h", "")
-# Default CSS stack: only one segment face. Shared bases + per-face VS cannot
-# shape across families (Blink picks fonts per codepoint → full-glyph FE00 overlay).
-# Pin `edenia kana t` / `q` / `qv` / `qh` (or yi) when using those digraphs.
-SEGMENT_FACE_STACK_ORDER: tuple[str, ...] = ("h", "")
+# Default CSS / theme stack (segment faces before base). Digraph runs must still
+# pin one family (HTML mode face / Obsidian post-processor) — Blink picks fonts
+# per codepoint, so a multi-face stack alone overlays full glyphs via FE00.
+SEGMENT_FACE_STACK_ORDER: tuple[str, ...] = ("q", "qv", "qh", "t", "h", "")
 
 # CJK: identity/base + half-cell digraphs only.
 CJK_FACE_VARIANTS: tuple[str, ...] = ("", "h")
