@@ -354,7 +354,7 @@ _JUNGSEONG_AXIS_OVERRIDE: Dict[int, VowelAxis] = {
     0x117D: "x",  # YEO-O ᆝ — vertical (x), not y/xy
 }
 _JUNGSEONG_CP_RANGES: Tuple[Tuple[int, int], ...] = (
-    (0x1160, 0x11A7),  # Hangul Jamo medials (+ filler)
+    (0x1160, 0x11A7),  # Hangul Jamo medials (+ U+1160 filler)
     (0xD7B0, 0xD7C6),  # Hangul Jamo Extended-B medials
 )
 
@@ -365,8 +365,9 @@ def jungseong_axis_from_name(name: str) -> Optional[VowelAxis]:
     if not name.startswith(prefix):
         return None
     rest = name[len(prefix) :]
+    # U+1160 HANGUL JUNGSEONG FILLER — empty medial; Y-group (below L).
     if rest == "FILLER":
-        return None
+        return "y"
     parts = rest.split("-")
     if any(p in _JUNGSEONG_COMPOUND for p in parts):
         return "xy"
