@@ -23,10 +23,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import random
 import re
 import sys
+import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -278,8 +278,119 @@ ENCLOSED_IDEO_LABEL = tuple(chr(c) for c in range(0x3220, 0x322A))  # ㈠–㈩
 SIGNAGE = tuple(chr(c) for c in range(0x1F200, 0x1F220))  # sparse sample
 
 YI_RANGE = (0xA000, 0xA48C)
-TANGUT_RANGES = ((0x17000, 0x187F7), (0x18D00, 0x18D1E))
-KHITAN_RANGE = (0x18B00, 0x18CFF)
+
+# Keep in sync with Scripts/build_cjk.py CHAR_RANGES (Han + Tangut + Khitan).
+CJK_CHAR_RANGES: Tuple[Tuple[int, int, str], ...] = (
+    (0x2E80, 0x2EFF, "CJK Radicals Supplement"),
+    (0x2F00, 0x2FDF, "Kangxi Radicals"),
+    (0x04E00, 0x09FFF, "CJK URO"),
+    (0x03400, 0x04DBF, "CJK Ext A"),
+    (0x20000, 0x2A6DF, "CJK Ext B"),
+    (0x2A700, 0x2B73F, "CJK Ext C"),
+    (0x2B740, 0x2B81F, "CJK Ext D"),
+    (0x2B820, 0x2CEAF, "CJK Ext E"),
+    (0x2CEB0, 0x2EBEF, "CJK Ext F"),
+    (0x30000, 0x3134F, "CJK Ext G"),
+    (0x31350, 0x323AF, "CJK Ext H"),
+    (0x2EBF0, 0x2EE5F, "CJK Ext I"),
+    (0x323B0, 0x3347F, "CJK Ext J"),
+    (0x0FA00, 0x0FAFF, "CJK Compat"),
+    (0x2F800, 0x2FA1F, "CJK Compat Supplement"),
+    (0x17000, 0x187FF, "Tangut"),
+    (0x18D00, 0x18D7F, "Tangut Supplement"),
+    (0x18800, 0x18AFF, "Tangut Components"),
+    (0x18D80, 0x18DFF, "Tangut Components Supplement"),
+    (0x18B00, 0x18CFF, "Khitan Small Script"),
+)
+
+
+def _cjk_range_pick_weight(label: str) -> float:
+    """Relative chance to draw from a CJK_CHAR_RANGES block."""
+    lab = label.casefold()
+    if "uro" in lab:
+        return 48.0
+    if "ext a" in lab:
+        return 10.0
+    if "ext b" in lab:
+        return 6.0
+    if "ext " in lab:
+        return 3.0
+    if "radical" in lab or "kangxi" in lab:
+        return 2.5
+    if "compat" in lab:
+        return 2.0
+    if "tangut" in lab:
+        return 5.0
+    if "khitan" in lab:
+        return 2.5
+    return 2.0
+
+
+# Assigned filtering uses UCD 18 (stdlib unicodedata is older).
+UCD_VERSION = "18.0.0"
+UCD_UNICODEDATA_PATH = SCRIPT_DIR / "data" / f"UnicodeData-{UCD_VERSION}.txt"
+UCD_UNICODEDATA_URL = (
+    f"https://www.unicode.org/Public/{UCD_VERSION}/ucd/UnicodeData.txt"
+)
+
+
+def _ensure_unicode_data() -> Path:
+    path = UCD_UNICODEDATA_PATH
+    if path.is_file():
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    print(f"[generate_edenian_md] fetching UnicodeData.txt {UCD_VERSION}…")
+    urllib.request.urlretrieve(UCD_UNICODEDATA_URL, path)
+    return path
+
+
+def _load_ucd_assigned_intervals(path: Path) -> List[Tuple[int, int]]:
+    """Inclusive assigned intervals from UnicodeData.txt (incl. First/Last runs)."""
+    intervals: List[Tuple[int, int]] = []
+    pending_first: Optional[int] = None
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            fields = line.split(";")
+            if len(fields) < 2:
+                continue
+            cp = int(fields[0], 16)
+            name = fields[1]
+            if name.endswith(", First>"):
+                pending_first = cp
+            elif name.endswith(", Last>"):
+                if pending_first is None:
+                    raise ValueError(f"UCD Last without First at U+{cp:04X}")
+                intervals.append((pending_first, cp))
+                pending_first = None
+            else:
+                intervals.append((cp, cp))
+    if pending_first is not None:
+        raise ValueError(f"UCD First without Last at U+{pending_first:04X}")
+    return intervals
+
+
+def _assigned_cps_in_range(
+    start: int, end: int, intervals: Sequence[Tuple[int, int]]
+) -> Tuple[int, ...]:
+    out: List[int] = []
+    for a, b in intervals:
+        lo = max(a, start)
+        hi = min(b, end)
+        if lo <= hi:
+            out.extend(range(lo, hi + 1))
+    return tuple(out)
+
+
+_UCD_INTERVALS = _load_ucd_assigned_intervals(_ensure_unicode_data())
+
+# (assigned codepoints, pick weight) — empty/unassigned slots dropped
+CJK_SAMPLE_POOLS: Tuple[Tuple[Tuple[int, ...], float], ...] = tuple(
+    (cps, _cjk_range_pick_weight(name))
+    for start, end, name in CJK_CHAR_RANGES
+    for cps in (_assigned_cps_in_range(start, end, _UCD_INTERVALS),)
+    if cps
+)
+CJK_ASSIGNED_COUNT = sum(len(cps) for cps, _ in CJK_SAMPLE_POOLS)
 
 # Hangul jamo: packed as char+length digit (same as JS)
 _HANGUL_CHO = (
@@ -399,10 +510,10 @@ class Gen:
         self.rng = rng
         self.marks = list(marks) if marks else list(FALLBACK_MARKS)
         self.bounds = bounds or StructureBounds()
-        self.cjk_chars: List[str] = []
-        self.cjk_weights: List[float] = []
-        self._cjk_total = 0.0
-        self._load_cjk()
+        print(
+            f"{len(CJK_SAMPLE_POOLS)} CJK ranges / {CJK_ASSIGNED_COUNT:,} assigned "
+            f"(Han+Tangut+Khitan; Unicode {UCD_VERSION})"
+        )
 
     def choice(self, seq: Sequence):
         return self.rng.choice(seq)
@@ -437,56 +548,8 @@ class Gen:
             return None
         return self.weighted_choice(hits)
 
-    def _load_cjk(self) -> None:
-        candidates = [
-            SCRIPT_DIR / "data" / "decomposeCJK.json",
-            REPO_ROOT / "data" / "decomposeCJK.json",
-            REPO_ROOT / "Code" / "data" / "decomposeCJK.json",
-        ]
-        for path in candidates:
-            if not path.is_file():
-                continue
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            for row in raw:
-                ch = row.get("character") or row.get("char")
-                if not ch:
-                    continue
-                w = float(row.get("weight", 1))
-                self.cjk_chars.append(ch)
-                self.cjk_weights.append(w)
-            print(f"CJK_DATA: {len(self.cjk_chars)} rows from {path}")
-            break
-        if not self.cjk_chars:
-            print("CJK_DATA: decomposeCJK.json not found — sampling ranges")
-            for _ in range(400):
-                self.cjk_chars.append(chr(self.randint(0x4E00, 0x9FFF)))
-                self.cjk_weights.append(8.0)
-            for _ in range(80):
-                self.cjk_chars.append(chr(self.randint(0x3400, 0x4DBF)))
-                self.cjk_weights.append(2.0)
-        for lo, hi in TANGUT_RANGES:
-            for _ in range(40 if hi - lo < 100 else 120):
-                self.cjk_chars.append(chr(self.randint(lo, hi)))
-                self.cjk_weights.append(2.0)
-        for _ in range(80):
-            self.cjk_chars.append(chr(self.randint(*KHITAN_RANGE)))
-            self.cjk_weights.append(2.0)
-        self._cjk_total = sum(self.cjk_weights)
-        print(f"{len(self.cjk_chars)} CJK-set characters (Han+Tangut+Khitan)")
-
     def ideograph(self) -> str:
-        r = self.random()
-        if r < 0.08:
-            lo, hi = TANGUT_RANGES[0]
-            return chr(self.randint(lo, hi))
-        if r < 0.12:
-            return chr(self.randint(*KHITAN_RANGE))
-        x = self.random() * self._cjk_total
-        for ch, w in zip(self.cjk_chars, self.cjk_weights):
-            x -= w
-            if x <= 0:
-                return ch
-        return self.cjk_chars[-1]
+        return chr(self.choice(self.weighted_choice(CJK_SAMPLE_POOLS)))
 
 
 def load_combining_marks() -> List[str]:
