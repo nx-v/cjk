@@ -2090,7 +2090,7 @@ def boolean_union_glyphs(
             continue
     if acc is None:
         return empty_glyph()
-    return _pathops_to_ttglyph(_pathops_strip_artefacts(acc))
+    return _finalize_sliced_ttglyph(acc)
 
 
 def boolean_subtract_glyphs(
@@ -2101,8 +2101,8 @@ def boolean_subtract_glyphs(
 ) -> TTGlyph:
     """Boolean **difference** `minuend − subtrahend`.
 
-    Both operands are artefact-stripped first; the result is stripped again so
-    difference crumbs (specks / hairline slivers) do not survive into segments.
+    Both operands are healed + artefact-stripped first; the result is finalized
+    the same way so difference crumbs do not survive into segments.
     """
     import pathops
 
@@ -2112,7 +2112,7 @@ def boolean_subtract_glyphs(
         out = pathops.op(a, b, pathops.PathOp.DIFFERENCE, fix_winding=True)
     except Exception:
         return empty_glyph()
-    return _pathops_to_ttglyph(_pathops_strip_artefacts(out))
+    return _finalize_sliced_ttglyph(out)
 
 
 def _lsb_of(glyph: TTGlyph) -> int:
@@ -2288,18 +2288,68 @@ def _pathops_strip_artefacts(path, *, upem: int = DEFAULT_UPEM):
     return kept if kept_any else pathops.Path()
 
 
+def _safe_simplify_pathops(path, *, upem: int = DEFAULT_UPEM):
+    """``pathops.simplify`` when it does not shred the outline; else ``path``.
+
+    Self-intersecting offset ribbons explode under simplify — detect that via
+    contour-count / bounds heuristics and keep the unsimplified path.
+    """
+    import pathops
+
+    raw = list(path.contours)
+    if not raw:
+        return path
+    try:
+        simp = pathops.simplify(path, fix_winding=True, clockwise=True)
+    except Exception:
+        return path
+    simp_c = list(simp.contours)
+    if not simp_c:
+        return path
+    if len(simp_c) > len(raw) + 3:
+        return path
+    try:
+        rb = path.bounds
+        sb = simp.bounds
+        raw_area = max(0.0, (rb[2] - rb[0]) * (rb[3] - rb[1]))
+        simp_area = max(0.0, (sb[2] - sb[0]) * (sb[3] - sb[1]))
+        if raw_area > 1.0 and simp_area < raw_area * 0.45:
+            return path
+    except Exception:
+        pass
+    return _pathops_strip_artefacts(simp, upem=upem)
+
+
+def _finalize_sliced_ttglyph(
+    path,
+    *,
+    upem: int = DEFAULT_UPEM,
+) -> TTGlyph:
+    """Post-boolean/clip finalize: strip → heal joins → safe simplify → strip."""
+    cleaned = _pathops_strip_artefacts(path, upem=upem)
+    glyph = _pathops_to_ttglyph(cleaned)
+    glyph = cleanup_ttglyph_contours(glyph, upem=upem)
+    # Second pass through pathops so snap/spike fixes don't leave crumbs.
+    sk = _ttglyph_to_pathops(glyph)
+    sk = _safe_simplify_pathops(sk, upem=upem)
+    sk = _pathops_strip_artefacts(sk, upem=upem)
+    glyph = _pathops_to_ttglyph(sk)
+    return cleanup_ttglyph_contours(glyph, upem=upem)
+
+
 def _prepare_pathops_for_slice(
     glyph: TTGlyph,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     *,
     upem: int = DEFAULT_UPEM,
 ):
-    """Decompose, heal miter spikes, then drop artefact contours (pre-slice)."""
+    """Pre-slice: decompose, heal broken joins, strip artefacts, fix winding."""
     sk = _ttglyph_to_pathops(glyph, glyph_set)
     tmp = _pathops_to_ttglyph(sk)
     tmp = cleanup_ttglyph_contours(tmp, upem=upem)
     sk = _ttglyph_to_pathops(tmp)
-    return _pathops_strip_artefacts(sk, upem=upem)
+    sk = _pathops_strip_artefacts(sk, upem=upem)
+    return _safe_simplify_pathops(sk, upem=upem)
 
 
 def clip_glyph_to_rect(
@@ -2313,7 +2363,7 @@ def clip_glyph_to_rect(
     Used for CJK half / third / quarter segments and combining slices: ink
     outside the band is dropped; ink inside keeps its original size and place.
     Complementary bands are `boolean_subtract` / `boolean_union`, not a
-    second clip. Artefacts are stripped before and after the intersection.
+    second clip. Geometry is healed and artefacts stripped before and after.
     """
     import pathops
 
@@ -2328,7 +2378,7 @@ def clip_glyph_to_rect(
         out = pathops.op(src, clip, pathops.PathOp.INTERSECTION, fix_winding=True)
     except Exception:
         return empty_glyph()
-    return _pathops_to_ttglyph(_pathops_strip_artefacts(out))
+    return _finalize_sliced_ttglyph(out)
 
 
 def _polygon_pathops(points: Sequence[Tuple[float, float]]):
@@ -2360,7 +2410,7 @@ def clip_glyph_to_polygon(
         out = pathops.op(src, clip, pathops.PathOp.INTERSECTION, fix_winding=True)
     except Exception:
         return empty_glyph()
-    return _pathops_to_ttglyph(_pathops_strip_artefacts(out))
+    return _finalize_sliced_ttglyph(out)
 
 
 def triangle_clip_points(
