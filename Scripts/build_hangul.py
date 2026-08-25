@@ -365,9 +365,11 @@ def jungseong_axis_from_name(name: str) -> Optional[VowelAxis]:
     if not name.startswith(prefix):
         return None
     rest = name[len(prefix) :]
-    # U+1160 HANGUL JUNGSEONG FILLER — empty medial; Y-group (below L).
+    # U+1160 HANGUL JUNGSEONG FILLER — empty medial; X-group (beside L).
+    # Same L shift / FE04 paths as ㅏ… so an “imaginary” flipped medial or
+    # raised batchim still translates the choseong (never a Y-drop).
     if rest == "FILLER":
-        return "y"
+        return "x"
     parts = rest.split("-")
     if any(p in _JUNGSEONG_COMPOUND for p in parts):
         return "xy"

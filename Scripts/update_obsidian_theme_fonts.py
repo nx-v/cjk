@@ -57,6 +57,9 @@ from edenia_names import (
     PLUGIN_DIR_NAME,
     PLUGIN_DISPLAY_NAME,
     PLUGIN_ID,
+    SEGMENT_FACE_CSS_ORDER,
+    family_kana_variant,
+    family_yi_variant,
 )
 from sync_edenian_fonts import woff2_names_from_css_dir
 
@@ -213,17 +216,35 @@ _FE0_TOKEN = re.compile(
 )
 # Script faces without unicode-range claim every cmap glyph (including FE*),
 # which steals CJK D4. Hangul lists FE04 only; Yi/Kana base omit overlay/slices
-# (those live on the ``h`` faces).
+# (those live on the segment faces). Defaults used when CSS omits a range.
+_KANA_SCRIPT = "U+E000-F8FF, U+F0000-F1FFF, U+FF9E-FF9F"
+_YI_SCRIPT = "U+A000-A4C6"
 _SCRIPT_UNICODE_RANGE = {
     # FE04 must be listed: Hangul top-swap is GPOS on vs05 and does not
     # cluster when FE04 is outside unicode-range (unlike FE00–FE03 mirrors).
     FAMILY_HANGUL: ("U+1100-11FF, U+A960-A97C, U+D7B0-D7FB, U+302E-302F, U+FE04"),
     FAMILY_HANGULS: "U+AC00-D7A3, U+3130-318F",
-    FAMILY_YI: "U+A000-A4C6, U+FE01-FE07",
-    FAMILY_YI_H: "U+A000-A4C6, U+FE00-FE0F",
-    FAMILY_KANA: "U+E000-F8FF, U+F0000-F1FFF, U+FF9E-FF9F",
-    FAMILY_KANA_H: "U+E000-F8FF, U+F0000-F1FFF, U+FF9E-FF9F, U+FE00, U+FE08-FE0F",
+    FAMILY_YI: f"{_YI_SCRIPT}, U+FE01-FE07",
+    FAMILY_YI_H: f"{_YI_SCRIPT}, U+FE00-FE0F",
+    family_yi_variant("t"): f"{_YI_SCRIPT}, U+FE00, U+E0100-E0109",
+    family_yi_variant("qv"): f"{_YI_SCRIPT}, U+FE00, U+FE08-FE09, U+E010A-E0110",
+    family_yi_variant("qh"): f"{_YI_SCRIPT}, U+FE00, U+FE0A-FE0B, U+E0111-E0117",
+    family_yi_variant("q"): f"{_YI_SCRIPT}, U+FE00, U+FE08-FE0F, U+E0118-E011F",
+    FAMILY_KANA: _KANA_SCRIPT,
+    FAMILY_KANA_H: f"{_KANA_SCRIPT}, U+FE00, U+FE08-FE0F",
+    family_kana_variant("t"): f"{_KANA_SCRIPT}, U+FE00, U+E0100-E0109",
+    family_kana_variant("qv"): f"{_KANA_SCRIPT}, U+FE00, U+FE08-FE09, U+E010A-E0110",
+    family_kana_variant("qh"): f"{_KANA_SCRIPT}, U+FE00, U+FE0A-FE0B, U+E0111-E0117",
+    family_kana_variant("q"): f"{_KANA_SCRIPT}, U+FE00, U+FE08-FE0F, U+E0118-E011F",
 }
+
+_KANA_YI_FAMILIES = frozenset(_SCRIPT_UNICODE_RANGE) - {
+    FAMILY_HANGUL,
+    FAMILY_HANGULS,
+}
+_KANA_YI_BASE_H = frozenset(
+    {FAMILY_YI, FAMILY_YI_H, FAMILY_KANA, FAMILY_KANA_H}
+)
 
 # Combining marks (dakuten) must be in unicode-range or Blink shows tofu.
 _DAKUTEN_UR_CACHE: str | None = None
@@ -329,9 +350,12 @@ def _script_unicode_range(family: str, ur: str | None) -> str | None:
         if cleaned and ("U+300-" in cleaned or "U+0300-" in cleaned):
             cleaned = _SCRIPT_UNICODE_RANGE.get(family)
         return cleaned
-    if family in (FAMILY_YI, FAMILY_YI_H, FAMILY_KANA, FAMILY_KANA_H):
+    if family in _KANA_YI_BASE_H:
         base = ur or _SCRIPT_UNICODE_RANGE.get(family) or ""
         return _with_dakuten_unicode_range(base)
+    if family in _KANA_YI_FAMILIES:
+        # Segment faces (t/q/qv/qh): keep CSS pigeonhole ranges; no dakuten.
+        return ur or _SCRIPT_UNICODE_RANGE.get(family)
     if ur:
         return ur
     return _SCRIPT_UNICODE_RANGE.get(family)
@@ -393,19 +417,19 @@ def collect_faces(css: str, *, folder: str) -> list[dict]:
 def build_stack_block(*, edenia_cjk_families: list[str]) -> str:
     if not edenia_cjk_families:
         raise ValueError("no edenia cjk families found in CSS")
-    scripts = (
-        f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", '
-        f'"{FAMILY_KANA_H}", "{FAMILY_KANA}", '
-        f'"{FAMILY_YI_H}", "{FAMILY_YI}"'
+    kana = ", ".join(
+        f'"{family_kana_variant(v)}"' for v in SEGMENT_FACE_CSS_ORDER
     )
+    yi = ", ".join(f'"{family_yi_variant(v)}"' for v in SEGMENT_FACE_CSS_ORDER)
+    scripts = f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", {kana}, {yi}'
     cjk = ", ".join(css_family_token(n) for n in edenia_cjk_families)
     fallbacks = "FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2"
     stack = f"{STACK_LATIN}, {scripts}, {cjk}, {fallbacks}, {STACK_TAIL}"
     return "\n".join(
         [
             MARK_STACK_BEGIN,
-            "/* Hangul/Kana/Yi before CJK; h (slices) before base.",
-            "   unicode-range keeps FE* on the right face. CJK lists FE00–FE0F. */",
+            "/* Hangul/Kana/Yi before CJK; segment faces (q/qv/qh/t/h) before base.",
+            "   unicode-range keeps FE* / VS on the right face. CJK lists FE00-FE0F. */",
             "body {",
             f"  --font-text-theme: {stack};",
             f"  --font-interface-theme: {stack};",
