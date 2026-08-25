@@ -1380,9 +1380,8 @@ KANA_H_FE = {0xFE00} | set(range(0xFE08, 0xFE10))
 KANA_T_VS = {0xFE00} | set(range(0xE0100, 0xE010A))
 KANA_QV_VS = {0xFE00, 0xFE08, 0xFE09} | set(range(0xE010A, 0xE0111))
 KANA_QH_VS = {0xFE00, 0xFE0A, 0xFE0B} | set(range(0xE0111, 0xE0118))
-KANA_Q_VS = (
-    {0xFE00} | set(range(0xFE08, 0xFE10)) | set(range(0xE0118, 0xE0120))
-)
+# Grid VS only — do not claim FE08–FE0F (those are h / qv / qh half bands).
+KANA_Q_VS = {0xFE00} | set(range(0xE0118, 0xE0120))
 
 
 def _css_cps_for_kana_face(
@@ -1476,20 +1475,23 @@ def write_css(out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]) ->
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
-    has_seg = any(v in SEGMENT_FACE_CSS_ORDER[:-1] for _fid, v, _n, _cps in built)
+    from edenia_names import SEGMENT_FACE_STACK_ORDER
+
     has_base = any(v == "" for _fid, v, _n, _cps in built)
     stack_parts: List[str] = []
-    if has_seg:
-        for v in SEGMENT_FACE_CSS_ORDER:
-            if v and any(fv == v for _fid, fv, _n, _cps in built):
-                stack_parts.append(f"'{family_kana_variant(v)}'")
-    if has_base:
+    for v in SEGMENT_FACE_STACK_ORDER:
+        if v and any(fv == v for _fid, fv, _n, _cps in built):
+            stack_parts.append(f"'{family_kana_variant(v)}'")
+        elif not v and has_base:
+            stack_parts.append(f"'{family_kana_variant('')}'")
+    if not stack_parts and has_base:
         stack_parts.append(f"'{family_kana_variant('')}'")
     stack = ", ".join(stack_parts) or f"'{FAMILY_NAME}'"
     fontlist_path = os.path.join(out_dir, f"{PS_NAME}-fontlist.css")
     with open(fontlist_path, "w", encoding="utf-8") as f:
         f.write(
-            "/* Kana font families (h = slices; base = PUA D4 + dakuten) */\n"
+            "/* Default stack is h+base only (one face per digraph). "
+            "Pin edenia kana t/q/qv/qh for those modes. */\n"
             f":root {{\n  --font-edenia-kana: {stack};\n}}\n"
         )
     print(f"Wrote {fontlist_path}")
@@ -1849,7 +1851,12 @@ def _prepare_kana_face_state(
             kind, list(dict.fromkeys([*small_b, *hw_small_b])), glyphs
         )
         go, gl, mt, cm = subset_tables(glyph_order, glyphs, metrics, cmap, keep)
-        cm = filter_segment_face_cmap(kind, cm, list(bases))
+        # Include small/hw-small stems so their D4 PUA stays on the slice face.
+        cm = filter_segment_face_cmap(
+            kind,
+            cm,
+            list(dict.fromkeys([*bases, *small_b, *hw_small_b])),
+        )
         face_id = bucket_face_id(bucket_id, kind)
         if kind == "h":
             _add_kana_slices(

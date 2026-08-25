@@ -72,16 +72,58 @@ def add_hint_mode_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def autohint_ttf(ttf_path: PathLike, *, enabled: bool = True) -> None:
+def _sfnt_magic(path: str) -> bytes:
+    with open(path, "rb") as fh:
+        return fh.read(4)
+
+
+def _ensure_raw_ttf(path: str) -> None:
+    """If `path` is WOFF/WOFF2 mislabeled as ``.ttf``, rewrite as SFNT TTF."""
+    magic = _sfnt_magic(path)
+    if magic in (b"\x00\x01\x00\x00", b"true", b"typ1"):
+        return
+    if magic not in (b"wOF2", b"wOFF"):
+        return
+    print(
+        f"  [!] {os.path.basename(path)} is {magic.decode('ascii', 'replace')} "
+        f"(expected TTF); converting before hint…",
+        flush=True,
+    )
+    from fontTools.ttLib import TTFont
+
+    tt = TTFont(path)
+    tt.flavor = None
+    out_dir = os.path.dirname(os.path.abspath(path)) or "."
+    fd, tmp_path = tempfile.mkstemp(suffix=".ttf", dir=out_dir)
+    os.close(fd)
+    try:
+        tt.save(tmp_path)
+        tt.close()
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def autohint_ttf(
+    ttf_path: PathLike, *, enabled: bool = True, soft: bool = True
+) -> bool:
     """Autohint `ttf_path` in place with ttfautohint-py.
 
     Reads the TTF into memory, hints, writes a sibling temp file, then
     `os.replace` with retries (Windows AV / OneDrive often lock the
     destination briefly under parallel builds). No-op when `enabled` is
-    false. Raises `RuntimeError` if the package is missing or hinting fails.
+    false.
+
+    Returns True if hinted (or skipped because disabled). When `soft` is
+    True, hint failures print a warning and return False instead of raising
+    (segment faces can trip ttfautohint; builds should still emit WOFF2).
     """
     if not enabled:
-        return
+        return True
 
     try:
         from ttfautohint import ttfautohint
@@ -94,6 +136,15 @@ def autohint_ttf(ttf_path: PathLike, *, enabled: bool = True) -> None:
 
     path = os.fspath(ttf_path)
     print(f"  Hinting with ttfautohint-py: {os.path.basename(path)}...", flush=True)
+
+    try:
+        _ensure_raw_ttf(path)
+    except Exception as exc:
+        msg = f"ttfautohint prep failed for {path}: {exc}"
+        if soft:
+            print(f"  [!] {msg} — continuing unhinted", flush=True)
+            return False
+        raise RuntimeError(msg) from exc
 
     with open(path, "rb") as src_f:
         src_bytes = src_f.read()
@@ -109,39 +160,55 @@ def autohint_ttf(ttf_path: PathLike, *, enabled: bool = True) -> None:
         fallback_script="none",
     )
     try:
-        hinted = ttfautohint(**common)
-    except TAError as first:
-        err = str(first)
-        if "standard character" not in err and "standard width" not in err:
-            raise RuntimeError(f"ttfautohint failed for {path}: {first}") from first
         try:
-            hinted = ttfautohint(**common, symbol=True)
-        except TAError as exc:
-            raise RuntimeError(f"ttfautohint failed for {path}: {exc}") from exc
-
-    if not hinted:
-        raise RuntimeError(f"ttfautohint produced empty output for {path}")
-
-    out_dir = os.path.dirname(os.path.abspath(path)) or "."
-    fd, tmp_path = tempfile.mkstemp(suffix=".ttf", dir=out_dir)
-    try:
-        with os.fdopen(fd, "wb") as f:
-            f.write(hinted)
-        last_err: BaseException | None = None
-        for attempt in range(8):
+            hinted = ttfautohint(**common)
+        except TAError as first:
+            err = str(first).lower()
+            retry_symbol = (
+                "standard character" in err
+                or "standard width" in err
+                or "0x02" in err
+                or "unknown file format" in err
+            )
+            if not retry_symbol:
+                raise RuntimeError(f"ttfautohint failed for {path}: {first}") from first
             try:
-                os.replace(tmp_path, path)
-                return
-            except OSError as exc:
-                last_err = exc
-                time.sleep(0.05 * (2 ** min(attempt, 6)))
-        assert last_err is not None
-        raise last_err
-    except Exception:
+                hinted = ttfautohint(**common, symbol=True)
+            except TAError as exc:
+                raise RuntimeError(f"ttfautohint failed for {path}: {exc}") from exc
+
+        if not hinted:
+            raise RuntimeError(f"ttfautohint produced empty output for {path}")
+
+        out_dir = os.path.dirname(os.path.abspath(path)) or "."
+        fd, tmp_path = tempfile.mkstemp(suffix=".ttf", dir=out_dir)
         try:
-            os.remove(tmp_path)
-        except OSError:
-            pass
+            with os.fdopen(fd, "wb") as f:
+                f.write(hinted)
+            last_err: BaseException | None = None
+            for attempt in range(8):
+                try:
+                    os.replace(tmp_path, path)
+                    return True
+                except OSError as exc:
+                    last_err = exc
+                    time.sleep(0.05 * (2 ** min(attempt, 6)))
+            assert last_err is not None
+            raise last_err
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            raise
+    except Exception as exc:
+        if soft:
+            print(
+                f"  [!] ttfautohint failed for {os.path.basename(path)}: {exc} "
+                f"— continuing unhinted",
+                flush=True,
+            )
+            return False
         raise
 
 

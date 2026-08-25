@@ -186,17 +186,18 @@ def _inject_vs(
         inject_slice_marks(glyph_order, glyphs, metrics, cmap)
 
 
-def install_yi_gsub(
+def install_yi_orientation_gsub(
     font,
     yi_bases: Sequence[str],
     glyphs: Dict,
-    glyph_order: Sequence[str],
-    *,
-    slices: bool = True,
-) -> None:
-    """Install orientation VS ligas; optionally FE00/FE08–F slice ligas."""
+) -> int:
+    """Install `yi + FE01..FE07` → oriented-form ligatures.
+
+    Must run on every Yi segment face (not only ``h``): CSS stack order prefers
+    ``q``/``qv``/``qh``/``t``, and orientation+slice must shape in one font.
+    """
     if not yi_bases:
-        return
+        return 0
 
     from fontTools.otlLib.builder import buildLigatureSubstSubtable
     from fontTools.ttLib import newTable
@@ -209,66 +210,129 @@ def install_yi_gsub(
         for vs_cp, _r, _fx, _fy, suffix in YI_ORIENTATION_MODES:
             if suffix is None:
                 continue
-            standalone_map[(yi, vs_glyph_name(vs_cp))] = variant_glyph_name(yi, suffix)
+            sel = vs_glyph_name(vs_cp)
+            out = variant_glyph_name(yi, suffix)
+            if sel not in glyphs or out not in glyphs:
+                continue
+            standalone_map[(yi, sel)] = out
+    if not standalone_map:
+        return 0
 
-    lookups: List = []
-    if standalone_map:
-        # Chunk ligatures to keep each subtable under Offset16 limits.
-        items = list(standalone_map.items())
-        chunk = 2048
-        subs = [
-            buildLigatureSubstSubtable(dict(items[i : i + chunk]))
-            for i in range(0, len(items), chunk)
-        ]
-        lookups.append(build_ext_gsub_lookup(subs))
+    items = list(standalone_map.items())
+    chunk = 2048
+    lookups = [
+        build_ext_gsub_lookup(
+            [
+                buildLigatureSubstSubtable(dict(items[i : i + chunk]))
+                for i in range(0, len(items), chunk)
+            ]
+        )
+    ]
 
-    def _langsys() -> ot.DefaultLangSys:
+    def _langsys(n_feat: int) -> ot.DefaultLangSys:
         ls = ot.DefaultLangSys()
         ls.ReqFeatureIndex = 0xFFFF
-        ls.FeatureCount = len(COMPOSITION_FEATURE_TAGS)
-        ls.FeatureIndex = list(range(len(COMPOSITION_FEATURE_TAGS)))
+        ls.FeatureCount = n_feat
+        ls.FeatureIndex = list(range(n_feat))
         return ls
 
-    script_tags: List[str] = []
-    for line in COMPOSITION_LANGUAGE_SYSTEMS:
-        parts = line.replace(";", "").split()
-        if len(parts) >= 2 and parts[0] == "languagesystem":
-            script_tags.append(parts[1].ljust(4)[:4])
+    if "GSUB" not in font:
+        script_tags: List[str] = []
+        for line in COMPOSITION_LANGUAGE_SYSTEMS:
+            parts = line.replace(";", "").split()
+            if len(parts) >= 2 and parts[0] == "languagesystem":
+                script_tags.append(parts[1].ljust(4)[:4])
 
-    gsub = ot.GSUB()
-    gsub.Version = 0x00010000
-    gsub.ScriptList = ot.ScriptList()
-    gsub.ScriptList.ScriptRecord = []
-    for tag in script_tags:
-        rec = ot.ScriptRecord()
-        rec.ScriptTag = tag
-        rec.Script = ot.Script()
-        rec.Script.DefaultLangSys = _langsys()
-        rec.Script.LangSysCount = 0
-        rec.Script.LangSysRecord = []
-        gsub.ScriptList.ScriptRecord.append(rec)
-    gsub.ScriptList.ScriptCount = len(script_tags)
+        gsub = ot.GSUB()
+        gsub.Version = 0x00010000
+        gsub.ScriptList = ot.ScriptList()
+        gsub.ScriptList.ScriptRecord = []
+        n_feat = len(COMPOSITION_FEATURE_TAGS)
+        for tag in script_tags:
+            rec = ot.ScriptRecord()
+            rec.ScriptTag = tag
+            rec.Script = ot.Script()
+            rec.Script.DefaultLangSys = _langsys(n_feat)
+            rec.Script.LangSysCount = 0
+            rec.Script.LangSysRecord = []
+            gsub.ScriptList.ScriptRecord.append(rec)
+        gsub.ScriptList.ScriptCount = len(script_tags)
 
-    feature_indices = list(range(len(lookups)))
-    gsub.FeatureList = ot.FeatureList()
-    gsub.FeatureList.FeatureRecord = []
+        feature_indices = list(range(len(lookups)))
+        gsub.FeatureList = ot.FeatureList()
+        gsub.FeatureList.FeatureRecord = []
+        for tag in COMPOSITION_FEATURE_TAGS:
+            fr = ot.FeatureRecord()
+            fr.FeatureTag = tag
+            fr.Feature = ot.Feature()
+            fr.Feature.FeatureParams = None
+            fr.Feature.LookupCount = len(feature_indices)
+            fr.Feature.LookupListIndex = list(feature_indices)
+            gsub.FeatureList.FeatureRecord.append(fr)
+        gsub.FeatureList.FeatureCount = len(COMPOSITION_FEATURE_TAGS)
+
+        gsub.LookupList = ot.LookupList()
+        gsub.LookupList.Lookup = lookups
+        gsub.LookupList.LookupCount = len(lookups)
+
+        table = newTable("GSUB")
+        table.table = gsub
+        font["GSUB"] = table
+        return len(lookups)
+
+    # Prepend onto an existing GSUB so orientation runs before slice ligas.
+    gsub = font["GSUB"].table
+    if gsub.LookupList is None:
+        gsub.LookupList = ot.LookupList()
+        gsub.LookupList.Lookup = []
+        gsub.LookupList.LookupCount = 0
+    n_new = len(lookups)
+    for fr in gsub.FeatureList.FeatureRecord or []:
+        fr.Feature.LookupListIndex = [
+            i + n_new for i in fr.Feature.LookupListIndex
+        ]
+        fr.Feature.LookupListIndex = list(range(n_new)) + list(
+            fr.Feature.LookupListIndex
+        )
+        fr.Feature.LookupCount = len(fr.Feature.LookupListIndex)
+    gsub.LookupList.Lookup[0:0] = lookups
+    gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
+
+    tag_to_fr = {fr.FeatureTag: fr for fr in (gsub.FeatureList.FeatureRecord or [])}
     for tag in COMPOSITION_FEATURE_TAGS:
+        if tag in tag_to_fr:
+            continue
         fr = ot.FeatureRecord()
         fr.FeatureTag = tag
         fr.Feature = ot.Feature()
         fr.Feature.FeatureParams = None
-        fr.Feature.LookupCount = len(feature_indices)
-        fr.Feature.LookupListIndex = list(feature_indices)
+        fr.Feature.LookupListIndex = list(range(n_new))
+        fr.Feature.LookupCount = n_new
         gsub.FeatureList.FeatureRecord.append(fr)
-    gsub.FeatureList.FeatureCount = len(COMPOSITION_FEATURE_TAGS)
+        gsub.FeatureList.FeatureCount = len(gsub.FeatureList.FeatureRecord)
+        fi = gsub.FeatureList.FeatureCount - 1
+        for sr in gsub.ScriptList.ScriptRecord:
+            ls = sr.Script.DefaultLangSys
+            if ls is None:
+                continue
+            ls.FeatureIndex.append(fi)
+            ls.FeatureCount = len(ls.FeatureIndex)
+    return n_new
 
-    gsub.LookupList = ot.LookupList()
-    gsub.LookupList.Lookup = lookups
-    gsub.LookupList.LookupCount = len(lookups)
 
-    table = newTable("GSUB")
-    table.table = gsub
-    font["GSUB"] = table
+def install_yi_gsub(
+    font,
+    yi_bases: Sequence[str],
+    glyphs: Dict,
+    glyph_order: Sequence[str],
+    *,
+    slices: bool = True,
+) -> None:
+    """Install orientation VS ligas; optionally FE00/FE08–F slice ligas."""
+    if not yi_bases:
+        return
+
+    install_yi_orientation_gsub(font, yi_bases, glyphs)
 
     full_forms: List[str] = []
     for yi in yi_bases:
@@ -377,6 +441,10 @@ def _save_yi_segment_face(
         achVendID="pYi ",
     )
     fb.setupPost()
+    # FE01–FE07 must live on every segment face: stack order prefers q/qv/qh/t
+    # over h, and cross-font shaping cannot apply orientation then overlay.
+    print(f"  Compiling GSUB (Yi FE01–FE07 orientations)...", flush=True)
+    install_yi_orientation_gsub(fb.font, bases, glyphs)
     slice_forms = oriented_forms(bases, glyphs) if variant == "q" else []
     print(f"  Compiling GSUB ({variant} segment VS)...", flush=True)
     install_segment_face_gsub(
@@ -1055,13 +1123,13 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 YI_BASE_FE = set(range(0xFE01, 0xFE08))
 YI_H_FE = set(range(0xFE00, 0xFE10))
+YI_ORIENT_FE = set(range(0xFE01, 0xFE08))
 YI_PUA_SELECTORS = set(range(0xE000, 0xE011))
 YI_T_VS = {0xFE00} | set(range(0xE0100, 0xE010A))
 YI_QV_VS = {0xFE00, 0xFE08, 0xFE09} | set(range(0xE010A, 0xE0111))
 YI_QH_VS = {0xFE00, 0xFE0A, 0xFE0B} | set(range(0xE0111, 0xE0118))
-YI_Q_VS = (
-    {0xFE00} | set(range(0xFE08, 0xFE10)) | set(range(0xE0118, 0xE0120))
-)
+# Grid VS only — do not claim FE08–FE0F (those are h / qv / qh half bands).
+YI_Q_VS = {0xFE00} | set(range(0xE0118, 0xE0120))
 
 
 def _css_cps_for_yi_face(
@@ -1072,6 +1140,10 @@ def _css_cps_for_yi_face(
         for cp in codepoints
         if cp not in YI_PUA_SELECTORS and not (0xFE00 <= cp <= 0xFE0F)
     }
+    # Every segment face must claim FE01–FE07 so orientation+slice stay one font
+    # (stack order prefers q/qv/qh/t over h).
+    if variant in ("h", "t", "q", "qv", "qh"):
+        cps |= YI_ORIENT_FE
     if variant == "h":
         cps |= YI_H_FE
     elif variant == "t":
@@ -1159,20 +1231,23 @@ def write_css(out_dir: str, built: Sequence[Tuple[str, str, int, List[int]]]) ->
         f.write("\n".join(lines))
     print(f"Wrote {css_path}")
 
-    has_seg = any(v in SEGMENT_FACE_CSS_ORDER[:-1] for _fid, v, _n, _cps in built)
+    from edenia_names import SEGMENT_FACE_STACK_ORDER
+
     has_base = any(v == "" for _fid, v, _n, _cps in built)
     stack_parts: List[str] = []
-    if has_seg:
-        for v in SEGMENT_FACE_CSS_ORDER:
-            if v and any(fv == v for _fid, fv, _n, _cps in built):
-                stack_parts.append(f"'{family_yi_variant(v)}'")
-    if has_base:
+    for v in SEGMENT_FACE_STACK_ORDER:
+        if v and any(fv == v for _fid, fv, _n, _cps in built):
+            stack_parts.append(f"'{family_yi_variant(v)}'")
+        elif not v and has_base:
+            stack_parts.append(f"'{family_yi_variant('')}'")
+    if not stack_parts and has_base:
         stack_parts.append(f"'{family_yi_variant('')}'")
     stack = ", ".join(stack_parts) or f"'{FAMILY_NAME}'"
     fontlist_path = os.path.join(out_dir, f"{PS_NAME}-fontlist.css")
     with open(fontlist_path, "w", encoding="utf-8") as f:
         f.write(
-            "/* Yi font families (h = slices; base = D4 + dakuten) */\n"
+            "/* Default stack is h+base only (one face per digraph). "
+            "Pin edenia yi t/q/qv/qh for those modes. */\n"
             f":root {{\n  --font-edenia-yi: {stack};\n}}\n"
         )
     print(f"Wrote {fontlist_path}")

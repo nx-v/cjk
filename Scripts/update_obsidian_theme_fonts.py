@@ -57,7 +57,7 @@ from edenia_names import (
     PLUGIN_DIR_NAME,
     PLUGIN_DISPLAY_NAME,
     PLUGIN_ID,
-    SEGMENT_FACE_CSS_ORDER,
+    SEGMENT_FACE_STACK_ORDER,
     family_kana_variant,
     family_yi_variant,
 )
@@ -226,16 +226,16 @@ _SCRIPT_UNICODE_RANGE = {
     FAMILY_HANGULS: "U+AC00-D7A3, U+3130-318F",
     FAMILY_YI: f"{_YI_SCRIPT}, U+FE01-FE07",
     FAMILY_YI_H: f"{_YI_SCRIPT}, U+FE00-FE0F",
-    family_yi_variant("t"): f"{_YI_SCRIPT}, U+FE00, U+E0100-E0109",
-    family_yi_variant("qv"): f"{_YI_SCRIPT}, U+FE00, U+FE08-FE09, U+E010A-E0110",
-    family_yi_variant("qh"): f"{_YI_SCRIPT}, U+FE00, U+FE0A-FE0B, U+E0111-E0117",
-    family_yi_variant("q"): f"{_YI_SCRIPT}, U+FE00, U+FE08-FE0F, U+E0118-E011F",
+    family_yi_variant("t"): f"{_YI_SCRIPT}, U+FE00-FE07, U+E0100-E0109",
+    family_yi_variant("qv"): f"{_YI_SCRIPT}, U+FE00-FE09, U+E010A-E0110",
+    family_yi_variant("qh"): f"{_YI_SCRIPT}, U+FE00-FE07, U+FE0A-FE0B, U+E0111-E0117",
+    family_yi_variant("q"): f"{_YI_SCRIPT}, U+FE00-FE07, U+E0118-E011F",
     FAMILY_KANA: _KANA_SCRIPT,
     FAMILY_KANA_H: f"{_KANA_SCRIPT}, U+FE00, U+FE08-FE0F",
     family_kana_variant("t"): f"{_KANA_SCRIPT}, U+FE00, U+E0100-E0109",
     family_kana_variant("qv"): f"{_KANA_SCRIPT}, U+FE00, U+FE08-FE09, U+E010A-E0110",
     family_kana_variant("qh"): f"{_KANA_SCRIPT}, U+FE00, U+FE0A-FE0B, U+E0111-E0117",
-    family_kana_variant("q"): f"{_KANA_SCRIPT}, U+FE00, U+FE08-FE0F, U+E0118-E011F",
+    family_kana_variant("q"): f"{_KANA_SCRIPT}, U+FE00, U+E0118-E011F",
 }
 
 _KANA_YI_FAMILIES = frozenset(_SCRIPT_UNICODE_RANGE) - {
@@ -418,9 +418,9 @@ def build_stack_block(*, edenia_cjk_families: list[str]) -> str:
     if not edenia_cjk_families:
         raise ValueError("no edenia cjk families found in CSS")
     kana = ", ".join(
-        f'"{family_kana_variant(v)}"' for v in SEGMENT_FACE_CSS_ORDER
+        f'"{family_kana_variant(v)}"' for v in SEGMENT_FACE_STACK_ORDER
     )
-    yi = ", ".join(f'"{family_yi_variant(v)}"' for v in SEGMENT_FACE_CSS_ORDER)
+    yi = ", ".join(f'"{family_yi_variant(v)}"' for v in SEGMENT_FACE_STACK_ORDER)
     scripts = f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", {kana}, {yi}'
     cjk = ", ".join(css_family_token(n) for n in edenia_cjk_families)
     fallbacks = "FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2"
@@ -428,8 +428,9 @@ def build_stack_block(*, edenia_cjk_families: list[str]) -> str:
     return "\n".join(
         [
             MARK_STACK_BEGIN,
-            "/* Hangul/Kana/Yi before CJK; segment faces (q/qv/qh/t/h) before base.",
-            "   unicode-range keeps FE* / VS on the right face. CJK lists FE00-FE0F. */",
+            "/* Hangul/Kana/Yi before CJK. Default kana/yi stack is h+base only",
+            "   (one face per digraph — multi-face stacks overlay full glyphs).",
+            "   Pin edenia kana/yi t|q|qv|qh for those modes. CJK lists FE00-FE0F. */",
             "body {",
             f"  --font-text-theme: {stack};",
             f"  --font-interface-theme: {stack};",

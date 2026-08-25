@@ -69,7 +69,7 @@ from yi_slice import (
 from shared_half_cells import OV_SELECTOR_CP, YI_ORIENTATION_MODES
 from shared_third_cells import THIRD_VS_SLOTS
 from shared_quarter_cells import QUARTER_VS_SLOTS_H, QUARTER_VS_SLOTS_V
-from edenia_names import SEGMENT_FACE_CSS_ORDER, family_kana_variant
+from edenia_names import SEGMENT_FACE_STACK_ORDER, family_kana_variant
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "kana", "all-kana.html")
@@ -81,93 +81,128 @@ ORIENT_LABEL = [
     for _vs, _r, _fx, _fy, suffix in YI_ORIENTATION_MODES
 ]
 
+# Default stack is h+base. Slice modes pin a single face (see mode["face"]).
 KANA_FONT_STACK = ", ".join(
-    f"'{family_kana_variant(v)}'" for v in SEGMENT_FACE_CSS_ORDER
+    f"'{family_kana_variant(v)}'" for v in SEGMENT_FACE_STACK_ORDER
 )
+KANA_FACE_FAMILY = {
+    v: family_kana_variant(v) for v in ("", "h", "t", "q", "qv", "qh")
+}
 
 
 def _vs_by_suffix(slots) -> dict:
     return {suf: cp for cp, _sel, suf, *_rest in slots}
 
 
-def _slice_mode(id_: str, a: int | None, b: int | None, label: str) -> dict:
-    return {"id": id_, "a": a, "b": b, "label": label}
+def _slice_mode(
+    id_: str, parts: list[int | None], label: str, *, face: str = "h"
+) -> dict:
+    cps = [p for p in parts if p is not None]
+    return {
+        "id": id_,
+        "face": face,
+        "parts": cps,
+        "a": cps[0] if len(cps) > 0 else None,
+        "b": cps[1] if len(cps) > 1 else None,
+        "c": cps[2] if len(cps) > 2 else None,
+        "d": cps[3] if len(cps) > 3 else None,
+        "arity": len(cps),
+        "label": label,
+    }
 
 
-def _pair_modes(
+def _cover_modes(
     *,
     prefix: str,
-    pairs: list[tuple[str, str]],
+    covers: list[tuple[str, ...]],
     by_suf: dict,
 ) -> list[dict]:
     out: list[dict] = []
-    for a_suf, b_suf in pairs:
-        a_cp, b_cp = by_suf[a_suf], by_suf[b_suf]
+    for sufs in covers:
+        cps = [by_suf[s] for s in sufs]
+        bits: list[str] = []
+        for i, cp in enumerate(cps):
+            bits.append(f"U+{cp:X}")
+            if i < len(cps) - 1:
+                bits.append("FE00")
         out.append(
             _slice_mode(
-                f"{prefix}:{a_suf}+{b_suf}",
-                a_cp,
-                b_cp,
-                f"{prefix} {a_suf}/{b_suf} "
-                f"(U+{a_cp:X} FE00 / U+{b_cp:X})",
+                f"{prefix}:{('+'.join(sufs))}",
+                cps,
+                f"{prefix} {'/'.join(sufs)} ({' '.join(bits)})",
+                face=prefix,
             )
         )
     return out
 
 
+_T_BY = _vs_by_suffix(THIRD_VS_SLOTS)
+_QV_BY = _vs_by_suffix(QUARTER_VS_SLOTS_V)
+_QH_BY = _vs_by_suffix(QUARTER_VS_SLOTS_H)
+
 SLICE_MODES: list[dict] = [
-    _slice_mode("none", None, None, "none"),
+    _slice_mode("none", [], "none", face=""),
     _slice_mode(
         "TB",
-        SLICE_TOP_CP,
-        SLICE_BOT_CP,
+        [SLICE_TOP_CP, SLICE_BOT_CP],
         "h FE08 FE00 / FE09 (top+bot)",
+        face="h",
     ),
     _slice_mode(
         "LR",
-        SLICE_LEFT_CP,
-        SLICE_RIGHT_CP,
+        [SLICE_LEFT_CP, SLICE_RIGHT_CP],
         "h FE0A FE00 / FE0B (left+right)",
+        face="h",
     ),
     _slice_mode(
         "TLBR",
-        SLICE_TL_CP,
-        SLICE_BR_CP,
+        [SLICE_TL_CP, SLICE_BR_CP],
         "h FE0C FE00 / FE0D (tl+br Δ)",
+        face="h",
     ),
     _slice_mode(
         "TRBL",
-        SLICE_TR_CP,
-        SLICE_BL_CP,
+        [SLICE_TR_CP, SLICE_BL_CP],
         "h FE0E FE00 / FE0F (tr+bl Δ)",
+        face="h",
     ),
-    *_pair_modes(
+    *_cover_modes(
         prefix="t",
-        pairs=[
+        covers=[
             ("t3t", "t3mb"),
             ("t3tm", "t3b"),
             ("t3l", "t3cr"),
             ("t3lc", "t3r"),
+            ("t3t", "t3m", "t3b"),
+            ("t3l", "t3c", "t3r"),
         ],
-        by_suf=_vs_by_suffix(THIRD_VS_SLOTS),
+        by_suf=_T_BY,
     ),
-    *_pair_modes(
+    *_cover_modes(
         prefix="qv",
-        pairs=[
+        covers=[
             ("q4th", "q4bh"),
             ("q4t", "q4b3"),
             ("q4t3", "q4b"),
+            ("q4th", "q4nb", "q4b"),
+            ("q4bh", "q4t", "q4nt"),
+            ("q4t", "q4mh", "q4b"),
+            ("q4t", "q4nt", "q4nb", "q4b"),
         ],
-        by_suf=_vs_by_suffix(QUARTER_VS_SLOTS_V),
+        by_suf=_QV_BY,
     ),
-    *_pair_modes(
+    *_cover_modes(
         prefix="qh",
-        pairs=[
+        covers=[
             ("q4lh", "q4rh"),
             ("q4l", "q4r3"),
             ("q4l3", "q4r"),
+            ("q4lh", "q4nr", "q4r"),
+            ("q4rh", "q4l", "q4nl"),
+            ("q4l", "q4mc", "q4r"),
+            ("q4l", "q4nl", "q4nr", "q4r"),
         ],
-        by_suf=_vs_by_suffix(QUARTER_VS_SLOTS_H),
+        by_suf=_QH_BY,
     ),
 ]
 
@@ -274,6 +309,8 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
         "MARKS": marks,
         "ORIENT_LABEL": ORIENT_LABEL,
         "SLICE_MODES": SLICE_MODES,
+        "FACE_FAMILY": KANA_FACE_FAMILY,
+        "FONT_STACK": KANA_FONT_STACK,
         "OV": OV_SELECTOR_CP,
         "CONSONANTS": [c or "∅" for c in CONSONANTS],
         "ROW_LABELS": row_labels,
@@ -390,6 +427,18 @@ h2 {{
   <label>B orientation
     <select id="orientB"></select>
   </label>
+  <label>Kana C
+    <select id="selC"></select>
+  </label>
+  <label>C orientation
+    <select id="orientC"></select>
+  </label>
+  <label>Kana D
+    <select id="selD"></select>
+  </label>
+  <label>D orientation
+    <select id="orientD"></select>
+  </label>
   <label>Size
     <select id="sizeMode">
       <option value="full">full (even)</option>
@@ -418,9 +467,9 @@ h2 {{
   <button type="button" id="btnChart">Chart grid (selected orient)</button>
   <button type="button" id="btnOrientA">All orientations of A</button>
   <button type="button" id="btnAllOrient">All orientations (all kana)</button>
-  <button type="button" id="btnSlice">Render slice A×B</button>
+  <button type="button" id="btnSlice">Render slice A×B×C×D</button>
   <button type="button" id="btnSlicesForA">All B slices for A</button>
-  <button type="button" id="btnSliceOrientGrid">A×B all orients (slice)</button>
+  <button type="button" id="btnSliceOrientGrid">A×B all orients (2-way)</button>
   <button type="button" id="btnEverything" class="danger">Render everything</button>
 </div>
 <div id="status"></div>
@@ -433,8 +482,12 @@ let out = document.getElementById('out');
 let status = document.getElementById('status');
 let selA = document.getElementById('selA');
 let selB = document.getElementById('selB');
+let selC = document.getElementById('selC');
+let selD = document.getElementById('selD');
 let orientA = document.getElementById('orientA');
 let orientB = document.getElementById('orientB');
+let orientC = document.getElementById('orientC');
+let orientD = document.getElementById('orientD');
 let sliceMode = document.getElementById('sliceMode');
 let sizeMode = document.getElementById('sizeMode');
 let pickMark = document.getElementById('pickMark');
@@ -460,7 +513,7 @@ function fillSlice() {{
   DATA.SLICE_MODES.forEach((m, i) => {{
     let o = document.createElement('option');
     o.value = String(i);
-    o.textContent = m.label;
+    o.textContent = (m.arity ? m.arity + '-way · ' : '') + m.label;
     sliceMode.appendChild(o);
   }});
 }}
@@ -480,14 +533,22 @@ function fillMarks() {{
 }}
 fillKanaSelect(selA);
 fillKanaSelect(selB);
+fillKanaSelect(selC);
+fillKanaSelect(selD);
 fillOrient(orientA);
 fillOrient(orientB);
+fillOrient(orientC);
+fillOrient(orientD);
 fillSlice();
 fillMarks();
 selA.value = '0';
 selB.value = '1';
+selC.value = '2';
+selD.value = '3';
 orientA.value = '0';
 orientB.value = '0';
+orientC.value = '0';
+orientD.value = '0';
 sliceMode.value = '1';
 pickMark.value = '0';
 sizeMode.value = 'full';
@@ -540,6 +601,16 @@ function markTag() {{
 function currentSlice() {{
   return DATA.SLICE_MODES[+sliceMode.value] || DATA.SLICE_MODES[0];
 }}
+function faceFamily(face) {{
+  if (face == null || face === '') return DATA.FONT_STACK;
+  let fam = (DATA.FACE_FAMILY && DATA.FACE_FAMILY[face]) || null;
+  if (!fam) return DATA.FONT_STACK;
+  let base = (DATA.FACE_FAMILY && DATA.FACE_FAMILY['']) || 'edenia kana';
+  return "'" + fam + "', '" + base + "'";
+}}
+function applySliceFace(mode) {{
+  out.style.fontFamily = faceFamily(mode && mode.face) + ', sans-serif';
+}}
 function cell(text, tag) {{
   let d = document.createElement('div');
   d.className = 'cell';
@@ -569,6 +640,7 @@ function chartIdx(r, c) {{
 
 function renderChart(orientIdx) {{
   clearOut();
+  applySliceFace({{face: ''}});
   let sz = sizeKind();
   out.appendChild(heading('Chart · ' + DATA.ORIENT_LABEL[orientIdx] + ' · ' + sz
     + (document.getElementById('wantMarks').checked ? ' + dakuten' : '')));
@@ -598,6 +670,7 @@ function renderChart(orientIdx) {{
 
 function renderOrientations(indices) {{
   clearOut();
+  applySliceFace({{face: 'h'}});
   let sz = sizeKind();
   out.appendChild(heading('Orientations (PUA D4) · ' + sz
     + (document.getElementById('wantMarks').checked ? ' + dakuten' : '')));
@@ -616,35 +689,59 @@ function renderOrientations(indices) {{
 function cpTag(cp) {{
   return 'U+' + cp.toString(16).toUpperCase();
 }}
-function sliceText(ai, ao, bi, bo, mode) {{
-  let text = kanaChar(ai, ao);
-  let tag = tagFor(ai, ao);
-  if (mode.a != null) {{
-    text += String.fromCodePoint(mode.a) + String.fromCodePoint(DATA.OV);
-    tag += '+' + cpTag(mode.a) + '+FE00';
+function selectedSlots() {{
+  return {{
+    idx: [+selA.value, +selB.value, +selC.value, +selD.value],
+    orient: [+orientA.value, +orientB.value, +orientC.value, +orientD.value],
+  }};
+}}
+function sliceText(indices, orients, mode) {{
+  let parts = mode.parts || [];
+  if (!parts.length && mode.a != null) {{
+    parts = [mode.a, mode.b].filter(p => p != null);
   }}
-  text += kanaChar(bi, bo);
-  tag += '+' + tagFor(bi, bo);
-  if (mode.b != null) {{
-    text += String.fromCodePoint(mode.b);
-    tag += '+' + cpTag(mode.b);
+  let text = '';
+  let tag = '';
+  if (!parts.length) {{
+    text = kanaChar(indices[0], orients[0]);
+    tag = tagFor(indices[0], orients[0]);
+  }} else {{
+    for (let i = 0; i < parts.length; i++) {{
+      if (i) tag += '+';
+      text += kanaChar(indices[i], orients[i]);
+      tag += tagFor(indices[i], orients[i]);
+      text += String.fromCodePoint(parts[i]);
+      tag += '+' + cpTag(parts[i]);
+      if (i < parts.length - 1) {{
+        text += String.fromCodePoint(DATA.OV);
+        tag += '+FE00';
+      }}
+    }}
   }}
   text += markSuffix();
   tag += markTag();
   return {{text, tag}};
 }}
 
-function renderSlice(ai, ao, bi, bo) {{
+function renderSlice() {{
   clearOut();
   let mode = currentSlice();
+  applySliceFace(mode);
+  let slots = selectedSlots();
   out.appendChild(heading('Slice: ' + mode.label));
-  let one = sliceText(ai, ao, bi, bo, mode);
+  let one = sliceText(slots.idx, slots.orient, mode);
   out.appendChild(cell(one.text, one.tag));
+  let arity = mode.arity || (mode.parts ? mode.parts.length : 2);
+  if (arity !== 2) {{
+    setStatus('Rendered ' + arity + '-way slice (orient grid is 2-way only)');
+    return;
+  }}
   out.appendChild(heading('Same pair · all orientation combos'));
   let n = 0;
+  let ai = slots.idx[0], bi = slots.idx[1];
   for (let oa = 0; oa < DATA.ORIENT_LABEL.length; oa++) {{
     for (let ob = 0; ob < DATA.ORIENT_LABEL.length; ob++) {{
-      let s = sliceText(ai, oa, bi, ob, mode);
+      let s = sliceText([ai, bi], [oa, ob], mode);
       out.appendChild(cell(s.text, s.tag));
       n++;
     }}
@@ -652,17 +749,24 @@ function renderSlice(ai, ao, bi, bo) {{
   setStatus('Rendered slice + ' + n + ' orientation combos');
 }}
 
-function renderSlicesForA(ai, ao) {{
+function renderSlicesForA() {{
   clearOut();
   let mode = currentSlice();
-  if (mode.a == null) {{
+  applySliceFace(mode);
+  let slots = selectedSlots();
+  if (!(mode.parts && mode.parts.length) && mode.a == null) {{
     setStatus('Pick a slice mode first');
     return;
   }}
+  let ai = slots.idx[0], ao = slots.orient[0];
   out.appendChild(heading('A=' + tagFor(ai, ao) + ' × every B · ' + mode.label));
   let n = 0;
   for (let bi = 0; bi < DATA.KANA.length; bi++) {{
-    let s = sliceText(ai, ao, bi, 0, mode);
+    let idx = slots.idx.slice();
+    let ori = slots.orient.slice();
+    idx[1] = bi;
+    ori[1] = 0;
+    let s = sliceText(idx, ori, mode);
     out.appendChild(cell(s.text, s.tag));
     n++;
   }}
@@ -675,9 +779,7 @@ function renderEverything() {{
   let n = 0;
   let ms = markSuffix();
   let mt = markTag();
-  renderChart(0);
-  // renderChart clears; rebuild manually for everything path
-  clearOut();
+  applySliceFace({{face: ''}});
   out.appendChild(heading('Chart · id · ' + sizeKind()));
   let grid = document.createElement('div');
   grid.className = 'chart';
@@ -699,6 +801,7 @@ function renderEverything() {{
     }}
   }}
   out.appendChild(grid);
+  applySliceFace({{face: 'h'}});
   out.appendChild(heading('All orientations'));
   for (let i = 0; i < DATA.KANA.length; i++) {{
     for (let o = 0; o < DATA.ORIENT_LABEL.length; o++) {{
@@ -707,11 +810,13 @@ function renderEverything() {{
     }}
   }}
   for (let mode of DATA.SLICE_MODES) {{
-    if (mode.a == null) continue;
+    if (!(mode.parts && mode.parts.length)) continue;
+    if ((mode.arity || mode.parts.length) !== 2) continue;
+    applySliceFace(mode);
     out.appendChild(heading('All pairwise ' + mode.label + ' (identity×identity)'));
     for (let ai = 0; ai < DATA.KANA.length; ai++) {{
       for (let bi = 0; bi < DATA.KANA.length; bi++) {{
-        let s = sliceText(ai, 0, bi, 0, mode);
+        let s = sliceText([ai, bi], [0, 0], mode);
         out.appendChild(cell(s.text, s.tag));
         n++;
       }}
@@ -726,12 +831,9 @@ document.getElementById('btnOrientA').onclick = () =>
   renderOrientations([+selA.value]);
 document.getElementById('btnAllOrient').onclick = () =>
   renderOrientations(DATA.KANA.map((_, i) => i));
-document.getElementById('btnSlice').onclick = () =>
-  renderSlice(+selA.value, +orientA.value, +selB.value, +orientB.value);
-document.getElementById('btnSliceOrientGrid').onclick = () =>
-  renderSlice(+selA.value, +orientA.value, +selB.value, +orientB.value);
-document.getElementById('btnSlicesForA').onclick = () =>
-  renderSlicesForA(+selA.value, +orientA.value);
+document.getElementById('btnSlice').onclick = () => renderSlice();
+document.getElementById('btnSliceOrientGrid').onclick = () => renderSlice();
+document.getElementById('btnSlicesForA').onclick = () => renderSlicesForA();
 document.getElementById('btnEverything').onclick = renderEverything;
 
 renderChart(0);

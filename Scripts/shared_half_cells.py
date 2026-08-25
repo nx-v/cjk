@@ -1323,9 +1323,7 @@ def rebuild_sideways_from_r90(
     cell_mid = pivot if pivot is not None else ideographic_center(target_upem)
     use_modes = modes if modes is not None else TRANSFORM_MODES
     wanted = {
-        suffix
-        for _vs, _r, _fx, _fy, suffix in use_modes
-        if suffix in SIDEWAYS_FROM_R90
+        suffix for _vs, _r, _fx, _fy, suffix in use_modes if suffix in SIDEWAYS_FROM_R90
     }
     for suffix in wanted:
         m_name = variant_glyph_name(base_name, suffix)
@@ -1473,9 +1471,7 @@ def inject_slice_selectors(
 TTF_GLYPH_LIMIT = 65535
 
 
-def close_component_names(
-    keep: Set[str], glyphs: Dict[str, TTGlyph]
-) -> Set[str]:
+def close_component_names(keep: Set[str], glyphs: Dict[str, TTGlyph]) -> Set[str]:
     """Expand `keep` with TrueType composite component names."""
     stack = list(keep)
     out = set(keep)
@@ -2271,7 +2267,7 @@ def _pathops_strip_artefacts(path, *, upem: int = DEFAULT_UPEM):
             d2 = dx * dx + dy * dy
             if d2 > longest:
                 longest = d2
-        if longest ** 0.5 > max_edge:
+        if longest**0.5 > max_edge:
             continue
         for verb, vpts in verbs:
             if verb == pathops.PathVerb.MOVE:
@@ -2345,7 +2341,7 @@ def heal_sliced_glyph(
 ) -> TTGlyph:
     """Heal geometry around a slice cut (before + after pipeline).
 
-    Before: decompose → spike/snap → strip crumbs → safe winding simplify  
+    Before: decompose → spike/snap → strip crumbs → safe winding simplify
     After:  strip → heal joins → safe simplify → strip → final snap
     """
     if glyph is None:
@@ -3051,9 +3047,7 @@ def fit_glyph_to_ideographic_cell(
     rec = _recording_from_glyph(src, None)
     out = apply_transform(rec, t)
     if abs(s - 1.0) >= 1e-3:
-        out, adv, _ = compensate_stems_after_geometric_scale(
-            out, adv, scale_x=s
-        )
+        out, adv, _ = compensate_stems_after_geometric_scale(out, adv, scale_x=s)
 
     # Source-Y shrink can still clip a low/high glyph; nudge into the cell.
     if align_y == "source":
@@ -3340,9 +3334,7 @@ def grow_undersize_to_average_ideo(
         return src, adv, lsb
 
     src = _uniform_scale_about_ink_center(src, s)
-    src, adv, lsb = compensate_stems_after_geometric_scale(
-        src, adv, scale_x=s
-    )
+    src, adv, lsb = compensate_stems_after_geometric_scale(src, adv, scale_x=s)
     return src, adv, lsb
 
 
@@ -3411,9 +3403,7 @@ def cap_oversize_bbox_area(
     if s >= 1.0 - 1e-3:
         return src, adv, lsb
     src = _uniform_scale_about_ink_center(src, s)
-    src, adv, lsb = compensate_stems_after_geometric_scale(
-        src, adv, scale_x=s
-    )
+    src, adv, lsb = compensate_stems_after_geometric_scale(src, adv, scale_x=s)
     return src, adv, lsb
 
 
@@ -3634,9 +3624,8 @@ def square_block_ideo(
     if open_frame:
         return True
     # Curved-outline blocks that still fill the em square.
-    if (
-        sw >= float(avg_width) * full_frac
-        and sh >= float(avg_height) * (full_frac - 0.06)
+    if sw >= float(avg_width) * full_frac and sh >= float(avg_height) * (
+        full_frac - 0.06
     ):
         return True
     return False
@@ -4052,9 +4041,7 @@ def make_standalone_glyph(
             advance=float(target_upem),
             center_x=dst_cx,
         )
-    glyph = _fit_glyph_to_cjk_height(
-        glyph, target_upem, pad=vert_pad, align="center"
-    )
+    glyph = _fit_glyph_to_cjk_height(glyph, target_upem, pad=vert_pad, align="center")
     if abs(horizontal_weight - 1.0) > 1e-9:
         try:
             glyph, _hadv, _hlsb = bolden_horizontal_ttglyph(

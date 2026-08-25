@@ -39,7 +39,12 @@ CSS_CJK = "edenia-cjk.css"
 #   qh   quarter-cells (horizontal / X)
 SEGMENT_FACE_VARIANTS: tuple[str, ...] = ("", "h", "t", "q", "qv", "qh")
 SEGMENT_FACE_BUILD_ORDER: tuple[str, ...] = ("", "h", "q", "qv", "qh", "t")
+# @font-face emission order (each variant is its own family).
 SEGMENT_FACE_CSS_ORDER: tuple[str, ...] = ("q", "qv", "qh", "t", "h", "")
+# Default CSS stack: only one segment face. Shared bases + per-face VS cannot
+# shape across families (Blink picks fonts per codepoint → full-glyph FE00 overlay).
+# Pin `edenia kana t` / `q` / `qv` / `qh` (or yi) when using those digraphs.
+SEGMENT_FACE_STACK_ORDER: tuple[str, ...] = ("h", "")
 
 # CJK: identity/base + half-cell digraphs only.
 CJK_FACE_VARIANTS: tuple[str, ...] = ("", "h")
@@ -342,14 +347,13 @@ def ps_kana(face_id: str) -> str:
     return f"{PS_KANA}-{face_id}"
 
 
-# Stack after Latin: Hangul / Kana / Yi before CJK. Segment faces before base;
-# unicode-range keeps FE* / VS on the right face. CJK contributes only via
-# theme / edenia-cjk.css (base + h), not this tail list.
+# Default stack after Latin: Hangul + kana/yi h+base before CJK. Other segment
+# families are still @font-face'd; pin them for t/q/qv/qh digraphs.
 STACK_CJK_TAIL = (
     f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", '
-    + ", ".join(f'"{family_kana_variant(v)}"' for v in SEGMENT_FACE_CSS_ORDER)
+    + ", ".join(f'"{family_kana_variant(v)}"' for v in SEGMENT_FACE_STACK_ORDER)
     + ", "
-    + ", ".join(f'"{family_yi_variant(v)}"' for v in SEGMENT_FACE_CSS_ORDER)
+    + ", ".join(f'"{family_yi_variant(v)}"' for v in SEGMENT_FACE_STACK_ORDER)
     + ', "FlopDesignFont", "MKanaPlus", "Plangothic P1", "Plangothic P2"'
 )
 

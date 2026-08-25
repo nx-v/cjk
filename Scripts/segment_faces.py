@@ -142,6 +142,14 @@ def subset_tables(
     return order, out_glyphs, out_metrics, out_cmap
 
 
+def _cmap_name_in_base_families(name: str, bases: Sequence[str]) -> bool:
+    """True for identity base or any dotted form (D4 / slice / overlay / small)."""
+    for base in bases:
+        if name == base or name.startswith(base + "."):
+            return True
+    return False
+
+
 def filter_segment_face_cmap(
     variant: str,
     cmap: Dict[int, str],
@@ -149,8 +157,13 @@ def filter_segment_face_cmap(
     *,
     mark_cps: Optional[Sequence[int]] = None,
 ) -> Dict[int, str]:
-    """Drop other faces' VS pages from a shared master cmap."""
-    base_set = set(bases)
+    """Drop other faces' VS pages from a shared master cmap.
+
+    Keeps every codepoint whose glyph belongs to a base family (identity **and**
+    D4 / small / slice / ``.ov`` forms). Stripping oriented PUA broke kana
+    overlays: Blink picked the base face for ``U+E002`` and the ``h`` face for
+    ``FE00``/``FE08``, so GSUB could not ligate across fonts.
+    """
     vs_page = {
         "t": set(range(0xE0100, 0xE010A)),
         "qv": set(range(0xE010A, 0xE0111)),
@@ -174,7 +187,11 @@ def filter_segment_face_cmap(
             fe_ok |= set(MARK_CPS)
     out: Dict[int, str] = {}
     for cp, name in cmap.items():
-        if name in base_set or cp in fe_ok or cp in vs_page:
+        if (
+            _cmap_name_in_base_families(name, bases)
+            or cp in fe_ok
+            or cp in vs_page
+        ):
             out[cp] = name
     return out
 
