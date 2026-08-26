@@ -105,13 +105,14 @@ def ordered_cjk_variants(variants: Iterable[str]) -> tuple[str, ...]:
 
 
 def add_cjk_variant_arguments(parser: argparse.ArgumentParser) -> None:
-    """`--base-only`, `--faces`, and `--h` / `--t` / `--q` / `--qv` / `--qh`.
+    """`--base`, `--faces`, and `--h` / `--t` / `--q` / `--qv` / `--qh`.
 
     CJK resolves only ``base``/``h``; kana/yi accept the full segment set.
     """
     g = parser.add_argument_group("faces")
     g.add_argument(
-        "--base-only",
+        "--base",
+        dest="want_base",
         action="store_true",
         help="Build only identity/base faces (no segment faces)",
     )
@@ -170,12 +171,12 @@ def resolve_kana_yi_variants(args: argparse.Namespace) -> tuple[str, ...]:
         if flag
     ]
     faces = getattr(args, "faces", None)
-    base_only = getattr(args, "base_only", False)
-    if base_only and (faces or extras):
+    want_base = getattr(args, "want_base", False)
+    if want_base and (faces or extras):
         raise ValueError(
-            "--base-only cannot be combined with --faces / --h / --t / --q"
+            "--base cannot be combined with --faces / --h / --t / --q"
         )
-    if base_only:
+    if want_base:
         return ("",)
     if faces:
         if extras:
@@ -207,12 +208,12 @@ def resolve_cjk_variants(args: argparse.Namespace) -> tuple[str, ...]:
         if flag
     ]
     faces = getattr(args, "faces", None)
-    base_only = getattr(args, "base_only", False)
-    if base_only and (faces or extras):
+    want_base = getattr(args, "want_base", False)
+    if want_base and (faces or extras):
         raise ValueError(
-            "--base-only cannot be combined with --faces / --h / --t / --q"
+            "--base cannot be combined with --faces / --h / --t / --q"
         )
-    if base_only:
+    if want_base:
         return ("",)
     if faces:
         if extras:

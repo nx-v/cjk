@@ -1296,7 +1296,7 @@ def build_all(
     print(
         f"  Output: '{FAMILY_NAME}'"
         + (" + pigeonholed 'edenia yi h'" if "h" in variants else "")
-        + (" --base-only" if variants == ("",) or list(variants) == [""] else "")
+        + (" --base" if variants == ("",) or list(variants) == [""] else "")
     )
     fmt_note = (
         "ttf+woff2"

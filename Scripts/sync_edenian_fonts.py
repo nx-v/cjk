@@ -4,7 +4,7 @@ Used by build_cjk / build_hangul / build_yi / build_kana so the Obsidian plugin 
 stays current after each build. Layout matches update_obsidian_theme_fonts
 `sync_woff2(PLUGIN_DIR / PLUGIN_ASSET)`.
 
-CJK `.woff2` copies follow `edenia-cjk.css` (so `--base-only` / `--faces`
+CJK `.woff2` copies follow `edenia-cjk.css` (so `--base` / `--faces`
 do not push unused segment files into the plugin). Yi/kana pigeonholes follow
 their CSS the same way.
 """

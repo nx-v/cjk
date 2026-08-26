@@ -5,12 +5,14 @@ param(
   [switch]$Hangul,
   [switch]$Cjk,
 
-  [switch]$CjkBaseOnly,
+  [switch]$CjkBase,
   [string]$CjkFaces = "",
   [switch]$CjkH,
+  [switch]$KanaBase,
   [switch]$KanaH,
   [switch]$KanaT,
   [switch]$KanaQ,
+  [switch]$YiBase,
   [switch]$YiH,
   [switch]$YiT,
   [switch]$YiQ,
@@ -35,8 +37,8 @@ $doCjk = (-not $anyScript) -or $Cjk
 # No h/t/q flags → builders use their full defaults (CJK base+h; kana/yi all
 # segment faces). Any selective switch limits that script to the named faces.
 $cjkFaceArgs = @()
-if ($CjkBaseOnly) {
-  $cjkFaceArgs += "--base-only"
+if ($CjkBase) {
+  $cjkFaceArgs += "--base"
 } elseif ($CjkFaces) {
   $cjkFaceArgs += @("--faces", $CjkFaces)
 } elseif ($CjkH) {
@@ -47,14 +49,22 @@ foreach ($span in $Range) {
 }
 
 $kanaFaceArgs = @()
-if ($KanaH) { $kanaFaceArgs += "--h" }
-if ($KanaT) { $kanaFaceArgs += "--t" }
-if ($KanaQ) { $kanaFaceArgs += "--q" }
+if ($KanaBase) {
+  $kanaFaceArgs += "--base"
+} else {
+  if ($KanaH) { $kanaFaceArgs += "--h" }
+  if ($KanaT) { $kanaFaceArgs += "--t" }
+  if ($KanaQ) { $kanaFaceArgs += "--q" }
+}
 
 $yiFaceArgs = @()
-if ($YiH) { $yiFaceArgs += "--h" }
-if ($YiT) { $yiFaceArgs += "--t" }
-if ($YiQ) { $yiFaceArgs += "--q" }
+if ($YiBase) {
+  $yiFaceArgs += "--base"
+} else {
+  if ($YiH) { $yiFaceArgs += "--h" }
+  if ($YiT) { $yiFaceArgs += "--t" }
+  if ($YiQ) { $yiFaceArgs += "--q" }
+}
 
 $jobArgs = @("-j", "$Jobs")
 Write-Host "Jobs: $Jobs"
