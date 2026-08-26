@@ -19,8 +19,8 @@ Usage:
   python Scripts/generate_edenian_md.py --lines 64 --seed 1 --out Scripts/dist/Edenian-test.md
   python Scripts/generate_edenian_md.py --sentences 1 3 --phrases 2 5 --words 3 10
   python Scripts/generate_edenian_md.py --kana --kana-h --kana-t
-  python Scripts/generate_edenian_md.py --cjk --cjk-base --lines 32
-  python Scripts/generate_edenian_md.py --yi --yi-base --kana --kana-base
+  python Scripts/generate_edenian_md.py --cjk --cjk-base --cjk-h --lines 32
+  python Scripts/generate_edenian_md.py --yi --yi-base --kana --kana-base --kana-h
 """
 
 from __future__ import annotations
@@ -1499,22 +1499,22 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     faces.add_argument(
         "--cjk-base",
         action="store_true",
-        help="CJK: identity/base only (no half digraphs)",
+        help="CJK: include identity/base (combine with --cjk-h)",
     )
     faces.add_argument(
         "--cjk-faces",
         metavar="LIST",
-        help="CJK: exact comma list base,h (overrides --cjk-h)",
+        help="CJK: exact comma list base,h (overrides --cjk-base/--cjk-h)",
     )
     faces.add_argument(
         "--cjk-h",
         action="store_true",
-        help="CJK: include half-cell digraphs (implies base)",
+        help="CJK: include half-cell digraphs",
     )
     faces.add_argument(
         "--kana-base",
         action="store_true",
-        help="Kana: identity/base only (no slice digraphs)",
+        help="Kana: include identity/base (combine with --kana-h/t/q)",
     )
     faces.add_argument("--kana-h", action="store_true", help="Kana: half / triangle faces")
     faces.add_argument("--kana-t", action="store_true", help="Kana: third-cell faces")
@@ -1522,7 +1522,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     faces.add_argument(
         "--yi-base",
         action="store_true",
-        help="Yi: identity/base only (no slice digraphs)",
+        help="Yi: include identity/base (combine with --yi-h/t/q)",
     )
     faces.add_argument("--yi-h", action="store_true", help="Yi: half / triangle faces")
     faces.add_argument("--yi-t", action="store_true", help="Yi: third-cell faces")
@@ -1538,33 +1538,23 @@ def _resolve_kana_yi_face_flags(
     want_q: bool,
     label: str,
 ) -> frozenset[str]:
-    """Match run.ps1 / resolve_kana_yi_variants: no flags → full default set."""
-    extras = [
+    """Match builders: ``--h --t`` → h+t; ``--base --h --t`` → base+h+t."""
+    selected = [
         v
-        for v, flag in (("h", want_h), ("t", want_t), ("q", want_q))
+        for v, flag in (("", base), ("h", want_h), ("t", want_t), ("q", want_q))
         if flag
     ]
-    if base and extras:
-        raise SystemExit(
-            f"--{label}-base cannot be combined with --{label}-h/t/q"
-        )
-    if base:
-        return frozenset({""})
-    if not extras:
+    if not selected:
         return frozenset(KANA_YI_DEFAULT_VARIANTS)
-    return frozenset(ordered_segment_variants(["", *extras]))
+    return frozenset(ordered_segment_variants(selected))
 
 
 def _resolve_cjk_face_flags(
     *, base: bool, faces: Optional[str], want_h: bool
 ) -> frozenset[str]:
-    if base and (faces or want_h):
-        raise SystemExit("--cjk-base cannot be combined with --cjk-faces / --cjk-h")
-    if base:
-        return frozenset({""})
     if faces:
-        if want_h:
-            raise SystemExit("use either --cjk-faces or --cjk-h, not both")
+        if base or want_h:
+            raise SystemExit("use either --cjk-faces or --cjk-base/--cjk-h, not both")
         got = [
             segment_variant_from_token(p)
             for p in str(faces).split(",")
@@ -1573,9 +1563,10 @@ def _resolve_cjk_face_flags(
         if not got:
             raise SystemExit("--cjk-faces is empty")
         return frozenset(ordered_cjk_variants(got))
-    if want_h:
-        return frozenset(ordered_cjk_variants(["", "h"]))
-    return frozenset(("", "h"))
+    selected = [v for v, flag in (("", base), ("h", want_h)) if flag]
+    if not selected:
+        return frozenset(("", "h"))
+    return frozenset(ordered_cjk_variants(selected))
 
 
 def options_from_args(args: argparse.Namespace) -> GenOptions:

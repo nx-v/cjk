@@ -34,37 +34,31 @@ $doKana = (-not $anyScript) -or $Kana
 $doHangul = (-not $anyScript) -or $Hangul
 $doCjk = (-not $anyScript) -or $Cjk
 
-# No h/t/q flags → builders use their full defaults (CJK base+h; kana/yi all
-# segment faces). Any selective switch limits that script to the named faces.
+# No face flags → builders use their full defaults (CJK base+h; kana/yi all
+# segment faces). Selective switches are additive: -KanaH -KanaT → h+t only;
+# -KanaBase -KanaH -KanaT → base+h+t.
 $cjkFaceArgs = @()
-if ($CjkBase) {
-  $cjkFaceArgs += "--base"
-} elseif ($CjkFaces) {
+if ($CjkFaces) {
   $cjkFaceArgs += @("--faces", $CjkFaces)
-} elseif ($CjkH) {
-  $cjkFaceArgs += "--h"
+} else {
+  if ($CjkBase) { $cjkFaceArgs += "--base" }
+  if ($CjkH) { $cjkFaceArgs += "--h" }
 }
 foreach ($span in $Range) {
   if ($span) { $cjkFaceArgs += @("--range", $span) }
 }
 
 $kanaFaceArgs = @()
-if ($KanaBase) {
-  $kanaFaceArgs += "--base"
-} else {
-  if ($KanaH) { $kanaFaceArgs += "--h" }
-  if ($KanaT) { $kanaFaceArgs += "--t" }
-  if ($KanaQ) { $kanaFaceArgs += "--q" }
-}
+if ($KanaBase) { $kanaFaceArgs += "--base" }
+if ($KanaH) { $kanaFaceArgs += "--h" }
+if ($KanaT) { $kanaFaceArgs += "--t" }
+if ($KanaQ) { $kanaFaceArgs += "--q" }
 
 $yiFaceArgs = @()
-if ($YiBase) {
-  $yiFaceArgs += "--base"
-} else {
-  if ($YiH) { $yiFaceArgs += "--h" }
-  if ($YiT) { $yiFaceArgs += "--t" }
-  if ($YiQ) { $yiFaceArgs += "--q" }
-}
+if ($YiBase) { $yiFaceArgs += "--base" }
+if ($YiH) { $yiFaceArgs += "--h" }
+if ($YiT) { $yiFaceArgs += "--t" }
+if ($YiQ) { $yiFaceArgs += "--q" }
 
 $jobArgs = @("-j", "$Jobs")
 Write-Host "Jobs: $Jobs"
