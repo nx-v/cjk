@@ -9,7 +9,7 @@ Japanese-like clause structure with Edenian role map:
 
 Word kinds:
   • inflected core — 1+ kanji/hangul components (phrasal-verb style); each may
-    take fullwidth kana/yi okurigana (~75%) via prefix / suffix / circumfix / infix
+    take fullwidth kana/yi okurigana (~92%) via prefix / suffix / circumfix / infix
   • kanji·hangul sequence — kanji priority, hangul sporadic
   • particle — short standalone fullwidth kana or yi run
   • halfwidth kana — own sticky run (never okurigana / particles / yi mix)
@@ -79,13 +79,13 @@ WEIGHT_HIRA_LIKE = 40.0
 KANA_SHARE_OF_HIRA_LIKE = 0.88  # kana ≫ yi; scripts never share a run
 YI_SHARE_OF_HIRA_LIKE = 0.12
 
-# Word kinds (phrase atoms)
-WEIGHT_WORD_INFLECTED = 55.0  # kanji/hangul core ± okurigana
-WEIGHT_WORD_SEQUENCE = 25.0  # kanji-priority · hangul-sporadic sequence
-WEIGHT_WORD_PARTICLE = 20.0  # short standalone fullwidth kana / yi
+# Word kinds (phrase atoms) — particles ≫ okurigana cores ≫ kanji compounds
+WEIGHT_WORD_INFLECTED = 70.0  # kanji/hangul core ± okurigana
+WEIGHT_WORD_SEQUENCE = 32.0  # kanji-priority · hangul-sporadic sequence
+WEIGHT_WORD_PARTICLE = 95.0  # short standalone fullwidth kana / yi
 
-# Okurigana attaches to ~75% of lexical cores
-OKURI_P = 0.75
+# Okurigana attaches to most lexical cores
+OKURI_P = 0.92
 
 # Small follow / length / gemination on phonetic kana syllables
 KANA_SMALL_P = 0.05  # large may be followed by one small
@@ -105,6 +105,11 @@ WEIGHT_WORD_KANA_HW = WEIGHT_KANA_HW
 # Slice tier: P(n-way) ∝ r^n  (exponentially rarer)
 SLICE_BASE_P = 0.12
 SLICE_RATIO = 0.18  # P(3)≈P(2)*r, P(4)≈P(3)*r
+
+# Sticky script islands (kana / yi / hangul / kanji runs): soft cap with
+# geometric extend — P(len≥k) decays; typical short, rarely near cap.
+SCRIPT_ISLAND_CAP = 5
+SCRIPT_ISLAND_EXTEND_P = 0.52  # each extra unit after the first
 
 FALLBACK_MARKS = tuple("\u3099\u309a\uff9e\uff9f\u0308\u0301\u0300\u0302\u0304\u0306")
 
@@ -807,8 +812,23 @@ def hangul_syllable(g: Gen, *, with_vs: Optional[bool] = None) -> str:
     return attach_diacritics(g, s)
 
 
+def script_island_len(
+    g: Gen, *, lo: int = 1, hi: int = SCRIPT_ISLAND_CAP
+) -> int:
+    """Length for one sticky script island: geometric extend, soft-capped at ``hi``.
+
+    Starts at ``lo``; each step up to ``hi`` succeeds with ``SCRIPT_ISLAND_EXTEND_P``.
+    """
+    if hi < lo:
+        raise ValueError(f"script_island_len: hi ({hi}) < lo ({lo})")
+    n = lo
+    while n < hi and g.chance(SCRIPT_ISLAND_EXTEND_P):
+        n += 1
+    return n
+
+
 def hangul_word(g: Gen, n: Optional[int] = None) -> str:
-    n = n or g.randint(2, 5)
+    n = n or script_island_len(g, lo=1)
     return "".join(hangul_syllable(g) for _ in range(n))
 
 
@@ -949,13 +969,13 @@ def kana_run(
     halfwidth: bool = False,
 ) -> str:
     """Kana run: both chart halves mix freely. No yi."""
-    n = n or g.randint(2, 8)
+    n = n or script_island_len(g, lo=1)
     return "".join(kana_syllable(g, halfwidth=halfwidth) for _ in range(n))
 
 
 def yi_run(g: Gen, n: Optional[int] = None) -> str:
     """Sticky yi run — no kana."""
-    n = n or g.randint(2, 8)
+    n = n or script_island_len(g, lo=1)
     return "".join(yi_syllable(g) for _ in range(n))
 
 
@@ -1011,13 +1031,7 @@ def _ids_tree(g: Gen, depth: int = 0) -> str:
 
 def kanji_word(g: Gen) -> str:
     """Bare kanji compound (no okurigana) — used by symbol islands."""
-    r = g.random()
-    if r < 0.55:
-        n = 1
-    elif r < 0.85:
-        n = 2
-    else:
-        n = g.randint(3, 4)
+    n = script_island_len(g, lo=1, hi=min(4, SCRIPT_ISLAND_CAP))
     if n >= 2 and g.chance(0.12):
         word = _ids_tree(g)
     else:
@@ -1038,7 +1052,7 @@ def kanji_word(g: Gen) -> str:
 
 
 def fw_digits(g: Gen) -> str:
-    n = g.randint(1, 6)
+    n = script_island_len(g, lo=1)
     s = "".join(g.choice(FW_DIGITS) for _ in range(n))
     if g.chance(0.15) and n >= 2:
         i = g.randint(1, n - 1)
@@ -1047,7 +1061,7 @@ def fw_digits(g: Gen) -> str:
 
 
 def fw_letters(g: Gen) -> str:
-    n = g.randint(2, 6)
+    n = script_island_len(g, lo=1)
     alphabet = FW_UPPER if g.chance(0.5) else FW_LOWER
     parts = [g.choice(alphabet) for _ in range(n)]
     if g.chance(0.2) and n >= 3:
@@ -1155,7 +1169,7 @@ def maybe_bracket(g: Gen, content: str) -> str:
 
 def okurigana_run(g: Gen, n: Optional[int] = None) -> str:
     """Short fullwidth kana or yi okurigana (never halfwidth)."""
-    n = n or g.randint(1, 3)
+    n = n or script_island_len(g, lo=1, hi=3)
     choices: List[Tuple[str, float]] = []
     if g.opts.kana:
         choices.append(("kana", WEIGHT_KANA_FULL))
@@ -1218,7 +1232,7 @@ def inflect_component(g: Gen, stem: Sequence[str]) -> str:
         out: List[str] = [body_parts[0]]
         for piece in body_parts[1:]:
             hinge = "〆" if g.chance(0.18) else ""
-            out.append(hinge + okurigana_run(g, g.randint(1, 2)))
+            out.append(hinge + okurigana_run(g, script_island_len(g, lo=1, hi=2)))
             out.append(piece)
         body_parts = out
 
@@ -1238,14 +1252,8 @@ def word_inflected(g: Gen) -> str:
     Multi-component cores mirror JP phrasal verbs (e.g. stem+okuri · stem+okuri).
     Script is sticky for the whole word (all kanji stems or all hangul stems).
     """
-    # 1 component usual; 2–3 like 複合動詞 / phrasal compounds
-    r = g.random()
-    if r < 0.62:
-        n_comp = 1
-    elif r < 0.90:
-        n_comp = 2
-    else:
-        n_comp = 3
+    # 1 component usual; 2–3 like 複合動詞 / phrasal compounds (exp dropoff)
+    n_comp = script_island_len(g, lo=1, hi=3)
 
     hangul_p = WEIGHT_KATAKANA_ROLE / (WEIGHT_KANJI_ROLE + WEIGHT_KATAKANA_ROLE)
     if g.opts.hangul and g.opts.cjk:
@@ -1266,20 +1274,20 @@ def word_inflected(g: Gen) -> str:
 
 def word_kanji_hangul_sequence(g: Gen) -> str:
     """Sequence of kanji and hangul; kanji priority, hangul sporadic."""
-    n = g.randint(2, 5)
+    n = script_island_len(g, lo=1)
     hangul_p = 0.12 if (g.opts.hangul and g.opts.cjk) else (1.0 if g.opts.hangul else 0.0)
     parts: List[str] = []
     for i in range(n):
         if i > 0 and g.chance(0.06):
             parts.append("・")
         if g.opts.hangul and g.chance(hangul_p):
-            parts.append(hangul_word(g, g.randint(1, 2)))
+            parts.append(hangul_word(g, script_island_len(g, lo=1, hi=2)))
         elif g.opts.cjk and g.chance(0.15) and n >= 2 and "h" in g.opts.cjk_faces:
             parts.append(kanji_half_digraph(g))
         elif g.opts.cjk:
             parts.append(kanji_cluster(g))
         elif g.opts.hangul:
-            parts.append(hangul_word(g, g.randint(1, 2)))
+            parts.append(hangul_word(g, script_island_len(g, lo=1, hi=2)))
         else:
             break
     return "".join(parts)
@@ -1287,7 +1295,7 @@ def word_kanji_hangul_sequence(g: Gen) -> str:
 
 def word_particle(g: Gen) -> str:
     """Standalone particle: short fullwidth kana or yi (never halfwidth)."""
-    n = g.randint(1, 3)
+    n = script_island_len(g, lo=1, hi=3)
     choices: List[Tuple[str, float]] = []
     if g.opts.kana:
         choices.append(("kana", WEIGHT_KANA_FULL))
@@ -1302,7 +1310,7 @@ def word_particle(g: Gen) -> str:
 
 def word_kana_hw(g: Gen) -> str:
     """Halfwidth kana sticky run — never mixed with fullwidth / yi / okurigana."""
-    return kana_run(g, g.randint(2, 6), halfwidth=True)
+    return kana_run(g, script_island_len(g, lo=1), halfwidth=True)
 
 
 def generate_word(g: Gen) -> str:
