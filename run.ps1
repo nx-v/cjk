@@ -1,9 +1,18 @@
 param(
   # Script filters: omit all → build everything. Any set → only those scripts.
+  # Hangul is -Jamo (alias -Hangul) so -H can mean half-faces, not Hangul.
   [switch]$Yi,
   [switch]$Kana,
-  [switch]$Hangul,
+  [Alias('Hangul')]
+  [switch]$Jamo,
   [switch]$Cjk,
+
+  # Shared face flags (apply to every script being built). Additive: -H -T →
+  # h+t only; -Base -H -T → base+h+t. Per-script -KanaH / -YiT / … still work.
+  [switch]$Base,
+  [switch]$H,
+  [switch]$T,
+  [switch]$Q,
 
   [switch]$CjkBase,
   [string]$CjkFaces = "",
@@ -28,40 +37,42 @@ param(
 $py = "c:/python314/python.exe"
 $scripts = "c:/Users/Admin/fonts/Scripts"
 
-$anyScript = $Yi -or $Kana -or $Hangul -or $Cjk
+$anyScript = $Yi -or $Kana -or $Jamo -or $Cjk
 $doYi = (-not $anyScript) -or $Yi
 $doKana = (-not $anyScript) -or $Kana
-$doHangul = (-not $anyScript) -or $Hangul
+$doHangul = (-not $anyScript) -or $Jamo
 $doCjk = (-not $anyScript) -or $Cjk
 
 # No face flags → builders use their full defaults (CJK base+h; kana/yi all
-# segment faces). Selective switches are additive: -KanaH -KanaT → h+t only;
-# -KanaBase -KanaH -KanaT → base+h+t.
+# segment faces). Selective switches are additive and do not imply base.
 $cjkFaceArgs = @()
 if ($CjkFaces) {
   $cjkFaceArgs += @("--faces", $CjkFaces)
 } else {
-  if ($CjkBase) { $cjkFaceArgs += "--base" }
-  if ($CjkH) { $cjkFaceArgs += "--h" }
+  if ($CjkBase -or $Base) { $cjkFaceArgs += "--base" }
+  if ($CjkH -or $H) { $cjkFaceArgs += "--h" }
 }
 foreach ($span in $Range) {
   if ($span) { $cjkFaceArgs += @("--range", $span) }
 }
 
 $kanaFaceArgs = @()
-if ($KanaBase) { $kanaFaceArgs += "--base" }
-if ($KanaH) { $kanaFaceArgs += "--h" }
-if ($KanaT) { $kanaFaceArgs += "--t" }
-if ($KanaQ) { $kanaFaceArgs += "--q" }
+if ($KanaBase -or $Base) { $kanaFaceArgs += "--base" }
+if ($KanaH -or $H) { $kanaFaceArgs += "--h" }
+if ($KanaT -or $T) { $kanaFaceArgs += "--t" }
+if ($KanaQ -or $Q) { $kanaFaceArgs += "--q" }
 
 $yiFaceArgs = @()
-if ($YiBase) { $yiFaceArgs += "--base" }
-if ($YiH) { $yiFaceArgs += "--h" }
-if ($YiT) { $yiFaceArgs += "--t" }
-if ($YiQ) { $yiFaceArgs += "--q" }
+if ($YiBase -or $Base) { $yiFaceArgs += "--base" }
+if ($YiH -or $H) { $yiFaceArgs += "--h" }
+if ($YiT -or $T) { $yiFaceArgs += "--t" }
+if ($YiQ -or $Q) { $yiFaceArgs += "--q" }
 
 $jobArgs = @("-j", "$Jobs")
 Write-Host "Jobs: $Jobs"
+if ($kanaFaceArgs.Count) { Write-Host ("Kana faces: " + ($kanaFaceArgs -join ' ')) }
+if ($yiFaceArgs.Count) { Write-Host ("Yi faces: " + ($yiFaceArgs -join ' ')) }
+if ($cjkFaceArgs.Count) { Write-Host ("CJK faces: " + ($cjkFaceArgs -join ' ')) }
 
 if ($doCjk) {
   & $py "$scripts/cjk_diacritics_html.py"
