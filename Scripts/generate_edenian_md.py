@@ -304,26 +304,28 @@ CJK_CHAR_RANGES: Tuple[Tuple[int, int, str], ...] = (
 )
 
 
-def _cjk_range_pick_weight(label: str) -> float:
-    """Relative chance to draw from a CJK_CHAR_RANGES block."""
+def _cjk_range_pick_weight(label: str, n_chars: int) -> float:
+    """Relative chance to draw from a CJK_CHAR_RANGES block × assigned size."""
     lab = label.casefold()
     if "uro" in lab:
-        return 48.0
-    if "ext a" in lab:
-        return 10.0
-    if "ext b" in lab:
-        return 6.0
-    if "ext " in lab:
-        return 3.0
-    if "radical" in lab or "kangxi" in lab:
-        return 2.5
-    if "compat" in lab:
-        return 2.0
-    if "tangut" in lab:
-        return 5.0
-    if "khitan" in lab:
-        return 2.5
-    return 2.0
+        base = 48.0
+    elif "ext a" in lab:
+        base = 10.0
+    elif "ext b" in lab:
+        base = 6.0
+    elif "ext " in lab:
+        base = 3.0
+    elif "radical" in lab or "kangxi" in lab:
+        base = 2.5
+    elif "compat" in lab:
+        base = 2.0
+    elif "tangut" in lab:
+        base = 5.0
+    elif "khitan" in lab:
+        base = 2.5
+    else:
+        base = 2.0
+    return base * float(n_chars)
 
 
 # Assigned filtering uses UCD 18 (stdlib unicodedata is older).
@@ -385,7 +387,7 @@ _UCD_INTERVALS = _load_ucd_assigned_intervals(_ensure_unicode_data())
 
 # (assigned codepoints, pick weight) — empty/unassigned slots dropped
 CJK_SAMPLE_POOLS: Tuple[Tuple[Tuple[int, ...], float], ...] = tuple(
-    (cps, _cjk_range_pick_weight(name))
+    (cps, _cjk_range_pick_weight(name, len(cps)))
     for start, end, name in CJK_CHAR_RANGES
     for cps in (_assigned_cps_in_range(start, end, _UCD_INTERVALS),)
     if cps
