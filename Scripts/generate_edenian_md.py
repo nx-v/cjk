@@ -18,9 +18,9 @@ Usage:
   python Scripts/generate_edenian_md.py
   python Scripts/generate_edenian_md.py --lines 64 --seed 1 --out Scripts/dist/Edenian-test.md
   python Scripts/generate_edenian_md.py --sentences 1 3 --phrases 2 5 --words 3 10
-  python Scripts/generate_edenian_md.py --kana --kana-h --kana-t
-  python Scripts/generate_edenian_md.py --cjk --cjk-base --cjk-h --lines 32
-  python Scripts/generate_edenian_md.py --yi --yi-base --kana --kana-base --kana-h
+  python Scripts/generate_edenian_md.py --h --t
+  python Scripts/generate_edenian_md.py --kana --h --q
+  python Scripts/generate_edenian_md.py --cjk --h --lines 32
 """
 
 from __future__ import annotations
@@ -79,10 +79,10 @@ WEIGHT_HIRA_LIKE = 40.0
 KANA_SHARE_OF_HIRA_LIKE = 0.88  # kana ≫ yi; scripts never share a run
 YI_SHARE_OF_HIRA_LIKE = 0.12
 
-# Word kinds (phrase atoms) — particles ≫ okurigana cores ≫ kanji compounds
+# Word kinds (phrase atoms) — okurigana cores ≫ particles ≫ kanji compounds
 WEIGHT_WORD_INFLECTED = 70.0  # kanji/hangul core ± okurigana
 WEIGHT_WORD_SEQUENCE = 32.0  # kanji-priority · hangul-sporadic sequence
-WEIGHT_WORD_PARTICLE = 95.0  # short standalone fullwidth kana / yi
+WEIGHT_WORD_PARTICLE = 38.0  # short standalone fullwidth kana / yi
 
 # Okurigana attaches to most lexical cores
 OKURI_P = 0.92
@@ -106,10 +106,9 @@ WEIGHT_WORD_KANA_HW = WEIGHT_KANA_HW
 SLICE_BASE_P = 0.12
 SLICE_RATIO = 0.18  # P(3)≈P(2)*r, P(4)≈P(3)*r
 
-# Sticky script islands (kana / yi / hangul / kanji runs): soft cap with
-# geometric extend — P(len≥k) decays; typical short, rarely near cap.
-SCRIPT_ISLAND_CAP = 5
-SCRIPT_ISLAND_EXTEND_P = 0.52  # each extra unit after the first
+# Script-island length: each extra syllable continues with this probability
+# (geometric / exponential falloff — longer runs are rarer).
+SCRIPT_RUN_RATIO = 0.42
 
 FALLBACK_MARKS = tuple("\u3099\u309a\uff9e\uff9f\u0308\u0301\u0300\u0302\u0304\u0306")
 
@@ -586,6 +585,18 @@ class Gen:
     def randint(self, a: int, b: int) -> int:
         return self.rng.randint(a, b)
 
+    def island_len(self, lo: int, hi: int, *, ratio: float = SCRIPT_RUN_RATIO) -> int:
+        """Script-island length in ``[lo, hi]`` with exponential falloff.
+
+        Starts at ``lo``; each extra unit continues with probability ``ratio``.
+        """
+        if hi < lo:
+            raise ValueError(f"island_len: hi ({hi}) < lo ({lo})")
+        n = lo
+        while n < hi and self.chance(ratio):
+            n += 1
+        return n
+
     def chance(self, p: float) -> bool:
         return self.rng.random() < p
 
@@ -730,20 +741,35 @@ def _tiled_multigraph(g: Gen, mk: Callable[[], str], vs_tile: Sequence[int]) -> 
 
 
 def _slice_arity(g: Gen, faces: frozenset[str]) -> int:
-    """Return 1 (plain), 2, 3, or 4 with exponential rarity."""
-    if not g.opts.has_segment(faces):
+    """Return 1 (plain), 2, 3, or 4 with exponential rarity.
+
+    Without ``""`` (base) in ``faces``, plain forms are skipped — only slices.
+    Without any segment face, always plain (base / D4 only).
+    """
+    allow_plain = "" in faces
+    allow_slice = g.opts.has_segment(faces)
+    if not allow_slice:
         return 1
     p2 = SLICE_BASE_P
     p3 = p2 * SLICE_RATIO
     p4 = p3 * SLICE_RATIO
-    r = g.random()
+    if allow_plain:
+        r = g.random()
+        if r < p4:
+            return 4
+        if r < p4 + p3:
+            return 3
+        if r < p4 + p3 + p2:
+            return 2
+        return 1
+    # Slice-only: renormalize 2/3/4 over the slice mass
+    mass = p2 + p3 + p4
+    r = g.random() * mass
     if r < p4:
         return 4
     if r < p4 + p3:
         return 3
-    if r < p4 + p3 + p2:
-        return 2
-    return 1
+    return 2
 
 
 def _pick_slice_cover(g: Gen, arity: int, faces: frozenset[str]) -> Sequence[int]:
@@ -812,23 +838,8 @@ def hangul_syllable(g: Gen, *, with_vs: Optional[bool] = None) -> str:
     return attach_diacritics(g, s)
 
 
-def script_island_len(
-    g: Gen, *, lo: int = 1, hi: int = SCRIPT_ISLAND_CAP
-) -> int:
-    """Length for one sticky script island: geometric extend, soft-capped at ``hi``.
-
-    Starts at ``lo``; each step up to ``hi`` succeeds with ``SCRIPT_ISLAND_EXTEND_P``.
-    """
-    if hi < lo:
-        raise ValueError(f"script_island_len: hi ({hi}) < lo ({lo})")
-    n = lo
-    while n < hi and g.chance(SCRIPT_ISLAND_EXTEND_P):
-        n += 1
-    return n
-
-
 def hangul_word(g: Gen, n: Optional[int] = None) -> str:
-    n = n or script_island_len(g, lo=1)
+    n = n or g.island_len(1, 5)
     return "".join(hangul_syllable(g) for _ in range(n))
 
 
@@ -969,13 +980,13 @@ def kana_run(
     halfwidth: bool = False,
 ) -> str:
     """Kana run: both chart halves mix freely. No yi."""
-    n = n or script_island_len(g, lo=1)
+    n = n or g.island_len(1, 8)
     return "".join(kana_syllable(g, halfwidth=halfwidth) for _ in range(n))
 
 
 def yi_run(g: Gen, n: Optional[int] = None) -> str:
     """Sticky yi run — no kana."""
-    n = n or script_island_len(g, lo=1)
+    n = n or g.island_len(1, 8)
     return "".join(yi_syllable(g) for _ in range(n))
 
 
@@ -1031,7 +1042,7 @@ def _ids_tree(g: Gen, depth: int = 0) -> str:
 
 def kanji_word(g: Gen) -> str:
     """Bare kanji compound (no okurigana) — used by symbol islands."""
-    n = script_island_len(g, lo=1, hi=min(4, SCRIPT_ISLAND_CAP))
+    n = g.island_len(1, 4)
     if n >= 2 and g.chance(0.12):
         word = _ids_tree(g)
     else:
@@ -1041,10 +1052,8 @@ def kanji_word(g: Gen) -> str:
                 parts.append(g.choice(SUZHOU))
             if g.chance(0.04):
                 parts.append("〓")
-            elif g.chance(0.18) and n >= 2 and "h" in g.opts.cjk_faces:
-                parts.append(kanji_half_digraph(g))
             else:
-                parts.append(kanji_cluster(g))
+                parts.append(_kanji_piece(g, prefer_multi=(n >= 2)))
         word = "".join(parts)
     if g.chance(0.04 + 0.06 * max(0, n - 1)):
         word += "々"
@@ -1052,7 +1061,7 @@ def kanji_word(g: Gen) -> str:
 
 
 def fw_digits(g: Gen) -> str:
-    n = script_island_len(g, lo=1)
+    n = g.randint(1, 6)
     s = "".join(g.choice(FW_DIGITS) for _ in range(n))
     if g.chance(0.15) and n >= 2:
         i = g.randint(1, n - 1)
@@ -1061,7 +1070,7 @@ def fw_digits(g: Gen) -> str:
 
 
 def fw_letters(g: Gen) -> str:
-    n = script_island_len(g, lo=1)
+    n = g.randint(2, 6)
     alphabet = FW_UPPER if g.chance(0.5) else FW_LOWER
     parts = [g.choice(alphabet) for _ in range(n)]
     if g.chance(0.2) and n >= 3:
@@ -1169,7 +1178,7 @@ def maybe_bracket(g: Gen, content: str) -> str:
 
 def okurigana_run(g: Gen, n: Optional[int] = None) -> str:
     """Short fullwidth kana or yi okurigana (never halfwidth)."""
-    n = n or script_island_len(g, lo=1, hi=3)
+    n = n or g.island_len(1, 3)
     choices: List[Tuple[str, float]] = []
     if g.opts.kana:
         choices.append(("kana", WEIGHT_KANA_FULL))
@@ -1182,19 +1191,31 @@ def okurigana_run(g: Gen, n: Optional[int] = None) -> str:
     return kana_run(g, n, halfwidth=False)
 
 
+def _kanji_piece(g: Gen, *, prefer_multi: bool = False) -> str:
+    """One CJK atom: plain cluster and/or half digraph per ``cjk_faces``."""
+    faces = g.opts.cjk_faces
+    allow_base = "" in faces
+    allow_h = "h" in faces
+    if not allow_base and not allow_h:
+        return ""
+    if allow_h and (not allow_base or (prefer_multi and g.chance(0.20))):
+        return kanji_half_digraph(g)
+    if allow_base:
+        return kanji_cluster(g)
+    return kanji_half_digraph(g)
+
+
 def _kanji_stem_segments(g: Gen) -> List[str]:
     """Stem inside one phrasal component: usually 1 cluster, sometimes 2."""
-    n = 1 if g.chance(0.78) else 2
+    n = g.island_len(1, 2)
     parts: List[str] = []
     for i in range(n):
         if i > 0 and g.chance(0.06):
             parts.append(g.choice(SUZHOU))
         if g.chance(0.03):
             parts.append("〓")
-        elif n >= 2 and g.chance(0.20) and "h" in g.opts.cjk_faces:
-            parts.append(kanji_half_digraph(g))
         else:
-            parts.append(kanji_cluster(g))
+            parts.append(_kanji_piece(g, prefer_multi=(n >= 2)))
     if n == 1 and g.chance(0.05):
         parts[-1] = parts[-1] + "々"
     return parts
@@ -1202,7 +1223,7 @@ def _kanji_stem_segments(g: Gen) -> List[str]:
 
 def _hangul_stem_segments(g: Gen) -> List[str]:
     """Stem inside one hangul phrasal component."""
-    n = 1 if g.chance(0.85) else 2
+    n = g.island_len(1, 2)
     return [hangul_word(g, 1) for _ in range(n)]
 
 
@@ -1232,7 +1253,7 @@ def inflect_component(g: Gen, stem: Sequence[str]) -> str:
         out: List[str] = [body_parts[0]]
         for piece in body_parts[1:]:
             hinge = "〆" if g.chance(0.18) else ""
-            out.append(hinge + okurigana_run(g, script_island_len(g, lo=1, hi=2)))
+            out.append(hinge + okurigana_run(g, g.randint(1, 2)))
             out.append(piece)
         body_parts = out
 
@@ -1252,8 +1273,8 @@ def word_inflected(g: Gen) -> str:
     Multi-component cores mirror JP phrasal verbs (e.g. stem+okuri · stem+okuri).
     Script is sticky for the whole word (all kanji stems or all hangul stems).
     """
-    # 1 component usual; 2–3 like 複合動詞 / phrasal compounds (exp dropoff)
-    n_comp = script_island_len(g, lo=1, hi=3)
+    # 1 component usual; 2–3 like 複合動詞 / phrasal compounds (exp falloff)
+    n_comp = g.island_len(1, 3)
 
     hangul_p = WEIGHT_KATAKANA_ROLE / (WEIGHT_KANJI_ROLE + WEIGHT_KATAKANA_ROLE)
     if g.opts.hangul and g.opts.cjk:
@@ -1274,20 +1295,18 @@ def word_inflected(g: Gen) -> str:
 
 def word_kanji_hangul_sequence(g: Gen) -> str:
     """Sequence of kanji and hangul; kanji priority, hangul sporadic."""
-    n = script_island_len(g, lo=1)
+    n = g.island_len(1, 5)
     hangul_p = 0.12 if (g.opts.hangul and g.opts.cjk) else (1.0 if g.opts.hangul else 0.0)
     parts: List[str] = []
     for i in range(n):
         if i > 0 and g.chance(0.06):
             parts.append("・")
         if g.opts.hangul and g.chance(hangul_p):
-            parts.append(hangul_word(g, script_island_len(g, lo=1, hi=2)))
-        elif g.opts.cjk and g.chance(0.15) and n >= 2 and "h" in g.opts.cjk_faces:
-            parts.append(kanji_half_digraph(g))
+            parts.append(hangul_word(g, g.island_len(1, 2)))
         elif g.opts.cjk:
-            parts.append(kanji_cluster(g))
+            parts.append(_kanji_piece(g, prefer_multi=(n >= 2)))
         elif g.opts.hangul:
-            parts.append(hangul_word(g, script_island_len(g, lo=1, hi=2)))
+            parts.append(hangul_word(g, g.island_len(1, 2)))
         else:
             break
     return "".join(parts)
@@ -1295,7 +1314,7 @@ def word_kanji_hangul_sequence(g: Gen) -> str:
 
 def word_particle(g: Gen) -> str:
     """Standalone particle: short fullwidth kana or yi (never halfwidth)."""
-    n = script_island_len(g, lo=1, hi=3)
+    n = g.island_len(1, 3)
     choices: List[Tuple[str, float]] = []
     if g.opts.kana:
         choices.append(("kana", WEIGHT_KANA_FULL))
@@ -1310,7 +1329,7 @@ def word_particle(g: Gen) -> str:
 
 def word_kana_hw(g: Gen) -> str:
     """Halfwidth kana sticky run — never mixed with fullwidth / yi / okurigana."""
-    return kana_run(g, script_island_len(g, lo=1), halfwidth=True)
+    return kana_run(g, g.island_len(1, 6), halfwidth=True)
 
 
 def generate_word(g: Gen) -> str:
@@ -1502,39 +1521,60 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         "--cjk", action="store_true", help="Include Han / Tangut / Khitan"
     )
 
-    # Face filters — same surface as run.ps1 Cjk*/Kana*/Yi* switches.
+    # Shared face filters (like run.ps1 -Base/-H/-T/-Q): apply to kana, yi, cjk.
+    # Slice flags imply base — --h --t → base+h+t; --base alone → plain/D4 only.
     faces = p.add_argument_group("faces")
+    faces.add_argument(
+        "--base",
+        action="store_true",
+        help="Identity/base only when alone; always included with --h/--t/--q",
+    )
+    faces.add_argument(
+        "--h",
+        action="store_true",
+        help="Allow half / triangle slice digraphs (implies --base)",
+    )
+    faces.add_argument(
+        "--t",
+        action="store_true",
+        help="Allow third-cell slice digraphs (kana/yi; implies --base)",
+    )
+    faces.add_argument(
+        "--q",
+        action="store_true",
+        help="Allow quarter-cell digraphs q/qv/qh (kana/yi; implies --base)",
+    )
     faces.add_argument(
         "--cjk-base",
         action="store_true",
-        help="CJK: include identity/base (combine with --cjk-h)",
+        help="CJK: identity/base only when alone; implied by --cjk-h / --h",
     )
     faces.add_argument(
         "--cjk-faces",
         metavar="LIST",
-        help="CJK: exact comma list base,h (overrides --cjk-base/--cjk-h)",
+        help="CJK: exact comma list base,h (overrides other CJK face flags)",
     )
     faces.add_argument(
         "--cjk-h",
         action="store_true",
-        help="CJK: include half-cell digraphs",
+        help="CJK: include half-cell digraphs (implies base)",
     )
     faces.add_argument(
         "--kana-base",
         action="store_true",
-        help="Kana: include identity/base (combine with --kana-h/t/q)",
+        help="Kana: identity/base only when alone; implied by --kana-h/t/q",
     )
-    faces.add_argument("--kana-h", action="store_true", help="Kana: half / triangle faces")
-    faces.add_argument("--kana-t", action="store_true", help="Kana: third-cell faces")
-    faces.add_argument("--kana-q", action="store_true", help="Kana: grid (q) faces")
+    faces.add_argument("--kana-h", action="store_true", help="Kana: half / triangle faces (implies base)")
+    faces.add_argument("--kana-t", action="store_true", help="Kana: third-cell faces (implies base)")
+    faces.add_argument("--kana-q", action="store_true", help="Kana: quarter faces q/qv/qh (implies base)")
     faces.add_argument(
         "--yi-base",
         action="store_true",
-        help="Yi: include identity/base (combine with --yi-h/t/q)",
+        help="Yi: identity/base only when alone; implied by --yi-h/t/q",
     )
-    faces.add_argument("--yi-h", action="store_true", help="Yi: half / triangle faces")
-    faces.add_argument("--yi-t", action="store_true", help="Yi: third-cell faces")
-    faces.add_argument("--yi-q", action="store_true", help="Yi: grid (q) faces")
+    faces.add_argument("--yi-h", action="store_true", help="Yi: half / triangle faces (implies base)")
+    faces.add_argument("--yi-t", action="store_true", help="Yi: third-cell faces (implies base)")
+    faces.add_argument("--yi-q", action="store_true", help="Yi: quarter faces q/qv/qh (implies base)")
     return p.parse_args(argv)
 
 
@@ -1544,25 +1584,37 @@ def _resolve_kana_yi_face_flags(
     want_h: bool,
     want_t: bool,
     want_q: bool,
-    label: str,
 ) -> frozenset[str]:
-    """Match builders: ``--h --t`` → h+t; ``--base --h --t`` → base+h+t."""
-    selected = [
-        v
-        for v, flag in (("", base), ("h", want_h), ("t", want_t), ("q", want_q))
-        if flag
-    ]
-    if not selected:
+    """``--h --t`` → base+h+t (slice flags imply base). ``--base`` alone → base.
+
+    ``--q`` enables all quarter faces (``q`` / ``qv`` / ``qh``).
+    """
+    any_slice = want_h or want_t or want_q
+    if not base and not any_slice:
         return frozenset(KANA_YI_DEFAULT_VARIANTS)
+    selected: List[str] = []
+    if base or any_slice:
+        selected.append("")
+    if want_h:
+        selected.append("h")
+    if want_t:
+        selected.append("t")
+    if want_q:
+        selected.extend(["q", "qv", "qh"])
     return frozenset(ordered_segment_variants(selected))
 
 
 def _resolve_cjk_face_flags(
-    *, base: bool, faces: Optional[str], want_h: bool
+    *,
+    base: bool,
+    faces: Optional[str],
+    want_h: bool,
+    imply_base_from_slices: bool,
 ) -> frozenset[str]:
+    """CJK only has base/h. Slice flags (``--t``/``--q``/``--h``) imply base."""
     if faces:
-        if base or want_h:
-            raise SystemExit("use either --cjk-faces or --cjk-base/--cjk-h, not both")
+        if base or want_h or imply_base_from_slices:
+            raise SystemExit("use either --cjk-faces or --base/--h/--cjk-*, not both")
         got = [
             segment_variant_from_token(p)
             for p in str(faces).split(",")
@@ -1571,37 +1623,42 @@ def _resolve_cjk_face_flags(
         if not got:
             raise SystemExit("--cjk-faces is empty")
         return frozenset(ordered_cjk_variants(got))
-    selected = [v for v, flag in (("", base), ("h", want_h)) if flag]
-    if not selected:
+    any_face = base or want_h or imply_base_from_slices
+    if not any_face:
         return frozenset(("", "h"))
+    selected: List[str] = [""]  # always include base when any face flag fires
+    if want_h:
+        selected.append("h")
     return frozenset(ordered_cjk_variants(selected))
 
 
 def options_from_args(args: argparse.Namespace) -> GenOptions:
     any_script = args.yi or args.kana or args.hangul or args.cjk
+    # Shared --base/--h/--t/--q OR per-script flags (like run.ps1).
+    # --t/--q imply base for CJK even though CJK has no t/q faces.
+    shared_slices = args.h or args.t or args.q
     return GenOptions(
         yi=(not any_script) or args.yi,
         kana=(not any_script) or args.kana,
         hangul=(not any_script) or args.hangul,
         cjk=(not any_script) or args.cjk,
         kana_faces=_resolve_kana_yi_face_flags(
-            base=args.kana_base,
-            want_h=args.kana_h,
-            want_t=args.kana_t,
-            want_q=args.kana_q,
-            label="kana",
+            base=args.base or args.kana_base,
+            want_h=args.h or args.kana_h,
+            want_t=args.t or args.kana_t,
+            want_q=args.q or args.kana_q,
         ),
         yi_faces=_resolve_kana_yi_face_flags(
-            base=args.yi_base,
-            want_h=args.yi_h,
-            want_t=args.yi_t,
-            want_q=args.yi_q,
-            label="yi",
+            base=args.base or args.yi_base,
+            want_h=args.h or args.yi_h,
+            want_t=args.t or args.yi_t,
+            want_q=args.q or args.yi_q,
         ),
         cjk_faces=_resolve_cjk_face_flags(
-            base=args.cjk_base,
+            base=args.base or args.cjk_base,
             faces=args.cjk_faces,
-            want_h=args.cjk_h,
+            want_h=args.h or args.cjk_h,
+            imply_base_from_slices=shared_slices,
         ),
     )
 

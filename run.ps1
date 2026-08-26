@@ -7,8 +7,8 @@ param(
   [switch]$Jamo,
   [switch]$Cjk,
 
-  # Shared face flags (apply to every script being built). Additive: -H -T →
-  # h+t only; -Base -H -T → base+h+t. Per-script -KanaH / -YiT / … still work.
+  # Shared face flags (apply to every script being built). Slice flags imply
+  # base: -H -T → base+h+t; -Base alone → base only. Per-script -KanaH / … OK.
   [switch]$Base,
   [switch]$H,
   [switch]$T,
@@ -44,7 +44,7 @@ $doHangul = (-not $anyScript) -or $Jamo
 $doCjk = (-not $anyScript) -or $Cjk
 
 # No face flags → builders use their full defaults (CJK base+h; kana/yi all
-# segment faces). Selective switches are additive and do not imply base.
+# segment faces). Any -H/-T/-Q implies base inside the builders.
 $cjkFaceArgs = @()
 if ($CjkFaces) {
   $cjkFaceArgs += @("--faces", $CjkFaces)

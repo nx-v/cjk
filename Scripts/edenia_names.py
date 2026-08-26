@@ -107,8 +107,8 @@ def ordered_cjk_variants(variants: Iterable[str]) -> tuple[str, ...]:
 def add_cjk_variant_arguments(parser: argparse.ArgumentParser) -> None:
     """`--base`, `--faces`, and `--h` / `--t` / `--q` / `--qv` / `--qh`.
 
-    Selective flags are additive and do **not** imply base: ``--h --t`` builds
-    only those faces; ``--base --h --t`` includes the identity face too.
+    Slice flags **imply** base: ``--h --t`` builds base+h+t. ``--base`` alone
+    builds only the identity face. ``--faces`` is an exact list (no imply).
     CJK resolves only ``base``/``h``; kana/yi accept the full segment set.
     """
     g = parser.add_argument_group("faces")
@@ -116,7 +116,7 @@ def add_cjk_variant_arguments(parser: argparse.ArgumentParser) -> None:
         "--base",
         dest="want_base",
         action="store_true",
-        help="Include identity/base faces",
+        help="Identity/base only when alone; always included when --h/--t/--q… are set",
     )
     g.add_argument(
         "--faces",
@@ -139,7 +139,7 @@ def add_cjk_variant_arguments(parser: argparse.ArgumentParser) -> None:
         "--q",
         dest="want_q",
         action="store_true",
-        help="Include 2×2 / L faces (kana/yi only)",
+        help="Include 2×2 / L faces and vertical/horizontal quarters (q/qv/qh)",
     )
     g.add_argument(
         "--qv",
@@ -162,23 +162,19 @@ KANA_YI_DEFAULT_VARIANTS: tuple[str, ...] = ("", "h", "t", "q", "qv", "qh")
 def resolve_kana_yi_variants(args: argparse.Namespace) -> tuple[str, ...]:
     """Selected kana/yi suffixes from CLI (default: :data:`KANA_YI_DEFAULT_VARIANTS`).
 
-    ``--h --t`` → h+t only; ``--base --h --t`` → base+h+t. No flags → full default.
+    ``--h --t`` → base+h+t (slice flags imply base). ``--base`` alone → base only.
+    No flags → full default. ``--faces`` is exact (no imply).
     """
-    selected = [
-        v
-        for v, flag in (
-            ("", getattr(args, "want_base", False)),
-            ("h", getattr(args, "want_h", False)),
-            ("t", getattr(args, "want_t", False)),
-            ("q", getattr(args, "want_q", False)),
-            ("qv", getattr(args, "want_qv", False)),
-            ("qh", getattr(args, "want_qh", False)),
-        )
-        if flag
-    ]
+    want_base = getattr(args, "want_base", False)
+    want_h = getattr(args, "want_h", False)
+    want_t = getattr(args, "want_t", False)
+    want_q = getattr(args, "want_q", False)
+    want_qv = getattr(args, "want_qv", False)
+    want_qh = getattr(args, "want_qh", False)
+    any_slice = want_h or want_t or want_q or want_qv or want_qh
     faces = getattr(args, "faces", None)
     if faces:
-        if selected:
+        if want_base or any_slice:
             raise ValueError(
                 "use either --faces or --base/--h/--t/--q/--qv/--qh, not both"
             )
@@ -190,31 +186,42 @@ def resolve_kana_yi_variants(args: argparse.Namespace) -> tuple[str, ...]:
         if not got:
             raise ValueError("--faces is empty")
         return ordered_segment_variants(got)
-    if selected:
-        return ordered_segment_variants(selected)
-    return KANA_YI_DEFAULT_VARIANTS
+    if not want_base and not any_slice:
+        return KANA_YI_DEFAULT_VARIANTS
+    selected: list[str] = []
+    if want_base or any_slice:  # slice flags imply identity/base
+        selected.append("")
+    if want_h:
+        selected.append("h")
+    if want_t:
+        selected.append("t")
+    if want_q:
+        selected.extend(["q", "qv", "qh"])
+    else:
+        if want_qv:
+            selected.append("qv")
+        if want_qh:
+            selected.append("qh")
+    return ordered_segment_variants(selected)
 
 
 def resolve_cjk_variants(args: argparse.Namespace) -> tuple[str, ...]:
     """Selected CJK suffixes from CLI flags (default: base + h only).
 
-    ``--h`` → h only; ``--base --h`` → base+h. No flags → :data:`CJK_FACE_BUILD_ORDER`.
+    ``--h`` → base+h (implies base). ``--base`` alone → base only.
+    ``--t``/``--q``/… alone → base only (CJK has no thirds/quarters).
+    No flags → :data:`CJK_FACE_BUILD_ORDER`. ``--faces`` is exact (no imply).
     """
-    selected = [
-        v
-        for v, flag in (
-            ("", getattr(args, "want_base", False)),
-            ("h", getattr(args, "want_h", False)),
-            ("t", getattr(args, "want_t", False)),
-            ("q", getattr(args, "want_q", False)),
-            ("qv", getattr(args, "want_qv", False)),
-            ("qh", getattr(args, "want_qh", False)),
-        )
-        if flag
-    ]
+    want_base = getattr(args, "want_base", False)
+    want_h = getattr(args, "want_h", False)
+    want_t = getattr(args, "want_t", False)
+    want_q = getattr(args, "want_q", False)
+    want_qv = getattr(args, "want_qv", False)
+    want_qh = getattr(args, "want_qh", False)
+    any_slice = want_h or want_t or want_q or want_qv or want_qh
     faces = getattr(args, "faces", None)
     if faces:
-        if selected:
+        if want_base or any_slice:
             raise ValueError(
                 "use either --faces or --base/--h/--t/--q/--qv/--qh, not both"
             )
@@ -226,9 +233,14 @@ def resolve_cjk_variants(args: argparse.Namespace) -> tuple[str, ...]:
         if not got:
             raise ValueError("--faces is empty")
         return ordered_cjk_variants(got)
-    if selected:
-        return ordered_cjk_variants(selected)
-    return CJK_FACE_BUILD_ORDER
+    if not want_base and not any_slice:
+        return CJK_FACE_BUILD_ORDER
+    selected: list[str] = []
+    if want_base or any_slice:  # slice flags imply identity/base
+        selected.append("")
+    if want_h:
+        selected.append("h")
+    return ordered_cjk_variants(selected)
 
 def family_cjk(face_id: str) -> str:
     """CSS / name-table family for a face file stem.
