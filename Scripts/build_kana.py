@@ -1387,6 +1387,12 @@ KANA_Q_VS = {0xFE00} | set(range(0xE0118, 0xE0120))
 def _css_cps_for_kana_face(
     codepoints: Sequence[int], variant: str, *, mark_cps: Sequence[int]
 ) -> List[int]:
+    """CSS unicode-range CPs for one kana face.
+
+    Segment faces (h/t/q/qv/qh) that bake dakuten must claim ``mark_cps``:
+    otherwise Blink resolves ``base+FE08/9+marks`` on the base face (no slice
+    GSUB) and the last slice appears “restored” to the full glyph.
+    """
     cps = {cp for cp in codepoints if not (0xFE00 <= cp <= 0xFE0F)}
     if variant == "h":
         cps |= KANA_H_FE
@@ -1399,6 +1405,11 @@ def _css_cps_for_kana_face(
     elif variant == "q":
         cps |= KANA_Q_VS
     elif variant == "":
+        pass
+    else:
+        return sorted(cps)
+    # Base + every segment face that ships dakuten GPOS.
+    if variant in ("", "h", "t", "q", "qv", "qh"):
         cps |= set(mark_cps)
     return sorted(cps)
 

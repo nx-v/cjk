@@ -1135,6 +1135,11 @@ YI_Q_VS = {0xFE00} | set(range(0xE0118, 0xE0120))
 def _css_cps_for_yi_face(
     codepoints: Sequence[int], variant: str, *, mark_cps: Sequence[int]
 ) -> List[int]:
+    """CSS unicode-range CPs for one Yi face.
+
+    Segment faces that bake dakuten must claim ``mark_cps`` so
+    ``syllable+FE08/9+marks`` stays on the slice face (see kana helper).
+    """
     cps = {
         cp
         for cp in codepoints
@@ -1156,6 +1161,9 @@ def _css_cps_for_yi_face(
         cps |= YI_Q_VS
     elif variant == "":
         cps |= YI_BASE_FE
+    else:
+        return sorted(cps)
+    if variant in ("", "h", "t", "q", "qv", "qh"):
         cps |= set(mark_cps)
     return sorted(cps)
 
