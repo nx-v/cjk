@@ -49,7 +49,8 @@ VS4     U+FE03     mxy — both axes
 Dakuten (combining marks)
 -------------------------
 Stack: LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka → JuliaMono →
-Constructium → Droid Sans → Arial Unicode MS → Gentium. Marks keep native
+Segoe UI → Segoe UI Historic → Sans Serif Collection → Droid Sans.
+Marks keep native
 left-/right-aligned to CJK cell corners. Same TR → BR → TL → BL slot order as
 `edenia yi` via GSUB + GPOS `mark`/`abvm`. Every orientation / layout form
 (identity + `mx`/`my`/`mxy` + `.em*` chains) gets corner anchors —
@@ -3079,7 +3080,8 @@ def build_all(
     print(f"  Syllables ({FAMILY_SYLL}): whole-glyph VS / UVS")
     print(
         "  Dakuten: LXGWNeoXiHeiScreenFull + mkanaplus + Nexsevka + JuliaMono + "
-        "Constructium + Droid Sans + Arial Unicode MS + Gentium \\p{M} @ CJK box slots "
+        "Segoe UI + Segoe UI Historic + Sans Serif Collection + Droid Sans "
+        "\\p{Mn} @ CJK box slots "
         f"({DAKUTEN_SLOT_CYCLE}; fixed H, L/R/mid align; both families)"
     )
     print(f"  Local scale: {local_scale:g} about bbox center")

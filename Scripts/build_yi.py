@@ -23,7 +23,7 @@ Contents
   shared `sy` from inventory max ink height, Y centered in padded typo box,
   horizontal stems at 125% (Y-only Weight), then ~98% ideographic inset.
 
-* Dakuten marks (shared stack `\\p{M}` minus letter / overlay / oversized):
+* Dakuten marks (shared stack `\\p{Mn}` minus letter / overlay / oversized):
   contour-hugging eight-slot placement (`kana_yi_diacritics`) on D4 forms
   plus slice/overlay ligatures. Successive marks fill TR→CR→…→BL then chain
   outward. No left-squish `.dk` forms.
@@ -1289,7 +1289,8 @@ def build_all(
     print("  Slice (h face): U+FE08–FE0B halves, U+FE0C–FE0F triangles")
     print(
         "  Dakuten: LXGWNeoXiHeiScreenFull + mkanaplus + Nexsevka + JuliaMono + "
-        "Constructium + Droid Sans + Arial Unicode MS + Gentium \\p{M} @ CJK corners "
+        "Segoe UI + Segoe UI Historic + Sans Serif Collection + Droid Sans "
+        "\\p{Mn} @ CJK corners "
         f"({DAKUTEN_SLOT_CYCLE}; CGJ skips a slot; fixed H, L/R/mid align; "
         "all D4 incl. r90my)"
     )

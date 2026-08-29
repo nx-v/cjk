@@ -1,13 +1,14 @@
 """Hangul corner diacritics from a multi-font mark stack.
 
-Inventory: `(\\p{M} ∩ stack) ∖ variation selectors` (VS1–16, IVS,
+Inventory: `(\\p{Mn} ∩ stack) ∖ variation selectors` (VS1–16, IVS,
 Mongolian FVS). First font in the stack wins per codepoint. Wide thin
-marks (macron, overline) are box-fitted, not dropped.
+marks (macron, overline) are box-fitted, not dropped. Spacing marks
+(`Mc`) and enclosing marks (`Me`) are excluded.
 
 Stack (priority order)::
 
     LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka-Regular → JuliaMono-Regular
-    → Constructium → Droid Sans → Arial Unicode MS → Gentium-Regular
+    → Segoe UI → Segoe UI Historic → Sans Serif Collection → Droid Sans
 
 Marks are copied at **native outline size** (only UPM harmonization when the
 source `unitsPerEm` differs). They attach via GPOS
@@ -76,23 +77,25 @@ LXGW_NEO_XIHEI_SCREEN_FULL_FILENAMES: Tuple[str, ...] = (
 MKANAPLUS_FILENAMES: Tuple[str, ...] = ("mkanaplus.ttf", "mkanaplus-regular.ttf")
 NEXSEVKA_FILENAME = "Nexsevka-Regular.ttf"
 JULIAMONO_FILENAME = "JuliaMono-Regular.ttf"
-CONSTRUCTIUM_FILENAMES: Tuple[str, ...] = ("Constructium.ttf", "constructium.ttf")
+SEGOE_UI_FILENAMES: Tuple[str, ...] = ("segoeui.ttf", "SegoeUI.ttf", "SEGOEUI.TTF")
+SEGOE_UI_HISTORIC_FILENAMES: Tuple[str, ...] = (
+    "seguihis.ttf",
+    "SegoeUIHistoric.ttf",
+    "SEGUIHIS.TTF",
+)
+SANS_SERIF_COLLECTION_FILENAMES: Tuple[str, ...] = (
+    "SansSerifCollection.ttf",
+    "sansserifcollection.ttf",
+)
 DROID_SANS_FILENAMES: Tuple[str, ...] = (
     "DroidSansFallbackFull.ttf",
     "DroidSansFallback.ttf",
     "DroidSans.ttf",
 )
-ARIAL_UNICODE_FILENAMES: Tuple[str, ...] = (
-    "arial unicode ms.otf",
-    "arial unicode ms.ttf",
-    "ARIALUNI.TTF",
-    "Arial Unicode MS.ttf",
-    "ArialUnicodeMS.ttf",
-)
-GENTIUM_FILENAME = "Gentium-Regular.ttf"
 
-# Unicode Mark = Mn | Mc | Me  (regex \p{M}).
-MARK_CATS = frozenset({"Mn", "Mc", "Me"})
+# Unicode Nonspacing_Mark only (regex \p{Mn}). Spacing (Mc) / enclosing (Me)
+# marks are excluded from the shared dakuten inventory.
+MARK_CATS = frozenset({"Mn"})
 
 # Variation_Selector — Mn, but they drive GSUB slices / IVS, not dakuten.
 VS_RANGES: Tuple[Tuple[int, int], ...] = (
@@ -185,7 +188,7 @@ def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
     """Return existing mark-source paths in priority order.
 
     Priority: LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka → JuliaMono →
-    Constructium → Droid Sans → Arial Unicode MS → Gentium.
+    Segoe UI → Segoe UI Historic → Sans Serif Collection → Droid Sans.
     Looks under `in_dir` first, then well-known repo locations.
     """
     groups: Tuple[Tuple[str, ...], ...] = (
@@ -204,14 +207,10 @@ def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
             os.path.join(_REPO_ROOT, "Nexsevka", "TTF", NEXSEVKA_FILENAME),
         ),
         _paths_for_names(in_dir, (JULIAMONO_FILENAME,)),
-        _paths_for_names(in_dir, CONSTRUCTIUM_FILENAMES),
+        _paths_for_names(in_dir, SEGOE_UI_FILENAMES),
+        _paths_for_names(in_dir, SEGOE_UI_HISTORIC_FILENAMES),
+        _paths_for_names(in_dir, SANS_SERIF_COLLECTION_FILENAMES),
         _paths_for_names(in_dir, DROID_SANS_FILENAMES),
-        _paths_for_names(in_dir, ARIAL_UNICODE_FILENAMES),
-        _paths_for_names(
-            in_dir,
-            (GENTIUM_FILENAME,),
-            os.path.join(_REPO_ROOT, "Gentium", GENTIUM_FILENAME),
-        ),
     )
     out: List[str] = []
     for candidates in groups:
@@ -222,8 +221,8 @@ def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
         raise FileNotFoundError(
             "No shared-diacritic mark source fonts found "
             "(LXGWNeoXiHeiScreenFull / mkanaplus / Nexsevka / JuliaMono / "
-            "Constructium / Droid Sans / Arial Unicode MS / Gentium; "
-            f"in_dir={in_dir!r})"
+            "Segoe UI / Segoe UI Historic / Sans Serif Collection / "
+            f"Droid Sans; in_dir={in_dir!r})"
         )
     return out
 
@@ -260,7 +259,7 @@ def _glyph_ink_size(glyph_set, glyph_name: str) -> Optional[Tuple[float, float]]
 
 
 def iter_dakuten_codepoints(cmap: Dict[int, str]) -> List[int]:
-    """All `\\p{M}` in `cmap` except variation selectors."""
+    """All `\\p{Mn}` in `cmap` except variation selectors."""
     out: List[int] = []
     for cp in sorted(cmap):
         if is_variation_selector(cp):
@@ -383,12 +382,12 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
 
 
 def combining_mark_codepoints_from_cmap(cmap: Dict[int, str]) -> List[int]:
-    """`\\p{M}` minus variation selectors (includes CGJ when present)."""
+    """`\\p{Mn}` minus variation selectors (includes CGJ when present)."""
     return iter_dakuten_codepoints(cmap)
 
 
 def combining_mark_codepoints_from_font(font_path: str) -> List[int]:
-    """`\\p{M}` minus variation selectors from a font file's cmap."""
+    """`\\p{Mn}` minus variation selectors from a font file's cmap."""
     tt = load_ttfont(font_path, fontNumber=0)
     try:
         cmap: Dict[int, str] = {}
@@ -409,7 +408,7 @@ def combining_marks_unicode_range_from_stack(
     in_dir: str,
     target_upem: int = 1000,
 ) -> str:
-    """CSS unicode-range for the full mark-stack inventory (`\\p{M}` union)."""
+    """CSS unicode-range for the full mark-stack inventory (`\\p{Mn}` union)."""
     paths = resolve_dakuten_mark_font_stack(in_dir)
     order, _glyphs = load_dakuten_marks_from_stack(paths, target_upem)
     return unicode_range_css(order)
@@ -644,7 +643,7 @@ def load_dakuten_marks(
     font_path: str,
     target_upem: int,
 ) -> Tuple[List[int], Dict[int, TTGlyph]]:
-    """Load all `\\p{M}` marks except variation selectors; native ink size."""
+    """Load all `\\p{Mn}` marks except variation selectors; native ink size."""
     tt = load_ttfont(font_path, fontNumber=0)
     try:
         cmap: Dict[int, str] = {}
