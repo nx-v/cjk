@@ -163,6 +163,9 @@ def filter_segment_face_cmap(
     D4 / small / slice / ``.ov`` forms). Stripping oriented PUA broke kana
     overlays: Blink picked the base face for ``U+E002`` and the ``h`` face for
     ``FE00``/``FE08``, so GSUB could not ligate across fonts.
+
+    ``h`` also keeps ``mark_cps`` when provided: last-slice dakuten sit on the
+    second digraph member, which may be a different pigeonhole file.
     """
     vs_page = {
         "t": set(range(0xE0100, 0xE010A)),
@@ -185,6 +188,11 @@ def filter_segment_face_cmap(
             fe_ok |= set(mark_cps)
         else:
             fe_ok |= set(MARK_CPS)
+    elif variant == "h" and mark_cps:
+        # Last-slice marks attach to the second digraph member, which may live
+        # on another `h` pigeonhole. That file must cmap the marks (GPOS is
+        # already copied via dakuten_keep); CSS unicode-range follows cmap.
+        fe_ok |= set(mark_cps)
     out: Dict[int, str] = {}
     for cp, name in cmap.items():
         if (

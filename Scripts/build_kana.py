@@ -1389,13 +1389,15 @@ def _css_cps_for_kana_face(
 ) -> List[int]:
     """CSS unicode-range CPs for one kana face.
 
-    Segment faces (h/t/q/qv/qh) that bake dakuten must claim ``mark_cps``:
-    otherwise Blink resolves ``base+FE08/9+marks`` on the base face (no slice
-    GSUB) and the last slice appears “restored” to the full glyph.
+    Only ``h`` and the base face bake dakuten. Each ``h`` pigeonhole must
+    cmap *and* claim ``mark_cps``: the last slice of a digraph often lives
+    on another 256-CP ``h`` file, and ``base+FE09+marks`` has to shape there.
+    q/qv/qh/t must not claim marks (they sort earlier and lack mark glyphs).
     """
     cps = {cp for cp in codepoints if not (0xFE00 <= cp <= 0xFE0F)}
     if variant == "h":
         cps |= KANA_H_FE
+        cps |= set(mark_cps)
     elif variant == "t":
         cps |= KANA_T_VS
     elif variant == "qv":
@@ -1405,11 +1407,6 @@ def _css_cps_for_kana_face(
     elif variant == "q":
         cps |= KANA_Q_VS
     elif variant == "":
-        pass
-    else:
-        return sorted(cps)
-    # Base + every segment face that ships dakuten GPOS.
-    if variant in ("", "h", "t", "q", "qv", "qh"):
         cps |= set(mark_cps)
     return sorted(cps)
 
@@ -1867,6 +1864,7 @@ def _prepare_kana_face_state(
             kind,
             cm,
             list(dict.fromkeys([*bases, *small_b, *hw_small_b])),
+            mark_cps=m.get("mark_cps"),
         )
         face_id = bucket_face_id(bucket_id, kind)
         if kind == "h":

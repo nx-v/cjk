@@ -238,13 +238,11 @@ _SCRIPT_UNICODE_RANGE = {
     family_kana_variant("q"): f"{_KANA_SCRIPT}, U+FE00, U+E0118-E011F",
 }
 
-# Kana / Yi faces that bake dakuten: marks must be in unicode-range or
-# ``base+FE08/9+marks`` falls back to a face without slice GSUB (last slice
-# “restores” to the full glyph).
-_KANA_YI_WITH_DAKUTEN = frozenset(_SCRIPT_UNICODE_RANGE) - {
-    FAMILY_HANGUL,
-    FAMILY_HANGULS,
-}
+# Base + half-slice faces bake dakuten. q/qv/qh/t must not claim marks —
+# they sort earlier and lack mark glyphs (would swallow FE08/9 + marks).
+_KANA_YI_WITH_DAKUTEN = frozenset(
+    {FAMILY_YI, FAMILY_YI_H, FAMILY_KANA, FAMILY_KANA_H}
+)
 
 # Combining marks (dakuten) must be in unicode-range or Blink shows tofu.
 _DAKUTEN_UR_CACHE: str | None = None
@@ -353,6 +351,9 @@ def _script_unicode_range(family: str, ur: str | None) -> str | None:
     if family in _KANA_YI_WITH_DAKUTEN:
         base = ur or _SCRIPT_UNICODE_RANGE.get(family) or ""
         return _with_dakuten_unicode_range(base)
+    if family in _SCRIPT_UNICODE_RANGE:
+        # q/qv/qh/t: keep pigeonhole ranges; no dakuten.
+        return ur or _SCRIPT_UNICODE_RANGE.get(family)
     if ur:
         return ur
     return _SCRIPT_UNICODE_RANGE.get(family)

@@ -631,7 +631,9 @@ def _prepare_yi_face_state(
                 keep.add(name)
         keep |= keep_names_for_segment_face(kind, bases, glyphs)
         go, gl, mt, cm = subset_tables(glyph_order, glyphs, metrics, cmap, keep)
-        cm = filter_segment_face_cmap(kind, cm, list(bases))
+        cm = filter_segment_face_cmap(
+            kind, cm, list(bases), mark_cps=m.get("mark_cps")
+        )
         face_id = bucket_face_id(bucket_id, kind)
         if kind == "h":
             add_slice_halves(
@@ -1137,8 +1139,8 @@ def _css_cps_for_yi_face(
 ) -> List[int]:
     """CSS unicode-range CPs for one Yi face.
 
-    Segment faces that bake dakuten must claim ``mark_cps`` so
-    ``syllable+FE08/9+marks`` stays on the slice face (see kana helper).
+    Only ``h`` and the base face bake dakuten. Each ``h`` pigeonhole claims
+    ``mark_cps`` so last-slice marks on another Yi page stay on that file.
     """
     cps = {
         cp
@@ -1151,6 +1153,7 @@ def _css_cps_for_yi_face(
         cps |= YI_ORIENT_FE
     if variant == "h":
         cps |= YI_H_FE
+        cps |= set(mark_cps)
     elif variant == "t":
         cps |= YI_T_VS
     elif variant == "qv":
@@ -1161,9 +1164,6 @@ def _css_cps_for_yi_face(
         cps |= YI_Q_VS
     elif variant == "":
         cps |= YI_BASE_FE
-    else:
-        return sorted(cps)
-    if variant in ("", "h", "t", "q", "qv", "qh"):
         cps |= set(mark_cps)
     return sorted(cps)
 
