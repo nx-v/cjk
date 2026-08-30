@@ -58,11 +58,12 @@ Logical indices::
 (220 logical cells total; `i = L * 8 + o` with `L = 0..219`, `o = 0..7`.)
 
 Source priority per cell: FlopDesignFONT, then mkanaplus (PUA/archaic +
-overrides), then GenSeki Hentaigana, then LXGW (Clear Gothic / XiHei). Glyphs
-from sources other than Flop / mkana that are smaller than the average Flop kana
-ink size are stretched up on X and/or Y to that average; strokes are thinned to
-compensate (CAPE restores pre-stretch stem weight). Axes already at or above the
-average are left as-is.
+overrides), then GenSeki Hentaigana, then LXGW (Clear Gothic / XiHei), then
+Plangothic P1, then Sans Serif Collection, then Segoe UI Historic (last
+resort). Glyphs from sources other than Flop / mkana that are smaller than the
+average Flop kana ink size are stretched up on X and/or Y to that average;
+strokes are thinned to compensate (CAPE restores pre-stretch stem weight).
+Axes already at or above the average are left as-is.
 
 Trailing marks (all D4)::
 
@@ -229,6 +230,16 @@ LXGW_FAMILY_FILENAMES: Tuple[str, ...] = (
     "LXGWClearGothic-Book.ttf",
     "LXGWXiHeiMN.ttf",
     "LXGWXiHeiCL.ttf",
+)
+PLANGOTHIC_P1_FILENAMES: Tuple[str, ...] = ("PlangothicP1-Regular.ttf",)
+SANS_SERIF_COLLECTION_FILENAMES: Tuple[str, ...] = (
+    "SansSerifCollection.ttf",
+    "sansserifcollection.ttf",
+)
+SEGOE_UI_HISTORIC_FILENAMES: Tuple[str, ...] = (
+    "seguihis.ttf",
+    "SegoeUIHistoric.ttf",
+    "SEGUIHIS.TTF",
 )
 
 # Source-shape overrides: always claim from mkanaplus when present.
@@ -532,6 +543,48 @@ def resolve_lxgw_family_paths(in_dir: str) -> List[str]:
     return found
 
 
+def resolve_plangothic_p1_path(in_dir: str) -> Optional[str]:
+    """Last-resort kana outline source. Prefer Scripts/src; optional if missing."""
+    src_dir = os.path.join(SCRIPT_DIR, "src")
+    candidates: List[str] = []
+    for name in PLANGOTHIC_P1_FILENAMES:
+        candidates.append(os.path.join(src_dir, name))
+    for name in PLANGOTHIC_P1_FILENAMES:
+        candidates.append(os.path.join(in_dir, name))
+        candidates.append(os.path.join(REPO_ROOT, "CJK", name))
+        candidates.append(os.path.join(REPO_ROOT, name))
+    return _first_existing(candidates)
+
+
+def resolve_sans_serif_collection_path(in_dir: str) -> Optional[str]:
+    """Final kana outline fallback. Prefer Scripts/src; optional if missing."""
+    src_dir = os.path.join(SCRIPT_DIR, "src")
+    candidates: List[str] = []
+    for name in SANS_SERIF_COLLECTION_FILENAMES:
+        candidates.append(os.path.join(src_dir, name))
+    for name in SANS_SERIF_COLLECTION_FILENAMES:
+        candidates.append(os.path.join(in_dir, name))
+        candidates.append(os.path.join(REPO_ROOT, "CJK", name))
+        candidates.append(os.path.join(REPO_ROOT, name))
+    return _first_existing(candidates)
+
+
+def resolve_segoe_ui_historic_path(in_dir: str) -> Optional[str]:
+    """Ultimate kana outline fallback. Prefer Scripts/src; optional if missing."""
+    src_dir = os.path.join(SCRIPT_DIR, "src")
+    candidates: List[str] = []
+    for name in SEGOE_UI_HISTORIC_FILENAMES:
+        candidates.append(os.path.join(src_dir, name))
+    for name in SEGOE_UI_HISTORIC_FILENAMES:
+        candidates.append(os.path.join(in_dir, name))
+        candidates.append(os.path.join(REPO_ROOT, "CJK", name))
+        candidates.append(os.path.join(REPO_ROOT, name))
+        candidates.append(
+            os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", name)
+        )
+    return _first_existing(candidates)
+
+
 def font_cmap(tt: TTFont) -> Dict[int, str]:
     cmap: Dict[int, str] = {}
     for table in tt["cmap"].tables:
@@ -634,20 +687,26 @@ def claim_source_cp(
     mkana: SourceFont,
     genseki: SourceFont,
     lxgw: Sequence[SourceFont],
+    plangothic: Sequence[SourceFont] = (),
+    sans_serif: Sequence[SourceFont] = (),
+    segoe_historic: Sequence[SourceFont] = (),
 ) -> Tuple[SourceFont, str]:
     """Return (source, glyph_name) for a chart source CP."""
     if src_cp in MKANA_OVERRIDE_CPS:
         head: Tuple[SourceFont, ...] = (mkana, *flop, genseki)
     else:
         head = (*flop, mkana, genseki)
-    for src in (*head, *lxgw):
+    for src in (*head, *lxgw, *plangothic, *sans_serif, *segoe_historic):
         gname = src.cmap.get(src_cp)
         if gname is None:
             continue
         if is_empty_outline(src.tt, gname):
             continue
         return src, gname
-    raise KeyError(f"No outline for U+{src_cp:04X} in Flop/mkanaplus/genseki/lxgw")
+    raise KeyError(
+        f"No outline for U+{src_cp:04X} in "
+        f"Flop/mkanaplus/genseki/lxgw/plangothic/sans-serif/seguihis"
+    )
 
 
 def _glyph_ink_width(glyph: TTGlyph) -> float:
@@ -2034,6 +2093,9 @@ def build_edenia_kana_font(
     mkana_path = resolve_mkana_path(in_dir)
     genseki_path = resolve_genseki_path(in_dir)
     lxgw_paths = resolve_lxgw_family_paths(in_dir)
+    plangothic_path = resolve_plangothic_p1_path(in_dir)
+    sans_serif_path = resolve_sans_serif_collection_path(in_dir)
+    segoe_historic_path = resolve_segoe_ui_historic_path(in_dir)
     print(
         "  Flop: " + ", ".join(os.path.basename(p) for p in flop_paths),
         flush=True,
@@ -2044,11 +2106,34 @@ def build_edenia_kana_font(
         "  lxgw: " + ", ".join(os.path.basename(p) for p in lxgw_paths),
         flush=True,
     )
+    if plangothic_path is not None:
+        print(f"  plangothic p1: {plangothic_path}", flush=True)
+    else:
+        print("  plangothic p1: (missing; skipped)", flush=True)
+    if sans_serif_path is not None:
+        print(f"  sans serif collection: {sans_serif_path}", flush=True)
+    else:
+        print("  sans serif collection: (missing; skipped)", flush=True)
+    if segoe_historic_path is not None:
+        print(f"  segoe ui historic: {segoe_historic_path}", flush=True)
+    else:
+        print("  segoe ui historic: (missing; skipped)", flush=True)
 
     flop = [SourceFont(path) for path in flop_paths]
     mkana = SourceFont(mkana_path)
     genseki = SourceFont(genseki_path)
     lxgw = [SourceFont(path) for path in lxgw_paths]
+    plangothic = (
+        [SourceFont(plangothic_path)] if plangothic_path is not None else []
+    )
+    sans_serif = (
+        [SourceFont(sans_serif_path)] if sans_serif_path is not None else []
+    )
+    segoe_historic = (
+        [SourceFont(segoe_historic_path)]
+        if segoe_historic_path is not None
+        else []
+    )
     primary_path_set = {os.path.normcase(os.path.normpath(p)) for p in flop_paths}
     primary_path_set.add(os.path.normcase(os.path.normpath(mkana_path)))
     avg_w, avg_h = flop_average_ink_size(flop, target_upem, source_cps)
@@ -2079,7 +2164,16 @@ def build_edenia_kana_font(
         )
         for logical, src_cp in enumerate(source_cps):
             try:
-                src, gname = claim_source_cp(src_cp, flop, mkana, genseki, lxgw)
+                src, gname = claim_source_cp(
+                    src_cp,
+                    flop,
+                    mkana,
+                    genseki,
+                    lxgw,
+                    plangothic,
+                    sans_serif,
+                    segoe_historic,
+                )
             except KeyError as exc:
                 print(f"  [!] skip L={logical}: {exc}", file=sys.stderr)
                 continue
@@ -2510,6 +2604,12 @@ def build_edenia_kana_font(
         for src in flop:
             src.close()
         for src in lxgw:
+            src.close()
+        for src in plangothic:
+            src.close()
+        for src in sans_serif:
+            src.close()
+        for src in segoe_historic:
             src.close()
 
 

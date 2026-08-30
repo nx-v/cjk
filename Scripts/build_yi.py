@@ -288,9 +288,7 @@ def install_yi_orientation_gsub(
         gsub.LookupList.LookupCount = 0
     n_new = len(lookups)
     for fr in gsub.FeatureList.FeatureRecord or []:
-        fr.Feature.LookupListIndex = [
-            i + n_new for i in fr.Feature.LookupListIndex
-        ]
+        fr.Feature.LookupListIndex = [i + n_new for i in fr.Feature.LookupListIndex]
         fr.Feature.LookupListIndex = list(range(n_new)) + list(
             fr.Feature.LookupListIndex
         )
@@ -631,9 +629,7 @@ def _prepare_yi_face_state(
                 keep.add(name)
         keep |= keep_names_for_segment_face(kind, bases, glyphs)
         go, gl, mt, cm = subset_tables(glyph_order, glyphs, metrics, cmap, keep)
-        cm = filter_segment_face_cmap(
-            kind, cm, list(bases), mark_cps=m.get("mark_cps")
-        )
+        cm = filter_segment_face_cmap(kind, cm, list(bases), mark_cps=m.get("mark_cps"))
         face_id = bucket_face_id(bucket_id, kind)
         if kind == "h":
             add_slice_halves(

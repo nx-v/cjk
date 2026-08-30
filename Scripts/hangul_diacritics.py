@@ -72,9 +72,7 @@ from shared_half_cells import (
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_SCRIPTS_DIR)
 
-LXGW_NEO_XIHEI_SCREEN_FULL_FILENAMES: Tuple[str, ...] = (
-    "LXGWNeoXiHeiScreenFull.ttf",
-)
+LXGW_NEO_XIHEI_SCREEN_FULL_FILENAMES: Tuple[str, ...] = ("LXGWNeoXiHeiScreenFull.ttf",)
 MKANAPLUS_FILENAMES: Tuple[str, ...] = ("mkanaplus.ttf", "mkanaplus-regular.ttf")
 NEXSEVKA_FILENAME = "Nexsevka-Regular.ttf"
 ARIAL_FILENAMES: Tuple[str, ...] = ("arial.ttf", "Arial.ttf", "ARIAL.TTF")
@@ -833,7 +831,11 @@ def mark_chain_parent_anchor(
     """Mark2 anchor: stack further out on the parent slot's compass ray."""
     del glyph, glyph_set
     ux, uy = _DAKUTEN_SLOT_DIR[parent_slot]
-    h = mark_height if mark_height and mark_height > 0 else target_upem * DAKUTEN_MARK_HEIGHT_FRAC
+    h = (
+        mark_height
+        if mark_height and mark_height > 0
+        else target_upem * DAKUTEN_MARK_HEIGHT_FRAC
+    )
     d = h * DAKUTEN_CHAIN_SEP_FRAC
     return otRound(ux * d), otRound(uy * d)
 
@@ -1472,8 +1474,8 @@ def install_dakuten_chain_gsub(
 ) -> int:
     """Route 9th+ marks through per-slot `.mk.ch` glyphs (mark-to-mark cycle).
 
-  * BL + TR → `.ch` (9th stacks on TR diacritic).
-  * `.ch` + TR → `.ch.cr` (10th on CR), … through BL, then wrap to TR.
+    * BL + TR → `.ch` (9th stacks on TR diacritic).
+    * `.ch` + TR → `.ch.cr` (10th on CR), … through BL, then wrap to TR.
     """
     from shared_half_cells import (
         build_chain_context_format2,
@@ -1582,12 +1584,8 @@ def install_dakuten_mark_chain_gpos(
     variant: str = "",
     mark_height: Optional[float] = None,
     target_upem: int = 1000,
-    chain_parent_anchor_fn: Optional[
-        Callable[..., Tuple[int, int]]
-    ] = None,
-    chain_child_anchor_fn: Optional[
-        Callable[..., Tuple[int, int]]
-    ] = None,
+    chain_parent_anchor_fn: Optional[Callable[..., Tuple[int, int]]] = None,
+    chain_child_anchor_fn: Optional[Callable[..., Tuple[int, int]]] = None,
     extra_script_tags: Sequence[str] = (),
     cp_chunk: int = DAKUTEN_CHAIN_GPOS_CP_CHUNK,
 ) -> int:
@@ -1597,10 +1595,14 @@ def install_dakuten_mark_chain_gpos(
     parent_anchor = chain_parent_anchor_fn or mark_chain_parent_anchor
     child_anchor = chain_child_anchor_fn or mark_corner_anchor
 
-    cps = [cp for cp in mark_cps if any(
-        dakuten_mark_chain_slot_name(cp, slot, variant=variant) in glyphs
-        for slot, _suf in DAKUTEN_SLOTS
-    )]
+    cps = [
+        cp
+        for cp in mark_cps
+        if any(
+            dakuten_mark_chain_slot_name(cp, slot, variant=variant) in glyphs
+            for slot, _suf in DAKUTEN_SLOTS
+        )
+    ]
     if not cps:
         return 0
 
