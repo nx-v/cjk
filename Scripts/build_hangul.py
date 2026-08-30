@@ -48,7 +48,7 @@ VS4     U+FE03     mxy — both axes
 
 Dakuten (combining marks)
 -------------------------
-Stack: LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka → JuliaMono →
+Stack: LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka → Arial → JuliaMono →
 Segoe UI → Segoe UI Historic → Sans Serif Collection → Droid Sans.
 Marks keep native
 left-/right-aligned to CJK cell corners. Same TR → BR → TL → BL slot order as
@@ -3079,8 +3079,8 @@ def build_all(
     )
     print(f"  Syllables ({FAMILY_SYLL}): whole-glyph VS / UVS")
     print(
-        "  Dakuten: LXGWNeoXiHeiScreenFull + mkanaplus + Nexsevka + JuliaMono + "
-        "Segoe UI + Segoe UI Historic + Sans Serif Collection + Droid Sans "
+        "  Dakuten: LXGWNeoXiHeiScreenFull + mkanaplus + Nexsevka + Arial + "
+        "JuliaMono + Segoe UI + Segoe UI Historic + Sans Serif Collection + Droid Sans "
         "\\p{Mn} @ CJK box slots "
         f"({DAKUTEN_SLOT_CYCLE}; fixed H, L/R/mid align; both families)"
     )

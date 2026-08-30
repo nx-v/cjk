@@ -139,10 +139,10 @@ PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("Gothic Nguyen Regular.ttf", 1.0, 1.05),
     ("YshiYuanGothicCleaned.ttf", 1.0, 1.05),
     ("ChocolateClassicalSans-Regular.ttf", 1.0, 1.05),
-    ("I.MingVarCP-8.10.ttf", 1.0, 1.15),
     ("SukimaGothic.ttf", 1.0, 1.05),
-    ("simsunb.ttf", 1.0, 1.25),
-    ("SimsunExtG.ttf", 1.0, 1.25),
+    # ("I.MingVarCP-8.10.ttf", 1.0, 1.15),
+    # ("simsunb.ttf", 1.0, 1.25),
+    # ("SimsunExtG.ttf", 1.0, 1.25),
     ("PlangothicP1-Regular.ttf", 1.0, 1.05),
     ("PlangothicP2-Regular.ttf", 1.0, 1.05),
 ]

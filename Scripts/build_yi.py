@@ -1296,8 +1296,8 @@ def build_all(
     )
     print("  Slice (h face): U+FE08–FE0B halves, U+FE0C–FE0F triangles")
     print(
-        "  Dakuten: LXGWNeoXiHeiScreenFull + mkanaplus + Nexsevka + JuliaMono + "
-        "Segoe UI + Segoe UI Historic + Sans Serif Collection + Droid Sans "
+        "  Dakuten: LXGWNeoXiHeiScreenFull + mkanaplus + Nexsevka + Arial + "
+        "JuliaMono + Segoe UI + Segoe UI Historic + Sans Serif Collection + Droid Sans "
         "\\p{Mn} @ CJK corners "
         f"({DAKUTEN_SLOT_CYCLE}; CGJ skips a slot; fixed H, L/R/mid align; "
         "all D4 incl. r90my)"

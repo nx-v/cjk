@@ -7,8 +7,9 @@ marks (macron, overline) are box-fitted, not dropped. Spacing marks
 
 Stack (priority order)::
 
-    LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka-Regular → JuliaMono-Regular
-    → Segoe UI → Segoe UI Historic → Sans Serif Collection → Droid Sans
+    LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka-Regular → Arial
+    → JuliaMono-Regular → Segoe UI → Segoe UI Historic → Sans Serif Collection
+    → Droid Sans
 
 Marks are copied at **native outline size** (only UPM harmonization when the
 source `unitsPerEm` differs). They attach via GPOS
@@ -76,6 +77,7 @@ LXGW_NEO_XIHEI_SCREEN_FULL_FILENAMES: Tuple[str, ...] = (
 )
 MKANAPLUS_FILENAMES: Tuple[str, ...] = ("mkanaplus.ttf", "mkanaplus-regular.ttf")
 NEXSEVKA_FILENAME = "Nexsevka-Regular.ttf"
+ARIAL_FILENAMES: Tuple[str, ...] = ("arial.ttf", "Arial.ttf", "ARIAL.TTF")
 JULIAMONO_FILENAME = "JuliaMono-Regular.ttf"
 SEGOE_UI_FILENAMES: Tuple[str, ...] = ("segoeui.ttf", "SegoeUI.ttf", "SEGOEUI.TTF")
 SEGOE_UI_HISTORIC_FILENAMES: Tuple[str, ...] = (
@@ -187,8 +189,9 @@ def _paths_for_names(in_dir: str, names: Sequence[str], *extra: str) -> Tuple[st
 def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
     """Return existing mark-source paths in priority order.
 
-    Priority: LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka → JuliaMono →
-    Segoe UI → Segoe UI Historic → Sans Serif Collection → Droid Sans.
+    Priority: LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka → Arial →
+    JuliaMono → Segoe UI → Segoe UI Historic → Sans Serif Collection →
+    Droid Sans.
     Looks under `in_dir` first, then well-known repo locations.
     """
     groups: Tuple[Tuple[str, ...], ...] = (
@@ -206,6 +209,11 @@ def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
             (NEXSEVKA_FILENAME,),
             os.path.join(_REPO_ROOT, "Nexsevka", "TTF", NEXSEVKA_FILENAME),
         ),
+        _paths_for_names(
+            in_dir,
+            ARIAL_FILENAMES,
+            os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "arial.ttf"),
+        ),
         _paths_for_names(in_dir, (JULIAMONO_FILENAME,)),
         _paths_for_names(in_dir, SEGOE_UI_FILENAMES),
         _paths_for_names(in_dir, SEGOE_UI_HISTORIC_FILENAMES),
@@ -220,8 +228,8 @@ def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
     if not out:
         raise FileNotFoundError(
             "No shared-diacritic mark source fonts found "
-            "(LXGWNeoXiHeiScreenFull / mkanaplus / Nexsevka / JuliaMono / "
-            "Segoe UI / Segoe UI Historic / Sans Serif Collection / "
+            "(LXGWNeoXiHeiScreenFull / mkanaplus / Nexsevka / Arial / "
+            "JuliaMono / Segoe UI / Segoe UI Historic / Sans Serif Collection / "
             f"Droid Sans; in_dir={in_dir!r})"
         )
     return out
