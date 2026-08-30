@@ -343,62 +343,32 @@ def copy_scaled_glyph(
 # Jungseong (medial) layout axes from vowel shape:
 #   x  = vertical (ㅏ…) — sits to the right of choseong
 #   y  = horizontal (ㅗ/ㅜ…) — sits below choseong
-#   xy = compound (ㅘ…) — both
+#   xy = compound (ㅘ…) — both (every other jungseong CP)
 VowelAxis = str  # "x" | "y" | "xy"
 
-_JUNGSEONG_VERTICAL = frozenset({"A", "AE", "YA", "YAE", "EO", "E", "YEO", "YE", "I"})
-_JUNGSEONG_HORIZONTAL = frozenset({"O", "YO", "U", "YU", "EU", "ARAEA", "SSANGARAEA"})
-# Modern precomposed digraph names (already mix vertical+horizontal).
-_JUNGSEONG_COMPOUND = frozenset({"WA", "WAE", "OE", "WEO", "WE", "WI", "YI"})
-# Digraph Unicode names whose layout is not ``xy`` despite mixed parts.
-_JUNGSEONG_AXIS_OVERRIDE: Dict[int, VowelAxis] = {
-    0x117D: "x",  # YEO-O ᆝ — vertical (x), not y/xy
-}
 _JUNGSEONG_CP_RANGES: Tuple[Tuple[int, int], ...] = (
     (0x1160, 0x11A7),  # Hangul Jamo medials (+ U+1160 filler)
     (0xD7B0, 0xD7C6),  # Hangul Jamo Extended-B medials
 )
-
-
-def jungseong_axis_from_name(name: str) -> Optional[VowelAxis]:
-    """Return layout axes for a `HANGUL JUNGSEONG …` Unicode name."""
-    prefix = "HANGUL JUNGSEONG "
-    if not name.startswith(prefix):
-        return None
-    rest = name[len(prefix) :]
-    # U+1160 HANGUL JUNGSEONG FILLER — empty medial; X-group (beside L).
-    # Same L shift / FE04 paths as ㅏ… so an “imaginary” flipped medial or
-    # raised batchim still translates the choseong (never a Y-drop).
-    if rest == "FILLER":
-        return "x"
-    parts = rest.split("-")
-    if any(p in _JUNGSEONG_COMPOUND for p in parts):
-        return "xy"
-    has_v = any(p in _JUNGSEONG_VERTICAL for p in parts)
-    has_h = any(p in _JUNGSEONG_HORIZONTAL for p in parts)
-    if has_v and has_h:
-        return "xy"
-    if has_h:
-        return "y"
-    if has_v:
-        return "x"
-    return "xy"
+# Explicit axis buckets (filler + modern/archaic jamo). All other jungseong → xy.
+_JUNGSEONG_X_CPS: frozenset[int] = frozenset(
+    ord(c) for c in "ᅠᅡᅢᅣᅤᅥᅦᅧᅨᅵᆘᆙᆝᆥힾힿퟀퟄ"
+)
+_JUNGSEONG_Y_CPS: frozenset[int] = frozenset(
+    ord(c) for c in "ᅩᅭᅮᅲᅳᆂᆃᆇᆍᆓᆕᆖᆞᆠᆢힱힸힼ"
+)
 
 
 def _build_vowel_axis_by_cp() -> Dict[int, VowelAxis]:
-    import unicodedata
-
     out: Dict[int, VowelAxis] = {}
     for start, end in _JUNGSEONG_CP_RANGES:
         for cp in range(start, end + 1):
-            try:
-                name = unicodedata.name(chr(cp))
-            except ValueError:
-                continue
-            axis = jungseong_axis_from_name(name)
-            if axis is not None:
-                out[cp] = axis
-    out.update(_JUNGSEONG_AXIS_OVERRIDE)
+            if cp in _JUNGSEONG_X_CPS:
+                out[cp] = "x"
+            elif cp in _JUNGSEONG_Y_CPS:
+                out[cp] = "y"
+            else:
+                out[cp] = "xy"
     return out
 
 
