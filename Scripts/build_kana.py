@@ -312,17 +312,17 @@ KATAKANA_ROWS: Tuple[Tuple[int, ...], ...] = (
     (0x0ED5C, 0x0ED5E, 0x030C4, 0x0ED60, 0x0ED62, 0x03118),  # ts
     (0x0ED54, 0x0EBEC, 0x0ED76, 0x0ED58, 0x0ED5A, 0x03114),  # ch
     (0x0ED48, 0x0EBE8, 0x0ED4A, 0x0ED4C, 0x0ED4E, 0x03115),  # sh
-    (0x030B5, 0x0ED41, 0x030B9, 0x030BB, 0x030BD, 0x03112),  # s
+    (0x030B5, 0x0ED41, 0x030B9, 0x030BB, 0x030BD, 0x0EF6B),  # s
     (0x030DE, 0x0EBF4, 0x030E0, 0x030E1, 0x030E2, 0x0F47F),  # m
     (0x030CA, 0x030CB, 0x030CC, 0x030CD, 0x030CE, 0x0EBF0),  # n
     (0x030CF, 0x030D2, 0x0EE45, 0x030D8, 0x030DB, 0x0310F),  # h
-    (0x030E4, 0x1B120, 0x030E6, 0x1B121, 0x030E8, 0x0EDCF),  # y
+    (0x030E4, 0x1B120, 0x030E6, 0x1B121, 0x030E8, 0x0EFDE),  # y
     (0x0EDC3, 0x0EDC8, 0x0EDC0, 0x0EDC5, 0x0EDC1, 0x0310C),  # l
     (0x030E9, 0x030EA, 0x030EB, 0x030EC, 0x0EC66, 0x0EDD1),  # r
-    (0x030EF, 0x030F0, 0x1B122, 0x030F1, 0x030F2, 0x0ED64),  # w
+    (0x030EF, 0x030F0, 0x1B122, 0x030F1, 0x030F2, 0x0F02B),  # w
     (0x0EDCC, 0x0EDCD, 0x0ED7A, 0x0EDD8, 0x0EDD4, 0x0EDC7),  # f
     (0x0EDCB, 0x0EDC9, 0x0EE69, 0x0EDD0, 0x0EDC4, 0x03105),  # p
-    (0x0EBE0, 0x0EDD2, 0x0ECC2, 0x0ECC3, 0x0ECC4, 0x0312C),  # ny
+    (0x0EBE0, 0x0EDD2, 0x0EF92, 0x0ECC3, 0x0ECC4, 0x0312C),  # ny
 )
 
 # After each script's last phonetic cell: length, then gemination.
@@ -2123,16 +2123,10 @@ def build_edenia_kana_font(
     mkana = SourceFont(mkana_path)
     genseki = SourceFont(genseki_path)
     lxgw = [SourceFont(path) for path in lxgw_paths]
-    plangothic = (
-        [SourceFont(plangothic_path)] if plangothic_path is not None else []
-    )
-    sans_serif = (
-        [SourceFont(sans_serif_path)] if sans_serif_path is not None else []
-    )
+    plangothic = [SourceFont(plangothic_path)] if plangothic_path is not None else []
+    sans_serif = [SourceFont(sans_serif_path)] if sans_serif_path is not None else []
     segoe_historic = (
-        [SourceFont(segoe_historic_path)]
-        if segoe_historic_path is not None
-        else []
+        [SourceFont(segoe_historic_path)] if segoe_historic_path is not None else []
     )
     primary_path_set = {os.path.normcase(os.path.normpath(p)) for p in flop_paths}
     primary_path_set.add(os.path.normcase(os.path.normpath(mkana_path)))
