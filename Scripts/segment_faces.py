@@ -195,11 +195,7 @@ def filter_segment_face_cmap(
         fe_ok |= set(mark_cps)
     out: Dict[int, str] = {}
     for cp, name in cmap.items():
-        if (
-            _cmap_name_in_base_families(name, bases)
-            or cp in fe_ok
-            or cp in vs_page
-        ):
+        if _cmap_name_in_base_families(name, bases) or cp in fe_ok or cp in vs_page:
             out[cp] = name
     return out
 

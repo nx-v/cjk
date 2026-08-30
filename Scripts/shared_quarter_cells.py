@@ -374,9 +374,7 @@ def add_quarter_forms(
         adv, _lsb = metrics.get(name, (target_upem, 0))
 
         def _put(out_name: str, gm: Tuple[TTGlyph, int, int]) -> None:
-            gm = finalize_slice_metrics(
-                gm, glyph_set=glyphs, upem=target_upem
-            )
+            gm = finalize_slice_metrics(gm, glyph_set=glyphs, upem=target_upem)
             install_derived_glyph(
                 out_name,
                 gm,
@@ -415,7 +413,6 @@ def add_quarter_forms(
     return added
 
 
-
 def add_grid_forms(
     base_names: Sequence[str],
     *,
@@ -444,9 +441,7 @@ def add_grid_forms(
         adv, _lsb = metrics.get(name, (target_upem, 0))
 
         def _put(out_name: str, gm: Tuple[TTGlyph, int, int]) -> None:
-            gm = finalize_slice_metrics(
-                gm, glyph_set=glyphs, upem=target_upem
-            )
+            gm = finalize_slice_metrics(gm, glyph_set=glyphs, upem=target_upem)
             install_derived_glyph(
                 out_name,
                 gm,

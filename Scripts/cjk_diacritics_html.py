@@ -346,9 +346,7 @@ QUARTER_TILE_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("q4t3", "q4b"),  # top 3/4 + bottom quarter
 )
 
-QUARTER_QUAD_SETS: Tuple[Tuple[str, ...], ...] = (
-    ("q4t", "q4nt", "q4nb", "q4b"),
-)
+QUARTER_QUAD_SETS: Tuple[Tuple[str, ...], ...] = (("q4t", "q4nt", "q4nb", "q4b"),)
 
 
 def write_html(
@@ -423,7 +421,8 @@ def write_html(
 
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(f"""<!doctype html>
+        f.write(
+            f"""<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8"/>
@@ -916,7 +915,8 @@ renderMarks(sliceIndices(), markList());
 </script>
 </body>
 </html>
-""")
+"""
+        )
 
     print(f"CJK: N={n:,}  range={range_note}  gallery~{total:,}  -> {path}")
 

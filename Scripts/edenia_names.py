@@ -73,9 +73,7 @@ def segment_variant_from_token(token: str) -> str:
     """`base` / `h` / `t` / `q` / `qv` / `qh` → face suffix."""
     key = str(token).strip().lower()
     if key not in _SEGMENT_FACE_TOKEN:
-        raise ValueError(
-            f"unknown face {token!r}; use base, h, t, q, qv, qh"
-        )
+        raise ValueError(f"unknown face {token!r}; use base, h, t, q, qv, qh")
     return _SEGMENT_FACE_TOKEN[key]
 
 
@@ -179,9 +177,7 @@ def resolve_kana_yi_variants(args: argparse.Namespace) -> tuple[str, ...]:
                 "use either --faces or --base/--h/--t/--q/--qv/--qh, not both"
             )
         got = [
-            segment_variant_from_token(p)
-            for p in str(faces).split(",")
-            if p.strip()
+            segment_variant_from_token(p) for p in str(faces).split(",") if p.strip()
         ]
         if not got:
             raise ValueError("--faces is empty")
@@ -226,9 +222,7 @@ def resolve_cjk_variants(args: argparse.Namespace) -> tuple[str, ...]:
                 "use either --faces or --base/--h/--t/--q/--qv/--qh, not both"
             )
         got = [
-            segment_variant_from_token(p)
-            for p in str(faces).split(",")
-            if p.strip()
+            segment_variant_from_token(p) for p in str(faces).split(",") if p.strip()
         ]
         if not got:
             raise ValueError("--faces is empty")
@@ -241,6 +235,7 @@ def resolve_cjk_variants(args: argparse.Namespace) -> tuple[str, ...]:
     if want_h:
         selected.append("h")
     return ordered_cjk_variants(selected)
+
 
 def family_cjk(face_id: str) -> str:
     """CSS / name-table family for a face file stem.

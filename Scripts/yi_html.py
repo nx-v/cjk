@@ -71,12 +71,8 @@ ORIENT_LABEL = [
 ]
 
 # Default stack is h+base. Slice modes pin a single face (see mode["face"]).
-YI_FONT_STACK = ", ".join(
-    f"'{family_yi_variant(v)}'" for v in SEGMENT_FACE_STACK_ORDER
-)
-YI_FACE_FAMILY = {
-    v: family_yi_variant(v) for v in ("", "h", "t", "q", "qv", "qh")
-}
+YI_FONT_STACK = ", ".join(f"'{family_yi_variant(v)}'" for v in SEGMENT_FACE_STACK_ORDER)
+YI_FACE_FAMILY = {v: family_yi_variant(v) for v in ("", "h", "t", "q", "qv", "qh")}
 
 
 def _vs_by_suffix(slots) -> dict:

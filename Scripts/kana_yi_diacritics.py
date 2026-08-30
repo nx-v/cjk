@@ -340,7 +340,11 @@ class _PolylinePen(BasePen):
             self._current.append((x, y))
 
     def _closePath(self):
-        if self._start is not None and self._current and self._current[-1] != self._start:
+        if (
+            self._start is not None
+            and self._current
+            and self._current[-1] != self._start
+        ):
             self._current.append(self._start)
         if len(self._current) >= 2:
             self.contours.append(self._current)
@@ -692,7 +696,11 @@ def _anchor_chunk_result_path(cache_dir: str, chunk_id: int) -> str:
 def _partition_anchor_names(names: Sequence[str], n_chunks: int) -> List[List[str]]:
     n_chunks = max(1, min(n_chunks, len(names)))
     size = (len(names) + n_chunks - 1) // n_chunks
-    return [list(names[i : i + size]) for i in range(0, len(names), size) if names[i : i + size]]
+    return [
+        list(names[i : i + size])
+        for i in range(0, len(names), size)
+        if names[i : i + size]
+    ]
 
 
 def _acquire_cache_lock(cache_path: str) -> str:

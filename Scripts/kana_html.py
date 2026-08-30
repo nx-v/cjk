@@ -85,9 +85,7 @@ ORIENT_LABEL = [
 KANA_FONT_STACK = ", ".join(
     f"'{family_kana_variant(v)}'" for v in SEGMENT_FACE_STACK_ORDER
 )
-KANA_FACE_FAMILY = {
-    v: family_kana_variant(v) for v in ("", "h", "t", "q", "qv", "qh")
-}
+KANA_FACE_FAMILY = {v: family_kana_variant(v) for v in ("", "h", "t", "q", "qv", "qh")}
 
 
 def _vs_by_suffix(slots) -> dict:

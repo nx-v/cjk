@@ -902,9 +902,7 @@ def add_squish_forms(
                     pts = triangle_clip_points(
                         first, x0=x0, y0=y0, x1=x1, y1=y1, inf=inf
                     )
-                    clipped = clip_glyph_to_polygon(
-                        glyphs[name], pts, glyph_set=glyphs
-                    )
+                    clipped = clip_glyph_to_polygon(glyphs[name], pts, glyph_set=glyphs)
                     try:
                         clipped.recalcBounds(None)
                         lsb = int(clipped.xMin)
@@ -995,9 +993,7 @@ def marked_form_name(squish_form: str, mark_root: str) -> str:
     return f"{squish_form}_{mark_root}"
 
 
-def _mark_component_for_slot(
-    upright: str, position: str, mirror: Optional[str]
-) -> str:
+def _mark_component_for_slot(upright: str, position: str, mirror: Optional[str]) -> str:
     """LR-fitted mark for right/left; r90 `.T` for up/down; then mirror."""
     root = upright if position in ("right", "left") else top_mark_name(upright)
     if mirror is None:

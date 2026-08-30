@@ -258,9 +258,7 @@ def add_third_forms(
         adv, _lsb = metrics.get(name, (target_upem, 0))
 
         def _put(out_name: str, gm: Tuple[TTGlyph, int, int]) -> None:
-            gm = finalize_slice_metrics(
-                gm, glyph_set=glyphs, upem=target_upem
-            )
+            gm = finalize_slice_metrics(gm, glyph_set=glyphs, upem=target_upem)
             install_derived_glyph(
                 out_name,
                 gm,

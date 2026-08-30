@@ -94,9 +94,7 @@ _ANY_NEXOVOLTA_DIST = re.compile(
     r"Scripts/dist/",
     re.I,
 )
-_EDENIA_CJK_FAMILY = re.compile(
-    r"font-family:\s*['\"](edenia cjk(?:\s+h)?)['\"]"
-)
+_EDENIA_CJK_FAMILY = re.compile(r"font-family:\s*['\"](edenia cjk(?:\s+h)?)['\"]")
 
 MARK_FACES_BEGIN = "/* === BEGIN auto pan fonts (update_obsidian_theme_fonts.py) === */"
 MARK_FACES_END = "/* === END auto pan fonts === */"
@@ -240,9 +238,7 @@ _SCRIPT_UNICODE_RANGE = {
 
 # Base + half-slice faces bake dakuten. q/qv/qh/t must not claim marks —
 # they sort earlier and lack mark glyphs (would swallow FE08/9 + marks).
-_KANA_YI_WITH_DAKUTEN = frozenset(
-    {FAMILY_YI, FAMILY_YI_H, FAMILY_KANA, FAMILY_KANA_H}
-)
+_KANA_YI_WITH_DAKUTEN = frozenset({FAMILY_YI, FAMILY_YI_H, FAMILY_KANA, FAMILY_KANA_H})
 
 # Combining marks (dakuten) must be in unicode-range or Blink shows tofu.
 _DAKUTEN_UR_CACHE: str | None = None
@@ -415,9 +411,7 @@ def collect_faces(css: str, *, folder: str) -> list[dict]:
 def build_stack_block(*, edenia_cjk_families: list[str]) -> str:
     if not edenia_cjk_families:
         raise ValueError("no edenia cjk families found in CSS")
-    kana = ", ".join(
-        f'"{family_kana_variant(v)}"' for v in SEGMENT_FACE_STACK_ORDER
-    )
+    kana = ", ".join(f'"{family_kana_variant(v)}"' for v in SEGMENT_FACE_STACK_ORDER)
     yi = ", ".join(f'"{family_yi_variant(v)}"' for v in SEGMENT_FACE_STACK_ORDER)
     scripts = f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", {kana}, {yi}'
     cjk = ", ".join(css_family_token(n) for n in edenia_cjk_families)
@@ -896,9 +890,7 @@ def patch_theme(theme_path: Path, faces: str, stack: str) -> None:
         text = _replace_legacy_stack(text, stack)
 
     theme_path.write_text(text, encoding="utf-8")
-    n_unique = len(
-        set(re.findall(r'["\']edenia cjk(?:\s+h)?["\']', text))
-    )
+    n_unique = len(set(re.findall(r'["\']edenia cjk(?:\s+h)?["\']', text)))
     size_mb = theme_path.stat().st_size / (1024 * 1024)
     print(f"Wrote {theme_path} (edenia cjk families~{n_unique}, {size_mb:.1f} MiB)")
 
