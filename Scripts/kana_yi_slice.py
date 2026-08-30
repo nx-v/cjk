@@ -18,9 +18,10 @@ glyph stacks in the same cell::
 
     A FE08 FE00 B FE09   →  A.top.ov + B.bot
 
-Identity + D4 forms store eight slices: clip one side of each complementary
-pair, then `full − that piece`. Other orientations are D4 of the identity
-clips (`propagate_d4_segments`).
+Identity + D4 forms store eight slices: **clip each side** of a complementary
+pair to its half-plane / triangle (never `full − piece` — pathops difference
+leaves cut-line spikes). Other orientations are D4 of the identity clips
+(`propagate_d4_segments`).
 """
 
 from __future__ import annotations
@@ -43,7 +44,6 @@ from shared_half_cells import (
     TYPO_DESCENDER_FRAC,
     TransformMode,
     add_overlay_forms,
-    boolean_subtract_named,
     build_chunked_ligature_subst_lookup,
     clip_glyph_to_polygon,
     clip_glyph_to_rect,
@@ -171,10 +171,7 @@ def _bake_slices_for_form(
     target_upem: int,
     cell_width: Optional[float] = None,
 ) -> None:
-    """Clip one side of each complementary pair; the other is `full − that`.
-
-    Clip / subtract strip artefacts before and after pathops.
-    """
+    """Clip every half / triangle to its keep region (clean cut, no subtract)."""
     adv = int(target_upem if cell_width is None else cell_width)
 
     def _clip(kind: str) -> TTGlyph:
@@ -194,39 +191,17 @@ def _bake_slices_for_form(
             cell_width=cell_width,
         )
 
-    for first, second in (
-        ("top", "bot"),
-        ("left", "right"),
-        ("tl", "br"),
-        ("tr", "bl"),
-    ):
-        n1 = half_glyph_name(form_name, first)
-        if n1 not in glyphs:
-            _put_slice(
-                n1,
-                _clip(first),
-                advance=adv,
-                glyph_order=glyph_order,
-                glyphs=glyphs,
-                metrics=metrics,
-            )
-        n2 = half_glyph_name(form_name, second)
-        if n2 in glyphs:
+    for kind in SLICE_SUFFIXES:
+        n = half_glyph_name(form_name, kind)
+        if n in glyphs:
             continue
-        gm = boolean_subtract_named(
-            form_name,
-            n1,
-            glyphs=glyphs,
-            metrics=metrics,
+        _put_slice(
+            n,
+            _clip(kind),
             advance=adv,
-        )
-        install_derived_glyph(
-            n2,
-            gm,
             glyph_order=glyph_order,
             glyphs=glyphs,
             metrics=metrics,
-            advance=adv,
         )
 
 

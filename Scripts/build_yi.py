@@ -128,7 +128,7 @@ from shared_half_cells import (
     uvs_selector_for_mode,
     vs_glyph_name,
 )
-from yi_slice import (
+from kana_yi_slice import (
     add_slice_halves,
     inject_slice_marks,
     install_slice_gsub,

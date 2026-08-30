@@ -25,11 +25,11 @@ VS26    U+E0109    right third                      `t3r`
 ======= ========== ================================ ========
 
 Upright and D4 bases are **slices** of the already-baked fullwidth outline:
-clip the two end thirds per axis; middle and two-thirds bands are
-`full − end` / `(full − end) − other end`. Zero-width `.ov`
+each third / two-thirds band is clipped to its slot rect (never
+`full − end` — pathops difference leaves cut-line spikes). Zero-width `.ov`
 forms are composites of those fullwidth slices.
 
-Geometry around every cut (clip / subtract)::
+Geometry around every cut::
 
     Before: decompose → spike/snap → strip crumbs → safe winding simplify
     After:  strip → heal joins → safe simplify → strip → final snap
@@ -49,17 +49,14 @@ from shared_half_cells import (
     _recording_from_glyph,
     add_overlay_forms,
     apply_transform,
-    boolean_subtract_named,
     build_chunked_ligature_subst_lookup,
     empty_glyph,
     finalize_slice_metrics,
-    half_plane_rect,
     ideographic_bounds,
     install_derived_glyph,
     make_segment_slice_glyph,
     overlay_glyph_name,
     variant_glyph_name,
-    HALF_PLANE_INF_FRAC,
     propagate_d4_segments,
     OV_SELECTOR_CP,
     OV_SELECTOR_NAME,
@@ -253,14 +250,8 @@ def add_third_forms(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int = 1000,
 ) -> List[str]:
-    """Slice each baked form: clip end thirds; derive mid / 2/3 by subtract."""
+    """Slice each baked form by clipping every third / two-thirds slot rect."""
     added: List[str] = []
-    end_slots = (
-        ("t3t", "y", 2, 2),
-        ("t3b", "y", 0, 0),
-        ("t3l", "x", 0, 0),
-        ("t3r", "x", 2, 2),
-    )
     for name in base_names:
         if name not in glyphs:
             continue
@@ -278,91 +269,21 @@ def add_third_forms(
                 metrics=metrics,
             )
 
-        for suf, axis, b0, b1 in end_slots:
+        for _cp, _sel, suf, axis, b0, b1 in THIRD_VS_SLOTS:
             out_name = third_form_name(name, suf)
             if out_name in glyphs:
                 continue
-            bot, top, _ = ideographic_bounds(target_upem)
-            inf = float(target_upem) * HALF_PLANE_INF_FRAC
-            if axis == "y":
-                span = top - bot
-                if b0 == 2:  # top third: y >= 2/3
-                    rect = half_plane_rect(
-                        bot + span * (2.0 / 3.0),
-                        axis="y",
-                        keep="hi",
-                        inf=inf,
-                    )
-                else:  # bottom third: y <= 1/3
-                    rect = half_plane_rect(
-                        bot + span * (1.0 / 3.0),
-                        axis="y",
-                        keep="lo",
-                        inf=inf,
-                    )
-            elif b0 == 0:  # left third
-                rect = half_plane_rect(
-                    float(target_upem) / 3.0, axis="x", keep="lo", inf=inf
-                )
-            else:  # right third
-                rect = half_plane_rect(
-                    float(target_upem) * (2.0 / 3.0),
-                    axis="x",
-                    keep="hi",
-                    inf=inf,
-                )
             _put(
                 out_name,
                 make_segment_slice_glyph(
                     name,
                     advance=adv,
-                    rect=rect,
+                    rect=_third_slot_rect(
+                        float(target_upem), axis=axis, band0=b0, band1=b1
+                    ),
                     glyph_set=glyphs,
                 ),
             )
-
-        t = third_form_name(name, "t3t")
-        b = third_form_name(name, "t3b")
-        l = third_form_name(name, "t3l")
-        r = third_form_name(name, "t3r")
-        tm = third_form_name(name, "t3tm")
-        mb = third_form_name(name, "t3mb")
-        m = third_form_name(name, "t3m")
-        lc = third_form_name(name, "t3lc")
-        cr = third_form_name(name, "t3cr")
-        c = third_form_name(name, "t3c")
-        _put(
-            mb,
-            boolean_subtract_named(
-                name, t, glyphs=glyphs, metrics=metrics, advance=adv
-            ),
-        )
-        _put(
-            tm,
-            boolean_subtract_named(
-                name, b, glyphs=glyphs, metrics=metrics, advance=adv
-            ),
-        )
-        _put(
-            m,
-            boolean_subtract_named(mb, b, glyphs=glyphs, metrics=metrics, advance=adv),
-        )
-        _put(
-            cr,
-            boolean_subtract_named(
-                name, l, glyphs=glyphs, metrics=metrics, advance=adv
-            ),
-        )
-        _put(
-            lc,
-            boolean_subtract_named(
-                name, r, glyphs=glyphs, metrics=metrics, advance=adv
-            ),
-        )
-        _put(
-            c,
-            boolean_subtract_named(lc, l, glyphs=glyphs, metrics=metrics, advance=adv),
-        )
         added.append(name)
     return added
 

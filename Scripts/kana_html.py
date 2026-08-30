@@ -56,7 +56,7 @@ from hangul_diacritics import (
     dakuten_count_options_html,
     dakuten_skip_options_html,
 )
-from yi_slice import (
+from kana_yi_slice import (
     SLICE_BL_CP,
     SLICE_BOT_CP,
     SLICE_BR_CP,

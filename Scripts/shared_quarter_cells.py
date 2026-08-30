@@ -58,11 +58,12 @@ VS40    U+E0117    middle half               `q4mc`
 ======= ========== ========================= ========
 
 Segment forms are **slices** of already-baked fullwidth / half-cell outlines.
-`qv`/`qh`/`q` inherit CJK `.dk*` halves when present; remaining
-bands are `full − piece` or union. Zero-width `.ov` forms are composites
-of those fullwidth slices.
+Each qv/qh band is clipped to its slot rect (never `full − piece` — pathops
+difference leaves cut-line spikes). Grid corners are clipped to quadrant
+rects; L 3/4 shapes are unions of two clean halves. Zero-width `.ov` forms
+are composites of those fullwidth slices.
 
-Geometry around every cut (clip / subtract / union)::
+Geometry around every cut (clip / union)::
 
     Before: decompose → spike/snap → strip crumbs → safe winding simplify
     After:  strip → heal joins → safe simplify → strip → final snap
@@ -82,7 +83,6 @@ from shared_half_cells import (
     _recording_from_glyph,
     add_overlay_forms,
     apply_transform,
-    boolean_subtract_named,
     boolean_union_named,
     build_chunked_ligature_subst_lookup,
     copy_named_glyph,
@@ -356,71 +356,17 @@ def add_quarter_forms(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int = 1000,
 ) -> List[str]:
-    """Slice each baked form: clip/inherit halves; derive the rest by boolean.
+    """Slice each baked form by clipping every quarter / half / 3/4 slot rect.
 
-    `qv` reuses CJK `.dkb` / `.dkt` (top / bottom) when present;
-    `qh` reuses `.dk` / `.dkl` (left / right). End quarters are clipped
-    from those halves; near-quarters, 3/4, and middle half are subtract/union.
+    ``qv``/``qh`` still reuse CJK ``.dkb`` / ``.dkt`` / ``.dk`` / ``.dkl`` halves when
+    present (already clean clips); every other band is clipped from the base.
     """
     axis = quarter_axis_for_face(face)
     if face == QUARTER_FACE_V:
-        inherit_hi, inherit_lo = "dkb", "dkt"
-        s_hi_h, s_lo_h = "q4th", "q4bh"
-        s_hi_q, s_lo_q = "q4t", "q4b"
-        s_near_hi, s_near_lo = "q4nt", "q4nb"
-        s_hi3, s_lo3, s_mid = "q4t3", "q4b3", "q4mh"
+        inherit = {"q4th": "dkb", "q4bh": "dkt"}
     else:
-        inherit_hi, inherit_lo = "dk", "dkl"
-        s_hi_h, s_lo_h = "q4lh", "q4rh"
-        s_hi_q, s_lo_q = "q4l", "q4r"
-        s_near_hi, s_near_lo = "q4nl", "q4nr"
-        s_hi3, s_lo3, s_mid = "q4l3", "q4r3", "q4mc"
-    bot, top, _ = ideographic_bounds(target_upem)
-    span = top - bot
-    inf = float(target_upem) * HALF_PLANE_INF_FRAC
-
-    def _plane_for(suf: str) -> Tuple[float, float, float, float]:
-        if axis == "y":
-            match suf:
-                case "q4th":
-                    return half_plane_rect(
-                        bot + span * 0.5, axis="y", keep="hi", inf=inf
-                    )
-                case "q4t":
-                    return half_plane_rect(
-                        bot + span * 0.75, axis="y", keep="hi", inf=inf
-                    )
-                case "q4b":
-                    return half_plane_rect(
-                        bot + span * 0.25, axis="y", keep="lo", inf=inf
-                    )
-                case "q4bh":
-                    return half_plane_rect(
-                        bot + span * 0.5, axis="y", keep="lo", inf=inf
-                    )
-        else:
-            match suf:
-                case "q4lh":
-                    return half_plane_rect(
-                        float(target_upem) * 0.5, axis="x", keep="lo", inf=inf
-                    )
-                case "q4l":
-                    return half_plane_rect(
-                        float(target_upem) * 0.25, axis="x", keep="lo", inf=inf
-                    )
-                case "q4r":
-                    return half_plane_rect(
-                        float(target_upem) * 0.75, axis="x", keep="hi", inf=inf
-                    )
-                case "q4rh":
-                    return half_plane_rect(
-                        float(target_upem) * 0.5, axis="x", keep="hi", inf=inf
-                    )
-        raise ValueError(f"no half-plane seed for {suf!r}")
-
-    def _qn(form: str, suf: str) -> str:
-        return quarter_form_name(form, suf, face=face)
-
+        inherit = {"q4lh": "dk", "q4rh": "dkl"}
+    slots = quarter_slots_for_face(face)
     added: List[str] = []
     for name in base_names:
         if name not in glyphs:
@@ -439,102 +385,35 @@ def add_quarter_forms(
                 metrics=metrics,
             )
 
-        def _clip(src: str, suf: str) -> str:
-            out = _qn(name, suf)
-            if out not in glyphs:
-                _put(
-                    out,
-                    make_segment_slice_glyph(
-                        src,
-                        advance=adv,
-                        rect=_plane_for(suf),
-                        glyph_set=glyphs,
+        for _cp, _sel, suf, b0, b1 in slots:
+            out = quarter_form_name(name, suf, face=face)
+            if out in glyphs:
+                continue
+            src_half = inherit.get(suf)
+            if src_half is not None:
+                src = f"{name}.{src_half}"
+                if src in glyphs:
+                    _put(
+                        out,
+                        copy_named_glyph(
+                            src, glyphs=glyphs, metrics=metrics, advance=adv
+                        ),
+                    )
+                    continue
+            _put(
+                out,
+                make_segment_slice_glyph(
+                    name,
+                    advance=adv,
+                    rect=_quarter_slot_rect(
+                        float(target_upem), axis=axis, band0=b0, band1=b1
                     ),
-                )
-            return out
-
-        hi_h = _qn(name, s_hi_h)
-        lo_h = _qn(name, s_lo_h)
-        src_hi = f"{name}.{inherit_hi}"
-        src_lo = f"{name}.{inherit_lo}"
-        if src_hi in glyphs:
-            _put(
-                hi_h,
-                copy_named_glyph(src_hi, glyphs=glyphs, metrics=metrics, advance=adv),
-            )
-        else:
-            _clip(name, s_hi_h)
-        if src_lo in glyphs:
-            _put(
-                lo_h,
-                copy_named_glyph(src_lo, glyphs=glyphs, metrics=metrics, advance=adv),
-            )
-        elif hi_h in glyphs:
-            _put(
-                lo_h,
-                boolean_subtract_named(
-                    name, hi_h, glyphs=glyphs, metrics=metrics, advance=adv
+                    glyph_set=glyphs,
                 ),
             )
-        else:
-            _clip(name, s_lo_h)
-
-        hi_q = _clip(hi_h if hi_h in glyphs else name, s_hi_q)
-        near_hi = _qn(name, s_near_hi)
-        if near_hi not in glyphs and hi_h in glyphs:
-            _put(
-                near_hi,
-                boolean_subtract_named(
-                    hi_h, hi_q, glyphs=glyphs, metrics=metrics, advance=adv
-                ),
-            )
-        lo_q = _clip(lo_h if lo_h in glyphs else name, s_lo_q)
-        near_lo = _qn(name, s_near_lo)
-        if near_lo not in glyphs and lo_h in glyphs:
-            _put(
-                near_lo,
-                boolean_subtract_named(
-                    lo_h, lo_q, glyphs=glyphs, metrics=metrics, advance=adv
-                ),
-            )
-
-        hi3 = _qn(name, s_hi3)
-        lo3 = _qn(name, s_lo3)
-        mid = _qn(name, s_mid)
-        if hi3 not in glyphs:
-            _put(
-                hi3,
-                boolean_subtract_named(
-                    name, lo_q, glyphs=glyphs, metrics=metrics, advance=adv
-                ),
-            )
-        if lo3 not in glyphs:
-            _put(
-                lo3,
-                boolean_subtract_named(
-                    name, hi_q, glyphs=glyphs, metrics=metrics, advance=adv
-                ),
-            )
-        if mid not in glyphs:
-            if near_hi in glyphs and near_lo in glyphs:
-                _put(
-                    mid,
-                    boolean_union_named(
-                        [near_hi, near_lo],
-                        glyphs=glyphs,
-                        metrics=metrics,
-                        advance=adv,
-                    ),
-                )
-            elif hi3 in glyphs:
-                _put(
-                    mid,
-                    boolean_subtract_named(
-                        hi3, hi_q, glyphs=glyphs, metrics=metrics, advance=adv
-                    ),
-                )
         added.append(name)
     return added
+
 
 
 def add_grid_forms(
@@ -547,8 +426,8 @@ def add_grid_forms(
 ) -> List[str]:
     """2×2 corners and L 3/4 from CJK half slices (`.dk` / `.dkl` / `.dkb` / `.dkt`).
 
-    `q2tl = left − bottom`, `q2tl3 = top ∪ left`, and the same pattern
-    for tr / bl / br.
+    Corners are clipped to quadrant half-planes (not `half − half`).
+    L 3/4 shapes are unions of two clean halves.
     """
     bot, top, _ = ideographic_bounds(target_upem)
     mid_y = (bot + top) / 2.0
@@ -595,19 +474,23 @@ def add_grid_forms(
         top_h = _ensure_half("dkb", "y", "hi", mid_y)
         bot_h = _ensure_half("dkt", "y", "lo", mid_y)
 
+        # Quadrant clips: [x-keep] ∩ [y-keep] as a single AABB (clean cut).
         corners = (
-            ("q2tl", left, bot_h),
-            ("q2tr", right, bot_h),
-            ("q2bl", left, top_h),
-            ("q2br", right, top_h),
+            ("q2tl", -inf, mid_y, mid_x, inf),
+            ("q2tr", mid_x, mid_y, inf, inf),
+            ("q2bl", -inf, -inf, mid_x, mid_y),
+            ("q2br", mid_x, -inf, inf, mid_y),
         )
-        for suf, keep, cut in corners:
+        for suf, x0, y0, x1, y1 in corners:
             out = quarter_form_name(name, suf)
             if out not in glyphs:
                 _put(
                     out,
-                    boolean_subtract_named(
-                        keep, cut, glyphs=glyphs, metrics=metrics, advance=adv
+                    make_segment_slice_glyph(
+                        name,
+                        advance=adv,
+                        rect=(x0, y0, x1, y1),
+                        glyph_set=glyphs,
                     ),
                 )
 

@@ -2094,11 +2094,15 @@ def boolean_subtract_glyphs(
     subtrahend: TTGlyph,
     *,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
+    clamp_rect: Optional[Tuple[float, float, float, float]] = None,
+    clamp_polygon: Optional[Sequence[Tuple[float, float]]] = None,
 ) -> TTGlyph:
     """Boolean **difference** `minuend − subtrahend`.
 
     Both operands are healed + artefact-stripped first; the result is finalized
-    the same way so difference crumbs do not survive into segments.
+    the same way. Optional ``clamp_rect`` / ``clamp_polygon`` re-intersects the
+    difference with the intended keep region so pathops crumbs past the cut
+    cannot survive (prefer a direct clip when the keep region is known).
     """
     import pathops
 
@@ -2108,6 +2112,33 @@ def boolean_subtract_glyphs(
         out = pathops.op(a, b, pathops.PathOp.DIFFERENCE, fix_winding=True)
     except Exception:
         return empty_glyph()
+    if clamp_rect is not None:
+        x0, y0, x1, y1 = (float(v) for v in clamp_rect)
+        if x1 < x0:
+            x0, x1 = x1, x0
+        if y1 < y0:
+            y0, y1 = y1, y0
+        try:
+            out = pathops.op(
+                out,
+                _rect_pathops(x0, y0, x1, y1),
+                pathops.PathOp.INTERSECTION,
+                fix_winding=True,
+            )
+        except Exception:
+            return empty_glyph()
+    elif clamp_polygon is not None:
+        if len(clamp_polygon) < 3:
+            raise ValueError("clamp_polygon needs at least 3 points")
+        try:
+            out = pathops.op(
+                out,
+                _polygon_pathops(clamp_polygon),
+                pathops.PathOp.INTERSECTION,
+                fix_winding=True,
+            )
+        except Exception:
+            return empty_glyph()
     return _finalize_sliced_ttglyph(out)
 
 
@@ -2142,6 +2173,8 @@ def boolean_subtract_named(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     advance: Optional[int] = None,
+    clamp_rect: Optional[Tuple[float, float, float, float]] = None,
+    clamp_polygon: Optional[Sequence[Tuple[float, float]]] = None,
 ) -> GlyphMetrics:
     """`keep − cut`; advance defaults to `keep`."""
     if keep not in glyphs:
@@ -2150,7 +2183,13 @@ def boolean_subtract_named(
         g = glyphs[keep]
         adv, lsb = metrics.get(keep, (0, 0))
         return g, int(advance if advance is not None else adv), int(lsb)
-    out = boolean_subtract_glyphs(glyphs[keep], glyphs[cut], glyph_set=glyphs)
+    out = boolean_subtract_glyphs(
+        glyphs[keep],
+        glyphs[cut],
+        glyph_set=glyphs,
+        clamp_rect=clamp_rect,
+        clamp_polygon=clamp_polygon,
+    )
     adv = int(advance if advance is not None else metrics[keep][0])
     return out, adv, _lsb_of(out)
 
@@ -2392,8 +2431,9 @@ def clip_glyph_to_rect(
 
     Used for CJK half / third / quarter segments and combining slices: ink
     outside the band is dropped; ink inside keeps its original size and place.
-    Complementary bands are `boolean_subtract` / `boolean_union`, not a
-    second clip. Geometry is healed and artefacts stripped before and after.
+    Complementary bands should also be clipped to their keep region — do not
+    derive them with `boolean_subtract` alone (pathops difference leaves
+    cut-line spikes). Geometry is healed and artefacts stripped before and after.
     """
     import pathops
 

@@ -148,7 +148,7 @@ from shared_half_cells import (
     variant_transform,
 )
 from shared_half_cells import _bake_transformed_glyph  # composite → plain outlines
-from yi_slice import (
+from kana_yi_slice import (
     SLICE_SUFFIXES,
     add_slice_halves,
     half_glyph_name,

@@ -49,7 +49,7 @@ from cjk_diacritics import (
 )
 from cjk_diacritics_html import BASE_ORIENT_LABEL, BASE_ORIENT_VS
 from hangul_html import L_RANGES, T_RANGES, V_RANGES, assigned_cps
-from yi_slice import (
+from kana_yi_slice import (
     SLICE_BL_CP,
     SLICE_BOT_CP,
     SLICE_BR_CP,
