@@ -243,21 +243,22 @@ SEGOE_UI_HISTORIC_FILENAMES: Tuple[str, ...] = (
 )
 
 # Source-shape overrides: always claim from mkanaplus when present.
-MKANA_OVERRIDE_CPS: frozenset[int] = frozenset(
+MKANA_OVERRIDE_CHARS: frozenset[str] = frozenset(
     {
-        0x0305F,  # た
-        0x0306A,  # な
-        0x0306B,  # に
-        0x03053,  # こ
-        0x03091,  # ゑ
-        0x0304F,  # く
-        0x03078,  # へ
-        0x030A2,  # ア
-        0x030BD,  # ソ
-        0x030EB,  # ル
-        0x030EF,  # ワ
+        "た",
+        "な",
+        "に",
+        "こ",
+        "ゑ",
+        "く",
+        "へ",
+        "ア",
+        "ソ",
+        "ル",
+        "ワ",
     }
 )
+MKANA_OVERRIDE_CPS: frozenset[int] = frozenset(map(ord, MKANA_OVERRIDE_CHARS))
 
 # Shared consonant/vowel axes for both hiragana and katakana charts.
 CONSONANTS: Tuple[str, ...] = (
@@ -282,81 +283,84 @@ CONSONANTS: Tuple[str, ...] = (
 )
 VOWELS: Tuple[str, ...] = ("a", "i", "u", "e", "o", "ə")
 
-# 18×6 hiragana, then 18×6 katakana (row-major). Values = source CPs.
-HIRAGANA_ROWS: Tuple[Tuple[int, ...], ...] = (
-    (0x03042, 0x03044, 0x03046, 0x03048, 0x0304A, 0x01700),  # ∅
-    (0x0304B, 0x0304D, 0x0304F, 0x03051, 0x03053, 0x01723),  # k
-    (0x0E020, 0x0E021, 0x0E022, 0x0E023, 0x0E024, 0x01725),  # ng
-    (0x0305F, 0x0ED10, 0x1B06D, 0x03066, 0x03068, 0x01706),  # t
-    (0x0ED1C, 0x0ED1E, 0x03064, 0x0ED20, 0x0ED22, 0x1B06A),  # ts
-    (0x0ED14, 0x03061, 0x0ED16, 0x0EE27, 0x0ED1A, 0x1B063),  # ch
-    (0x1B043, 0x0EBC8, 0x0ED0A, 0x0ED0C, 0x0ED0E, 0x01730),  # sh
-    (0x03055, 0x0ED01, 0x03059, 0x0305B, 0x0305D, 0x01710),  # s
-    (0x0307E, 0x0307F, 0x03080, 0x03081, 0x03082, 0x0170B),  # m
-    (0x0306A, 0x0EBD0, 0x0306C, 0x0306D, 0x0306E, 0x03093),  # n
-    (0x0306F, 0x03072, 0x1B039, 0x03078, 0x0307B, 0x0170A),  # h
-    (0x03084, 0x1B006, 0x03086, 0x1B001, 0x03088, 0x0176C),  # y
-    (0x0E0E0, 0x0E0E1, 0x0E0E2, 0x0E0E3, 0x0E0E4, 0x0172E),  # l
-    (0x03089, 0x0308A, 0x0308B, 0x0308C, 0x0308D, 0x0170D),  # r
-    (0x0308F, 0x03090, 0x1B11F, 0x03091, 0x03092, 0x0174F),  # w
-    (0x1B0A6, 0x1B0AB, 0x03075, 0x1B0B8, 0x1B0BF, 0x0ECC1),  # f
-    (0x0E030, 0x0E031, 0x0E032, 0x0E02A, 0x0E034, 0x01709),  # p
-    (0x1B081, 0x1B08A, 0x1B099, 0x1B094, 0x1B09C, 0x11096),  # ny
+# 18×6 hiragana, then 18×6 katakana (row-major). Values = source chars.
+HIRAGANA_ROWS: Tuple[Tuple[str, ...], ...] = (
+    ("あ", "い", "う", "え", "お", "ᜀ"),  # ∅
+    ("か", "き", "く", "け", "こ", "ᜣ"),  # k
+    ("", "", "", "", "", "ᜥ"),  # ng
+    ("た", "", "𛁭", "て", "と", "ᜆ"),  # t
+    ("", "", "つ", "", "", "𛁪"),  # ts
+    ("", "ち", "", "", "", "𛁣"),  # ch
+    ("𛁃", "", "", "", "", "ᜰ"),  # sh
+    ("さ", "", "す", "せ", "そ", "ᜐ"),  # s
+    ("ま", "み", "む", "め", "も", "ᜋ"),  # m
+    ("な", "", "ぬ", "ね", "の", "ん"),  # n
+    ("は", "ひ", "𛀹", "へ", "ほ", "ᜊ"),  # h
+    ("や", "𛀆", "ゆ", "𛀁", "よ", "ᝬ"),  # y
+    ("", "", "", "", "", "ᜮ"),  # l
+    ("ら", "り", "る", "れ", "ろ", "ᜍ"),  # r
+    ("わ", "ゐ", "𛄟", "ゑ", "を", "ᝏ"),  # w
+    ("𛂦", "𛂫", "ふ", "𛂸", "𛂿", ""),  # f
+    ("", "", "", "", "", "ᜉ"),  # p
+    ("𛂁", "𛂊", "𛂙", "𛂔", "𛂜", "𑂖"),  # ny
 )
 
-KATAKANA_ROWS: Tuple[Tuple[int, ...], ...] = (
-    (0x030A2, 0x030A4, 0x030A6, 0x030A8, 0x030AA, 0x031BE),  # ∅
-    (0x030AB, 0x0EBE1, 0x030AF, 0x030B1, 0x030B3, 0x0310E),  # k
-    (0x0EDD3, 0x0EC69, 0x0EDCA, 0x0EDC6, 0x0EDD7, 0x0312B),  # ng
-    (0x030BF, 0x0ED50, 0x0ED52, 0x030C6, 0x030C8, 0x03109),  # t
-    (0x0ED5C, 0x0ED5E, 0x030C4, 0x0ED60, 0x0ED62, 0x03118),  # ts
-    (0x0ED54, 0x0EBEC, 0x0ED76, 0x0ED58, 0x0ED5A, 0x03114),  # ch
-    (0x0ED48, 0x0EBE8, 0x0ED4A, 0x0ED4C, 0x0ED4E, 0x03115),  # sh
-    (0x030B5, 0x0ED41, 0x030B9, 0x030BB, 0x030BD, 0x0EF6B),  # s
-    (0x030DE, 0x0EBF4, 0x030E0, 0x030E1, 0x030E2, 0x0F47F),  # m
-    (0x030CA, 0x030CB, 0x030CC, 0x030CD, 0x030CE, 0x0EBF0),  # n
-    (0x030CF, 0x030D2, 0x0EE45, 0x030D8, 0x030DB, 0x0310F),  # h
-    (0x030E4, 0x1B120, 0x030E6, 0x1B121, 0x030E8, 0x0EFDE),  # y
-    (0x0EDC3, 0x0EDC8, 0x0EDC0, 0x0EDC5, 0x0EDC1, 0x0310C),  # l
-    (0x030E9, 0x030EA, 0x030EB, 0x030EC, 0x0EC66, 0x0EDD1),  # r
-    (0x030EF, 0x030F0, 0x1B122, 0x030F1, 0x030F2, 0x0F02B),  # w
-    (0x0EDCC, 0x0EDCD, 0x0ED7A, 0x0EDD8, 0x0EDD4, 0x0EDC7),  # f
-    (0x0EDCB, 0x0EDC9, 0x0EE69, 0x0EDD0, 0x0EDC4, 0x03105),  # p
-    (0x0EBE0, 0x0EDD2, 0x0EF92, 0x0ECC3, 0x0ECC4, 0x0312C),  # ny
+KATAKANA_ROWS: Tuple[Tuple[str, ...], ...] = (
+    ("ア", "イ", "ウ", "エ", "オ", "ㆾ"),  # ∅
+    ("カ", "", "ク", "ケ", "コ", "ㄎ"),  # k
+    ("", "", "", "", "", "ㄫ"),  # ng
+    ("タ", "", "", "テ", "ト", "ㄉ"),  # t
+    ("", "", "ツ", "", "", "ㄘ"),  # ts
+    ("", "", "", "", "", "ㄔ"),  # ch
+    ("", "", "", "", "", "ㄕ"),  # sh
+    ("サ", "", "ス", "セ", "ソ", ""),  # s
+    ("マ", "", "ム", "メ", "モ", ""),  # m
+    ("ナ", "ニ", "ヌ", "ネ", "ノ", ""),  # n
+    ("ハ", "ヒ", "", "ヘ", "ホ", "ㄏ"),  # h
+    ("ヤ", "𛄠", "ユ", "𛄡", "ヨ", ""),  # y
+    ("", "", "", "", "", "ㄌ"),  # l
+    ("ラ", "リ", "ル", "レ", "", ""),  # r
+    ("ワ", "ヰ", "𛄢", "ヱ", "ヲ", ""),  # w
+    ("", "", "", "", "", ""),  # f
+    ("", "", "", "", "", "ㄅ"),  # p
+    ("", "", "", "", "", "ㄬ"),  # ny
 )
 
 # After each script's last phonetic cell: length, then gemination.
-HIRAGANA_LENGTH_CP = 0x301C  # 〜 WAVE DASH
-HIRAGANA_GEMINATION_CP = 0x309D  # ゝ HIRAGANA ITERATION MARK
-KATAKANA_LENGTH_CP = 0x30FC  # ー KATAKANA-HIRAGANA PROLONGED SOUND MARK
-KATAKANA_GEMINATION_CP = 0x30FD  # ヽ KATAKANA ITERATION MARK
-SCRIPT_TRAILING_CPS: Tuple[Tuple[str, int], ...] = (
-    ("length", HIRAGANA_LENGTH_CP),
-    ("gemination", HIRAGANA_GEMINATION_CP),
+SCRIPT_TRAILING: Tuple[Tuple[str, str], ...] = (
+    ("length", "〜"),
+    ("gemination", "ゝ"),
 )
-KATAKANA_TRAILING_CPS: Tuple[Tuple[str, int], ...] = (
-    ("length", KATAKANA_LENGTH_CP),
-    ("gemination", KATAKANA_GEMINATION_CP),
+KATAKANA_TRAILING: Tuple[Tuple[str, str], ...] = (
+    ("length", "ー"),
+    ("gemination", "ヽ"),
 )
-SCRIPT_TRAILING_COUNT = len(SCRIPT_TRAILING_CPS)
+SCRIPT_TRAILING_COUNT = len(SCRIPT_TRAILING)
 
 # Phonetic chart only (no trailing marks).
-CHART_ROWS: Tuple[Tuple[int, ...], ...] = HIRAGANA_ROWS + KATAKANA_ROWS
+CHART_ROWS: Tuple[Tuple[str, ...], ...] = HIRAGANA_ROWS + KATAKANA_ROWS
 HIRAGANA_PHONETIC_COUNT = sum(len(r) for r in HIRAGANA_ROWS)
 KATAKANA_PHONETIC_COUNT = sum(len(r) for r in KATAKANA_ROWS)
 HIRAGANA_COUNT = HIRAGANA_PHONETIC_COUNT + SCRIPT_TRAILING_COUNT
 KATAKANA_COUNT = KATAKANA_PHONETIC_COUNT + SCRIPT_TRAILING_COUNT
 
 
+def chart_cp(ch: str) -> int:
+    """Single-character chart cell → Unicode scalar."""
+    if len(ch) != 1:
+        raise ValueError(f"chart cell must be one code point, got {ch!r}")
+    return ord(ch)
+
+
 def chart_source_cps() -> List[int]:
     """Row-major source CPs: hiragana (+marks) then katakana (+marks)."""
     out: List[int] = []
     for row in HIRAGANA_ROWS:
-        out.extend(row)
-    out.extend(cp for _lab, cp in SCRIPT_TRAILING_CPS)
+        out.extend(chart_cp(c) for c in row)
+    out.extend(chart_cp(c) for _lab, c in SCRIPT_TRAILING)
     for row in KATAKANA_ROWS:
-        out.extend(row)
-    out.extend(cp for _lab, cp in KATAKANA_TRAILING_CPS)
+        out.extend(chart_cp(c) for c in row)
+    out.extend(chart_cp(c) for _lab, c in KATAKANA_TRAILING)
     return out
 
 
@@ -391,10 +395,10 @@ def validate_chart_tables() -> None:
 def trailing_mark_label(logical: int) -> Optional[str]:
     """`length` / `gemination` if `logical` is a script trailer, else None."""
     if HIRAGANA_PHONETIC_COUNT <= logical < HIRAGANA_COUNT:
-        return SCRIPT_TRAILING_CPS[logical - HIRAGANA_PHONETIC_COUNT][0]
+        return SCRIPT_TRAILING[logical - HIRAGANA_PHONETIC_COUNT][0]
     kata0 = HIRAGANA_COUNT
     if kata0 + KATAKANA_PHONETIC_COUNT <= logical < kata0 + KATAKANA_COUNT:
-        return KATAKANA_TRAILING_CPS[logical - kata0 - KATAKANA_PHONETIC_COUNT][0]
+        return KATAKANA_TRAILING[logical - kata0 - KATAKANA_PHONETIC_COUNT][0]
     return None
 
 
