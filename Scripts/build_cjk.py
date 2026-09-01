@@ -2,10 +2,13 @@
 """
 Build Pan-CJK pigeonhole subfonts.
 
-Claims CJK/Tangut/Hangul (syllables + compat jamo) codepoints from priority-
-ordered source fonts, buckets them
+Claims CJK/Tangut/Khitan and **precomposed Hangul** (syllables + compat jamo)
+from priority-ordered source fonts, buckets them
 into 256-codepoint blocks (cp >> 8), and builds each TTF/WOFF2 from scratch by
 copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
+
+**Conjoining Hangul jamo** (U+1100.., Ext-A/B) is *not* included here — those are
+built as ``edenia hangul`` (L/V/T composition) in ``build_hangul.py``.
 
 Two faces per bucket (filename / family stem = `{hex}` / `{hex}h`)::
 
@@ -35,6 +38,7 @@ import re
 import shutil
 import sys
 import tempfile
+import threading
 import time
 from collections import defaultdict
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
@@ -165,11 +169,10 @@ CHAR_RANGES: List[Tuple[int, int, str]] = [
     (0x3131, 0x318E, "Hangul Compatibility Jamo"),
     (0x3190, 0x319F, "Kanbun"),
     (0x31C0, 0x31EF, "CJK Strokes"),
-    (0x3200, 0x32FF, "Enclosed CJK Letters and Months"),
     (0x03400, 0x04DBF, "CJK Ext A"),
     (0x04E00, 0x09FFF, "CJK URO"),
     (0xAC00, 0xD7A3, "Hangul Syllables"),
-    (0x0FA00, 0x0FAFF, "CJK Compat"),
+    (0x0F900, 0x0FAFF, "CJK Compatibility"),
     (0x17000, 0x187FF, "Tangut"),
     (0x18800, 0x18AFF, "Tangut Components"),
     (0x18B00, 0x18CFF, "Khitan Small Script"),
@@ -186,6 +189,26 @@ CHAR_RANGES: List[Tuple[int, int, str]] = [
     (0x31350, 0x323AF, "CJK Ext H"),
     (0x323B0, 0x3347F, "CJK Ext J"),
 ]
+
+# Precomposed Hangul blocks above (compat jamo + syllables). Not conjoining jamo.
+HANGUL_SYLLABLE_RANGES: List[Tuple[int, int, str]] = [
+    r for r in CHAR_RANGES
+    if r[2] in ("Hangul Compatibility Jamo", "Hangul Syllables")
+]
+
+# Conjoining jamo — must stay out of CHAR_RANGES (edenia hangul / build_hangul).
+_CONJOINING_JAMO_SPANS: Tuple[Tuple[int, int], ...] = (
+    (0x1100, 0x11FF),
+    (0xA960, 0xA97F),
+    (0xD7B0, 0xD7FF),
+)
+for _cjk_start, _cjk_end, _cjk_name in CHAR_RANGES:
+    for _j_start, _j_end in _CONJOINING_JAMO_SPANS:
+        if not (_cjk_end < _j_start or _cjk_start > _j_end):
+            raise ValueError(
+                f"CJK range {_cjk_name} ({_cjk_start:#x}-{_cjk_end:#x}) "
+                f"overlaps conjoining jamo ({_j_start:#x}-{_j_end:#x})"
+            )
 
 # (out_cp, source_path, src_cp) — base Unicode claims only; D4 variants in-font
 BucketEntry = Tuple[int, str, int]
@@ -346,6 +369,9 @@ class SourceFont:
         self.cmap = font_cmap(self.tt)
         self.glyph_set = self.tt.getGlyphSet()
         self.hmtx = self.tt["hmtx"].metrics
+        # fontTools TTFont/glyf lazy loads are not thread-safe; bucket import
+        # copies glyphs in parallel via IMPORT_THREADS on a shared SourceFont.
+        self._draw_lock = threading.Lock()
         # Preset from main process so workers skip the inventory scan.
         self._ngulim_grow_scale = ngulim_grow_scale
         self._ngulim_mean_area = ngulim_mean_area
@@ -409,6 +435,19 @@ class SourceFont:
         `local_scale` + `weightor`.
         """
         del codepoint
+        with self._draw_lock:
+            return self._copy_glyph_locked(
+                src_name, target_upem, flip_x=flip_x, flip_y=flip_y
+            )
+
+    def _copy_glyph_locked(
+        self,
+        src_name: str,
+        target_upem: int,
+        *,
+        flip_x: bool = False,
+        flip_y: bool = False,
+    ) -> Optional[Tuple[TTGlyph, int, int]]:
         if is_empty_outline(self.tt, src_name):
             return None
 
@@ -702,7 +741,8 @@ def _import_one_bucket_entry(
 
     use_yi_standalone = os.path.basename(path) == NUOSU_FILENAME and is_yi_cp(src_cp)
     if use_yi_standalone:
-        rec = record_glyph(src.tt, src_name)
+        with src._draw_lock:
+            rec = record_glyph(src.tt, src_name)
         if rec is None:
             return None
         src_adv, src_cy, src_max_h = _yi_layout_for_source(path)

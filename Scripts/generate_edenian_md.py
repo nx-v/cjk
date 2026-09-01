@@ -5,7 +5,8 @@ Japanese-like clause structure with Edenian role map:
   hiragana → kana (one script: both chart halves mix freely; full/hw = separate runs)
   hiragana-frequency yi → yi (separate script; never mixed with kana)
   katakana → hangul
-  kanji    → Han + Tangut + Khitan
+  kanji    → Han + Tangut + Khitan + precomposed Hangul (``build_cjk`` ranges;
+             conjoining jamo sequences are separate — ``edenia hangul``)
 
 Word kinds:
   • inflected core — 1+ kanji/hangul components (phrasal-verb style); each may
@@ -52,6 +53,7 @@ from build_kana import (  # noqa: E402
     pair_index,
     small_cp,
 )
+from build_cjk import CHAR_RANGES  # noqa: E402
 from hangul_diacritics import (  # noqa: E402
     CGJ_CP,
     DAKUTEN_SLOT_COUNT,
@@ -303,33 +305,9 @@ SIGNAGE = tuple(chr(c) for c in range(0x1F200, 0x1F220))  # sparse sample
 
 YI_RANGE = (0xA000, 0xA48C)
 
-# Keep in sync with Scripts/build_cjk.py CHAR_RANGES (Han + Tangut + Khitan).
-CJK_CHAR_RANGES: Tuple[Tuple[int, int, str], ...] = (
-    (0x2E80, 0x2EFF, "CJK Radicals Supplement"),
-    (0x2F00, 0x2FDF, "Kangxi Radicals"),
-    (0x04E00, 0x09FFF, "CJK URO"),
-    (0x03400, 0x04DBF, "CJK Ext A"),
-    (0x20000, 0x2A6DF, "CJK Ext B"),
-    (0x2A700, 0x2B73F, "CJK Ext C"),
-    (0x2B740, 0x2B81F, "CJK Ext D"),
-    (0x2B820, 0x2CEAF, "CJK Ext E"),
-    (0x2CEB0, 0x2EBEF, "CJK Ext F"),
-    (0x30000, 0x3134F, "CJK Ext G"),
-    (0x31350, 0x323AF, "CJK Ext H"),
-    (0x2EBF0, 0x2EE5F, "CJK Ext I"),
-    (0x323B0, 0x3347F, "CJK Ext J"),
-    (0x0FA00, 0x0FAFF, "CJK Compat"),
-    (0x2F800, 0x2FA1F, "CJK Compat Supplement"),
-    (0x17000, 0x187FF, "Tangut"),
-    (0x18D00, 0x18D7F, "Tangut Supplement"),
-    (0x18800, 0x18AFF, "Tangut Components"),
-    (0x18D80, 0x18DFF, "Tangut Components Supplement"),
-    (0x18B00, 0x18CFF, "Khitan Small Script"),
-)
-
-
+# Single source of truth: Scripts/build_cjk.py CHAR_RANGES (incl. precomposed Hangul).
 def _cjk_range_pick_weight(label: str, n_chars: int) -> float:
-    """Relative chance to draw from a CJK_CHAR_RANGES block × assigned size."""
+    """Relative chance to draw from a CHAR_RANGES block × assigned size."""
     lab = label.casefold()
     if "uro" in lab:
         base = 48.0
@@ -347,6 +325,12 @@ def _cjk_range_pick_weight(label: str, n_chars: int) -> float:
         base = 5.0
     elif "khitan" in lab:
         base = 2.5
+    elif "hangul syll" in lab:
+        base = 8.0
+    elif "hangul compat" in lab or "compatibility jamo" in lab:
+        base = 1.5
+    elif "kanbun" in lab or "stroke" in lab:
+        base = 0.8
     else:
         base = 2.0
     return base * float(n_chars)
@@ -412,7 +396,7 @@ _UCD_INTERVALS = _load_ucd_assigned_intervals(_ensure_unicode_data())
 # (assigned codepoints, pick weight) — empty/unassigned slots dropped
 CJK_SAMPLE_POOLS: Tuple[Tuple[Tuple[int, ...], float], ...] = tuple(
     (cps, _cjk_range_pick_weight(name, len(cps)))
-    for start, end, name in CJK_CHAR_RANGES
+    for start, end, name in CHAR_RANGES
     for cps in (_assigned_cps_in_range(start, end, _UCD_INTERVALS),)
     if cps
 )

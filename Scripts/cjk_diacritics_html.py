@@ -69,8 +69,13 @@ NAMED_RANGES: Dict[str, Tuple[Tuple[int, int], ...]] = {
     "ExtH": ((0x31350, 0x323AF),),
     "ExtI": ((0x2EBF0, 0x2EE5F),),
     "ExtJ": ((0x323B0, 0x3347F),),
-    "Compat": ((0xFA00, 0xFAFF),),
+    "Kanbun": ((0x3190, 0x319F),),
+    "Strokes": ((0x31C0, 0x31EF),),
+    "CJKCompatibility": tuple(
+        (a, b) for a, b, n in CHAR_RANGES if n == "CJK Compatibility"
+    ),
     "CompatSup": ((0x2F800, 0x2FA1F),),
+    "HangulSyll": tuple((a, b) for a, b, n in CHAR_RANGES if "Hangul" in n),
     "Tangut": ((0x17000, 0x187FF), (0x18D00, 0x18D7F)),
     "ALL": tuple((a, b) for a, b, _n in CHAR_RANGES),
 }

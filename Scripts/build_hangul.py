@@ -126,6 +126,7 @@ from edenia_names import (
 )
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
+from build_cjk import HANGUL_SYLLABLE_RANGES as SYLL_RANGES
 from shared_hinting import add_no_hint_argument
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -180,10 +181,6 @@ JAMO_RANGES: List[Tuple[int, int, str]] = [
     (0x1100, 0x11FF, "Hangul Jamo"),
     (0xA960, 0xA97F, "Hangul Jamo Extended-A"),
     (0xD7B0, 0xD7FF, "Hangul Jamo Extended-B"),
-]
-SYLL_RANGES: List[Tuple[int, int, str]] = [
-    (0x3131, 0x318E, "Hangul Compatibility Jamo"),
-    (0xAC00, 0xD7A3, "Hangul Syllables"),
 ]
 
 JamoClass = str  # "L" | "V" | "T" | "other"

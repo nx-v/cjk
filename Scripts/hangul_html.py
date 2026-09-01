@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
-"""Build one HTML gallery of *all* Unicode Hangul conjoining jamo × VS × dakuten.
+"""Build HTML galleries for edenia Hangul fonts.
+
+**Jamo** (`all-jamo-vs.html`) — all Unicode conjoining jamo × VS × dakuten.
+
+**Hangul-s** (`all-hangul-s-vs.html`) — precomposed / compat syllables × FE05
+× VS (mirrors post-r90) × dakuten.
 
 Jamo inventories (Unicode, excluding fillers / unassigned):
   Choseong  U+1100..115E, U+A960..A97C
   Jungseong U+1161..11A7, U+D7B0..D7C6
   Jongseong U+11A8..11FF, U+D7CB..D7FB
 
-Every L × {∅,FE01,FE02,FE03} × V × {∅,FE01,FE02,FE03} × (∅ | T × VS)
-is available, optionally followed by FE04 (batchim top-swap) and 0–8
-dakuten marks (TR→CR→BR→TM→BM→TL→CL→BL; CGJ skips a slot).
-
-See: https://en.wikipedia.org/wiki/List_of_Hangul_jamo
+Hangul-s syllables:
+  Compat jamo U+3131..318E · Syllables U+AC00..D7A3
+  (append U+FE05 per glyph; FE00..FE03 mirror after 90° rotation)
 
 Usage
 -----
   python hangul_html.py
   python hangul_html.py -o dist/hangul/all-jamo-vs.html
+  python hangul_html.py --syllables-output dist/hangul/all-hangul-s-vs.html
+  python hangul_html.py --jamo-only
 """
 
 from __future__ import annotations
@@ -35,9 +40,14 @@ from hangul_diacritics import (
     dakuten_skip_options_html,
 )
 
+from build_cjk import HANGUL_SYLLABLE_RANGES as SYLL_RANGES
+from build_hangul import SIDEWAYS_CP
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "hangul", "all-jamo-vs.html")
+DEFAULT_SYLL_OUT = os.path.join(SCRIPT_DIR, "dist", "hangul", "all-hangul-s-vs.html")
 HANGUL_FONT = os.path.join(SCRIPT_DIR, "dist", "hangul", "edenia-hangul.woff2")
+HANGULS_FONT = os.path.join(SCRIPT_DIR, "dist", "hangul", "edenia-hanguls.woff2")
 JULIAMONO = os.path.join(SCRIPT_DIR, "src", "JuliaMono-Regular.ttf")
 
 L_RANGES = ((0x1100, 0x115E), (0xA960, 0xA97C))
@@ -63,11 +73,15 @@ def assigned_cps(ranges: Tuple[Tuple[int, int], ...]) -> List[dict]:
     return out
 
 
-def dakuten_mark_entries(limit: int = 64) -> List[dict]:
-    """Marks installed in edenia hangul (`.mk` cmap), else JuliaMono inventory."""
+def dakuten_mark_entries(
+    limit: int = 64,
+    *,
+    font_path: str = HANGUL_FONT,
+) -> List[dict]:
+    """Marks installed in a hangul face (``.mk`` cmap), else JuliaMono inventory."""
     cps: List[int] = []
-    if os.path.isfile(HANGUL_FONT):
-        tt = TTFont(HANGUL_FONT)
+    if os.path.isfile(font_path):
+        tt = TTFont(font_path)
         try:
             cmap = tt.getBestCmap() or {}
             cps = sorted(cp for cp, name in cmap.items() if str(name).endswith(".mk"))
@@ -461,9 +475,292 @@ document.getElementById("btnOne").click();
     )
 
 
+def syllable_entries() -> List[dict]:
+    """Compat jamo + precomposed syllables (Unicode-assigned only)."""
+    pairs = tuple((start, end) for start, end, _name in SYLL_RANGES)
+    return assigned_cps(pairs)
+
+
+def write_syllables_html(path: str, *, font_size: int, mark_limit: int) -> None:
+    syllables = syllable_entries()
+    marks = dakuten_mark_entries(limit=mark_limit, font_path=HANGULS_FONT)
+    n_vs = 4
+    total = len(syllables) * n_vs
+
+    payload = {
+        "SYLL": syllables,
+        "MARKS": marks,
+        "VS": [None, 0xFE01, 0xFE02, 0xFE03],
+        "VS_MARK": VS_MARK,
+        "SIDEWAYS": SIDEWAYS_CP,
+        "total": total,
+        "SLOT_COUNT": DAKUTEN_SLOT_COUNT,
+    }
+
+    font_bust = 0
+    if os.path.isfile(HANGULS_FONT):
+        font_bust = int(os.path.getmtime(HANGULS_FONT))
+
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(
+            f"""<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<title>edenia hanguls — hangul-s × FE05 × VS × dakuten</title>
+<link rel="stylesheet" href="./edenia-hangul.css"/>
+<style>
+@font-face {{
+  font-family: 'edenia-hanguls-local';
+  src: url("./edenia-hanguls.woff2?v={font_bust}") format("woff2"),
+       url("./edenia-hanguls.ttf?v={font_bust}") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}}
+:root {{ --fs: {font_size}px; }}
+* {{ box-sizing: border-box; }}
+body {{
+  margin: 0; background: #111; color: #eee;
+  font-family: edenia-hanguls-local, 'edenia hanguls', sans-serif;
+  font-size: var(--fs);
+  font-feature-settings: "rlig" 1, "liga" 1, "ccmp" 1;
+}}
+header {{
+  position: sticky; top: 0; z-index: 5;
+  background: #111e; backdrop-filter: blur(6px);
+  border-bottom: 1px solid #333; padding: 12px 20px 14px;
+  font-family: system-ui, sans-serif;
+}}
+h1 {{ font-size: 18px; font-weight: 600; color: #ccc; margin: 0 0 6px; }}
+.meta {{ font-size: 12px; color: #777; margin: 0 0 10px; line-height: 1.4; }}
+.controls {{
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;
+  font-size: 12px; color: #aaa;
+}}
+.controls label {{ display: inline-flex; align-items: center; gap: 4px; }}
+.controls select, .controls button, .controls input[type=number] {{
+  background: #1a1a1a; color: #ddd; border: 1px solid #444;
+  border-radius: 4px; padding: 4px 8px; font-size: 12px;
+}}
+.controls button {{ cursor: pointer; }}
+.controls button:hover {{ background: #252525; }}
+#stats {{ margin-left: auto; color: #666; }}
+main {{ padding: 12px 20px 80px; }}
+section {{ margin: 0 0 20px; }}
+section h2 {{
+  font: 600 13px system-ui, sans-serif; color: #9a9a9a;
+  margin: 0 0 8px; padding: 6px 0; border-bottom: 1px solid #2a2a2a;
+  position: sticky; top: 88px; background: #111; z-index: 2;
+}}
+.grid {{
+  display: flex; flex-wrap: wrap; gap: 3px 8px; align-items: flex-end;
+}}
+.cell {{
+  display: flex; flex-direction: column; align-items: center;
+  line-height: 1.15; min-width: 1.1em;
+}}
+.cell i {{
+  font: 8px/1.1 system-ui, sans-serif; color: #555; font-style: normal;
+  white-space: nowrap; margin-bottom: 1px;
+}}
+.cell b {{
+  font-weight: normal; border: 1px solid #1e1e1e; padding: 2px 4px;
+  border-radius: 2px;
+  font-feature-settings: "rlig" 1, "liga" 1, "ccmp" 1;
+}}
+.empty {{ font: 13px system-ui, sans-serif; color: #555; padding: 24px 0; }}
+</style>
+</head>
+<body>
+<header>
+  <h1>Hangul-s (sideways syllables) × FE05 × VS × dakuten</h1>
+  <p class="meta">
+    {len(syllables):,} syllables / compat jamo · dakuten marks {len(marks)} (sample).
+    Glyphs are baked <strong>90° CCW</strong>; append <strong>U+FE05</strong> per glyph,
+    then optional FE01–FE03 mirrors (post-r90). Upright syllables:
+    <code>edenia cjk</code> bucket fonts.
+    VS grid per slice: <strong>{n_vs}</strong> (= identity + mx + my + mxy).
+    ⁵ FE05 · ¹ FE01 · ² FE02 · ³ FE03.
+  </p>
+  <div class="controls">
+    <label>Start idx
+      <input type="number" id="idxStart" value="0" min="0" style="width:5em"/>
+    </label>
+    <label>Count
+      <input type="number" id="idxCount" value="32" min="1" style="width:5em"/>
+    </label>
+    <label><input type="checkbox" id="wantVS" checked/> VS</label>
+    <label><input type="checkbox" id="wantMarks"/> diacritics</label>
+    <label>Mark
+      <select id="pickMark"></select>
+    </label>
+    <label>Mark count
+      <select id="markCount">
+        {dakuten_count_options_html(indent="        ")}
+      </select>
+    </label>
+    <label>Skip (CGJ)
+      <select id="skipSlots">
+        {dakuten_skip_options_html(indent="        ")}
+      </select>
+    </label>
+    <label><input type="checkbox" id="labels" checked/> labels</label>
+    <button type="button" id="btnSlice">Render slice</button>
+    <button type="button" id="btnAll">Render all (huge)</button>
+    <span id="stats"></span>
+  </div>
+</header>
+<main id="main"><p class="empty">Set start/count, then Render slice.</p></main>
+<script>
+let DATA = {json.dumps(payload, ensure_ascii=False, separators=(",", ":"))};
+const SLOT_N = DATA.SLOT_COUNT || 8;
+
+function cpChars(cps) {{
+  return cps.map(c => String.fromCodePoint(c)).join("");
+}}
+function vsList(want) {{
+  return want ? DATA.VS : [null];
+}}
+function mark(i) {{ return DATA.VS_MARK[i] || ""; }}
+
+function markSuffix() {{
+  if (!document.getElementById("wantMarks").checked) return [];
+  if (!DATA.MARKS.length) return [];
+  let mi = +document.getElementById("pickMark").value;
+  let m = DATA.MARKS[mi];
+  if (!m) return [];
+  let skip = Math.max(0, Math.min(SLOT_N - 1, +document.getElementById("skipSlots").value || 0));
+  let n = Math.max(1, Math.min(SLOT_N, +document.getElementById("markCount").value || 1));
+  return Array(skip).fill(0x034F).concat(Array(n).fill(m.cp));
+}}
+
+function buildSeq(S, vi) {{
+  let cps = [S.cp, DATA.SIDEWAYS];
+  if (DATA.VS[vi] != null) cps.push(DATA.VS[vi]);
+  cps.push(...markSuffix());
+  return cps;
+}}
+
+function labelFor(S, vi) {{
+  let s = S.ch + "⁵" + mark(vi);
+  let ms = markSuffix();
+  if (ms.length) {{
+    let m = DATA.MARKS[+document.getElementById("pickMark").value];
+    s += "+" + (m ? m.short : "mk") + "×" + ms.length;
+  }}
+  return s + " U+" + S.cp.toString(16).toUpperCase();
+}}
+
+function sliceIndices() {{
+  const start = Math.max(0, Math.min(DATA.SYLL.length - 1, +document.getElementById("idxStart").value || 0));
+  const count = Math.max(1, +document.getElementById("idxCount").value || 1);
+  const out = [];
+  for (let i = start; i < Math.min(DATA.SYLL.length, start + count); i++) out.push(i);
+  return out;
+}}
+
+function renderSlice(indices, {{wantVS, labels}}) {{
+  let main = document.getElementById("main");
+  main.textContent = "";
+  let total = 0;
+  let Vvs = vsList(wantVS);
+  for (let si of indices) {{
+    let S = DATA.SYLL[si];
+    let sec = document.createElement("section");
+    let h = document.createElement("h2");
+    h.textContent = S.ch + "  U+" + S.cp.toString(16).toUpperCase() + "  " + S.short;
+    sec.appendChild(h);
+    let grid = document.createElement("div");
+    grid.className = "grid";
+    for (let vi = 0; vi < Vvs.length; vi++) {{
+      let cell = document.createElement("div");
+      cell.className = "cell";
+      if (labels) {{
+        let i = document.createElement("i");
+        i.textContent = labelFor(S, vi);
+        cell.appendChild(i);
+      }}
+      let b = document.createElement("b");
+      b.textContent = cpChars(buildSeq(S, vi));
+      cell.appendChild(b);
+      grid.appendChild(cell);
+      total++;
+    }}
+    sec.appendChild(grid);
+    main.appendChild(sec);
+  }}
+  document.getElementById("stats").textContent = total.toLocaleString() + " cells";
+}}
+
+function fillMarkSelect() {{
+  let pickMark = document.getElementById("pickMark");
+  if (!DATA.MARKS.length) {{
+    let o = document.createElement("option");
+    o.value = "0"; o.textContent = "(no marks in font)";
+    pickMark.appendChild(o);
+  }} else {{
+    DATA.MARKS.forEach((m, i) => {{
+      let o = document.createElement("option");
+      o.value = String(i);
+      o.textContent = m.ch + " U+" + m.cp.toString(16).toUpperCase() + " " + m.short;
+      pickMark.appendChild(o);
+    }});
+  }}
+  pickMark.value = "0";
+}}
+
+function opts() {{
+  return {{
+    wantVS: document.getElementById("wantVS").checked,
+    labels: document.getElementById("labels").checked,
+  }};
+}}
+
+document.getElementById("btnSlice").onclick = () => {{
+  renderSlice(sliceIndices(), opts());
+}};
+
+document.getElementById("btnAll").onclick = () => {{
+  let msg = "Render ALL " + DATA.SYLL.length.toLocaleString()
+    + " syllables × " + (document.getElementById("wantVS").checked ? "4" : "1")
+    + " VS? The page will become very large.";
+  if (!confirm(msg)) return;
+  renderSlice(Array.from({{length: DATA.SYLL.length}}, (_, i) => i), opts());
+}};
+
+fillMarkSelect();
+document.getElementById("btnSlice").click();
+</script>
+</body>
+</html>
+"""
+        )
+    print(
+        f"Hangul-s: syllables={len(syllables):,} marks={len(marks)}  "
+        f"vs_combos={total:,}  -> {path}"
+    )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("-o", "--output", default=DEFAULT_OUT)
+    ap.add_argument("-o", "--output", default=DEFAULT_OUT, help="Jamo gallery HTML")
+    ap.add_argument(
+        "--syllables-output",
+        default=DEFAULT_SYLL_OUT,
+        help="Hangul-s syllable gallery HTML",
+    )
+    ap.add_argument(
+        "--jamo-only",
+        action="store_true",
+        help="Build jamo gallery only",
+    )
+    ap.add_argument(
+        "--hangul-s-only",
+        action="store_true",
+        help="Build hangul-s gallery only",
+    )
     ap.add_argument("--font-size", type=int, default=40)
     ap.add_argument(
         "--mark-limit",
@@ -472,7 +769,16 @@ def main() -> None:
         help="Max dakuten marks to list in the Mark select (default 64)",
     )
     args = ap.parse_args()
-    write_html(args.output, font_size=args.font_size, mark_limit=args.mark_limit)
+    if args.jamo_only and args.hangul_s_only:
+        ap.error("--jamo-only and --hangul-s-only are mutually exclusive")
+    if not args.hangul_s_only:
+        write_html(args.output, font_size=args.font_size, mark_limit=args.mark_limit)
+    if not args.jamo_only:
+        write_syllables_html(
+            args.syllables_output,
+            font_size=args.font_size,
+            mark_limit=args.mark_limit,
+        )
 
 
 if __name__ == "__main__":
