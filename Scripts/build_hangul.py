@@ -6,8 +6,12 @@ Two families
 ------------
 * `edenia hangul` — conjoining jamo (U+1100.., Ext-A/B) with Malgun
   `ljmo` / `vjmo` / `tjmo` shaping.
-* `edenia hanguls` — precomposed syllables (U+AC00..D7A3) and compatibility
-  jamo (U+3131..318E).
+* `edenia hanguls` (hangul-**s**) — precomposed syllables (U+AC00..D7A3) and
+  compatibility jamo (U+3131..318E), each glyph baked **90° CCW** (sideways).
+  Append **U+FE05** to a syllable block to select this face; axis mirrors
+  (U+FE00..U+FE03) apply **after** the rotation (same rules as the old upright
+  whole-glyph font, but in the turned coordinate system). Upright syllables live
+  in ``build_cjk`` (`edenia cjk` bucket fonts).
 
 Glyphs use a **1000×1000 em square** (`--upem`, default 1000): full-width
 advances are forced to `upem`; composed V/T overlays stay zero-width.
@@ -43,8 +47,9 @@ VS4     U+FE03     mxy — both axes
     stay aligned with the consonant. No outline rescale. `vs05` stays a
     zero-width mark so GPOS can see it. Open syllables ignore FE04.
 
-* **Syllables (`edenia hanguls`):** `char + VS` / cmap-14 UVS flips the
-  whole precomposed (or compat) glyph about its bbox center.
+* **Syllables (`edenia hanguls`):** `syll + FE05` selects the sideways block;
+  `syll + FE05 (+ FE00..FE03)` / cmap-14 UVS applies mx / my / mxy on the
+  r90 outline.
 
 Dakuten (combining marks)
 -------------------------
@@ -54,8 +59,7 @@ Marks keep native
 left-/right-aligned to CJK cell corners. Same TR → BR → TL → BL slot order as
 `edenia yi` via GSUB + GPOS `mark`/`abvm`. Every orientation / layout form
 (identity + `mx`/`my`/`mxy` + `.em*` chains) gets corner anchors —
-no VS form is skipped. Installed in both families (zero-advance V/T bases
-shift local X by `-upem`).
+no VS form is skipped. Installed on the jamo face; hanguls mirrors only.
 """
 
 from __future__ import annotations
@@ -94,6 +98,7 @@ from shared_half_cells import (
     ideographic_bounds,
     ideographic_center,
     variant_glyph_name,
+    variant_transform,
 )
 from hangul_diacritics import (
     DAKUTEN_SLOT_CYCLE,
@@ -158,13 +163,14 @@ SQ_SUFFIX = "sq"
 # After a jongseong: GPOS invert LV↑/T↓ via yPlacement.
 # ``T + vs05`` ligates to ``T.sw`` first so FE04 GPOS does not share an
 # ``L V T`` prefix with the Y-flip batchim raise.
-SWAP_CP = 0xFE04  # Unicode VS5
+SWAP_CP = 0xFE04  # Unicode VS5 (jamo batchim top-swap only)
 SWAP_GLYPH = "vs05"
+# Sideways syllable block: append U+FE05 after each precomposed/compat glyph.
+SIDEWAYS_CP = 0xFE05  # Unicode VS6
+SIDEWAYS_GLYPH = "vs06"
 FE04_T_SUFFIX = "sw"
 
-# VS ligas: ``ccmp`` early (before Hangul) for browser/DirectWrite paths where
-# mid-cluster marks break the Hangul FST; ``rlig``/``liga`` keep post-shape swap.
-# Whole-glyph VS on the syllables font may use early ``ccmp`` safely.
+# VS ligas: ``ccmp`` early for browser paths; ``rlig``/``liga`` keep swap/mirror.
 SYLL_VS_FEATURE_TAGS: Tuple[str, ...] = ("ccmp", "rlig", "liga")
 
 LOOKUP_FLAG_IGNORE_MARKS = 0x0008
@@ -191,12 +197,18 @@ def vs_glyph_name(vs_cp: int) -> str:
             return f"vs{vs_cp - UVS_BASE + 1:02d}"
         case _ if vs_cp == SWAP_CP:
             return SWAP_GLYPH
+        case _ if vs_cp == SIDEWAYS_CP:
+            return SIDEWAYS_GLYPH
         case _:
             raise ValueError(f"not a hangul VS codepoint: U+{vs_cp:04X}")
 
 
 def is_vs_codepoint(cp: int) -> bool:
-    return (VS_BASE <= cp <= VS_LAST) or (UVS_BASE <= cp <= UVS_LAST) or cp == SWAP_CP
+    return (
+        (VS_BASE <= cp <= VS_LAST)
+        or (UVS_BASE <= cp <= UVS_LAST)
+        or cp in (SWAP_CP, SIDEWAYS_CP)
+    )
 
 
 def font_cmap(tt: TTFont) -> Dict[int, str]:
@@ -338,6 +350,31 @@ def copy_scaled_glyph(
     except Exception:
         pass
     return out
+
+
+def rotate_glyph_r90(
+    glyph: TTGlyph,
+    *,
+    advance: int,
+    lsb: int,
+    target_upem: int,
+    glyph_set: Optional[Dict[str, TTGlyph]] = None,
+) -> Tuple[TTGlyph, int, int]:
+    """90° CCW about the ideographic center (hangul-s syllable bake)."""
+    try:
+        rec = DecomposingRecordingPen(glyph_set)
+        glyph.draw(rec, glyph_set)
+    except Exception:
+        return glyph, advance, lsb
+    t = variant_transform(target_upem, rot90_quarters=1, flip_x=False, flip_y=False)
+    pen = TTGlyphPen(None)
+    try:
+        rec.replay(TransformPen(pen, t))
+        out = pen.glyph()
+        out.recalcBounds(None)
+        return out, advance, int(out.xMin)
+    except Exception:
+        return glyph, advance, lsb
 
 
 # Jungseong (medial) layout axes from vowel shape:
@@ -1331,11 +1368,25 @@ def _inject_swap_vs(
     cmap[SWAP_CP] = SWAP_GLYPH
 
 
+def _inject_sideways_vs(
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    cmap: Dict[int, str],
+) -> None:
+    """Zero-width FE05 — sideways syllable block selector (hangul-s)."""
+    if SIDEWAYS_GLYPH not in glyphs:
+        glyph_order.append(SIDEWAYS_GLYPH)
+        glyphs[SIDEWAYS_GLYPH] = empty_glyph()
+        metrics[SIDEWAYS_GLYPH] = (0, 0)
+    cmap[SIDEWAYS_CP] = SIDEWAYS_GLYPH
+
+
 def build_syllable_uvs_entries(
     cmap: Dict[int, str],
     glyphs: Dict[str, TTGlyph],
 ) -> List[Tuple[int, int, Optional[str]]]:
-    """Cmap-14 UVS for precomposed syllables and compatibility jamo only."""
+    """Cmap-14 UVS for sideways precomposed syllables and compatibility jamo."""
     rows: List[Tuple[int, int, Optional[str]]] = []
     for cp, gname in cmap.items():
         if is_vs_codepoint(cp):
@@ -1636,7 +1687,7 @@ def install_vs_ligas(
     *,
     feature_tags: Sequence[str] = SYLL_VS_FEATURE_TAGS,
 ) -> None:
-    """`base + vs → variant` ligas (whole-glyph / syllables font)."""
+    """``base + vs → variant`` ligas (whole-glyph / hangul-s syllables font)."""
     if not pairs:
         return
     liga_map: Dict[Tuple[str, ...], str] = {(base, vs): var for base, vs, var in pairs}
@@ -2767,7 +2818,7 @@ def build_jamo_font(
     return out_path, len(glyphs) - 1, sorted(cmap.keys())
 
 
-def build_syllables_font(
+def build_hanguls_font(
     in_dir: str,
     out_dir: str,
     target_upem: int,
@@ -2780,8 +2831,9 @@ def build_syllables_font(
     write_woff2: bool = True,
     hint: bool = True,
 ) -> Tuple[str, int, List[int]]:
+    """Sideways (r90) syllables + compat jamo — ``edenia hanguls`` / hangul-s."""
     src_path = resolve_malgun_path(in_dir)
-    print(f"\n=== {FAMILY_SYLL} (syllables + compat jamo) ===", flush=True)
+    print(f"\n=== {FAMILY_SYLL} (hangul-s: r90 syllables + compat) ===", flush=True)
     print(f"Source: {src_path}", flush=True)
     src_tt = TTFont(src_path, fontNumber=0)
     try:
@@ -2812,23 +2864,41 @@ def build_syllables_font(
         y_shift=y_shift,
         y_scale=y_scale,
     )
-    # Drop any leftover jamo GSUB from subset — syllables font is whole-glyph only.
     if "GSUB" in tt:
         del tt["GSUB"]
     if "GDEF" in tt:
         del tt["GDEF"]
 
-    _inject_vs(glyph_order, glyphs, metrics, cmap)
-    vs_names = [vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES]
-
-    print("  Installing whole-glyph axis-mirror variants...", flush=True)
-    liga_pairs: List[Tuple[str, str, str]] = []
     hangul_cps = [cp for cp in cmap if not is_vs_codepoint(cp)]
+
+    print("  Rotating syllables 90° CCW (hangul-s)...", flush=True)
+    for cp in hangul_cps:
+        name = cmap[cp]
+        if name not in glyphs:
+            continue
+        adv, lsb = metrics[name]
+        g, adv, lsb = rotate_glyph_r90(
+            glyphs[name],
+            advance=adv,
+            lsb=lsb,
+            target_upem=target_upem,
+            glyph_set=glyphs,
+        )
+        glyphs[name] = g
+        metrics[name] = (adv, lsb)
+
+    _inject_vs(glyph_order, glyphs, metrics, cmap)
+    _inject_sideways_vs(glyph_order, glyphs, metrics, cmap)
+    vs_names = [vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES] + [SIDEWAYS_GLYPH]
+
+    print("  Installing whole-glyph axis-mirror variants (post-r90)...", flush=True)
+    liga_pairs: List[Tuple[str, str, str]] = []
     for cp in hangul_cps:
         base = cmap[cp]
         if base not in glyphs:
             continue
         adv, lsb = metrics[base]
+        liga_pairs.append((base, SIDEWAYS_GLYPH, base))
         installed = add_mirror_variants(
             base,
             advance=adv,
@@ -2836,6 +2906,7 @@ def build_syllables_font(
             glyph_order=glyph_order,
             glyphs=glyphs,
             metrics=metrics,
+            target_upem=target_upem,
         )
         for vs_cp, _suffix, vname in installed:
             liga_pairs.append((base, vs_glyph_name(vs_cp), vname))
@@ -2864,7 +2935,6 @@ def build_syllables_font(
     fb.setupGlyf(glyphs)
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader(ascent=ascent, descent=descent)
-    # Empty uvs=[] still emits cmap format-14; Chromium OTS rejects that.
     if uvs_rows:
         fb.setupCharacterMap(cmap, uvs=uvs_rows)
     else:
@@ -2946,21 +3016,20 @@ def write_css(
     css_path = os.path.join(out_dir, CSS_HANGUL)
     lines = [
         "/* Auto-generated Hangul fonts from Malgun Gothic */",
-        "/* edenia hangul = conjoining jamo; edenia hanguls = syllables + compat */",
+        "/* edenia hangul = conjoining jamo; edenia hanguls = hangul-s (r90) */",
         "/* Local src first; GitHub raw as fallback. */",
-        "/* VS: U+FE00..FE03 mirrors; U+FE04 = batchim top-swap. */",
+        "/* Jamo VS: U+FE00..FE03 mirrors; U+FE04 = batchim top-swap. */",
+        "/* Hangul-s: append U+FE05 per syllable block; FE00..FE03 mirror post-r90. */",
         "",
     ]
     for family, cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
         file_stem = stem(family)
-        # FE00–FE03 omit from unicode-range (cluster with jamo). FE04 must
-        # stay listed — top-swap GPOS does not run when FE04 is out of range.
-        cps_for_ur = [cp for cp in cps if not (0xFE00 <= cp <= 0xFE0F) or cp == 0xFE04]
+        cps_for_ur = [
+            cp for cp in cps if not (0xFE00 <= cp <= 0xFE0F) or cp in (0xFE04, SIDEWAYS_CP)
+        ]
         if family == FAMILY_JAMO:
             if 0xFE04 not in cps_for_ur:
                 cps_for_ur.append(0xFE04)
-            # Jamo face hosts dakuten; syllables must not claim marks
-            # (would steal Yi/Kana clusters earlier in the stack).
             for stem_name in (f"{file_stem}.woff2", f"{file_stem}.ttf"):
                 font_path = os.path.join(out_dir, stem_name)
                 if not os.path.isfile(font_path):
@@ -2976,9 +3045,10 @@ def write_css(
                     print(f"  [!] hangul mark unicode-range: {exc}", flush=True)
                 break
         else:
-            # Syllables: drop FE04 and any Mn/Mc that leaked from a full cmap.
             import unicodedata
 
+            if SIDEWAYS_CP not in cps_for_ur:
+                cps_for_ur.append(SIDEWAYS_CP)
             cps_for_ur = [
                 cp
                 for cp in cps_for_ur
@@ -3047,12 +3117,16 @@ def build_all(
         f"T present=Malgun ljmo/vjmo/tjmo; FE04 after T=GPOS yPlacement; "
         f"padded ideo box"
     )
-    print(f"  Syllables ({FAMILY_SYLL}): whole-glyph VS / UVS")
+    print(
+        f"  Hangul-s ({FAMILY_SYLL}): r90 syllables + compat; "
+        f"append U+FE05 per block; FE00..FE03 mirror post-r90"
+    )
+    print("  Upright syllables + compat: build_cjk (edenia cjk bucket fonts)")
     print(
         "  Dakuten: LXGWNeoXiHeiScreenFull + mkanaplus + Nexsevka + Arial + "
         "JuliaMono + Segoe UI + Segoe UI Historic + Sans Serif Collection + Droid Sans "
         "\\p{Mn} @ CJK box slots "
-        f"({DAKUTEN_SLOT_CYCLE}; fixed H, L/R/mid align; both families)"
+        f"({DAKUTEN_SLOT_CYCLE}; fixed H, L/R/mid align; jamo + hangul-s)"
     )
     print(f"  Local scale: {local_scale:g} about bbox center")
     print(f"  Y shift: {y_shift:g} (align Malgun to CJK/Yi typo mid)")
@@ -3065,8 +3139,6 @@ def build_all(
     print(f"  Formats: {fmt_note}")
     print("  Building edenia hangul + edenia hanguls in parallel...", flush=True)
 
-    # Two independent fonts — run concurrently (separate processes so
-    # FontBuilder/CPU work is not serialized by the GIL).
     with concurrent.futures.ProcessPoolExecutor(max_workers=2) as ex:
         fut_jamo = ex.submit(
             build_jamo_font,
@@ -3082,7 +3154,7 @@ def build_all(
             hint=hint,
         )
         fut_syll = ex.submit(
-            build_syllables_font,
+            build_hanguls_font,
             in_dir,
             out_dir,
             target_upem,
@@ -3109,7 +3181,7 @@ def build_all(
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build edenia hangul (jamo) + edenia hanguls (syllables) from Malgun"
+        description="Build edenia hangul (jamo) + edenia hanguls (hangul-s) from Malgun"
     )
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
     p.add_argument("--out", dest="out_dir", default=OUT_DIR)

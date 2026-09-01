@@ -2,7 +2,8 @@
 """
 Build Pan-CJK pigeonhole subfonts.
 
-Claims CJK/Tangut codepoints from priority-ordered source fonts, buckets them
+Claims CJK/Tangut/Hangul (syllables + compat jamo) codepoints from priority-
+ordered source fonts, buckets them
 into 256-codepoint blocks (cp >> 8), and builds each TTF/WOFF2 from scratch by
 copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
 
@@ -128,22 +129,22 @@ IMPORT_THREADS = min(32, max(4, (os.cpu_count() or 4)))
 # Harmony ink target — 2% inset (960×960 @ 1000 UPM; cell fit still uses 5%).
 HARMONY_IDEO_PAD = 0.02
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("NGULIM.ttf", 1.2, 1.35),
-    ("Han-Nom Gothic 1.32.otf", 0.95, 1.25),
-    ("msyh.ttc", 0.95, 1.25),
-    ("LXGWClearGothic-Regular.ttf", 1.0, 1.05),
-    ("Fanmei-Hei.ttf", 1.0, 1.05),
-    ("LXGWXiHeiMN.ttf", 1.0, 1.05),
-    ("ChironHeiHK-R.ttf", 1.0, 1.15),
-    ("Gothic Nguyen Regular.ttf", 1.0, 1.15),
-    ("YshiYuanGothicCleaned.ttf", 1.0, 1.15),
-    ("ChocolateClassicalSans-Regular.ttf", 1.0, 1.15),
-    ("SukimaGothic.ttf", 1.0, 1.15),
-    # ("I.MingVarCP-8.10.ttf", 1.0, 1.15),
-    # ("simsunb.ttf", 1.0, 1.25),
-    # ("SimsunExtG.ttf", 1.0, 1.25),
-    ("PlangothicP1-Regular.ttf", 1.0, 1.15),
-    ("PlangothicP2-Regular.ttf", 1.0, 1.15),
+    ("NGULIM.ttf", 1.2, 1.3),
+    ("Han-Nom Gothic 1.32.otf", 0.95, 1.1),
+    ("msyh.ttc", 0.95, 1.1),
+    ("LXGWClearGothic-Regular.ttf", 1.0, 1.0),
+    ("Fanmei-Hei.ttf", 1.0, 1.0),
+    ("LXGWXiHeiMN.ttf", 1.0, 1.0),
+    ("ChironHeiHK-R.ttf", 1.0, 1.1),
+    ("Gothic Nguyen Regular.ttf", 1.0, 1.1),
+    ("YshiYuanGothicCleaned.ttf", 1.0, 1.1),
+    ("ChocolateClassicalSans-Regular.ttf", 1.0, 1.1),
+    ("SukimaGothic.ttf", 1.0, 1.1),
+    # ("I.MingVarCP-8.10.ttf", 1.0, 1.1),
+    # ("simsunb.ttf", 1.0, 1.2),
+    # ("SimsunExtG.ttf", 1.0, 1.2),
+    ("PlangothicP1-Regular.ttf", 1.0, 1.1),
+    ("PlangothicP2-Regular.ttf", 1.0, 1.1),
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
@@ -161,24 +162,29 @@ CONSTANTS_ONLY_FONTS = frozenset(
 CHAR_RANGES: List[Tuple[int, int, str]] = [
     (0x2E80, 0x2EFF, "CJK Radicals Supplement"),
     (0x2F00, 0x2FDF, "Kangxi Radicals"),
-    (0x04E00, 0x09FFF, "CJK URO"),
+    (0x3131, 0x318E, "Hangul Compatibility Jamo"),
+    (0x3190, 0x319F, "Kanbun"),
+    (0x31C0, 0x31EF, "CJK Strokes"),
+    (0x3200, 0x32FF, "Enclosed CJK Letters and Months"),
     (0x03400, 0x04DBF, "CJK Ext A"),
+    (0x04E00, 0x09FFF, "CJK URO"),
+    (0xAC00, 0xD7A3, "Hangul Syllables"),
+    (0x0FA00, 0x0FAFF, "CJK Compat"),
+    (0x17000, 0x187FF, "Tangut"),
+    (0x18800, 0x18AFF, "Tangut Components"),
+    (0x18B00, 0x18CFF, "Khitan Small Script"),
+    (0x18D00, 0x18D7F, "Tangut Supplement"),
+    (0x18D80, 0x18DFF, "Tangut Components Supplement"),
     (0x20000, 0x2A6DF, "CJK Ext B"),
     (0x2A700, 0x2B73F, "CJK Ext C"),
     (0x2B740, 0x2B81F, "CJK Ext D"),
     (0x2B820, 0x2CEAF, "CJK Ext E"),
     (0x2CEB0, 0x2EBEF, "CJK Ext F"),
+    (0x2EBF0, 0x2EE5F, "CJK Ext I"),
+    (0x2F800, 0x2FA1F, "CJK Compat Supplement"),
     (0x30000, 0x3134F, "CJK Ext G"),
     (0x31350, 0x323AF, "CJK Ext H"),
-    (0x2EBF0, 0x2EE5F, "CJK Ext I"),
     (0x323B0, 0x3347F, "CJK Ext J"),
-    (0x0FA00, 0x0FAFF, "CJK Compat"),
-    (0x2F800, 0x2FA1F, "CJK Compat Supplement"),
-    (0x17000, 0x187FF, "Tangut"),
-    (0x18D00, 0x18D7F, "Tangut Supplement"),
-    (0x18800, 0x18AFF, "Tangut Components"),
-    (0x18D80, 0x18DFF, "Tangut Components Supplement"),
-    (0x18B00, 0x18CFF, "Khitan Small Script"),
 ]
 
 # (out_cp, source_path, src_cp) — base Unicode claims only; D4 variants in-font
