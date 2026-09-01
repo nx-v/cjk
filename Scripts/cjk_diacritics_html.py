@@ -3,10 +3,9 @@
 
 Encoding (matches `cjk_diacritics` / `build_cjk`)::
 
-    Base face (`edenia cjk`) — ca/nhay in a 1/4 segment; FE00–FE0F on the
-    clipped CJK select position × axis-mirror (id / mx / my / mxy)::
-
-      CJK MARK            → right, upright (FE00 no-op)
+    Base face (`edenia cjk`) — ca in a 1/3 segment (base 2/3); nhay in 1/4
+    (base 3/4). FE00–FE0F on the clipped CJK select position × axis-mirror
+    (id / mx / my / mxy)::
       CJK FE00 MARK       → right, upright
       CJK FE01 MARK       → right, mx
       CJK FE04 MARK       → left, upright
@@ -720,7 +719,7 @@ function renderMarks(indices, markIndices, slot) {{
   const use = slot || selectedSlot();
   clearOut();
   out.appendChild(heading(
-    'CJK + ' + use.label + ' + ca/nhay (base face, mark = 1/4)'));
+    'CJK + ' + use.label + ' + ca/nhay (base face, ca = 1/3, nhay = 1/4)'));
   let n = 0;
   for (const i of indices) {{
     for (const mi of markIndices) {{

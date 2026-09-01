@@ -8,8 +8,8 @@ copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
 
 Two faces per bucket (filename / family stem = `{hex}` / `{hex}h`)::
 
-    (none)  base forms + ca/nhay (all mark orientations); mark segment = 1/4
-                (base occupies 3/4)
+    (none)  base forms + ca/nhay (all mark orientations); ca mark = 1/3
+                (base 2/3), nhay mark = 1/4 (base 3/4)
     h       base forms + D4 + half-cell slices (FE00 overlay, FE08–FE0F)
 
 Third / quarter segment faces are kana/yi only (not built for CJK).
@@ -54,7 +54,6 @@ from cjk_diacritics import (
     PLANGOTHIC_P2_FILENAME,
     MARK_CPS,
     MARK_BASE_SQUISH_FACTOR,
-    MARK_SEGMENT_FRAC,
     SIDE_SELECTOR_CPS,
     SQUISH_FACTOR,
     SQUISH_PUA_CPS,
@@ -129,22 +128,22 @@ IMPORT_THREADS = min(32, max(4, (os.cpu_count() or 4)))
 # Harmony ink target — 2% inset (960×960 @ 1000 UPM; cell fit still uses 5%).
 HARMONY_IDEO_PAD = 0.02
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
-    ("NGULIM.ttf", 1.2, 1.25),
-    ("Han-Nom Gothic 1.32.otf", 0.95, 1.15),
-    ("msyh.ttc", 0.95, 1.15),
+    ("NGULIM.ttf", 1.2, 1.35),
+    ("Han-Nom Gothic 1.32.otf", 0.95, 1.25),
+    ("msyh.ttc", 0.95, 1.25),
     ("LXGWClearGothic-Regular.ttf", 1.0, 1.05),
     ("Fanmei-Hei.ttf", 1.0, 1.05),
     ("LXGWXiHeiMN.ttf", 1.0, 1.05),
-    ("ChironHeiHK-R.ttf", 1.0, 1.05),
-    ("Gothic Nguyen Regular.ttf", 1.0, 1.05),
-    ("YshiYuanGothicCleaned.ttf", 1.0, 1.05),
-    ("ChocolateClassicalSans-Regular.ttf", 1.0, 1.05),
-    ("SukimaGothic.ttf", 1.0, 1.05),
+    ("ChironHeiHK-R.ttf", 1.0, 1.15),
+    ("Gothic Nguyen Regular.ttf", 1.0, 1.15),
+    ("YshiYuanGothicCleaned.ttf", 1.0, 1.15),
+    ("ChocolateClassicalSans-Regular.ttf", 1.0, 1.15),
+    ("SukimaGothic.ttf", 1.0, 1.15),
     # ("I.MingVarCP-8.10.ttf", 1.0, 1.15),
     # ("simsunb.ttf", 1.0, 1.25),
     # ("SimsunExtG.ttf", 1.0, 1.25),
-    ("PlangothicP1-Regular.ttf", 1.0, 1.05),
-    ("PlangothicP2-Regular.ttf", 1.0, 1.05),
+    ("PlangothicP1-Regular.ttf", 1.0, 1.15),
+    ("PlangothicP2-Regular.ttf", 1.0, 1.15),
 ]
 
 PRIORITY_FONT_NAMES: List[str] = [name for name, _scale, _w in PRIORITY_FONTS]
@@ -887,7 +886,7 @@ def build_bucket_font(
 
     match variant:
         case "":
-            # Base face: ca/nhay with 1/4 mark segment (base occupies 3/4).
+            # Base face: ca/nhay with per-mark segment fractions.
             mark_state = prepare_marks(
                 in_dir=in_dir,
                 cjk_bases=base_names,
@@ -899,9 +898,6 @@ def build_bucket_font(
                 liga_rules=_liga_unused,
                 uvs_rows=uvs_rows,
                 local_scale=mark_scale,
-                width_factor=MARK_BASE_SQUISH_FACTOR,
-                height_factor=MARK_BASE_SQUISH_FACTOR,
-                mark_segment_frac=MARK_SEGMENT_FRAC,
             )
             if mark_state is None:
                 # No Plangothic — still emit FE08–F slice segments at 3/4.
@@ -1322,9 +1318,6 @@ def _build_face_ttf_from_state(
             liga_rules=_liga,
             uvs_rows=_uvs,
             local_scale=mark_scale,
-            width_factor=MARK_BASE_SQUISH_FACTOR,
-            height_factor=MARK_BASE_SQUISH_FACTOR,
-            mark_segment_frac=MARK_SEGMENT_FRAC,
         )
         if mark_state is None:
             squishable = prepare_squish_vs_access(

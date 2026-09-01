@@ -4,7 +4,8 @@ Core marks from Plangothic P2: U+16FF0 (ca) / U+16FF1 (nhay) only.
 
 Base face (`edenia cjk`)
 --------------------------
-ca/nhay sit in a 1/4 segment; the CJK outline occupies the other 3/4.
+**ca** (U+16FF0) sits in a **1/3** segment; the CJK outline occupies **2/3**.
+**nhay** (U+16FF1) sits in a **1/4** segment; the CJK outline occupies **3/4**.
 FE00–FE0F on the **clipped CJK** select mark position × axis-mirror
 (Klein four-group only — no r90 / r270)::
 
@@ -16,11 +17,12 @@ FE00–FE0F on the **clipped CJK** select mark position × axis-mirror
     FE08–FE0B  up    (id / mx / my / mxy) — mark is r90 of LR upright
     FE0C–FE0F  down  (id / mx / my / mxy) — same `.T` outlines
 
-    CJK  MARK              → `base.dk_MARK`          (right, upright)
-    CJK  FE00  MARK        → `base.dk_MARK`          (explicit no-op)
-    CJK  FE01  MARK        → `base.dk_MARK.mx`
-    CJK  FE08  MARK        → `base.dkt_MARK`         (up, upright)
-    CJK  FE0C  MARK        → `base.dkb_MARK`         (down, upright)
+    CJK  MARK (nhay)       → `base.dk_u16FF1`          (right, upright)
+    CJK  MARK (ca)         → `base.dk.ca_u16FF0`       (right, upright)
+    CJK  FE00  MARK        → same (explicit no-op)
+    CJK  FE01  MARK        → `…_MARK.mx`
+    CJK  FE08  MARK        → `base.dkt_MARK`           (up, upright)
+    CJK  FE0C  MARK        → `base.dkb_MARK`           (down, upright)
 
 Half face (`edenia cjk h`)
 ----------------------------
@@ -85,12 +87,32 @@ from shared_half_cells import (
 
 PLANGOTHIC_P2_FILENAME = "PlangothicP2-Regular.ttf"
 # Plangothic reading marks (always included when the face is present).
-CORE_MARK_CPS: Tuple[int, ...] = (0x16FF0, 0x16FF1)
+CA_MARK_CP = 0x16FF0
+NHAY_MARK_CP = 0x16FF1
+CORE_MARK_CPS: Tuple[int, ...] = (CA_MARK_CP, NHAY_MARK_CP)
 # Runtime: ca/nhay only (updated by ``prepare_marks``).
 MARK_CPS: Tuple[int, ...] = CORE_MARK_CPS
+CA_MARK_SEGMENT_FRAC = 1.0 / 3.0
+NHAY_MARK_SEGMENT_FRAC = 1.0 / 4.0
+CA_MARK_BASE_FRAC = 1.0 - CA_MARK_SEGMENT_FRAC
+NHAY_MARK_BASE_FRAC = 1.0 - NHAY_MARK_SEGMENT_FRAC
+MARK_SEGMENT_FRAC_BY_CP: Dict[int, float] = {
+    CA_MARK_CP: CA_MARK_SEGMENT_FRAC,
+    NHAY_MARK_CP: NHAY_MARK_SEGMENT_FRAC,
+}
+MARK_BASE_FRAC_BY_CP: Dict[int, float] = {
+    CA_MARK_CP: CA_MARK_BASE_FRAC,
+    NHAY_MARK_CP: NHAY_MARK_BASE_FRAC,
+}
+# nhay keeps plain ``.dk`` names; ca uses ``.dk.ca`` (and matching siblings).
+CA_MARK_SQUISH_TAG = ".ca"
+NHAY_MARK_SQUISH_TAG = ""
+# Legacy aliases (nhay fractions).
+MARK_SEGMENT_FRAC = NHAY_MARK_SEGMENT_FRAC
+MARK_BASE_SQUISH_FACTOR = NHAY_MARK_BASE_FRAC
 # Overlay + combining slices on the **h** face (FE00, FE08–FE0F).
 # Geometric selector names match shared_half_cells; .dk* suffixes stay
-# for occupancy clips (h = 1/2, base ca/nhay = 3/4).
+# for occupancy clips (h = 1/2; base ca = 2/3, nhay = 3/4).
 SQUISH_TOP_CP = 0xFE08
 SQUISH_TOP_NAME = "vsTop"
 SQUISH_BOT_CP = 0xFE09
@@ -165,10 +187,20 @@ BASE_VS_MODE_COUNT = 8
 # Slightly over half so digraph halves meet with less middle gutter
 # (exact 0.5 + half-pad left a wide TB seam).
 SQUISH_FACTOR = 0.55
-# Base face (ca/nhay): mark occupies 1/4; CJK squish fills the other 3/4.
-MARK_SEGMENT_FRAC = 1.0 / 4.0
-MARK_BASE_SQUISH_FACTOR = 1.0 - MARK_SEGMENT_FRAC  # 3/4
 HALF_PAD_FRAC = 0.02  # inset inside the occupied half (was 0.04)
+
+
+def mark_squish_tag(mark_cp: int) -> str:
+    """Segment name suffix: nhay ``""``, ca ``".ca"``."""
+    return CA_MARK_SQUISH_TAG if mark_cp == CA_MARK_CP else NHAY_MARK_SQUISH_TAG
+
+
+def mark_segment_frac_for(mark_cp: int) -> float:
+    return MARK_SEGMENT_FRAC_BY_CP[mark_cp]
+
+
+def mark_base_frac_for(mark_cp: int) -> float:
+    return MARK_BASE_FRAC_BY_CP[mark_cp]
 
 
 def resolve_plangothic_p2(in_dir: str) -> str:
@@ -178,24 +210,24 @@ def resolve_plangothic_p2(in_dir: str) -> str:
     return path
 
 
-def squish_name(base_name: str) -> str:
+def squish_name(base_name: str, tag: str = "") -> str:
     """Left half-slice (right segment free) — clip of upright id."""
-    return f"{base_name}.dk"
+    return f"{base_name}.dk{tag}"
 
 
-def squish_left_name(base_name: str) -> str:
+def squish_left_name(base_name: str, tag: str = "") -> str:
     """Right half-slice (left segment free); clip of upright id."""
-    return f"{base_name}.dkl"
+    return f"{base_name}.dkl{tag}"
 
 
-def squish_top_name(base_name: str) -> str:
+def squish_top_name(base_name: str, tag: str = "") -> str:
     """Bottom half-slice (top segment free); clip of upright id."""
-    return f"{base_name}.dkt"
+    return f"{base_name}.dkt{tag}"
 
 
-def squish_bot_name(base_name: str) -> str:
+def squish_bot_name(base_name: str, tag: str = "") -> str:
     """Top half-slice (bottom segment free); clip of upright id."""
-    return f"{base_name}.dkb"
+    return f"{base_name}.dkb{tag}"
 
 
 def left_mark_name(mark_name: str) -> str:
@@ -572,7 +604,7 @@ def fit_mark_to_halfcell(
     `axis="x"` → LR segment (`segment_frac` × width × full ideo height).
     `axis="y"` → TB segment (full width × `segment_frac` × ideo height).
     Ink is centered at the origin for GPOS attachment.
-    Default `segment_frac=0.5` (half-cell); base face uses `1/4`.
+    Default `segment_frac=0.5` (half-cell); ca uses `1/3`, nhay `1/4`.
     """
     pin = "right" if axis == "x" else "bottom"
     src = _normalize_winding(_bake_simple_glyph(glyph, glyph_set), glyph_set)
@@ -618,7 +650,7 @@ def _half_slot_rect(
     """Return `(x0, y0, x1, y1)` for the occupied segment slot.
 
     `segment_frac` is the fraction of the cell the segment occupies (0.5 half,
-    `1/4` for ca/nhay on the base face).
+    `1/3` ca / `2/3` base, `1/4` nhay / `3/4` base).
     """
     bot, top, _ = ideographic_bounds(int(target_upem))
     pad = target_upem * HALF_PAD_FRAC
@@ -783,6 +815,7 @@ def add_squish_forms(
     height_factor: float = SQUISH_FACTOR,
     target_upem: int = 1000,
     slot_frac: Optional[float] = None,
+    name_tag: str = "",
 ) -> List[str]:
     """Slice each identity form into the four half-cell segments.
 
@@ -791,20 +824,21 @@ def add_squish_forms(
     axis; the opposite is `full − that side` (or, for a 3/4 mark-base
     slot, `full − the complementary sliver`).
     """
-    # Half-cell digraphs keep a 0.5 slot; mark-base (3/4) passes slot_frac=factor.
+    # Half-cell digraphs keep a 0.5 slot; mark-base passes slot_frac (2/3 ca, 3/4 nhay).
     occ_x = float(slot_frac) if slot_frac is not None else 0.5
     occ_y = float(slot_frac) if slot_frac is not None else 0.5
     del width_factor, height_factor
+    tag = str(name_tag)
 
     added: List[str] = []
     for name in base_names:
         if name not in glyphs:
             continue
         adv, _lsb = metrics.get(name, (target_upem, 0))
-        left_n = squish_name(name)
-        right_n = squish_left_name(name)
-        bot_n = squish_top_name(name)
-        top_n = squish_bot_name(name)
+        left_n = squish_name(name, tag)
+        right_n = squish_left_name(name, tag)
+        bot_n = squish_top_name(name, tag)
+        top_n = squish_bot_name(name, tag)
 
         def _put(out_name: str, gm: Tuple[TTGlyph, int, int]) -> None:
             install_derived_glyph(
@@ -1015,18 +1049,24 @@ def _segment_anchor_fn(segment_suf: str):
             return cjk_right_anchor
 
 
-def _segment_squish_of(base: str, segment_suf: str) -> str:
+def _segment_squish_of(
+    base: str,
+    segment_suf: str,
+    *,
+    mark_cp: Optional[int] = None,
+) -> str:
+    tag = mark_squish_tag(mark_cp) if mark_cp is not None else NHAY_MARK_SQUISH_TAG
     match segment_suf:
         case "dk":
-            return squish_name(base)
+            return squish_name(base, tag)
         case "dkl":
-            return squish_left_name(base)
+            return squish_left_name(base, tag)
         case "dkt":
-            return squish_top_name(base)
+            return squish_top_name(base, tag)
         case "dkb":
-            return squish_bot_name(base)
+            return squish_bot_name(base, tag)
         case _:
-            return squish_name(base)
+            return squish_name(base, tag)
 
 
 def make_marked_composite(
@@ -1065,7 +1105,6 @@ def add_marked_composites(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
-    segment_frac: float = 0.5,
 ) -> List[str]:
     """Bake precomposed CJK-clip + ca/nhay (4 positions × 4 mirrors).
 
@@ -1078,19 +1117,20 @@ def add_marked_composites(
         if base not in glyphs:
             continue
         for _cp, _sel, position, mirror in MARK_SLOT_VS:
-            segment_suf = MARK_POS_SEGMENT[position]
-            sq = _segment_squish_of(base, segment_suf)
-            if sq not in glyphs:
-                continue
-            adv, lsb = metrics.get(sq, (target_upem, 0))
-            ax, ay = _segment_anchor_fn(segment_suf)(
-                glyphs[sq],
-                adv,
-                target_upem,
-                glyph_set=glyphs,
-                segment_frac=segment_frac,
-            )
             for cp in mark_cps:
+                segment_suf = MARK_POS_SEGMENT[position]
+                sq = _segment_squish_of(base, segment_suf, mark_cp=cp)
+                if sq not in glyphs:
+                    continue
+                adv, lsb = metrics.get(sq, (target_upem, 0))
+                seg_frac = mark_segment_frac_for(cp)
+                ax, ay = _segment_anchor_fn(segment_suf)(
+                    glyphs[sq],
+                    adv,
+                    target_upem,
+                    glyph_set=glyphs,
+                    segment_frac=seg_frac,
+                )
                 upright = glyph_name_for_cp(cp)
                 if upright not in glyphs:
                     continue
@@ -1131,14 +1171,7 @@ def marked_liga_map(
 ) -> Dict[Tuple[str, ...], str]:
     """Base-face ca/nhay ligatures: `CJK (+ FE00–FE0F) + MARK`.
 
-    ::
-
-        base + MARK           → base.dk_MARK           (FE00 no-op)
-        base + vsMkR + MARK   → base.dk_MARK
-        base + vsMkRmx + MARK → base.dk_u16FF0.mx
-        base + vsMkU + MARK   → base.dkt_MARK
-        base + vsMkD + MARK   → base.dkb_MARK
-        FE01–FE0F without MARK clip to the occupancy slice (FE00 does not)
+    ca clips use ``.dk.ca`` (2/3 base); nhay uses plain ``.dk`` (3/4 base).
     """
     liga: Dict[Tuple[str, ...], str] = {}
     for base in squishable_bases:
@@ -1148,12 +1181,13 @@ def marked_liga_map(
             if sel_name not in glyphs:
                 continue
             segment_suf = MARK_POS_SEGMENT[position]
-            sq = _segment_squish_of(base, segment_suf)
-            if sq not in glyphs:
-                continue
-            if not (vs_cp == 0xFE00 and mirror is None):
-                liga[(base, sel_name)] = sq
+            nhay_sq = _segment_squish_of(base, segment_suf, mark_cp=NHAY_MARK_CP)
+            if nhay_sq in glyphs and not (vs_cp == 0xFE00 and mirror is None):
+                liga[(base, sel_name)] = nhay_sq
             for cp in mark_cps:
+                sq = _segment_squish_of(base, segment_suf, mark_cp=cp)
+                if sq not in glyphs:
+                    continue
                 upright = glyph_name_for_cp(cp)
                 if upright not in glyphs:
                     continue
@@ -1321,8 +1355,9 @@ def _vs01_noop_form_names(
                 out.append(name)
         for cp in mark_cps:
             upright = glyph_name_for_cp(cp)
-            for _cp, _sel, suf in SQUISH_VS_SLOTS:
-                marked = marked_form_name(_squish_form_name(form, suf), upright)
+            for segment_suf in _MARKED_SEGMENT_SUFFIXES:
+                sq = _segment_squish_of(form, segment_suf, mark_cp=cp)
+                marked = marked_form_name(sq, upright)
                 for name in (marked, overlay_glyph_name(marked)):
                     if name in glyphs and name not in seen:
                         seen.add(name)
@@ -1436,6 +1471,76 @@ def build_squish_vs_uvs_entries(
     return []
 
 
+def _squish_segment_form_name(base: str, suffix: str, *, name_tag: str = "") -> str:
+    """Occupancy clip name: ``.dk`` / ``.dk.ca`` and triangle ``.tl`` siblings."""
+    if suffix in MARK_POS_SEGMENT.values():
+        mark_cp = CA_MARK_CP if name_tag == CA_MARK_SQUISH_TAG else NHAY_MARK_CP
+        return _segment_squish_of(base, suffix, mark_cp=mark_cp)
+    return f"{base}.{suffix}{name_tag}"
+
+
+def _add_occupancy_squish_clips(
+    cjk_bases: Sequence[str],
+    *,
+    slot_frac: float,
+    name_tag: str,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    target_upem: int,
+) -> None:
+    """Mark-base occupancy clips (ca 2/3, nhay 3/4) + D4 segment copies."""
+    add_squish_forms(
+        cjk_bases,
+        glyph_order=glyph_order,
+        glyphs=glyphs,
+        metrics=metrics,
+        target_upem=target_upem,
+        slot_frac=slot_frac,
+        name_tag=name_tag,
+    )
+    occ = float(slot_frac)
+    from shared_half_cells import propagate_d4_segments
+
+    tag = str(name_tag)
+    half_windows = {
+        "dk": _half_slot_rect(
+            float(target_upem), pin="left", axis="x", segment_frac=occ
+        ),
+        "dkl": _half_slot_rect(
+            float(target_upem), pin="right", axis="x", segment_frac=occ
+        ),
+        "dkb": _half_slot_rect(
+            float(target_upem), pin="top", axis="y", segment_frac=occ
+        ),
+        "dkt": _half_slot_rect(
+            float(target_upem), pin="bottom", axis="y", segment_frac=occ
+        ),
+    }
+    propagate_d4_segments(
+        cjk_bases,
+        suffixes=("dk", "dkl", "dkb", "dkt", "tl", "br", "tr", "bl"),
+        form_name=lambda form, suf: _squish_segment_form_name(
+            form, suf, name_tag=tag
+        ),
+        windows=half_windows,
+        labels={
+            "dk": SLICE_LABELS["left"],
+            "dkl": SLICE_LABELS["right"],
+            "dkb": SLICE_LABELS["top"],
+            "dkt": SLICE_LABELS["bot"],
+            "tl": SLICE_LABELS["tl"],
+            "br": SLICE_LABELS["br"],
+            "tr": SLICE_LABELS["tr"],
+            "bl": SLICE_LABELS["bl"],
+        },
+        glyph_order=glyph_order,
+        glyphs=glyphs,
+        metrics=metrics,
+        target_upem=target_upem,
+    )
+
+
 def prepare_squish_vs_access(
     *,
     cjk_bases: Sequence[str],
@@ -1449,6 +1554,7 @@ def prepare_squish_vs_access(
     width_factor: float = SQUISH_FACTOR,
     height_factor: float = SQUISH_FACTOR,
     slot_frac: Optional[float] = None,
+    name_tag: str = "",
     base_cps: Optional[Sequence[int]] = None,
     in_dir: Optional[str] = None,
     cmap_access: bool = True,
@@ -1475,6 +1581,7 @@ def prepare_squish_vs_access(
                 cmap=cmap,
             )
     squishable = squishable_forms(cjk_bases)
+    tag = str(name_tag)
     add_squish_forms(
         cjk_bases,
         glyph_order=glyph_order,
@@ -1484,6 +1591,7 @@ def prepare_squish_vs_access(
         height_factor=height_factor,
         target_upem=target_upem,
         slot_frac=slot_frac,
+        name_tag=tag,
     )
     occ = float(slot_frac) if slot_frac is not None else 0.5
     from shared_half_cells import propagate_d4_segments
@@ -1505,7 +1613,9 @@ def prepare_squish_vs_access(
     propagate_d4_segments(
         cjk_bases,
         suffixes=("dk", "dkl", "dkb", "dkt", "tl", "br", "tr", "bl"),
-        form_name=lambda form, suf: f"{form}.{suf}",
+        form_name=lambda form, suf: _squish_segment_form_name(
+            form, suf, name_tag=tag
+        ),
         windows=half_windows,
         labels={
             "dk": SLICE_LABELS["left"],
@@ -1597,14 +1707,11 @@ def prepare_marks(
     liga_rules: List[str],
     uvs_rows: Optional[List[Tuple[int, int, Optional[str]]]] = None,
     local_scale: float = 0.96,
-    width_factor: float = MARK_BASE_SQUISH_FACTOR,
-    height_factor: float = MARK_BASE_SQUISH_FACTOR,
-    mark_segment_frac: float = MARK_SEGMENT_FRAC,
 ) -> Optional[Dict]:
-    """Load ca/nhay + segment squish for the base CJK face.
+    """Load ca/nhay + per-mark segment squish for the base CJK face.
 
-    Default segment is **1/4** of the cell (mark) with the base occupying **3/4**.
-    Half-cell digraph access (`.dk*` at 0.55) lives on the `h` face instead.
+    ca mark = **1/3** (base **2/3**); nhay mark = **1/4** (base **3/4**).
+    Half-cell digraph access (``.dk*`` at 0.55) lives on the ``h`` face instead.
     """
     try:
         path = resolve_plangothic_p2(in_dir)
@@ -1620,16 +1727,15 @@ def prepare_marks(
     lr_glyphs: Dict[int, TTGlyph] = {}
     tb_glyphs: Dict[int, TTGlyph] = {}
     for cp, raw in list(core_glyphs.items()):
+        seg_frac = mark_segment_frac_for(cp)
         lr = fit_mark_to_halfcell(
             raw,
             target_upem,
             axis="x",
             glyph_set=None,
-            segment_frac=mark_segment_frac,
+            segment_frac=seg_frac,
         )
         lr_glyphs[cp] = lr
-        # Horizontal (up/down) marks: r90 of the LR-fitted upright, then
-        # mx/my/r180 — never Height-stretch into the TB strip.
         tb_glyphs[cp], _ = make_tb_mark_glyph(
             lr,
             target_upem=target_upem,
@@ -1650,22 +1756,21 @@ def prepare_marks(
         tb_glyphs=tb_glyphs,
     )
 
-    squishable = prepare_squish_vs_access(
-        cjk_bases=cjk_bases,
-        glyph_order=glyph_order,
-        glyphs=glyphs,
-        metrics=metrics,
-        cmap=cmap,
-        target_upem=target_upem,
-        liga_rules=liga_rules,
-        uvs_rows=uvs_rows,
-        width_factor=width_factor,
-        height_factor=height_factor,
-        slot_frac=width_factor,
-        in_dir=in_dir,
-        cmap_access=False,
-        add_overlays=False,
-    )
+    squishable = squishable_forms(cjk_bases)
+    del liga_rules, uvs_rows
+    for slot_frac, tag in (
+        (NHAY_MARK_BASE_FRAC, NHAY_MARK_SQUISH_TAG),
+        (CA_MARK_BASE_FRAC, CA_MARK_SQUISH_TAG),
+    ):
+        _add_occupancy_squish_clips(
+            cjk_bases,
+            slot_frac=slot_frac,
+            name_tag=tag,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+        )
     inject_mark_slot_selectors(glyph_order, glyphs, metrics, cmap)
 
     marked = add_marked_composites(
@@ -1675,7 +1780,6 @@ def prepare_marks(
         glyphs=glyphs,
         metrics=metrics,
         target_upem=target_upem,
-        segment_frac=mark_segment_frac,
     )
 
     return {
@@ -1687,9 +1791,6 @@ def prepare_marks(
         "bottom_marks": list(bottom_marks),
         "squishable": list(squishable),
         "marked": list(marked),
-        "width_factor": width_factor,
-        "height_factor": height_factor,
-        "mark_segment_frac": mark_segment_frac,
         "n_core": len(core_cps),
     }
 
