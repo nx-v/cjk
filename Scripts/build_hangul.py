@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """
-Build Hangul fonts from Malgun Gothic.
+Build the ``edenia hangul`` font from Malgun Gothic.
 
-Two families
-------------
-* `edenia hangul` — conjoining jamo (U+1100.., Ext-A/B) with Malgun
-  `ljmo` / `vjmo` / `tjmo` shaping.
-* `edenia hanguls` (hangul-**s**) — precomposed syllables (U+AC00..D7A3) and
-  compatibility jamo (U+3131..318E), each glyph baked **90° CCW** (sideways).
-  Append **U+FE05** to a syllable block to select this face; axis mirrors
-  (U+FE00..U+FE03) apply **after** the rotation (same rules as the old upright
-  whole-glyph font, but in the turned coordinate system). Upright syllables live
-  in ``build_cjk`` (`edenia cjk` bucket fonts).
+One family — conjoining jamo + sideways syllable blocks
+-------------------------------------------------------
+* **Jamo** (U+1100..11FF, Ext-A/B) — upright L/V/T with Malgun
+  `ljmo` / `vjmo` / `tjmo` shaping at render time.
+* **Syllable blocks** (U+AC00..D7A3) — baked in-font from jamo composition
+  (ljmo/vjmo/tjmo via HarfBuzz), then rotated **90° clockwise** (to the right).
+  Append **U+FE05** per block; axis mirrors (U+FE00..U+FE03) apply **after**
+  the rotation. Upright precomposed syllables + compat jamo live in
+  ``build_cjk`` (`edenia cjk` bucket fonts).
 
 Glyphs use a **1000×1000 em square** (`--upem`, default 1000): full-width
 advances are forced to `upem`; composed V/T overlays stay zero-width.
@@ -47,9 +46,9 @@ VS4     U+FE03     mxy — both axes
     stay aligned with the consonant. No outline rescale. `vs05` stays a
     zero-width mark so GPOS can see it. Open syllables ignore FE04.
 
-* **Syllables (`edenia hanguls`):** `syll + FE05` selects the sideways block;
+* **Syllable blocks:** `syll + FE05` selects the sideways block;
   `syll + FE05 (+ FE00..FE03)` / cmap-14 UVS applies mx / my / mxy on the
-  r90 outline.
+  rotated outline.
 
 Dakuten (combining marks)
 -------------------------
@@ -59,7 +58,7 @@ Marks keep native
 left-/right-aligned to CJK cell corners. Same TR → BR → TL → BL slot order as
 `edenia yi` via GSUB + GPOS `mark`/`abvm`. Every orientation / layout form
 (identity + `mx`/`my`/`mxy` + `.em*` chains) gets corner anchors —
-no VS form is skipped. Installed on the jamo face; hanguls mirrors only.
+no VS form is skipped. Installed on jamo + baked syllable blocks.
 """
 
 from __future__ import annotations
@@ -69,7 +68,10 @@ import concurrent.futures
 import copy
 import os
 import sys
+import tempfile
 from typing import Dict, List, Optional, Sequence, Set, Tuple
+
+import uharfbuzz as hb
 
 from fontTools import subset
 from fontTools.fontBuilder import FontBuilder
@@ -119,14 +121,11 @@ from hangul_diacritics import (
 from edenia_names import (
     CSS_HANGUL,
     FAMILY_HANGUL,
-    FAMILY_HANGULS,
     PS_HANGUL,
-    PS_HANGULS,
     stem,
 )
 from sync_edenian_fonts import sync_dist_to_plugin
 from cdn_fonts import dist_rel, format_src_line
-from build_cjk import HANGUL_SYLLABLE_RANGES as SYLL_RANGES
 from shared_hinting import add_no_hint_argument
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -135,9 +134,17 @@ OUT_DIR = os.path.join(SCRIPT_DIR, "dist", "hangul")
 
 MALGUN_FILENAME = "malgun.ttf"
 FAMILY_JAMO = FAMILY_HANGUL
-FAMILY_SYLL = FAMILY_HANGULS
 PS_JAMO = PS_HANGUL
-PS_SYLL = PS_HANGULS
+
+SYLLABLE_CP_START = 0xAC00
+SYLLABLE_CP_END = 0xD7A3
+_SYLLABLE_N_COUNT = 588  # 21 jungseong × 28 jongseong
+_HANGUL_SHAPE_FEATURES = {
+    "rclt": True,
+    "ljmo": True,
+    "vjmo": True,
+    "tjmo": True,
+}
 # BBox-center trim after UPM fit (Hangul inset; Yi uses STANDALONE_CELL_SCALE).
 LOCAL_SCALE = 1.0
 # Uniform Y translate after UPM fit (target-upem units). Malgun Hangul sits
@@ -349,7 +356,7 @@ def copy_scaled_glyph(
     return out
 
 
-def rotate_glyph_r90(
+def rotate_glyph_cw90(
     glyph: TTGlyph,
     *,
     advance: int,
@@ -357,13 +364,13 @@ def rotate_glyph_r90(
     target_upem: int,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """90° CCW about the ideographic center (hangul-s syllable bake)."""
+    """90° clockwise about the ideographic center (sideways syllable block)."""
     try:
         rec = DecomposingRecordingPen(glyph_set)
         glyph.draw(rec, glyph_set)
     except Exception:
         return glyph, advance, lsb
-    t = variant_transform(target_upem, rot90_quarters=1, flip_x=False, flip_y=False)
+    t = variant_transform(target_upem, rot90_quarters=3, flip_x=False, flip_y=False)
     pen = TTGlyphPen(None)
     try:
         rec.replay(TransformPen(pen, t))
@@ -372,6 +379,150 @@ def rotate_glyph_r90(
         return out, advance, int(out.xMin)
     except Exception:
         return glyph, advance, lsb
+
+
+def decompose_hangul_syllable(cp: int) -> Tuple[int, int, Optional[int]]:
+    """Hangul syllable CP → conjoining L/V/T jamo codepoints."""
+    if not (SYLLABLE_CP_START <= cp <= SYLLABLE_CP_END):
+        raise ValueError(f"not a Hangul syllable: U+{cp:04X}")
+    s_index = cp - SYLLABLE_CP_START
+    l_cp = 0x1100 + s_index // _SYLLABLE_N_COUNT
+    v_cp = 0x1161 + (s_index % _SYLLABLE_N_COUNT) // 28
+    t_index = s_index % 28
+    t_cp = (0x11A7 + t_index) if t_index > 0 else None
+    return l_cp, v_cp, t_cp
+
+
+def jamo_text_for_syllable(cp: int) -> str:
+    l_cp, v_cp, t_cp = decompose_hangul_syllable(cp)
+    return chr(l_cp) + chr(v_cp) + (chr(t_cp) if t_cp is not None else "")
+
+
+def glyph_name_for_cp(cp: int) -> str:
+    return f"u{cp:04X}"
+
+
+def _flatten_shaped_jamo(
+    shape_path: str,
+    text: str,
+    *,
+    target_upem: int,
+) -> Optional[Tuple[TTGlyph, int, int]]:
+    """Compose L+V(+T) via HarfBuzz ljmo/vjmo/tjmo into one outline."""
+    blob = hb.Blob.from_file_path(shape_path)
+    font = hb.Font(hb.Face(blob))
+    font.scale = (target_upem, target_upem)
+    buf = hb.Buffer()
+    buf.add_str(text)
+    buf.guess_segment_properties()
+    hb.shape(font, buf, features=_HANGUL_SHAPE_FEATURES)
+    if not buf.glyph_infos:
+        return None
+    tt = TTFont(shape_path)
+    try:
+        gs = tt.getGlyphSet()
+        pen = TTGlyphPen(None)
+        x = 0.0
+        for info, pos in zip(buf.glyph_infos, buf.glyph_positions):
+            gname = tt.getGlyphName(info.codepoint)
+            if gname not in gs:
+                continue
+            ox = x + float(pos.x_offset)
+            oy = float(pos.y_offset)
+            gs[gname].draw(TransformPen(pen, (1, 0, 0, 1, ox, oy)))
+            x += float(pos.x_advance)
+        out = pen.glyph()
+        if out.numberOfContours == 0 and not out.isComposite():
+            return None
+        out.recalcBounds(gs)
+        advance = target_upem if x <= 0 else max(int(round(x)), target_upem)
+        return out, advance, int(out.xMin)
+    finally:
+        tt.close()
+
+
+def _bake_one_sideways_syllable(
+    shape_path: str,
+    cp: int,
+    *,
+    target_upem: int,
+) -> Optional[Tuple[int, str, TTGlyph, int, int]]:
+    text = jamo_text_for_syllable(cp)
+    flat = _flatten_shaped_jamo(shape_path, text, target_upem=target_upem)
+    if flat is None:
+        return None
+    glyph, advance, lsb = flat
+    glyph, advance, lsb = rotate_glyph_cw90(
+        glyph,
+        advance=advance,
+        lsb=lsb,
+        target_upem=target_upem,
+    )
+    return cp, glyph_name_for_cp(cp), glyph, advance, lsb
+
+
+def bake_sideways_syllable_glyphs(
+    shape_path: str,
+    *,
+    target_upem: int,
+    limit: Optional[int] = None,
+    jobs: int = 8,
+) -> List[Tuple[int, str, TTGlyph, int, int]]:
+    """Bake U+AC00..D7A3 from jamo composition + 90° CW rotation."""
+    cps = list(range(SYLLABLE_CP_START, SYLLABLE_CP_END + 1))
+    if limit is not None:
+        cps = cps[:limit]
+    workers = max(1, min(jobs, len(cps)))
+    out: List[Tuple[int, str, TTGlyph, int, int]] = []
+    if workers <= 1:
+        for cp in cps:
+            row = _bake_one_sideways_syllable(shape_path, cp, target_upem=target_upem)
+            if row is not None:
+                out.append(row)
+        return out
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        for row in pool.map(
+            lambda cp: _bake_one_sideways_syllable(
+                shape_path, cp, target_upem=target_upem
+            ),
+            cps,
+        ):
+            if row is not None:
+                out.append(row)
+    return out
+
+
+def install_sideways_syllable_variants(
+    syll_entries: Sequence[Tuple[int, str, TTGlyph, int, int]],
+    *,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    cmap: Dict[int, str],
+    target_upem: int,
+) -> List[Tuple[str, str, str]]:
+    """Merge baked syllables, FE05 selector, and post-rotation mirror variants."""
+    _inject_sideways_vs(glyph_order, glyphs, metrics, cmap)
+    liga_pairs: List[Tuple[str, str, str]] = []
+    for cp, base, g, adv, lsb in syll_entries:
+        if base not in glyph_order:
+            glyph_order.append(base)
+        glyphs[base] = g
+        metrics[base] = (adv, lsb)
+        cmap[cp] = base
+        liga_pairs.append((base, SIDEWAYS_GLYPH, base))
+        installed = add_mirror_variants(
+            base,
+            advance=adv,
+            lsb=lsb,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+        )
+        for vs_cp, _suffix, vname in installed:
+            liga_pairs.append((base, vs_glyph_name(vs_cp), vname))
+    return liga_pairs
 
 
 # Jungseong (medial) layout axes from vowel shape:
@@ -1336,6 +1487,59 @@ def add_mirror_variants(
     return installed
 
 
+def _setup_hangul_character_map(
+    fb: FontBuilder,
+    cmap: Dict[int, str],
+    uvs: Optional[Sequence[Tuple[int, int, Optional[str]]]] = None,
+    *,
+    force_format_12: bool = False,
+) -> None:
+    """Build ``cmap``; format 12 when the inventory is too large for format 4.
+
+    FontBuilder's ``allowFallback`` only catches ``struct.error``, not the
+    ``OverflowError`` raised once ~11k syllable blocks are mapped.
+    """
+    import struct
+
+    from fontTools.fontBuilder import buildCmapSubTable
+    from fontTools.ttLib import newTable
+
+    cmapping_3_1 = {cp: name for cp, name in cmap.items() if cp < 0x10000}
+    subTables: List = []
+
+    def _append_bmp(fmt: int) -> None:
+        subTables.append(buildCmapSubTable(cmapping_3_1, fmt, 3, 1))
+        subTables.append(buildCmapSubTable(cmapping_3_1, fmt, 0, 3))
+
+    if force_format_12:
+        _append_bmp(12)
+    else:
+        sub = buildCmapSubTable(cmapping_3_1, 4, 3, 1)
+        try:
+            sub.compile(fb.font)
+        except (struct.error, OverflowError, ValueError):
+            _append_bmp(12)
+        else:
+            subTables.append(sub)
+            subTables.append(buildCmapSubTable(cmapping_3_1, 4, 0, 3))
+
+    if uvs:
+        uvs_dict: Dict[int, List[Tuple[int, Optional[str]]]] = {}
+        for unicode_value, variation_selector, glyph_name in uvs:
+            if cmapping_3_1.get(unicode_value) == glyph_name:
+                glyph_name = None
+            uvs_dict.setdefault(variation_selector, []).append(
+                (unicode_value, glyph_name)
+            )
+        uvs_sub = buildCmapSubTable({}, 14, 0, 5)
+        uvs_sub.uvsDict = uvs_dict
+        subTables.append(uvs_sub)
+
+    fb.font["cmap"] = newTable("cmap")
+    fb.font["cmap"].tableVersion = 0
+    fb.font["cmap"].tables = subTables
+
+
 def _inject_vs(
     glyph_order: List[str],
     glyphs: Dict[str, TTGlyph],
@@ -1383,12 +1587,12 @@ def build_syllable_uvs_entries(
     cmap: Dict[int, str],
     glyphs: Dict[str, TTGlyph],
 ) -> List[Tuple[int, int, Optional[str]]]:
-    """Cmap-14 UVS for sideways precomposed syllables and compatibility jamo."""
+    """Cmap-14 UVS for baked sideways syllable blocks (U+AC00..D7A3)."""
     rows: List[Tuple[int, int, Optional[str]]] = []
     for cp, gname in cmap.items():
         if is_vs_codepoint(cp):
             continue
-        if not (0xAC00 <= cp <= 0xD7A3 or 0x3131 <= cp <= 0x318E):
+        if not (SYLLABLE_CP_START <= cp <= SYLLABLE_CP_END):
             continue
         for mode_i, (_pua, _nx, _ny, suffix) in enumerate(HANGUL_MIRROR_MODES):
             if suffix is None:
@@ -2507,7 +2711,7 @@ def build_jamo_font(
     hint: bool = True,
 ) -> Tuple[str, int, List[int]]:
     src_path = resolve_malgun_path(in_dir)
-    print(f"\n=== {FAMILY_JAMO} (conjoining jamo) ===", flush=True)
+    print(f"\n=== {FAMILY_JAMO} (jamo + sideways syllable blocks) ===", flush=True)
     print(f"Source: {src_path}", flush=True)
     src_tt = TTFont(src_path, fontNumber=0)
     try:
@@ -2545,7 +2749,10 @@ def build_jamo_font(
     )
     _inject_vs(glyph_order, glyphs, metrics, cmap)
     _inject_swap_vs(glyph_order, glyphs, metrics, cmap)
-    vs_names = [vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES] + [SWAP_GLYPH]
+    _inject_sideways_vs(glyph_order, glyphs, metrics, cmap)
+    vs_names = [
+        vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES
+    ] + [SWAP_GLYPH, SIDEWAYS_GLYPH]
 
     l_forms = sorted(n for n, c in jamo_class.items() if c == "L" and n in glyphs)
     v_forms = sorted(n for n, c in jamo_class.items() if c == "V" and n in glyphs)
@@ -2668,16 +2875,6 @@ def build_jamo_font(
         flush=True,
     )
 
-    dakuten = prepare_hangul_dakuten(
-        in_dir=in_dir,
-        glyph_order=glyph_order,
-        glyphs=glyphs,
-        metrics=metrics,
-        cmap=cmap,
-        seed_bases=l_forms + v_forms + t_forms,
-        target_upem=target_upem,
-    )
-
     uvs_rows = build_jamo_uvs_entries(cmap, glyphs)
     hangul_cps = [cp for cp in cmap if not is_vs_codepoint(cp)]
     ascent = otRound(target_upem * 0.88)
@@ -2695,9 +2892,9 @@ def build_jamo_font(
     fb.setupHorizontalHeader(ascent=ascent, descent=descent)
     # Empty uvs=[] still emits cmap format-14; Chromium OTS rejects that.
     if uvs_rows:
-        fb.setupCharacterMap(cmap, uvs=uvs_rows)
+        fb.setupCharacterMap(cmap, uvs=uvs_rows, allowFallback=True)
     else:
-        fb.setupCharacterMap(cmap)
+        fb.setupCharacterMap(cmap, allowFallback=True)
     fb.setupNameTable(
         {
             "familyName": FAMILY_JAMO,
@@ -2755,17 +2952,6 @@ def build_jamo_font(
         f"batchim medial .sq={n_sq_rules}",
         flush=True,
     )
-    if dakuten is not None:
-        mark_cps, mark_names, base_anchors = dakuten
-        compile_hangul_dakuten(
-            fb.font,
-            mark_cps=mark_cps,
-            mark_names=mark_names,
-            base_anchors=base_anchors,
-            glyphs=glyphs,
-            glyph_order=glyph_order,
-            target_upem=target_upem,
-        )
     dy_lv, dy_t, n_fe04 = install_fe04_gpos(
         fb.font,
         l_forms=l_forms,
@@ -2803,178 +2989,88 @@ def build_jamo_font(
         flush=True,
     )
 
+    shape_fd, shape_path = tempfile.mkstemp(suffix=".ttf")
+    os.close(shape_fd)
+    syll_liga_pairs: List[Tuple[str, str, str]] = []
+    try:
+        from shared_font_builder import setup_head_timestamps
+
+        setup_head_timestamps(fb)
+        fb.save(shape_path)
+
+        n_syll = SYLLABLE_CP_END - SYLLABLE_CP_START + 1
+        if limit is not None:
+            n_syll = min(n_syll, limit)
+        print(
+            f"  Baking {n_syll} sideways syllables (jamo ljmo/vjmo/tjmo + 90° CW)...",
+            flush=True,
+        )
+        syll_entries = bake_sideways_syllable_glyphs(
+            shape_path,
+            target_upem=target_upem,
+            limit=limit,
+        )
+        print(f"  Baked {len(syll_entries)} syllable block glyphs", flush=True)
+
+        syll_liga_pairs = install_sideways_syllable_variants(
+            syll_entries,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            cmap=cmap,
+            target_upem=target_upem,
+        )
+        syll_bases = [base for _cp, base, _g, _a, _l in syll_entries]
+
+        dakuten = prepare_hangul_dakuten(
+            in_dir=in_dir,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            cmap=cmap,
+            seed_bases=l_forms + v_forms + t_forms + syll_bases,
+            target_upem=target_upem,
+        )
+
+        fb.setupGlyphOrder(glyph_order)
+        fb.setupGlyf(glyphs)
+        fb.setupHorizontalMetrics(metrics)
+        uvs_rows = build_jamo_uvs_entries(cmap, glyphs) + build_syllable_uvs_entries(
+            cmap, glyphs
+        )
+        _setup_hangul_character_map(
+            fb, cmap, uvs=uvs_rows or None, force_format_12=True
+        )
+
+        if dakuten is not None:
+            mark_cps, mark_names, base_anchors = dakuten
+            compile_hangul_dakuten(
+                fb.font,
+                mark_cps=mark_cps,
+                mark_names=mark_names,
+                base_anchors=base_anchors,
+                glyphs=glyphs,
+                glyph_order=glyph_order,
+                target_upem=target_upem,
+            )
+        if syll_liga_pairs:
+            print(
+                f"  Compiling syllable VS ligas ({len(syll_liga_pairs)} rules)...",
+                flush=True,
+            )
+            install_vs_ligas(fb.font, syll_liga_pairs, feature_tags=SYLL_VS_FEATURE_TAGS)
+    finally:
+        try:
+            os.unlink(shape_path)
+        except OSError:
+            pass
+
+    hangul_cps = sorted(cp for cp in cmap if not is_vs_codepoint(cp))
+
     out_path = _save_font(
         fb,
         out_dir,
         FAMILY_JAMO,
-        write_ttf=write_ttf,
-        write_woff2=write_woff2,
-        hint=hint,
-    )
-    tt.close()
-    return out_path, len(glyphs) - 1, sorted(cmap.keys())
-
-
-def build_hanguls_font(
-    in_dir: str,
-    out_dir: str,
-    target_upem: int,
-    *,
-    limit: Optional[int] = None,
-    local_scale: float = LOCAL_SCALE,
-    y_shift: float = MALGUN_Y_SHIFT,
-    y_scale: float = MALGUN_Y_SCALE,
-    write_ttf: bool = True,
-    write_woff2: bool = True,
-    hint: bool = True,
-) -> Tuple[str, int, List[int]]:
-    """Sideways (r90) syllables + compat jamo — ``edenia hanguls`` / hangul-s."""
-    src_path = resolve_malgun_path(in_dir)
-    print(f"\n=== {FAMILY_SYLL} (hangul-s: r90 syllables + compat) ===", flush=True)
-    print(f"Source: {src_path}", flush=True)
-    src_tt = TTFont(src_path, fontNumber=0)
-    try:
-        src_cmap = font_cmap(src_tt)
-        unicodes = unicodes_in_ranges(src_cmap, SYLL_RANGES)
-        if limit is not None:
-            unicodes = set(sorted(unicodes)[:limit])
-            print(f"  Limiting to {len(unicodes)} codepoints (--limit)", flush=True)
-        else:
-            print(f"  Syllable/compat CPs in cmap: {len(unicodes)}", flush=True)
-        src_upem = int(src_tt["head"].unitsPerEm)
-    finally:
-        src_tt.close()
-
-    print("  Subsetting Malgun (syllables + compat)...", flush=True)
-    tt = subset_malgun(src_path, unicodes)
-
-    print(
-        f"  Scaling glyphs (upem {src_upem}->{target_upem}, local {local_scale:g}, "
-        f"y_shift {y_shift:g}, y_scale {y_scale:g})...",
-        flush=True,
-    )
-    glyph_order, glyphs, metrics, cmap = _scale_glyphs_from_subset(
-        tt,
-        target_upem=target_upem,
-        src_upem=src_upem,
-        local_scale=local_scale,
-        y_shift=y_shift,
-        y_scale=y_scale,
-    )
-    if "GSUB" in tt:
-        del tt["GSUB"]
-    if "GDEF" in tt:
-        del tt["GDEF"]
-
-    hangul_cps = [cp for cp in cmap if not is_vs_codepoint(cp)]
-
-    print("  Rotating syllables 90° CCW (hangul-s)...", flush=True)
-    for cp in hangul_cps:
-        name = cmap[cp]
-        if name not in glyphs:
-            continue
-        adv, lsb = metrics[name]
-        g, adv, lsb = rotate_glyph_r90(
-            glyphs[name],
-            advance=adv,
-            lsb=lsb,
-            target_upem=target_upem,
-            glyph_set=glyphs,
-        )
-        glyphs[name] = g
-        metrics[name] = (adv, lsb)
-
-    _inject_vs(glyph_order, glyphs, metrics, cmap)
-    _inject_sideways_vs(glyph_order, glyphs, metrics, cmap)
-    vs_names = [vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES] + [SIDEWAYS_GLYPH]
-
-    print("  Installing whole-glyph axis-mirror variants (post-r90)...", flush=True)
-    liga_pairs: List[Tuple[str, str, str]] = []
-    for cp in hangul_cps:
-        base = cmap[cp]
-        if base not in glyphs:
-            continue
-        adv, lsb = metrics[base]
-        liga_pairs.append((base, SIDEWAYS_GLYPH, base))
-        installed = add_mirror_variants(
-            base,
-            advance=adv,
-            lsb=lsb,
-            glyph_order=glyph_order,
-            glyphs=glyphs,
-            metrics=metrics,
-            target_upem=target_upem,
-        )
-        for vs_cp, _suffix, vname in installed:
-            liga_pairs.append((base, vs_glyph_name(vs_cp), vname))
-
-    syll_seeds = [cmap[cp] for cp in hangul_cps if cmap[cp] in glyphs]
-    dakuten = prepare_hangul_dakuten(
-        in_dir=in_dir,
-        glyph_order=glyph_order,
-        glyphs=glyphs,
-        metrics=metrics,
-        cmap=cmap,
-        seed_bases=syll_seeds,
-        target_upem=target_upem,
-    )
-
-    uvs_rows = build_syllable_uvs_entries(cmap, glyphs)
-    ascent = otRound(target_upem * 0.88)
-    descent = otRound(target_upem * -0.12)
-
-    print(
-        f"  Assembling font ({len(glyphs) - 1} glyphs, {len(hangul_cps)} CPs)...",
-        flush=True,
-    )
-    fb = FontBuilder(target_upem, isTTF=True)
-    fb.setupGlyphOrder(glyph_order)
-    fb.setupGlyf(glyphs)
-    fb.setupHorizontalMetrics(metrics)
-    fb.setupHorizontalHeader(ascent=ascent, descent=descent)
-    if uvs_rows:
-        fb.setupCharacterMap(cmap, uvs=uvs_rows)
-    else:
-        fb.setupCharacterMap(cmap)
-    fb.setupNameTable(
-        {
-            "familyName": FAMILY_SYLL,
-            "styleName": "Regular",
-            "uniqueFontIdentifier": FAMILY_SYLL,
-            "fullName": FAMILY_SYLL,
-            "psName": PS_SYLL,
-            "version": "Version 1.000",
-        }
-    )
-    fb.setupOS2(
-        sTypoAscender=ascent,
-        sTypoDescender=descent,
-        sTypoLineGap=0,
-        usWinAscent=ascent,
-        usWinDescent=abs(descent),
-        achVendID="pHg ",
-    )
-    fb.setupPost()
-
-    mark_vs_glyphs_in_gdef(fb.font, vs_names)
-    print(f"  Compiling VS ligas ({len(liga_pairs)} rules)...", flush=True)
-    install_vs_ligas(fb.font, liga_pairs, feature_tags=SYLL_VS_FEATURE_TAGS)
-    if dakuten is not None:
-        mark_cps, mark_names, base_anchors = dakuten
-        compile_hangul_dakuten(
-            fb.font,
-            mark_cps=mark_cps,
-            mark_names=mark_names,
-            base_anchors=base_anchors,
-            glyphs=glyphs,
-            glyph_order=glyph_order,
-            target_upem=target_upem,
-        )
-
-    out_path = _save_font(
-        fb,
-        out_dir,
-        FAMILY_SYLL,
         write_ttf=write_ttf,
         write_woff2=write_woff2,
         hint=hint,
@@ -3005,77 +3101,61 @@ def unicode_range_css(codepoints: Sequence[int]) -> str:
     return ", ".join(runs)
 
 
-def write_css(
-    out_dir: str,
-    jamo_cps: Sequence[int],
-    syll_cps: Sequence[int],
-) -> None:
+def write_css(out_dir: str, cps: Sequence[int]) -> None:
     css_path = os.path.join(out_dir, CSS_HANGUL)
     lines = [
-        "/* Auto-generated Hangul fonts from Malgun Gothic */",
-        "/* edenia hangul = conjoining jamo; edenia hanguls = hangul-s (r90) */",
+        "/* Auto-generated edenia hangul from Malgun Gothic */",
+        "/* Conjoining jamo + sideways syllable blocks (jamo-composed, 90° CW) */",
         "/* Local src first; GitHub raw as fallback. */",
         "/* Jamo VS: U+FE00..FE03 mirrors; U+FE04 = batchim top-swap. */",
-        "/* Hangul-s: append U+FE05 per syllable block; FE00..FE03 mirror post-r90. */",
+        "/* Syllable blocks: append U+FE05; FE00..FE03 mirror post-rotation. */",
         "",
     ]
-    for family, cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, syll_cps)):
-        file_stem = stem(family)
-        cps_for_ur = [
-            cp for cp in cps if not (0xFE00 <= cp <= 0xFE0F) or cp in (0xFE04, SIDEWAYS_CP)
-        ]
-        if family == FAMILY_JAMO:
-            if 0xFE04 not in cps_for_ur:
-                cps_for_ur.append(0xFE04)
-            for stem_name in (f"{file_stem}.woff2", f"{file_stem}.ttf"):
-                font_path = os.path.join(out_dir, stem_name)
-                if not os.path.isfile(font_path):
-                    continue
-                try:
-                    from hangul_diacritics import combining_mark_codepoints_from_font
+    file_stem = stem(FAMILY_JAMO)
+    cps_for_ur = [
+        cp for cp in cps if not (0xFE00 <= cp <= 0xFE0F) or cp in (0xFE04, SIDEWAYS_CP)
+    ]
+    if 0xFE04 not in cps_for_ur:
+        cps_for_ur.append(0xFE04)
+    if SIDEWAYS_CP not in cps_for_ur:
+        cps_for_ur.append(SIDEWAYS_CP)
+    for stem_name in (f"{file_stem}.woff2", f"{file_stem}.ttf"):
+        font_path = os.path.join(out_dir, stem_name)
+        if not os.path.isfile(font_path):
+            continue
+        try:
+            from hangul_diacritics import combining_mark_codepoints_from_font
 
-                    cps_for_ur = list(
-                        set(cps_for_ur)
-                        | set(combining_mark_codepoints_from_font(font_path))
-                    )
-                except Exception as exc:
-                    print(f"  [!] hangul mark unicode-range: {exc}", flush=True)
-                break
-        else:
-            import unicodedata
-
-            if SIDEWAYS_CP not in cps_for_ur:
-                cps_for_ur.append(SIDEWAYS_CP)
-            cps_for_ur = [
-                cp
-                for cp in cps_for_ur
-                if cp != 0xFE04
-                and unicodedata.category(chr(cp)) not in ("Mn", "Mc", "Me")
-            ]
-        ur = unicode_range_css(cps_for_ur)
-        face_lines = [
-            "@font-face {",
-            f"  font-family: '{family}';",
-            format_src_line(
-                dist_rel("hangul", f"{file_stem}.woff2"),
-                fmt="woff2",
-                local=(
-                    (f"./{file_stem}.woff2", "woff2"),
-                    (f"./{file_stem}.ttf", "truetype"),
-                ),
-                indent="  ",
+            cps_for_ur = list(
+                set(cps_for_ur) | set(combining_mark_codepoints_from_font(font_path))
+            )
+        except Exception as exc:
+            print(f"  [!] hangul mark unicode-range: {exc}", flush=True)
+        break
+    ur = unicode_range_css(cps_for_ur)
+    face_lines = [
+        "@font-face {",
+        f"  font-family: '{FAMILY_JAMO}';",
+        format_src_line(
+            dist_rel("hangul", f"{file_stem}.woff2"),
+            fmt="woff2",
+            local=(
+                (f"./{file_stem}.woff2", "woff2"),
+                (f"./{file_stem}.ttf", "truetype"),
             ),
-            "  font-weight: normal;",
-            "  font-style: normal;",
-        ]
-        if ur:
-            face_lines.append(f"  unicode-range: {ur};")
-        face_lines += [
-            "  font-display: swap;",
-            "}",
-            "",
-        ]
-        lines += face_lines
+            indent="  ",
+        ),
+        "  font-weight: normal;",
+        "  font-style: normal;",
+    ]
+    if ur:
+        face_lines.append(f"  unicode-range: {ur};")
+    face_lines += [
+        "  font-display: swap;",
+        "}",
+        "",
+    ]
+    lines += face_lines
 
     with open(css_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
@@ -3086,9 +3166,9 @@ def write_css(
         f.write(
             "/* Hangul font families */\n"
             ":root {\n"
-            f"  --font-edenia-hangul: '{FAMILY_JAMO}', '{FAMILY_SYLL}';\n"
+            f"  --font-edenia-hangul: '{FAMILY_JAMO}';\n"
             f"  --font-edenia-hangul-jamo: '{FAMILY_JAMO}';\n"
-            f"  --font-edenia-hanguls: '{FAMILY_SYLL}';\n"
+            f"  --font-edenia-hanguls: '{FAMILY_JAMO}';\n"
             "}\n"
         )
     print(f"Wrote {fontlist_path}")
@@ -3115,15 +3195,15 @@ def build_all(
         f"padded ideo box"
     )
     print(
-        f"  Hangul-s ({FAMILY_SYLL}): r90 syllables + compat; "
-        f"append U+FE05 per block; FE00..FE03 mirror post-r90"
+        f"  Sideways syllable blocks (U+AC00..D7A3): jamo ljmo/vjmo/tjmo compose, "
+        f"90° CW; append U+FE05 per block; FE00..FE03 mirror post-rotation"
     )
-    print("  Upright syllables + compat: build_cjk (edenia cjk bucket fonts)")
+    print("  Upright syllables + compat jamo: build_cjk (edenia cjk bucket fonts)")
     print(
         "  Dakuten: LXGWNeoXiHeiScreenFull + mkanaplus + Nexsevka + Arial + "
         "JuliaMono + Segoe UI + Segoe UI Historic + Sans Serif Collection + Droid Sans "
         "\\p{Mn} @ CJK box slots "
-        f"({DAKUTEN_SLOT_CYCLE}; fixed H, L/R/mid align; jamo + hangul-s)"
+        f"({DAKUTEN_SLOT_CYCLE}; fixed H, L/R/mid align; jamo + syllable blocks)"
     )
     print(f"  Local scale: {local_scale:g} about bbox center")
     print(f"  Y shift: {y_shift:g} (align Malgun to CJK/Yi typo mid)")
@@ -3134,51 +3214,30 @@ def build_all(
         else ("ttf only" if write_ttf else "woff2 only")
     )
     print(f"  Formats: {fmt_note}")
-    print("  Building edenia hangul + edenia hanguls in parallel...", flush=True)
+    print(f"  Building {FAMILY_JAMO}...", flush=True)
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=2) as ex:
-        fut_jamo = ex.submit(
-            build_jamo_font,
-            in_dir,
-            out_dir,
-            target_upem,
-            limit=limit,
-            local_scale=local_scale,
-            y_shift=y_shift,
-            y_scale=y_scale,
-            write_ttf=write_ttf,
-            write_woff2=write_woff2,
-            hint=hint,
-        )
-        fut_syll = ex.submit(
-            build_hanguls_font,
-            in_dir,
-            out_dir,
-            target_upem,
-            limit=limit,
-            local_scale=local_scale,
-            y_shift=y_shift,
-            y_scale=y_scale,
-            write_ttf=write_ttf,
-            write_woff2=write_woff2,
-            hint=hint,
-        )
-        jamo_path, jamo_count, jamo_cps = fut_jamo.result()
-        syll_path, syll_count, syll_cps = fut_syll.result()
-
-    if jamo_count or syll_count:
-        write_css(out_dir, jamo_cps, syll_cps)
-    print(
-        f"\nDone: {jamo_path} ({jamo_count} glyphs); "
-        f"{syll_path} ({syll_count} glyphs)",
-        flush=True,
+    out_path, glyph_count, cps = build_jamo_font(
+        in_dir,
+        out_dir,
+        target_upem,
+        limit=limit,
+        local_scale=local_scale,
+        y_shift=y_shift,
+        y_scale=y_scale,
+        write_ttf=write_ttf,
+        write_woff2=write_woff2,
+        hint=hint,
     )
+
+    if glyph_count:
+        write_css(out_dir, cps)
+    print(f"\nDone: {out_path} ({glyph_count} glyphs)", flush=True)
     sync_dist_to_plugin("hangul", out_dir)
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build edenia hangul (jamo) + edenia hanguls (hangul-s) from Malgun"
+        description="Build edenia hangul (jamo + sideways syllable blocks) from Malgun"
     )
     p.add_argument("--in", dest="in_dir", default=IN_DIR)
     p.add_argument("--out", dest="out_dir", default=OUT_DIR)

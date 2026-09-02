@@ -3,17 +3,17 @@
 
 **Jamo** (`all-jamo-vs.html`) — all Unicode conjoining jamo × VS × dakuten.
 
-**Hangul-s** (`all-hangul-s-vs.html`) — precomposed / compat syllables × FE05
-× VS (mirrors post-r90) × dakuten.
+**Syllables** (`all-hangul-s-vs.html`) — sideways syllable blocks (U+AC00..D7A3)
+in ``edenia hangul`` × FE05 × VS × dakuten.
 
 Jamo inventories (Unicode, excluding fillers / unassigned):
   Choseong  U+1100..115E, U+A960..A97C
   Jungseong U+1161..11A7, U+D7B0..D7C6
   Jongseong U+11A8..11FF, U+D7CB..D7FB
 
-Hangul-s syllables:
-  Compat jamo U+3131..318E · Syllables U+AC00..D7A3
-  (append U+FE05 per glyph; FE00..FE03 mirror after 90° rotation)
+Sideways syllable blocks (``edenia hangul``):
+  Syllables U+AC00..D7A3 (jamo ljmo/vjmo/tjmo compose, 90° CW)
+  (append U+FE05 per glyph; FE00..FE03 mirror after rotation)
 
 Usage
 -----
@@ -40,14 +40,12 @@ from hangul_diacritics import (
     dakuten_skip_options_html,
 )
 
-from build_cjk import HANGUL_SYLLABLE_RANGES as SYLL_RANGES
-from build_hangul import SIDEWAYS_CP
+from build_hangul import SIDEWAYS_CP, SYLLABLE_CP_END, SYLLABLE_CP_START
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "hangul", "all-jamo-vs.html")
 DEFAULT_SYLL_OUT = os.path.join(SCRIPT_DIR, "dist", "hangul", "all-hangul-s-vs.html")
 HANGUL_FONT = os.path.join(SCRIPT_DIR, "dist", "hangul", "edenia-hangul.woff2")
-HANGULS_FONT = os.path.join(SCRIPT_DIR, "dist", "hangul", "edenia-hanguls.woff2")
 JULIAMONO = os.path.join(SCRIPT_DIR, "src", "JuliaMono-Regular.ttf")
 
 L_RANGES = ((0x1100, 0x115E), (0xA960, 0xA97C))
@@ -476,14 +474,13 @@ document.getElementById("btnOne").click();
 
 
 def syllable_entries() -> List[dict]:
-    """Compat jamo + precomposed syllables (Unicode-assigned only)."""
-    pairs = tuple((start, end) for start, end, _name in SYLL_RANGES)
-    return assigned_cps(pairs)
+    """Sideways syllable blocks baked in edenia hangul (Unicode-assigned only)."""
+    return assigned_cps(((SYLLABLE_CP_START, SYLLABLE_CP_END),))
 
 
 def write_syllables_html(path: str, *, font_size: int, mark_limit: int) -> None:
     syllables = syllable_entries()
-    marks = dakuten_mark_entries(limit=mark_limit, font_path=HANGULS_FONT)
+    marks = dakuten_mark_entries(limit=mark_limit, font_path=HANGUL_FONT)
     n_vs = 4
     total = len(syllables) * n_vs
 
@@ -498,8 +495,8 @@ def write_syllables_html(path: str, *, font_size: int, mark_limit: int) -> None:
     }
 
     font_bust = 0
-    if os.path.isfile(HANGULS_FONT):
-        font_bust = int(os.path.getmtime(HANGULS_FONT))
+    if os.path.isfile(HANGUL_FONT):
+        font_bust = int(os.path.getmtime(HANGUL_FONT))
 
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
@@ -508,13 +505,13 @@ def write_syllables_html(path: str, *, font_size: int, mark_limit: int) -> None:
 <html lang="ko">
 <head>
 <meta charset="utf-8"/>
-<title>edenia hanguls — hangul-s × FE05 × VS × dakuten</title>
+<title>edenia hangul — syllable blocks × FE05 × VS × dakuten</title>
 <link rel="stylesheet" href="./edenia-hangul.css"/>
 <style>
 @font-face {{
-  font-family: 'edenia-hanguls-local';
-  src: url("./edenia-hanguls.woff2?v={font_bust}") format("woff2"),
-       url("./edenia-hanguls.ttf?v={font_bust}") format("truetype");
+  font-family: 'edenia-hangul-local';
+  src: url("./edenia-hangul.woff2?v={font_bust}") format("woff2"),
+       url("./edenia-hangul.ttf?v={font_bust}") format("truetype");
   font-weight: normal;
   font-style: normal;
   font-display: block;
@@ -523,7 +520,7 @@ def write_syllables_html(path: str, *, font_size: int, mark_limit: int) -> None:
 * {{ box-sizing: border-box; }}
 body {{
   margin: 0; background: #111; color: #eee;
-  font-family: edenia-hanguls-local, 'edenia hanguls', sans-serif;
+  font-family: edenia-hangul-local, 'edenia hangul', sans-serif;
   font-size: var(--fs);
   font-feature-settings: "rlig" 1, "liga" 1, "ccmp" 1;
 }}
@@ -575,12 +572,12 @@ section h2 {{
 </head>
 <body>
 <header>
-  <h1>Hangul-s (sideways syllables) × FE05 × VS × dakuten</h1>
+  <h1>edenia hangul — syllable blocks × FE05 × VS × dakuten</h1>
   <p class="meta">
-    {len(syllables):,} syllables / compat jamo · dakuten marks {len(marks)} (sample).
-    Glyphs are baked <strong>90° CCW</strong>; append <strong>U+FE05</strong> per glyph,
-    then optional FE01–FE03 mirrors (post-r90). Upright syllables:
-    <code>edenia cjk</code> bucket fonts.
+    {len(syllables):,} syllable blocks · dakuten marks {len(marks)} (sample).
+    Glyphs are jamo-composed (ljmo/vjmo/tjmo), baked <strong>90° clockwise</strong>;
+    append <strong>U+FE05</strong> per glyph, then optional FE01–FE03 mirrors (post-rotation).
+    Upright syllables + compat jamo: <code>edenia cjk</code> bucket fonts.
     VS grid per slice: <strong>{n_vs}</strong> (= identity + mx + my + mxy).
     ⁵ FE05 · ¹ FE01 · ² FE02 · ³ FE03.
   </p>
