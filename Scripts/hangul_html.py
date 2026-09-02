@@ -38,6 +38,7 @@ from hangul_diacritics import (
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "hangul", "all-jamo-vs.html")
 HANGUL_FONT = os.path.join(SCRIPT_DIR, "dist", "hangul", "edenia-hangul.woff2")
+HANGULS_FONT = os.path.join(SCRIPT_DIR, "dist", "hangul", "edenia-hanguls.woff2")
 
 L_RANGES = ((0x1100, 0x115E), (0xA960, 0xA97C))
 V_RANGES = ((0x1161, 0x11A7), (0xD7B0, 0xD7C6))
@@ -123,6 +124,9 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
     font_bust = 0
     if os.path.isfile(HANGUL_FONT):
         font_bust = int(os.path.getmtime(HANGUL_FONT))
+    hanguls_bust = 0
+    if os.path.isfile(HANGULS_FONT):
+        hanguls_bust = int(os.path.getmtime(HANGULS_FONT))
 
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
@@ -142,11 +146,18 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
   font-style: normal;
   font-display: block;
 }}
+@font-face {{
+  font-family: 'edenia-hanguls-local';
+  src: url("./edenia-hanguls.woff2?v={hanguls_bust}") format("woff2"),
+       url("./edenia-hanguls.ttf?v={hanguls_bust}") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}}
 :root {{ --fs: {font_size}px; }}
 * {{ box-sizing: border-box; }}
 body {{
   margin: 0; background: #111; color: #eee;
-  font-family: edenia-hangul-local, 'edenia hanguls', 'edenia hangul', sans-serif;
   font-size: var(--fs);
   font-feature-settings: "ljmo" 1, "vjmo" 1, "tjmo" 1, "rclt" 1, "rlig" 1, "liga" 1, "ccmp" 1;
 }}
@@ -349,6 +360,13 @@ function renderPair(L, V, {{wantT, wantVS, wantSwap, wantSideways, labels}}) {{
   return {{sec, n}};
 }}
 
+function applyFontStack() {{
+  let sideways = document.getElementById("wantSideways").checked;
+  document.body.style.fontFamily = sideways
+    ? "edenia-hanguls-local, 'edenia hanguls', 'edenia hangul', sans-serif"
+    : "edenia-hangul-local, 'edenia hanguls', 'edenia hangul', sans-serif";
+}}
+
 function fillSelects() {{
   let pickL = document.getElementById("pickL");
   let pickV = document.getElementById("pickV");
@@ -456,6 +474,8 @@ document.getElementById("btnDump").onclick = () => {{
 }};
 
 fillSelects();
+document.getElementById("wantSideways").addEventListener("change", applyFontStack);
+applyFontStack();
 document.getElementById("btnOne").click();
 </script>
 </body>
