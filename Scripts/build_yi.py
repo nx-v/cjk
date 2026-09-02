@@ -34,7 +34,7 @@ Segment faces (pigeonholed by `cp>>8`, matching CJK)::
     t    third-cell segments (VS17–VS26)
     qv   vertical quarter segments
     qh   horizontal quarter segments
-    q    2×2 grid (optional; ``--q``)
+    q    2×2 grid (optional; `--q`)
 """
 
 from __future__ import annotations
@@ -192,8 +192,8 @@ def install_yi_orientation_gsub(
 ) -> int:
     """Install `yi + FE01..FE07` → oriented-form ligatures.
 
-    Must run on every Yi segment face (not only ``h``): CSS stack order prefers
-    ``q``/``qv``/``qh``/``t``, and orientation+slice must shape in one font.
+    Must run on every Yi segment face (not only `h`): CSS stack order prefers
+    `q`/`qv`/`qh`/`t`, and orientation+slice must shape in one font.
     """
     if not yi_bases:
         return 0
@@ -360,7 +360,7 @@ def _prepare_yi_segment_glyphs(
     target_upem: int,
     variants: Set[str],
 ) -> None:
-    """Bake third / quarter clips for ``yi_names`` (typically one bucket)."""
+    """Bake third / quarter clips for `yi_names` (typically one bucket)."""
     if "t" in variants:
         prepare_third_cells(
             cjk_bases=yi_names,
@@ -1132,8 +1132,8 @@ def _css_cps_for_yi_face(
 ) -> List[int]:
     """CSS unicode-range CPs for one Yi face.
 
-    Only ``h`` and the base face bake dakuten. Each ``h`` pigeonhole claims
-    ``mark_cps`` so last-slice marks on another Yi page stay on that file.
+    Only `h` and the base face bake dakuten. Each `h` pigeonhole claims
+    `mark_cps` so last-slice marks on another Yi page stay on that file.
     """
     cps = {
         cp

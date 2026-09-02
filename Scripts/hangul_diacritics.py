@@ -114,7 +114,7 @@ VS_RANGES: Tuple[Tuple[int, int], ...] = (
 MAX_DIACRITIC_FRAC = 0.48
 
 # Uniform ink height after load (fraction of target UPM) — fallback for slot
-# gap math only; ``load_dakuten_marks`` no longer normalizes outlines to this.
+# gap math only; `load_dakuten_marks` no longer normalizes outlines to this.
 DAKUTEN_MARK_HEIGHT_FRAC = 0.14
 
 # Full D4: identity + VS02..VS08 (FE01..FE07), including r90my.
@@ -123,7 +123,7 @@ DAKUTEN_VS_MODE_COUNT = 8
 DAKUTEN_EDGE_PAD_FRAC = 0.03
 
 # Successive-mark slot order (mark class index = position in this tuple).
-# Suffix None → cmap glyph ``uXXXX.mk`` (top-right); others are composites.
+# Suffix None → cmap glyph `uXXXX.mk` (top-right); others are composites.
 DAKUTEN_SLOTS: Tuple[Tuple[str, Optional[str]], ...] = (
     ("tr", None),
     ("cr", "cr"),
@@ -1315,7 +1315,7 @@ def install_dakuten_gpos(
 
     glyph_map = {n: i for i, n in enumerate(glyph_order)}
     marks: Dict[str, Tuple[int, object]] = {}
-    # Full marks (``""``) plus scaled variants already installed (e.g. ``sm``).
+    # Full marks (`""`) plus scaled variants already installed (e.g. `sm`).
     seen_vars = {""}
     for cp in mark_cps:
         prefix = dakuten_mark_name(cp) + "."
