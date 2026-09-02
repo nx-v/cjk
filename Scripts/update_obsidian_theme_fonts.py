@@ -413,7 +413,7 @@ def build_stack_block(*, edenia_cjk_families: list[str]) -> str:
         raise ValueError("no edenia cjk families found in CSS")
     kana = ", ".join(f'"{family_kana_variant(v)}"' for v in SEGMENT_FACE_STACK_ORDER)
     yi = ", ".join(f'"{family_yi_variant(v)}"' for v in SEGMENT_FACE_STACK_ORDER)
-    scripts = f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", {kana}, {yi}'
+    scripts = f'"{FAMILY_HANGULS}", "{FAMILY_HANGUL}", {kana}, {yi}'
     cjk = ", ".join(css_family_token(n) for n in edenia_cjk_families)
     fallbacks = "FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2"
     stack = f"{STACK_LATIN}, {scripts}, {cjk}, {fallbacks}, {STACK_TAIL}"

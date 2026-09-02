@@ -7,13 +7,13 @@ Japanese-like clause structure with Edenian role map:
   katakana → hangul (conjoining jamo: upright ``edenia hangul``; sideways
              ``edenia hanguls`` with U+FE05 per cluster)
   kanji    → Han + Tangut + Khitan + precomposed Hangul (``build_cjk`` ranges;
-             conjoining jamo sequences are separate — ``edenia hangul`` / ``edenia hanguls``)
+             optional U+FE05 per cluster when sideways faces enabled)
 
 Word kinds:
   • inflected core — 1+ kanji/hangul components (phrasal-verb style); each may
     take fullwidth kana/yi okurigana (~92%) via prefix / suffix / circumfix / infix
-  • kanji·hangul sequence — CJK priority; precomposed Hangul (``edenia cjk``)
-    and conjoining jamo (``edenia hangul``) sporadic
+  • kanji·hangul sequence — CJK priority; precomposed Hangul (``edenia cjk``,
+    sporadic FE05) and conjoining jamo (``edenia hangul`` / ``edenia hanguls``)
   • particle — short standalone fullwidth kana or yi run
   • halfwidth kana — own sticky run (never okurigana / particles / yi mix)
 
@@ -119,6 +119,7 @@ SCRIPT_RUN_RATIO = 0.42
 HANGUL_DEFAULT_FACES = frozenset({"", "s"})
 HANGUL_SIDEWAYS_P = 0.30  # when both faces enabled in one run
 # Precomposed Hangul (``edenia cjk``) in kanji·hangul sequences when ``--cjk``.
+# May append U+FE05 per cluster when ``--hangul-s`` / sideways faces enabled.
 CJK_PRECOMPOSED_HANGUL_P = 0.12
 
 FALLBACK_MARKS = tuple("\u3099\u309a\uff9e\uff9f\u0308\u0301\u0300\u0302\u0304\u0306")
@@ -1047,7 +1048,11 @@ def kanji_cluster(g: Gen) -> str:
     return a
 
 
-def precomposed_hangul_cluster(g: Gen) -> str:
+def precomposed_hangul_cluster(
+    g: Gen,
+    *,
+    sideways: Optional[bool] = None,
+) -> str:
     """Precomposed Hangul cluster (syllable or compat jamo; ``edenia cjk``)."""
     a = g.precomposed_hangul()
     if g.chance(0.25):
@@ -1059,13 +1064,24 @@ def precomposed_hangul_cluster(g: Gen) -> str:
         b = g.precomposed_hangul()
         if g.chance(0.3):
             b += g.choice(FE_D4)
-        return a + b
-    return a
+        s = a + b
+    else:
+        s = a
+    if sideways if sideways is not None else g.pick_hangul_sideways():
+        s += FE05
+    return s
 
 
-def precomposed_hangul_word(g: Gen, n: Optional[int] = None) -> str:
+def precomposed_hangul_word(
+    g: Gen,
+    n: Optional[int] = None,
+    *,
+    sideways: Optional[bool] = None,
+) -> str:
     n = n or g.island_len(1, 2)
-    return "".join(precomposed_hangul_cluster(g) for _ in range(n))
+    if sideways is None:
+        sideways = g.pick_hangul_sideways()
+    return "".join(precomposed_hangul_cluster(g, sideways=sideways) for _ in range(n))
 
 
 def kanji_half_digraph(g: Gen) -> str:
@@ -1358,7 +1374,7 @@ def word_inflected(g: Gen) -> str:
 def word_kanji_hangul_sequence(g: Gen) -> str:
     """Sequence of CJK and Hangul; CJK priority, Hangul sporadic.
 
-    Precomposed syllables + compat jamo (``edenia cjk``) when ``--cjk``.
+    Precomposed syllables + compat jamo (``edenia cjk``; sporadic FE05) when ``--cjk``.
     Conjoining jamo (``edenia hangul`` / ``edenia hanguls``) when ``--hangul``.
     """
     n = g.island_len(1, 5)

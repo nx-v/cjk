@@ -161,7 +161,7 @@ main.work {
   background: var(--slot);
   border-radius: 6px;
   font-family:
-    "edenia hangul", "edenia hanguls", "edenia kana h", "edenia kana",
+    "edenia hanguls", "edenia hangul", "edenia kana h", "edenia kana",
     "edenia yi h", "edenia yi", "edenia cjk";
 }
 .tpl-group-label {
@@ -391,7 +391,7 @@ main.work {
   font-size: var(--editor-size);
   line-height: 1.45;
   font-family:
-    "edenia hangul", "edenia hanguls", "edenia kana h", "edenia kana",
+    "edenia hanguls", "edenia hangul", "edenia kana h", "edenia kana",
     "edenia yi h", "edenia yi", var(--cjk), Georgia, serif;
   font-feature-settings:
     "liga" 1,

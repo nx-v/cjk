@@ -5,7 +5,9 @@ Build Hangul fonts from Malgun Gothic.
 Two families (same jamo pipeline)
 ---------------------------------
 * ``edenia hangul`` — conjoining jamo (U+1100.., Ext-A/B) upright; Malgun
-  ``ljmo`` / ``vjmo`` / ``tjmo`` shaping at render time.
+  ``ljmo`` / ``vjmo`` / ``tjmo`` shaping at render time. Append **U+FE05** after
+  a cluster to select pre-built **``.cw``** twins (90° CW) via GSUB when
+  ``edenia hangul`` follows ``edenia hanguls`` in the CSS stack.
 * ``edenia hanguls`` (hangul-**s**) — **same** jamo inventory and layout
   rules, every outline baked **90° clockwise** first; VS / FE04 / dakuten
   apply in the turned coordinate system. Append **U+FE05** per cluster block.
@@ -121,6 +123,7 @@ from shared_cells import (
     empty_glyph,
     ideographic_bounds,
     ideographic_center,
+    transform_aabb,
     variant_glyph_name,
     variant_transform,
 )
@@ -168,6 +171,8 @@ SWAP_GLYPH = "vs05"
 # Sideways jamo cluster: append U+FE05 after each conjoining jamo block (hangul-s).
 SIDEWAYS_CP = 0xFE05  # Unicode VS6
 SIDEWAYS_GLYPH = "vs06"
+# 90° CW twin on ``edenia hangul``; FE05 GSUB selects these when both faces stack.
+SIDEWAYS_SUFFIX = "cw"
 FE04_T_SUFFIX = "sw"
 
 # VS ligas: ``ccmp`` early for browser paths; ``rlig``/``liga`` keep swap/mirror.
@@ -356,13 +361,46 @@ def rotate_glyph_cw90(
     target_upem: int,
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
 ) -> Tuple[TTGlyph, int, int]:
-    """90° clockwise about the ideographic center (``edenia hanguls``)."""
+    """90° clockwise about this glyph's ideographic container (``edenia hanguls`` / ``.cw``)."""
     try:
         rec = DecomposingRecordingPen(glyph_set)
         glyph.draw(rec, glyph_set)
     except Exception:
         return glyph, advance, lsb
-    t = variant_transform(target_upem, rot90_quarters=3, flip_x=False, flip_y=False)
+    bpen = BoundsPen(None)
+    try:
+        rec.replay(bpen)
+    except Exception:
+        bpen.bounds = None
+    if bpen.bounds is None:
+        return glyph, advance, lsb
+
+    box = ideo_local_box(target_upem, advance=advance)
+    pivot_x = (box[0] + box[2]) / 2.0
+    pivot_y = (box[1] + box[3]) / 2.0
+    pivot = (pivot_x, pivot_y)
+    t = variant_transform(
+        target_upem,
+        rot90_quarters=3,
+        flip_x=False,
+        flip_y=False,
+        center=pivot,
+    )
+    nb = transform_aabb(bpen.bounds, t)
+    nx0, ny0, nx1, ny1 = nb
+    bx0, by0, bx1, by1 = box
+    nw = max(nx1 - nx0, 1.0)
+    nh = max(ny1 - ny0, 1.0)
+    bw = max(bx1 - bx0, 1.0)
+    bh = max(by1 - by0, 1.0)
+    s = min(bw / nw, bh / nh, 1.0)
+    if s < 1.0 - 1e-9:
+        t = Transform(s, 0, 0, s, pivot_x * (1.0 - s), pivot_y * (1.0 - s)).transform(
+            t
+        )
+        nb = transform_aabb(bpen.bounds, t)
+    t = nudge_into_box(nb, box).transform(t)
+
     pen = TTGlyphPen(None)
     try:
         rec.replay(TransformPen(pen, t))
@@ -397,6 +435,40 @@ def _rotate_all_ink_glyphs(
         )
         glyphs[name] = rotated
         metrics[name] = (adv, lsb)
+
+
+def sideways_glyph_name(base_name: str) -> str:
+    return variant_glyph_name(base_name, SIDEWAYS_SUFFIX)
+
+
+def add_sideways_cw_variants(
+    seed_names: Sequence[str],
+    *,
+    glyph_order: List[str],
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    target_upem: int,
+) -> int:
+    """Install ``.cw`` outlines (90° CW) for every reachable jamo orientation form."""
+    names = hangul_dakuten_bases(seed_names, glyphs)
+    added = 0
+    for name in names:
+        cw_name = sideways_glyph_name(name)
+        if cw_name in glyphs:
+            continue
+        adv, lsb = metrics.get(name, (target_upem, 0))
+        rotated, adv, lsb = rotate_glyph_cw90(
+            glyphs[name],
+            advance=adv,
+            lsb=lsb,
+            target_upem=target_upem,
+            glyph_set=glyphs,
+        )
+        glyph_order.append(cw_name)
+        glyphs[cw_name] = rotated
+        metrics[cw_name] = (adv, lsb)
+        added += 1
+    return added
 
 
 def sideways_jamo_liga_pairs(cmap: Dict[int, str]) -> List[Tuple[str, str, str]]:
@@ -494,6 +566,10 @@ def hangul_dakuten_bases(
             if n not in seen:
                 seen.add(n)
                 names.append(n)
+            cw = sideways_glyph_name(n)
+            if cw in glyphs and cw not in seen:
+                seen.add(cw)
+                names.append(cw)
     return names
 
 
@@ -886,51 +962,114 @@ def fe04_l_is_emmy(name: str) -> bool:
     return name.endswith(".emmy") or name.endswith(".emmxy")
 
 
+def _fe04_vowel_axis(axis: VowelAxis, *, rotate_cw: bool) -> VowelAxis:
+    """After 90° CW bake, upright X↔Y medial bands swap roles under FE04."""
+    if not rotate_cw:
+        return axis
+    if axis == "x":
+        return "y"
+    if axis == "y":
+        return "x"
+    return axis
+
+
+def _fe04_band_fractions(*, rotate_cw: bool) -> Tuple[float, float]:
+    """`(floor_frac, under_batchim_frac)` in the active band axis."""
+    del rotate_cw  # same fractions; axis differs in placement helpers
+    return 0.04, 0.62
+
+
+def _fe04_floor_edge(
+    name: str,
+    *,
+    glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
+    target_upem: int,
+    rotate_cw: bool,
+) -> Tuple[str, int]:
+    """Park the glyph floor edge on the padded ideographic band floor."""
+    bounds = _glyph_bounds(glyphs, name)
+    if bounds is None:
+        return "YPlacement", 0
+    adv = int(metrics.get(name, (0, 0))[0])
+    box = padded_ideo_box(target_upem, advance=adv)
+    floor_frac, _ = _fe04_band_fractions(rotate_cw=rotate_cw)
+    if rotate_cw:
+        span = box[2] - box[0]
+        target = box[0] + span * floor_frac
+        return "XPlacement", otRound(target - bounds[0])
+    _bottom, _top, ideo_h = ideographic_bounds(target_upem)
+    target = _bottom + ideo_h * floor_frac
+    return "YPlacement", otRound(target - bounds[1])
+
+
 def fe04_unflipped_l_y_placement(
     name: str,
     *,
     glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
-) -> int:
-    """FE04 + upright Y/XY: park L top just under raised `T.sw`."""
+    rotate_cw: bool = False,
+) -> Tuple[str, int]:
+    """FE04 + upright Y/XY: park L top just under raised `T.sw`.
+
+    Sideways (``rotate_cw``): park L right edge just left of raised ``T.sw``.
+    """
     bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
-        return 0
+        return "YPlacement", 0
+    adv = int(metrics.get(name, (0, 0))[0])
+    _floor_frac, under_frac = _fe04_band_fractions(rotate_cw=rotate_cw)
+    if rotate_cw:
+        box = padded_ideo_box(target_upem, advance=adv)
+        span = box[2] - box[0]
+        target = box[0] + span * under_frac
+        return "XPlacement", otRound(target - bounds[2])
     bottom, _top, ideo_h = ideographic_bounds(target_upem)
-    # T.sw bottoms ~519 (bake + dy_t); sit snug underneath.
-    target_top = bottom + ideo_h * 0.62  # ~500
-    return otRound(target_top - bounds[3])
+    target_top = bottom + ideo_h * under_frac
+    return "YPlacement", otRound(target_top - bounds[3])
 
 
 def fe04_y_floor_y_placement(
     name: str,
     *,
     glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
-) -> int:
-    """Park glyph bottom on the padded ideographic floor (Y-group FE04)."""
-    bounds = _glyph_bounds(glyphs, name)
-    if bounds is None:
-        return 0
-    bottom, _top, ideo_h = ideographic_bounds(target_upem)
-    target_bottom = bottom + ideo_h * 0.04  # ~−80
-    return otRound(target_bottom - bounds[1])
+    rotate_cw: bool = False,
+) -> Tuple[str, int]:
+    """Park glyph floor on the padded ideographic band (Y upright; X sideways)."""
+    return _fe04_floor_edge(
+        name,
+        glyphs=glyphs,
+        metrics=metrics,
+        target_upem=target_upem,
+        rotate_cw=rotate_cw,
+    )
 
 
 def fe04_emmy_l_y_placement(
     name: str,
     *,
     glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
     vowel_axis: VowelAxis = "y",
-) -> int:
+    rotate_cw: bool = False,
+) -> Tuple[str, int]:
     """FE04 + Y-flipped V: park `L.em*` on the floor under the medial tip.
 
     Y-group flipped bars sit mid-cell; L goes to the very bottom (just below
     the bar). XY flipped stems already reach the floor — same L floor pin.
     """
     del vowel_axis  # both Y and XY FE04-flip park L on the floor
-    return fe04_y_floor_y_placement(name, glyphs=glyphs, target_upem=target_upem)
+    return fe04_y_floor_y_placement(
+        name,
+        glyphs=glyphs,
+        metrics=metrics,
+        target_upem=target_upem,
+        rotate_cw=rotate_cw,
+    )
 
 
 def fe04_medial_extra_dy(
@@ -963,26 +1102,42 @@ def fe04_medial_extra_dy(
             return otRound(-(ideo_h * 0.06))
 
 
+def _fe04_dy_val(dy: int, *, rotate_cw: bool) -> object:
+    prop = "XPlacement" if rotate_cw else "YPlacement"
+    return buildValue({prop: dy})
+
+
+def _fe04_combine(*parts: Tuple[str, int]) -> object:
+    val: Dict[str, int] = {}
+    for prop, amount in parts:
+        if amount:
+            val[prop] = int(amount)
+    if not val:
+        val = {"YPlacement": 0}
+    return buildValue(val)
+
+
 def fe04_t_x_placement(
     name: str,
     *,
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
-) -> int:
-    """Translate `T.sw` so its bbox center sits on the ideographic mid-x.
-
-    Zero-advance (combining) forms live in L-local overlay coords whose mid-x
-    is `ideo_x - upem`; full-advance standalones use `ideo_x`.
-    """
+    rotate_cw: bool = False,
+) -> Tuple[str, int]:
+    """Center `T.sw` on ideographic mid-x (upright) or mid-y (sideways)."""
     bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
-        return 0
+        return "XPlacement", 0
     adv = int(metrics.get(name, (0, 0))[0])
-    icx, _icy = ideographic_center(target_upem)
+    icx, icy = ideographic_center(target_upem)
+    if rotate_cw:
+        exp = icy - (float(target_upem) if adv == 0 else 0.0)
+        cy = (bounds[1] + bounds[3]) * 0.5
+        return "YPlacement", otRound(exp - cy)
     exp = icx - (float(target_upem) if adv == 0 else 0.0)
     cx = (bounds[0] + bounds[2]) * 0.5
-    return otRound(exp - cx)
+    return "XPlacement", otRound(exp - cx)
 
 
 def fe04_xy_x_placement(
@@ -991,19 +1146,27 @@ def fe04_xy_x_placement(
     glyphs: Dict[str, TTGlyph],
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
-) -> int:
-    """Nudge XY medial into the padded X box (clearance math)."""
+    rotate_cw: bool = False,
+) -> Tuple[str, int]:
+    """Nudge XY medial into the padded box (X upright; Y sideways)."""
     bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
-        return 0
+        return "XPlacement", 0
     adv = int(metrics.get(name, (0, 0))[0])
     box = padded_ideo_box(target_upem, advance=adv)
-    x0, _y0, x1, _y1 = bounds
+    if rotate_cw:
+        y0, y1 = bounds[1], bounds[3]
+        if y0 < box[1]:
+            return "YPlacement", otRound(box[1] - y0)
+        if y1 > box[3]:
+            return "YPlacement", otRound(box[3] - y1)
+        return "YPlacement", 0
+    x0, x1 = bounds[0], bounds[2]
     if x0 < box[0]:
-        return otRound(box[0] - x0)
+        return "XPlacement", otRound(box[0] - x0)
     if x1 > box[2]:
-        return otRound(box[2] - x1)
-    return 0
+        return "XPlacement", otRound(box[2] - x1)
+    return "XPlacement", 0
 
 
 def add_em_variant(
@@ -1719,6 +1882,119 @@ def install_vs_ligas(
     _attach_features(gsub, new_indices, feature_tags)
 
 
+def install_sideways_fe05_gsub(
+    font,
+    *,
+    l_forms: Sequence[str],
+    v_forms: Sequence[str],
+    t_forms: Sequence[str],
+    glyphs: Dict[str, TTGlyph],
+    glyph_order: Sequence[str],
+) -> int:
+    """When ``U+FE05`` ends a jamo cluster, map each jamo to its ``.cw`` twin.
+
+    Needed when ``edenia hanguls`` is stacked ahead of ``edenia hangul``: jamo
+    codepoints match the sideways face first; ``.cw`` GSUB on the upright face
+    covers renderers that itemize FE05 clusters onto ``edenia hangul``.
+    """
+    if SIDEWAYS_GLYPH not in glyphs:
+        return 0
+
+    glyph_map = {name: i for i, name in enumerate(glyph_order)}
+    fe05_cov = [SIDEWAYS_GLYPH]
+
+    def _cw_map(names: Sequence[str]) -> Dict[str, str]:
+        out: Dict[str, str] = {}
+        for name in names:
+            cw = sideways_glyph_name(name)
+            if name in glyphs and cw in glyphs:
+                out[name] = cw
+        return out
+
+    l_names = hangul_dakuten_bases(l_forms, glyphs)
+    v_names = hangul_dakuten_bases(v_forms, glyphs)
+    t_names = hangul_dakuten_bases(t_forms, glyphs)
+    l_map = _cw_map(l_names)
+    v_map = _cw_map(v_names)
+    t_map = _cw_map(t_names)
+    if not l_map and not v_map and not t_map:
+        return 0
+
+    v_cov = sorted(v_map.keys(), key=lambda n: glyph_map.get(n, 10**9))
+    t_cov = sorted(t_map.keys(), key=lambda n: glyph_map.get(n, 10**9))
+
+    gsub = _ensure_gsub(font)
+    staged: List[ot.Lookup] = []
+    chain_feature_indices: List[int] = []
+    rule_count = 0
+
+    def _add_fe05_chain(
+        mapping: Dict[str, str],
+        input_names: Sequence[str],
+        lookahead_groups: Sequence[Sequence[str]],
+    ) -> None:
+        nonlocal rule_count
+        if not mapping or not input_names or not lookahead_groups:
+            return
+        sub_map = {n: mapping[n] for n in input_names if n in mapping}
+        if not sub_map:
+            return
+        single = buildSingleSubstSubtable(sub_map)
+        single_lu = buildLookup([single])
+        single_lu.LookupType = 1
+        single_index = len(gsub.LookupList.Lookup) + len(staged)
+        staged.append(single_lu)
+        chain = ot.ChainContextSubst()
+        chain.Format = 3
+        chain.BacktrackCoverage = []
+        chain.BacktrackGlyphCount = 0
+        chain.InputCoverage = [
+            buildCoverage(
+                sorted(sub_map.keys(), key=lambda n: glyph_map.get(n, 10**9)),
+                glyph_map,
+            )
+        ]
+        chain.InputGlyphCount = 1
+        chain.LookAheadCoverage = [
+            buildCoverage(
+                sorted(set(group), key=lambda n: glyph_map.get(n, 10**9)),
+                glyph_map,
+            )
+            for group in lookahead_groups
+        ]
+        chain.LookAheadGlyphCount = len(chain.LookAheadCoverage)
+        rec = ot.SubstLookupRecord()
+        rec.SequenceIndex = 0
+        rec.LookupListIndex = single_index
+        chain.SubstLookupRecord = [rec]
+        chain.SubstCount = 1
+        chain_lu = buildLookup([chain])
+        chain_lu.LookupType = 6
+        chain_feature_indices.append(len(gsub.LookupList.Lookup) + len(staged))
+        staged.append(chain_lu)
+        rule_count += 1
+
+    for l_map_item, l_cov in ((l_map, sorted(l_map.keys(), key=lambda n: glyph_map.get(n, 10**9))),):
+        _add_fe05_chain(l_map_item, l_cov, [fe05_cov])
+        if v_cov:
+            _add_fe05_chain(l_map_item, l_cov, [v_cov, fe05_cov])
+        if v_cov and t_cov:
+            _add_fe05_chain(l_map_item, l_cov, [v_cov, t_cov, fe05_cov])
+    for v_map_item, v_cov_item in ((v_map, v_cov),):
+        _add_fe05_chain(v_map_item, v_cov_item, [fe05_cov])
+        if t_cov:
+            _add_fe05_chain(v_map_item, v_cov_item, [t_cov, fe05_cov])
+    _add_fe05_chain(t_map, sorted(t_map.keys(), key=lambda n: glyph_map.get(n, 10**9)), [fe05_cov])
+
+    if not staged:
+        return 0
+
+    gsub.LookupList.Lookup.extend(staged)
+    gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
+    _attach_features(gsub, chain_feature_indices, SYLL_VS_FEATURE_TAGS)
+    return rule_count
+
+
 def _build_reverse_chain(
     mapping: Dict[str, str],
     lookahead_groups: Sequence[Sequence[str]],
@@ -1987,6 +2263,7 @@ def install_fe04_gpos(
     glyph_order: List[str],
     vowel_axes: Dict[str, VowelAxis],
     target_upem: int,
+    rotate_cw: bool = False,
 ) -> Tuple[float, float, int]:
     """FE04 top-swap: `T+vs05→T.sw` liga, then `L V T.sw` placement.
 
@@ -1994,8 +2271,10 @@ def install_fe04_gpos(
     prefix with the Y-flip batchim raise. X vowels use a deeper shared drop on
     L and V (identical Y). Y/XY upright drop L a little extra to clear the
     raised batchim; flipped Y/XY keep base `dy_lv` on L with medial extras.
-    `T.sw` also gets `xPlacement` onto the ideographic mid-x. XY medials
-    may also get `xPlacement`.
+    `T.sw` also gets cross-axis centering. XY medials may get in-box nudge.
+
+    When ``rotate_cw`` (``edenia hanguls``), upright Y deltas map to
+    ``XPlacement`` and upright X deltas map to ``YPlacement``.
 
     Returns `(dy_lv, dy_t, chain_lookup_count)`.
     """
@@ -2108,20 +2387,31 @@ def install_fe04_gpos(
         out: Dict[str, object] = {}
         for L in l_all:
             if fe04_l_is_emmy(L):
-                dy = fe04_emmy_l_y_placement(
-                    L, glyphs=glyphs, target_upem=target_upem, vowel_axis="xy"
+                prop, amt = fe04_emmy_l_y_placement(
+                    L,
+                    glyphs=glyphs,
+                    metrics=metrics,
+                    target_upem=target_upem,
+                    vowel_axis="xy",
+                    rotate_cw=rotate_cw,
                 )
+                out[L] = _fe04_combine((prop, amt))
             else:
-                dy = dy_lv_x
-            out[L] = buildValue({"YPlacement": dy})
+                out[L] = _fe04_dy_val(dy_lv_x, rotate_cw=rotate_cw)
         return out
 
     def _l_values_up() -> Dict[str, object]:
         # Upright Y/XY: L stays just under raised batchim.
         out: Dict[str, object] = {}
         for L in l_all:
-            dy = fe04_unflipped_l_y_placement(L, glyphs=glyphs, target_upem=target_upem)
-            out[L] = buildValue({"YPlacement": dy})
+            prop, amt = fe04_unflipped_l_y_placement(
+                L,
+                glyphs=glyphs,
+                metrics=metrics,
+                target_upem=target_upem,
+                rotate_cw=rotate_cw,
+            )
+            out[L] = _fe04_combine((prop, amt))
         return out
 
     def _l_values_flip(axis: VowelAxis) -> Dict[str, object]:
@@ -2129,12 +2419,17 @@ def install_fe04_gpos(
         out: Dict[str, object] = {}
         for L in l_all:
             if fe04_l_is_emmy(L):
-                dy = fe04_emmy_l_y_placement(
-                    L, glyphs=glyphs, target_upem=target_upem, vowel_axis=axis
+                prop, amt = fe04_emmy_l_y_placement(
+                    L,
+                    glyphs=glyphs,
+                    metrics=metrics,
+                    target_upem=target_upem,
+                    vowel_axis=axis,
+                    rotate_cw=rotate_cw,
                 )
+                out[L] = _fe04_combine((prop, amt))
             else:
-                dy = dy_lv_i
-            out[L] = buildValue({"YPlacement": dy})
+                out[L] = _fe04_dy_val(dy_lv_i, rotate_cw=rotate_cw)
         return out
 
     l_values_x = _l_values_x()
@@ -2144,32 +2439,43 @@ def install_fe04_gpos(
     v_y_values: Dict[str, object] = {}
     v_x_values: Dict[str, object] = {}
     for V in v_all:
-        match _axis_of(V):
-            case "x" as axis:
-                dy_v = dy_lv_x
-            case "y" as axis if not fe04_medial_is_y_flipped(V):
-                # Y upright + FE04: medial to the floor under high L.
-                dy_v = fe04_y_floor_y_placement(
-                    V, glyphs=glyphs, target_upem=target_upem
-                )
-            case axis:
-                dy_v = dy_lv_i + fe04_medial_extra_dy(axis, V, target_upem)
-        v_y_values[V] = buildValue({"YPlacement": dy_v})
-        if axis == "xy":
-            dx = fe04_xy_x_placement(
-                V, glyphs=glyphs, metrics=metrics, target_upem=target_upem
+        axis = _axis_of(V)
+        if axis == "x":
+            v_y_values[V] = _fe04_dy_val(dy_lv_x, rotate_cw=rotate_cw)
+        elif axis == "y" and not fe04_medial_is_y_flipped(V):
+            # Y upright + FE04: medial to the floor under high L.
+            prop, amt = fe04_y_floor_y_placement(
+                V,
+                glyphs=glyphs,
+                metrics=metrics,
+                target_upem=target_upem,
+                rotate_cw=rotate_cw,
             )
-            if dx:
-                v_x_values[V] = buildValue({"XPlacement": dx})
+            v_y_values[V] = _fe04_combine((prop, amt))
+        else:
+            dy_v = dy_lv_i + fe04_medial_extra_dy(axis, V, target_upem)
+            v_y_values[V] = _fe04_dy_val(dy_v, rotate_cw=rotate_cw)
+        if axis == "xy":
+            prop, amt = fe04_xy_x_placement(
+                V,
+                glyphs=glyphs,
+                metrics=metrics,
+                target_upem=target_upem,
+                rotate_cw=rotate_cw,
+            )
+            if amt:
+                v_x_values[V] = _fe04_combine((prop, amt))
     t_values: Dict[str, object] = {}
     for T in t_sw:
-        dx_t = fe04_t_x_placement(
-            T, glyphs=glyphs, metrics=metrics, target_upem=target_upem
+        prop_c, amt_c = fe04_t_x_placement(
+            T,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+            rotate_cw=rotate_cw,
         )
-        val: Dict[str, int] = {"YPlacement": dy_t_i}
-        if dx_t:
-            val["XPlacement"] = dx_t
-        t_values[T] = buildValue(val)
+        t_prop = "XPlacement" if rotate_cw else "YPlacement"
+        t_values[T] = _fe04_combine((t_prop, dy_t_i), (prop_c, amt_c))
 
     script_tags = ("DFLT", "hang", "latn")
     gpos = _ensure_gpos(font, script_tags)
@@ -2558,24 +2864,20 @@ def _build_jamo_face(
     )
     _inject_vs(glyph_order, glyphs, metrics, cmap)
     _inject_swap_vs(glyph_order, glyphs, metrics, cmap)
-    vs_skip = {
-        vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES
-    } | {SWAP_GLYPH}
+    _inject_sideways_vs(glyph_order, glyphs, metrics, cmap)
+    vs_skip = {vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES} | {SWAP_GLYPH}
     if rotate_cw:
         print("  Rotating jamo outlines 90° CW...", flush=True)
         _rotate_all_ink_glyphs(
             glyphs,
             metrics,
             target_upem=target_upem,
-            skip=vs_skip,
+            skip=vs_skip | {SIDEWAYS_GLYPH},
         )
-        _inject_sideways_vs(glyph_order, glyphs, metrics, cmap)
-        vs_names = [vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES] + [
-            SWAP_GLYPH,
-            SIDEWAYS_GLYPH,
-        ]
-    else:
-        vs_names = [vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES] + [SWAP_GLYPH]
+    vs_names = [vs_glyph_name(m[0]) for m in HANGUL_MIRROR_MODES] + [
+        SWAP_GLYPH,
+        SIDEWAYS_GLYPH,
+    ]
 
     l_forms = sorted(n for n, c in jamo_class.items() if c == "L" and n in glyphs)
     v_forms = sorted(n for n, c in jamo_class.items() if c == "V" and n in glyphs)
@@ -2698,6 +3000,16 @@ def _build_jamo_face(
         flush=True,
     )
 
+    if not rotate_cw:
+        n_cw = add_sideways_cw_variants(
+            l_forms + v_forms + t_forms,
+            glyph_order=glyph_order,
+            glyphs=glyphs,
+            metrics=metrics,
+            target_upem=target_upem,
+        )
+        print(f"  Sideways .cw variants: {n_cw}", flush=True)
+
     dakuten = prepare_hangul_dakuten(
         in_dir=in_dir,
         glyph_order=glyph_order,
@@ -2795,6 +3107,7 @@ def _build_jamo_face(
         glyph_order=glyph_order,
         vowel_axes=vowel_axes,
         target_upem=target_upem,
+        rotate_cw=rotate_cw,
     )
     n_unsquish = install_medial_fe04_unsquish_gsub(
         fb.font,
@@ -2841,8 +3154,20 @@ def _build_jamo_face(
                 f"  Compiling sideways jamo VS ligas ({len(sideways_ligas)} rules)...",
                 flush=True,
             )
-            install_vs_ligas(
-                fb.font, sideways_ligas, feature_tags=SYLL_VS_FEATURE_TAGS
+            install_vs_ligas(fb.font, sideways_ligas, feature_tags=SYLL_VS_FEATURE_TAGS)
+    else:
+        n_fe05 = install_sideways_fe05_gsub(
+            fb.font,
+            l_forms=l_forms,
+            v_forms=v_forms,
+            t_forms=t_forms,
+            glyphs=glyphs,
+            glyph_order=glyph_order,
+        )
+        if n_fe05:
+            print(
+                f"  FE05 cluster GSUB: {n_fe05} chain rules (.cw 90° CW on edenia hangul)",
+                flush=True,
             )
 
     out_path = _save_font(
@@ -2955,16 +3280,17 @@ def write_css(
         "/* Hangul-s: append U+FE05 per jamo cluster; FE00..FE03 mirror post-rotation. */",
         "",
     ]
-    for family, cps in ((FAMILY_JAMO, jamo_cps), (FAMILY_SYLL, hanguls_cps)):
+    for family, cps in ((FAMILY_SYLL, hanguls_cps), (FAMILY_JAMO, jamo_cps)):
         file_stem = stem(family)
         cps_for_ur = [
             cp
             for cp in cps
-            if not (0xFE00 <= cp <= 0xFE0F)
-            or cp in (0xFE04, SIDEWAYS_CP)
+            if not (0xFE00 <= cp <= 0xFE0F) or cp in (0xFE04, SIDEWAYS_CP)
         ]
         if family == FAMILY_JAMO and 0xFE04 not in cps_for_ur:
             cps_for_ur.append(0xFE04)
+        if family == FAMILY_JAMO and SIDEWAYS_CP not in cps_for_ur:
+            cps_for_ur.append(SIDEWAYS_CP)
         if family == FAMILY_SYLL and SIDEWAYS_CP not in cps_for_ur:
             cps_for_ur.append(SIDEWAYS_CP)
         for stem_name in (f"{file_stem}.woff2", f"{file_stem}.ttf"):

@@ -354,10 +354,10 @@ def ps_kana(face_id: str) -> str:
     return f"{PS_KANA}-{face_id}"
 
 
-# Default stack after Latin: Hangul + kana/yi h+base before CJK. Other segment
-# families are still @font-face'd; pin them for t/q/qv/qh digraphs.
+# Default stack after Latin: Hangul-s before upright hangul so FE05 clusters
+# match the pre-rotated face first; kana/yi h+base before CJK.
 STACK_CJK_TAIL = (
-    f'"{FAMILY_HANGUL}", "{FAMILY_HANGULS}", '
+    f'"{FAMILY_HANGULS}", "{FAMILY_HANGUL}", '
     + ", ".join(f'"{family_kana_variant(v)}"' for v in SEGMENT_FACE_STACK_ORDER)
     + ", "
     + ", ".join(f'"{family_yi_variant(v)}"' for v in SEGMENT_FACE_STACK_ORDER)

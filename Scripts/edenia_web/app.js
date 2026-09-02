@@ -36,7 +36,7 @@ const TEMPLATES = {
 
 const HANGUL_VS = [null, 0xfe01, 0xfe02, 0xfe03];
 const STACK =
-  '"edenia hangul", "edenia hanguls", "edenia kana h", "edenia kana", "edenia yi h", "edenia yi"';
+  '"edenia hanguls", "edenia hangul", "edenia kana h", "edenia kana", "edenia yi h", "edenia yi"';
 
 const cjkState = {
   chars: [
