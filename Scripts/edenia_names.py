@@ -51,11 +51,11 @@ CJK_FACE_VARIANTS: tuple[str, ...] = ("", "h")
 CJK_FACE_BUILD_ORDER: tuple[str, ...] = ("", "h")
 CJK_FACE_CSS_ORDER: tuple[str, ...] = ("h", "")
 
-# Longer suffixes first so `qh`/`qv` are not parsed as `q`/`h`.
+# Longer suffixes first so ``qh``/``qv`` are not parsed as ``q``/``h``.
 # Kept for kana/yi stems and legacy CJK filenames on disk.
 _SEGMENT_FACE_SUFFIXES: tuple[str, ...] = ("qh", "qv", "q", "h", "t")
 
-# CLI tokens → variant suffix (`""` is the identity / base face).
+# CLI tokens → variant suffix (``""`` is the identity / base face).
 _SEGMENT_FACE_TOKEN: dict[str, str] = {
     "base": "",
     "none": "",
@@ -105,9 +105,9 @@ def ordered_cjk_variants(variants: Iterable[str]) -> tuple[str, ...]:
 def add_cjk_variant_arguments(parser: argparse.ArgumentParser) -> None:
     """`--base`, `--faces`, and `--h` / `--t` / `--q` / `--qv` / `--qh`.
 
-    Slice flags **imply** base: `--h --t` builds base+h+t. `--base` alone
-    builds only the identity face. `--faces` is an exact list (no imply).
-    CJK resolves only `base`/`h`; kana/yi accept the full segment set.
+    Slice flags **imply** base: ``--h --t`` builds base+h+t. ``--base`` alone
+    builds only the identity face. ``--faces`` is an exact list (no imply).
+    CJK resolves only ``base``/``h``; kana/yi accept the full segment set.
     """
     g = parser.add_argument_group("faces")
     g.add_argument(
@@ -160,8 +160,8 @@ KANA_YI_DEFAULT_VARIANTS: tuple[str, ...] = ("", "h", "t", "q", "qv", "qh")
 def resolve_kana_yi_variants(args: argparse.Namespace) -> tuple[str, ...]:
     """Selected kana/yi suffixes from CLI (default: :data:`KANA_YI_DEFAULT_VARIANTS`).
 
-    `--h --t` → base+h+t (slice flags imply base). `--base` alone → base only.
-    No flags → full default. `--faces` is exact (no imply).
+    ``--h --t`` → base+h+t (slice flags imply base). ``--base`` alone → base only.
+    No flags → full default. ``--faces`` is exact (no imply).
     """
     want_base = getattr(args, "want_base", False)
     want_h = getattr(args, "want_h", False)
@@ -204,9 +204,9 @@ def resolve_kana_yi_variants(args: argparse.Namespace) -> tuple[str, ...]:
 def resolve_cjk_variants(args: argparse.Namespace) -> tuple[str, ...]:
     """Selected CJK suffixes from CLI flags (default: base + h only).
 
-    `--h` → base+h (implies base). `--base` alone → base only.
-    `--t`/`--q`/… alone → base only (CJK has no thirds/quarters).
-    No flags → :data:`CJK_FACE_BUILD_ORDER`. `--faces` is exact (no imply).
+    ``--h`` → base+h (implies base). ``--base`` alone → base only.
+    ``--t``/``--q``/… alone → base only (CJK has no thirds/quarters).
+    No flags → :data:`CJK_FACE_BUILD_ORDER`. ``--faces`` is exact (no imply).
     """
     want_base = getattr(args, "want_base", False)
     want_h = getattr(args, "want_h", False)

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Build an HTML gallery of edenia Hangul conjoining jamo × VS × FE05 × dakuten.
 
-Output: `dist/hangul/all-jamo-vs.html`
+Output: ``dist/hangul/all-jamo-vs.html``
 
 Jamo inventories (Unicode, excluding fillers / unassigned):
   Choseong  U+1100..115E, U+A960..A97C
   Jungseong U+1161..11A7, U+D7B0..D7C6
   Jongseong U+11A8..11FF, U+D7CB..D7FB
 
-Append **U+FE05** per cluster (toggle) to select the sideways `edenia hanguls`
-face (stacked ahead of upright `edenia hangul` in CSS).
+Append **U+FE05** per cluster (toggle) to select the sideways ``edenia hanguls``
+face (stacked ahead of upright ``edenia hangul`` in CSS).
 
 Usage
 -----
@@ -68,7 +68,7 @@ def dakuten_mark_entries(
     *,
     font_path: str = HANGUL_FONT,
 ) -> List[dict]:
-    """Marks installed in a hangul face (`.mk` cmap), else JuliaMono inventory."""
+    """Marks installed in a hangul face (``.mk`` cmap), else JuliaMono inventory."""
     cps: List[int] = []
     if os.path.isfile(font_path):
         tt = TTFont(font_path)

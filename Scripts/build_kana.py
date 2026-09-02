@@ -1321,7 +1321,7 @@ def _prepare_kana_segment_glyphs(
     target_upem: int,
     variants: Set[str],
 ) -> None:
-    """Bake third / quarter clips for `full_bases` (typically one bucket)."""
+    """Bake third / quarter clips for ``full_bases`` (typically one bucket)."""
     if "t" in variants:
         prepare_third_cells(
             cjk_bases=full_bases,
@@ -1450,9 +1450,9 @@ def _css_cps_for_kana_face(
 ) -> List[int]:
     """CSS unicode-range CPs for one kana face.
 
-    Only `h` and the base face bake dakuten. Each `h` pigeonhole must
-    cmap *and* claim `mark_cps`: the last slice of a digraph often lives
-    on another 256-CP `h` file, and `base+FE09+marks` has to shape there.
+    Only ``h`` and the base face bake dakuten. Each ``h`` pigeonhole must
+    cmap *and* claim ``mark_cps``: the last slice of a digraph often lives
+    on another 256-CP ``h`` file, and ``base+FE09+marks`` has to shape there.
     q/qv/qh/t must not claim marks (they sort earlier and lack mark glyphs).
     """
     cps = {cp for cp in codepoints if not (0xFE00 <= cp <= 0xFE0F)}
@@ -2012,7 +2012,7 @@ def _prepare_kana_face_state(
 
 
 def _kana_face_cache_task(spec: Tuple[str, Optional[int]]) -> str:
-    """Build and pickle one face's glyf state (`{face_id}.pkl`)."""
+    """Build and pickle one face's glyf state (``{face_id}.pkl``)."""
     assert _WORKER_MASTER is not None
     assert _WORKER_CACHE_DIR is not None
     state = _prepare_kana_face_state(spec, _WORKER_MASTER)

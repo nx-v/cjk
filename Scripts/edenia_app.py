@@ -48,6 +48,7 @@ from edenia_names import (
     FAMILY_YI_H,
     family_cjk_variant,
 )
+from build_hangul import SIDEWAYS_CP
 from hangul_html import L_RANGES, T_RANGES, V_RANGES, assigned_cps
 from kana_yi_slice import (
     SLICE_BL_CP,
@@ -165,6 +166,7 @@ def build_data() -> dict:
             "V": _compact_jamo(V_RANGES),
             "T": _compact_jamo(T_RANGES),
             "SWAP": 0xFE04,
+            "SIDEWAYS": SIDEWAYS_CP,
         },
         "YI": {
             "OV": OV_SELECTOR_CP,

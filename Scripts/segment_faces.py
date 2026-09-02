@@ -164,11 +164,11 @@ def filter_segment_face_cmap(
     """Drop other faces' VS pages from a shared master cmap.
 
     Keeps every codepoint whose glyph belongs to a base family (identity **and**
-    D4 / small / slice / `.ov` forms). Stripping oriented PUA broke kana
-    overlays: Blink picked the base face for `U+E002` and the `h` face for
-    `FE00`/`FE08`, so GSUB could not ligate across fonts.
+    D4 / small / slice / ``.ov`` forms). Stripping oriented PUA broke kana
+    overlays: Blink picked the base face for ``U+E002`` and the ``h`` face for
+    ``FE00``/``FE08``, so GSUB could not ligate across fonts.
 
-    `h` also keeps `mark_cps` when provided: last-slice dakuten sit on the
+    ``h`` also keeps ``mark_cps`` when provided: last-slice dakuten sit on the
     second digraph member, which may be a different pigeonhole file.
     """
     vs_page = {

@@ -325,11 +325,23 @@ function hangSeq() {
         cps.push(DATA.HANGUL.SWAP);
     }
   }
+  if (document.getElementById("hangSideways").checked) {
+    const side = DATA.HANGUL.SIDEWAYS || 0xfe05;
+    cps.push(side);
+  }
   return String.fromCodePoint(...cps);
 }
 
+function hangFamily() {
+  if (document.getElementById("hangSideways").checked)
+    return (DATA.FAMILIES && DATA.FAMILIES.hanguls) || "edenia hanguls";
+  return (DATA.FAMILIES && DATA.FAMILIES.hangul) || "edenia hangul";
+}
+
 function renderHang() {
-  document.getElementById("hangPreview").textContent = hangSeq();
+  const el = document.getElementById("hangPreview");
+  el.style.fontFamily = "'" + hangFamily() + "', 'edenia hanguls', 'edenia hangul'";
+  el.textContent = hangSeq();
 }
 
 function yiChunk(id, oid) {
@@ -546,11 +558,12 @@ async function main() {
     "hangTv",
     "hangWantT",
     "hangSwap",
+    "hangSideways",
   ].forEach(id =>
     document.getElementById(id).addEventListener("input", renderHang),
   );
   document.getElementById("btnInsertHang").addEventListener("click", () => {
-    insertText(hangSeq(), "edenia hangul");
+    insertText(hangSeq(), hangFamily());
   });
   ["yiA", "yiAo", "yiB", "yiBo", "yiSlice"].forEach(id =>
     document.getElementById(id).addEventListener("input", renderYi),

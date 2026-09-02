@@ -98,7 +98,7 @@ PLANGOTHIC_P2_FILENAME = "PlangothicP2-Regular.ttf"
 CA_MARK_CP = 0x16FF0
 NHAY_MARK_CP = 0x16FF1
 CORE_MARK_CPS: Tuple[int, ...] = (CA_MARK_CP, NHAY_MARK_CP)
-# Runtime: ca/nhay only (updated by `prepare_marks`).
+# Runtime: ca/nhay only (updated by ``prepare_marks``).
 MARK_CPS: Tuple[int, ...] = CORE_MARK_CPS
 CA_MARK_SEGMENT_FRAC = 1.0 / 3.0
 NHAY_MARK_SEGMENT_FRAC = 1.0 / 4.0
@@ -112,7 +112,7 @@ MARK_BASE_FRAC_BY_CP: Dict[int, float] = {
     CA_MARK_CP: CA_MARK_BASE_FRAC,
     NHAY_MARK_CP: NHAY_MARK_BASE_FRAC,
 }
-# nhay keeps plain `.dk` names; ca uses `.dk.ca` (and matching siblings).
+# nhay keeps plain ``.dk`` names; ca uses ``.dk.ca`` (and matching siblings).
 CA_MARK_SQUISH_TAG = ".ca"
 NHAY_MARK_SQUISH_TAG = ""
 # Legacy aliases (nhay fractions).
@@ -199,7 +199,7 @@ HALF_PAD_FRAC = 0.02  # inset inside the occupied half (was 0.04)
 
 
 def mark_squish_tag(mark_cp: int) -> str:
-    """Segment name suffix: nhay `""`, ca `".ca"`."""
+    """Segment name suffix: nhay ``""``, ca ``".ca"``."""
     return CA_MARK_SQUISH_TAG if mark_cp == CA_MARK_CP else NHAY_MARK_SQUISH_TAG
 
 
@@ -1166,7 +1166,7 @@ def marked_liga_map(
 ) -> Dict[Tuple[str, ...], str]:
     """Base-face ca/nhay ligatures: `CJK (+ FE00–FE0F) + MARK`.
 
-    ca clips use `.dk.ca` (2/3 base); nhay uses plain `.dk` (3/4 base).
+    ca clips use ``.dk.ca`` (2/3 base); nhay uses plain ``.dk`` (3/4 base).
     """
     liga: Dict[Tuple[str, ...], str] = {}
     for base in squishable_bases:
@@ -1465,7 +1465,7 @@ def build_squish_vs_uvs_entries(
 
 
 def _squish_segment_form_name(base: str, suffix: str, *, name_tag: str = "") -> str:
-    """Occupancy clip name: `.dk` / `.dk.ca` and triangle `.tl` siblings."""
+    """Occupancy clip name: ``.dk`` / ``.dk.ca`` and triangle ``.tl`` siblings."""
     if suffix in MARK_POS_SEGMENT.values():
         mark_cp = CA_MARK_CP if name_tag == CA_MARK_SQUISH_TAG else NHAY_MARK_CP
         return _segment_squish_of(base, suffix, mark_cp=mark_cp)
@@ -1637,7 +1637,7 @@ def prepare_squish_vs_access(
             metrics=metrics,
         )
 
-    # Ligatures installed programmatically in `install_cjk_composition_gsub`.
+    # Ligatures installed programmatically in ``install_cjk_composition_gsub``.
     del liga_rules
 
     if uvs_rows is not None:
@@ -1698,7 +1698,7 @@ def prepare_marks(
     """Load ca/nhay + per-mark segment squish for the base CJK face.
 
     ca mark = **1/3** (base **2/3**); nhay mark = **1/4** (base **3/4**).
-    Half-cell digraph access (`.dk*` at 0.55) lives on the `h` face instead.
+    Half-cell digraph access (``.dk*`` at 0.55) lives on the ``h`` face instead.
     """
     try:
         path = resolve_plangothic_p2(in_dir)
