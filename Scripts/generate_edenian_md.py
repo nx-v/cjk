@@ -114,6 +114,7 @@ SLICE_RATIO = 0.18  # P(3)≈P(2)*r, P(4)≈P(3)*r
 # Script-island length: each extra syllable continues with this probability
 # (geometric / exponential falloff — longer runs are rarer).
 SCRIPT_RUN_RATIO = 0.42
+SCRIPT_RUN_MAX = 8  # max sticky run length for any script island
 
 # Hangul faces: `""` upright (edenia hangul); `s` sideways (+ FE05, edenia hanguls).
 HANGUL_DEFAULT_FACES = frozenset({"", "s"})
@@ -135,12 +136,17 @@ CA = "\U00016ff0"
 NHAY = "\U00016ff1"
 CGJ = chr(CGJ_CP)
 OV = chr(OV_SELECTOR_CP)
+ZWSP = "\u200b"  # zero-width space — prefixes every slice compound
 
 # ---------------------------------------------------------------------------
 # Slice tilings (kana / yi / kanji-half)
 #
-# Encoding (2–4 pieces):
-#   ([cp][d4]?[slice][FE00]){1,3} [cp][d4]?[slice] [diacritics]{0,8}
+# A slice compound is always a full unit-square partition (2–4 tiles).
+# Encoding — ZWSP prefixes; FE00 follows every slice except the last:
+#   ZWSP ([cp][d4]?[slice] FE00){n-1} [cp][d4]?[slice] [diacritics]{0,8}
+#
+# FE00 must never follow an unsliced full glyph (no `cp FE00` / full `.ov`).
+# Orphan slices (a single [cp][slice] without completing the cover) are invalid.
 #
 # Each cover is a partition of the unit square (disjoint, union = full cell).
 # Families never cross:
@@ -724,58 +730,48 @@ def attach_diacritics(g: Gen, base: str) -> str:
     return s
 
 
-def _join_slice_tile(left: str, right: str) -> str:
-    """Insert one FE00 between two *sliced* tiles of a unit-square compound.
-
-    FE00 is only a slice-compound joiner (kana / yi / CJK). It must never
-    appear alone, consecutive, or between unsliced full glyphs.
-    """
-    if not left or not right:
-        return left or right
-    while left.endswith(OV):
-        left = left[: -len(OV)]
-    while right.startswith(OV):
-        right = right[len(OV) :]
-    if not left or not right:
-        return left or right
-    return left + OV + right
+def _slice_tile(base: str, vs: int) -> str:
+    """One compound tile: unsliced base + slice selector (never bare ``cp FE00``)."""
+    base = base.replace(OV, "")
+    if not base:
+        raise ValueError("slice tile base must be non-empty")
+    return base + chr(vs)
 
 
 def _stack_segments(parts: Sequence[Tuple[str, int]]) -> str:
-    """Compose a unit-square slice tiling (sole FE00 emitter).
+    """Compose a full unit-square slice compound (sole FE00 emitter).
 
-    Format: `([cp][d4]?[slice][FE00]){1,3}[cp][d4]?[slice]`
-    Each `slice` is a half/third/quarter/triangle VS; FE00 only between tiles.
+    Format: ``ZWSP (tile FE00){n-1} tile`` where each tile is ``[cp][d4]?[slice]``.
+    FE00 only ever follows a slice selector — never a bare full glyph.
     """
     if not (2 <= len(parts) <= 4):
         raise ValueError(f"slice cover must have 2–4 tiles, got {len(parts)}")
 
-    def _clean_base(base: str) -> str:
-        # Bases must not carry FE00 — joiner is inserted only between tiles
-        return base.replace(OV, "") if base else ""
-
-    tiles = [(b, vs) for b, vs in ((_clean_base(base), vs) for base, vs in parts) if b]
-    if len(tiles) < 2:
-        # Need ≥2 sliced tiles to justify a joiner — no stray FE00
-        return "".join(base + chr(vs) for base, vs in tiles) if tiles else ""
-    out = tiles[0][0] + chr(tiles[0][1])
-    for base, vs in tiles[1:]:
-        out = _join_slice_tile(out, base + chr(vs))
-    return out
+    tiles = [_slice_tile(base, vs) for base, vs in parts]
+    # All but the last tile: slice then FE00 joiner.
+    out = "".join(tile + OV for tile in tiles[:-1]) + tiles[-1]
+    return ZWSP + out
 
 
 def _tiled_multigraph(g: Gen, mk: Callable[[], str], vs_tile: Sequence[int]) -> str:
     """Build a multigraph from a disjoint tile cover (order shuffled)."""
+    if len(vs_tile) < 2:
+        raise ValueError(f"slice cover must partition the cell (≥2 tiles), got {len(vs_tile)}")
     tiles = list(vs_tile)
-    g.rng.shuffle(tiles)
+    for _ in range(12):
+        g.rng.shuffle(tiles)
+        try:
+            return _stack_segments([(mk(), vs) for vs in tiles])
+        except ValueError:
+            continue
     return _stack_segments([(mk(), vs) for vs in tiles])
 
 
 def _slice_arity(g: Gen, faces: frozenset[str]) -> int:
     """Return 1 (plain), 2, 3, or 4 with exponential rarity.
 
-    Without `""` (base) in `faces`, plain forms are skipped — only slices.
-    Without any segment face, always plain (base / D4 only).
+    Plain (1) only when ``""`` (base) is in ``faces`` — unsliced, no FE00.
+    When only segment faces are enabled, always 2–4 (full slice compounds).
     """
     allow_plain = "" in faces
     allow_slice = g.opts.has_segment(faces)
@@ -835,7 +831,7 @@ def _slice_multigraph(
     faces: frozenset[str],
     arity: Optional[int] = None,
 ) -> str:
-    """Unit-square slice stack: `…[slice][FE00]…[slice]` + diacritics."""
+    """Unit-square slice stack: ``ZWSP(tile FE00)*tile`` + diacritics."""
     if arity is None:
         arity = _slice_arity(g, faces)
     if arity == 1:
@@ -879,7 +875,7 @@ def hangul_syllable(
 def hangul_word(
     g: Gen, n: Optional[int] = None, *, sideways: Optional[bool] = None
 ) -> str:
-    n = n or g.island_len(1, 5)
+    n = n or g.island_len(1, SCRIPT_RUN_MAX)
     if sideways is None:
         sideways = g.pick_hangul_sideways()
     return "".join(hangul_syllable(g, sideways=sideways) for _ in range(n))
@@ -1022,13 +1018,13 @@ def kana_run(
     halfwidth: bool = False,
 ) -> str:
     """Kana run: both chart halves mix freely. No yi."""
-    n = n or g.island_len(1, 8)
+    n = n or g.island_len(1, SCRIPT_RUN_MAX)
     return "".join(kana_syllable(g, halfwidth=halfwidth) for _ in range(n))
 
 
 def yi_run(g: Gen, n: Optional[int] = None) -> str:
     """Sticky yi run — no kana."""
-    n = n or g.island_len(1, 8)
+    n = n or g.island_len(1, SCRIPT_RUN_MAX)
     return "".join(yi_syllable(g) for _ in range(n))
 
 
@@ -1041,12 +1037,6 @@ def kanji_cluster(g: Gen) -> str:
         # ca/nhay MARK slots: identity or FE01–FE07 only (not slice FE08–FE0F)
         slot = "" if g.chance(0.35) else g.choice(FE_D4)
         a += slot + (CA if g.chance(0.5) else NHAY)
-    if g.chance(0.12):
-        # Adjacent cluster pair — juxtaposed, not FE00-overlaid
-        b = g.ideograph()
-        if g.chance(0.3):
-            b += g.choice(FE_D4)
-        return a + b
     return a
 
 
@@ -1062,13 +1052,7 @@ def precomposed_hangul_cluster(
     if g.chance(0.08):
         slot = "" if g.chance(0.35) else g.choice(FE_D4)
         a += slot + (CA if g.chance(0.5) else NHAY)
-    if g.chance(0.12):
-        b = g.precomposed_hangul()
-        if g.chance(0.3):
-            b += g.choice(FE_D4)
-        s = a + b
-    else:
-        s = a
+    s = a
     if sideways if sideways is not None else g.pick_hangul_sideways():
         s += FE05
     return s
@@ -1080,7 +1064,7 @@ def precomposed_hangul_word(
     *,
     sideways: Optional[bool] = None,
 ) -> str:
-    n = n or g.island_len(1, 2)
+    n = n or g.island_len(1, SCRIPT_RUN_MAX)
     if sideways is None:
         sideways = g.pick_hangul_sideways()
     return "".join(precomposed_hangul_cluster(g, sideways=sideways) for _ in range(n))
@@ -1120,7 +1104,7 @@ def _ids_tree(g: Gen, depth: int = 0) -> str:
 
 def kanji_word(g: Gen) -> str:
     """Bare kanji compound (no okurigana) — used by symbol islands."""
-    n = g.island_len(1, 4)
+    n = g.island_len(1, SCRIPT_RUN_MAX)
     if n >= 2 and g.chance(0.12):
         word = _ids_tree(g)
     else:
@@ -1258,7 +1242,7 @@ def maybe_bracket(g: Gen, content: str) -> str:
 
 def okurigana_run(g: Gen, n: Optional[int] = None) -> str:
     """Short fullwidth kana or yi okurigana (never halfwidth)."""
-    n = n or g.island_len(1, 3)
+    n = n or g.island_len(1, SCRIPT_RUN_MAX)
     choices: List[Tuple[str, float]] = []
     if g.opts.kana:
         choices.append(("kana", WEIGHT_KANA_FULL))
@@ -1398,9 +1382,9 @@ def word_kanji_hangul_sequence(g: Gen) -> str:
             break
         kind = g.weighted_choice(tuple(choices))
         if kind == "precomp":
-            parts.append(precomposed_hangul_word(g, g.island_len(1, 2)))
+            parts.append(precomposed_hangul_word(g, g.island_len(1, SCRIPT_RUN_MAX)))
         elif kind == "conj":
-            parts.append(hangul_word(g, g.island_len(1, 2)))
+            parts.append(hangul_word(g, g.island_len(1, SCRIPT_RUN_MAX)))
         else:
             parts.append(_kanji_piece(g, prefer_multi=(n >= 2)))
     return "".join(parts)
@@ -1408,7 +1392,7 @@ def word_kanji_hangul_sequence(g: Gen) -> str:
 
 def word_particle(g: Gen) -> str:
     """Standalone particle: short fullwidth kana or yi (never halfwidth)."""
-    n = g.island_len(1, 3)
+    n = g.island_len(1, SCRIPT_RUN_MAX)
     choices: List[Tuple[str, float]] = []
     if g.opts.kana:
         choices.append(("kana", WEIGHT_KANA_FULL))
@@ -1423,7 +1407,7 @@ def word_particle(g: Gen) -> str:
 
 def word_kana_hw(g: Gen) -> str:
     """Halfwidth kana sticky run — never mixed with fullwidth / yi / okurigana."""
-    return kana_run(g, g.island_len(1, 6), halfwidth=True)
+    return kana_run(g, g.island_len(1, SCRIPT_RUN_MAX), halfwidth=True)
 
 
 def generate_word(g: Gen) -> str:
