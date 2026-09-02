@@ -91,30 +91,7 @@ from fontTools.ttLib import TTFont, newTable, woff2
 from fontTools.ttLib.tables import otTables as ot
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
-from shared_half_cells import (
-    DEFAULT_UPEM,
-    empty_glyph,
-    ideographic_bounds,
-    ideographic_center,
-    variant_glyph_name,
-    variant_transform,
-)
-from hangul_diacritics import (
-    DAKUTEN_SLOT_CYCLE,
-    DAKUTEN_SLOT_COUNT,
-    add_dakuten_mark_glyphs,
-    add_dakuten_chain_mark_glyphs,
-    cjk_corner_anchors,
-    DAKUTEN_SLOTS,
-    dakuten_mark_stack_label,
-    install_dakuten_chain_gsub,
-    install_dakuten_gpos,
-    install_dakuten_mark_chain_gpos,
-    is_dakuten_chain_glyph,
-    install_dakuten_slot_gsub,
-    load_dakuten_marks_from_stack,
-    resolve_dakuten_mark_font_stack,
-)
+from cdn_fonts import dist_rel, format_src_line
 from edenia_names import (
     CSS_HANGUL,
     FAMILY_HANGUL,
@@ -123,9 +100,33 @@ from edenia_names import (
     PS_HANGULS,
     stem,
 )
+from hangul_diacritics import (
+    DAKUTEN_SLOT_COUNT,
+    DAKUTEN_SLOT_CYCLE,
+    DAKUTEN_SLOTS,
+    add_dakuten_chain_mark_glyphs,
+    add_dakuten_mark_glyphs,
+    cjk_corner_anchors,
+    dakuten_mark_stack_label,
+    install_dakuten_chain_gsub,
+    install_dakuten_gpos,
+    install_dakuten_mark_chain_gpos,
+    install_dakuten_slot_gsub,
+    is_dakuten_chain_glyph,
+    load_dakuten_marks_from_stack,
+    resolve_dakuten_mark_font_stack,
+)
+from shared_cells import (
+    DEFAULT_UPEM,
+    empty_glyph,
+    ideographic_bounds,
+    ideographic_center,
+    variant_glyph_name,
+    variant_transform,
+)
+from shared_font_builder import setup_head_timestamps
+from shared_hinting import add_no_hint_argument, autohint_ttf
 from sync_edenian_fonts import sync_dist_to_plugin
-from cdn_fonts import dist_rel, format_src_line
-from shared_hinting import add_no_hint_argument
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
@@ -2484,10 +2485,6 @@ def _save_font(
     write_woff2: bool,
     hint: bool = True,
 ) -> str:
-    from shared_hinting import autohint_ttf
-
-    from shared_font_builder import setup_head_timestamps
-
     os.makedirs(out_dir, exist_ok=True)
     file_stem = stem(family)
     out_path = os.path.join(out_dir, f"{file_stem}.ttf")

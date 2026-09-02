@@ -48,8 +48,10 @@ from fontTools.ttLib.tables._g_l_y_f import (
     ROUND_XY_TO_GRID,
     UNSCALED_COMPONENT_OFFSET,
     USE_MY_METRICS,
-    Glyph as TTGlyph,
     GlyphComponent,
+)
+from fontTools.ttLib.tables._g_l_y_f import (
+    Glyph as TTGlyph,
 )
 
 from cape_weightor import (
@@ -58,31 +60,37 @@ from cape_weightor import (
     layer_from_ttglyph,
     ttglyph_from_layer,
 )
-from shared_half_cells import (
+from shared_cells import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
+    HALF_PLANE_INF_FRAC,
     OV_SELECTOR_CP,
     OV_SELECTOR_NAME,
     SLICE_LABELS,
     SLICE_PUA_CPS,
     TRANSFORM_MODES,
     UPRIGHT_COMPOSITE_SUFFIXES,
+    _recording_from_glyph,
     add_overlay_forms,
+    apply_transform,
     boolean_subtract_glyphs,
     boolean_subtract_named,
+    build_chunked_ligature_subst_lookup,
     clip_glyph_to_polygon,
+    clip_glyph_to_rect,
     empty_glyph,
     ideographic_bounds,
     install_derived_glyph,
+    make_composite_variant,
     make_segment_slice_glyph,
     metrics_for_glyph,
     orientation_form_names,
     overlay_glyph_name,
+    propagate_d4_segments,
     recording_bounds,
     triangle_clip_points,
     variant_glyph_name,
     vs_glyph_name,
-    HALF_PLANE_INF_FRAC,
 )
 
 PLANGOTHIC_P2_FILENAME = "PlangothicP2-Regular.ttf"
@@ -111,7 +119,7 @@ NHAY_MARK_SQUISH_TAG = ""
 MARK_SEGMENT_FRAC = NHAY_MARK_SEGMENT_FRAC
 MARK_BASE_SQUISH_FACTOR = NHAY_MARK_BASE_FRAC
 # Overlay + combining slices on the **h** face (FE00, FE08–FE0F).
-# Geometric selector names match shared_half_cells; .dk* suffixes stay
+# Geometric selector names match shared_cells; .dk* suffixes stay
 # for occupancy clips (h = 1/2; base ca = 2/3, nhay = 3/4).
 SQUISH_TOP_CP = 0xFE08
 SQUISH_TOP_NAME = "vsTop"
@@ -254,8 +262,6 @@ def make_tb_mark_glyph(
     Upright ca/nhay already fills the LR half; 90° maps that box onto the TB
     half, so no extra stretch/normalize. `.B` / D4 TB aliases composite this.
     """
-    from shared_half_cells import make_composite_variant
-
     rotated, _adv, _lsb = make_composite_variant(
         base_name,
         target_upem,
@@ -283,8 +289,6 @@ def add_mark_mirror_composites(
     metrics: Dict[str, Tuple[int, int]],
 ) -> List[str]:
     """Install mx / my / r180 of a ca/nhay mark (no rotation)."""
-    from shared_half_cells import make_composite_variant
-
     installed: List[str] = []
     adv, lsb = metrics[base_name]
     for _vs, rot, fx, fy, suffix in TRANSFORM_MODES:
@@ -343,7 +347,6 @@ def _bake_simple_glyph(
 ) -> TTGlyph:
     if not glyph.isComposite():
         return glyph
-    from shared_half_cells import _recording_from_glyph
 
     rec = _recording_from_glyph(glyph, glyph_set)
     pen = TTGlyphPen(None)
@@ -417,8 +420,6 @@ def make_mark_glyph(
     scale: float,
 ) -> Optional[TTGlyph]:
     """Scale mark outline and pin ink center to `(0, 0)` (GPOS attach)."""
-    from shared_half_cells import apply_transform
-
     bounds = recording_bounds(rec)
     if bounds is None:
         return None
@@ -719,8 +720,6 @@ def place_glyph_in_half(
     Prefer `make_squished_glyph` when the upright segment can be built from a
     named base in `glyph_set`.
     """
-    from shared_half_cells import clip_glyph_to_rect
-
     upem = float(target_upem)
     rect = _half_slot_rect(upem, pin=pin, axis=axis, segment_frac=slot_frac)
     clipped = clip_glyph_to_rect(glyph, rect, glyph_set=glyph_set)
@@ -742,8 +741,6 @@ def _translate_ink_to_half_center(
     slot_frac: float = 0.5,
 ) -> Tuple[TTGlyph, int, int]:
     """Translate only so ink center sits at the segment-slot center (no re-scale)."""
-    from shared_half_cells import apply_transform, _recording_from_glyph
-
     upem = float(target_upem)
     x0, y0, x1, y1 = _half_slot_rect(upem, pin=pin, axis=axis, segment_frac=slot_frac)
     dst_cx = (x0 + x1) / 2.0
@@ -787,8 +784,6 @@ def make_squished_glyph(
     `slot_frac` is the segment band width (0.5 half-cell, 0.75 mark-base, …).
     `factor` is kept for call-site compatibility and ignored (no scale).
     """
-    from shared_half_cells import make_segment_slice_glyph
-
     if glyph_set is None:
         raise ValueError("make_squished_glyph requires glyph_set for slice bake")
     upem = int(
@@ -1382,8 +1377,6 @@ def install_cjk_composition_gsub(
     from fontTools.ttLib import newTable
     from fontTools.ttLib.tables import otTables as ot
 
-    from shared_half_cells import build_chunked_ligature_subst_lookup
-
     del glyph_order  # reserved for future GID-ordered class builders
     forms = list(squishable) if squishable is not None else squishable_forms(cjk_bases)
 
@@ -1500,7 +1493,6 @@ def _add_occupancy_squish_clips(
         name_tag=name_tag,
     )
     occ = float(slot_frac)
-    from shared_half_cells import propagate_d4_segments
 
     tag = str(name_tag)
     half_windows = {
@@ -1594,7 +1586,6 @@ def prepare_squish_vs_access(
         name_tag=tag,
     )
     occ = float(slot_frac) if slot_frac is not None else 0.5
-    from shared_half_cells import propagate_d4_segments
 
     half_windows = {
         "dk": _half_slot_rect(

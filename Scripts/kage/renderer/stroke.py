@@ -1,6 +1,8 @@
 from argparse import Namespace
-from .vec2 import Vec2, is_cross, is_cross_box
+
 import numpy as np
+
+from .vec2 import Vec2, is_cross, is_cross_box
 
 
 def stretch(dp, sp, p, min_, max_):

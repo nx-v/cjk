@@ -1,9 +1,10 @@
-from ...vec2 import Vec2, normalize
-from ...util import generate_flatten_curve
-from ..serif import Serif
+import numpy as np
 import svgwrite
 import svgwrite.path
-import numpy as np
+
+from ...util import generate_flatten_curve
+from ...vec2 import Vec2, normalize
+from ..serif import Serif
 
 
 class LegacySerifStrokeDrawer:

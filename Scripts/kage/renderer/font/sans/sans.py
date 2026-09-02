@@ -1,7 +1,8 @@
+import numpy as np
+import svgwrite
+
 from ...vec2 import Vec2, normalize
 from ..serif import Serif
-import svgwrite
-import numpy as np
 
 
 class Sans(Serif):

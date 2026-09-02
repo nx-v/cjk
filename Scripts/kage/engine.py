@@ -10,6 +10,7 @@ import math
 import re
 from typing import Any
 
+import svgwrite
 from fontTools.misc.transform import Transform
 from fontTools.pens.transformPen import TransformPen
 from fontTools.svgLib.path import parse_path
@@ -18,8 +19,6 @@ from .renderer import Kage as _RendererKage
 from .renderer.font.round import Round
 from .renderer.font.sans import Sans
 from .renderer.font.serif import Serif
-
-import svgwrite
 
 REFERENCE_STROKE = 99
 

@@ -10,8 +10,8 @@ import os
 import unicodedata
 from typing import Dict, Set
 
+from fontTools.subset import Options, Subsetter
 from fontTools.ttLib import TTFont
-from fontTools.subset import Subsetter, Options
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_DIR = os.path.join(SCRIPT_DIR, "src")

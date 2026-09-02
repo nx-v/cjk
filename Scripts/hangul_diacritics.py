@@ -53,21 +53,26 @@ from fontTools.ttLib.tables import otTables as ot
 from fontTools.ttLib.tables._g_l_y_f import (
     ROUND_XY_TO_GRID,
     UNSCALED_COMPONENT_OFFSET,
-    Glyph as TTGlyph,
     GlyphComponent,
 )
+from fontTools.ttLib.tables._g_l_y_f import (
+    Glyph as TTGlyph,
+)
 
-from shared_font_builder import load_ttfont
-from shared_half_cells import (
+from shared_cells import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,
     YI_ORIENTATION_MODES,
     apply_transform,
+    build_chain_context_format2,
+    build_chunked_single_subst_lookup,
+    build_ext_gsub_lookup,
     orientation_form_names,
     recording_bounds,
 )
+from shared_font_builder import load_ttfont
 
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_SCRIPTS_DIR)
@@ -1031,12 +1036,6 @@ def install_dakuten_mark_variant_gsub(
     Lets successive marks after a small base all pick up the scaled outline
     before slot cycling (`.mk.sm` → `.mk.sm.cr` → …).
     """
-    from shared_half_cells import (
-        build_chain_context_format2,
-        build_chunked_single_subst_lookup,
-        build_ext_gsub_lookup,
-    )
-
     if not variant:
         return 0
 
@@ -1141,12 +1140,6 @@ def install_dakuten_slot_gsub(
     `variant` (e.g. `\"sm\"`) selects `uXXXX.mk.sm` / `.sm.br` names.
     Uses Format 2 ChainContext + Extension lookups (compact; no type-6 split).
     """
-    from shared_half_cells import (
-        build_chain_context_format2,
-        build_chunked_single_subst_lookup,
-        build_ext_gsub_lookup,
-    )
-
     order_index = {n: i for i, n in enumerate(glyph_order)}
 
     def _gid_sort(names: Sequence[str]) -> List[str]:
@@ -1477,12 +1470,6 @@ def install_dakuten_chain_gsub(
     * BL + TR → `.ch` (9th stacks on TR diacritic).
     * `.ch` + TR → `.ch.cr` (10th on CR), … through BL, then wrap to TR.
     """
-    from shared_half_cells import (
-        build_chain_context_format2,
-        build_chunked_single_subst_lookup,
-        build_ext_gsub_lookup,
-    )
-
     order_index = {n: i for i, n in enumerate(glyph_order)}
 
     def _gid_sort(names: Sequence[str]) -> List[str]:

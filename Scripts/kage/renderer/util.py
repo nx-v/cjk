@@ -1,7 +1,7 @@
-from .vec2 import Vec2, normalize
-
-from typing import Callable, Tuple, List
 from math import floor
+from typing import Callable, List, Tuple
+
+from .vec2 import Vec2, normalize
 
 
 def ternary_search_max(

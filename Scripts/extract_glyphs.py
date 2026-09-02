@@ -7,14 +7,15 @@ Usage: Adjust IN_DIR and OUT_DIR as needed, then run the script.
 Extracted SVGs are zipped and original directories are removed thereafter.
 """
 
+import concurrent.futures
+import json
 import os
+import shutil
 from typing import Dict, List
-from fontTools.ttLib import TTFont
+
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
-import json
-import shutil
-import concurrent.futures
+from fontTools.ttLib import TTFont
 
 # ---------- Directories ----------
 

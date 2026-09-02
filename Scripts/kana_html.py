@@ -39,17 +39,18 @@ from build_kana import (
     HIRAGANA_COUNT,
     HIRAGANA_PHONETIC_COUNT,
     HIRAGANA_ROWS,
+    HW_PUA_START,
     KATAKANA_ROWS,
     VOWELS,
     chart_source_cps,
     full_cp,
-    HW_PUA_START,
     hw_full_cp,
     hw_small_cp,
     pair_index,
     small_cp,
     trailing_mark_label,
 )
+from edenia_names import SEGMENT_FACE_STACK_ORDER, family_kana_variant
 from hangul_diacritics import (
     DAKUTEN_SLOT_COUNT,
     DAKUTEN_SLOT_CYCLE,
@@ -66,10 +67,13 @@ from kana_yi_slice import (
     SLICE_TOP_CP,
     SLICE_TR_CP,
 )
-from shared_half_cells import OV_SELECTOR_CP, YI_ORIENTATION_MODES
-from shared_third_cells import THIRD_VS_SLOTS
-from shared_quarter_cells import QUARTER_VS_SLOTS_H, QUARTER_VS_SLOTS_V
-from edenia_names import SEGMENT_FACE_STACK_ORDER, family_kana_variant
+from shared_cells import (
+    OV_SELECTOR_CP,
+    QUARTER_VS_SLOTS_H,
+    QUARTER_VS_SLOTS_V,
+    THIRD_VS_SLOTS,
+    YI_ORIENTATION_MODES,
+)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "kana", "all-kana.html")

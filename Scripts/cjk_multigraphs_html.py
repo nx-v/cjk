@@ -22,19 +22,19 @@ import os
 from typing import Dict, List, Sequence, Tuple
 
 from build_cjk import OUT_DIR as CJK_OUT
-from cjk_diacritics_html import (
-    BASE_ORIENT_LABEL,
-    BASE_ORIENT_VS,
-    assigned_cps,
-    edenia_cjk_font_stack,
-    parse_range_spec,
-)
 from cjk_diacritics import (
     OV_SELECTOR_CP,
     SQUISH_BOT_CP,
     SQUISH_LEFT_CP,
     SQUISH_RIGHT_CP,
     SQUISH_TOP_CP,
+)
+from cjk_diacritics_html import (
+    BASE_ORIENT_LABEL,
+    BASE_ORIENT_VS,
+    assigned_cps,
+    edenia_cjk_font_stack,
+    parse_range_spec,
 )
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

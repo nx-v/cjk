@@ -25,16 +25,16 @@ Note:
 Export each glyph as SVGs named after their code points.
 """
 
+import argparse
+import json
 import os
 from typing import Iterable, List, Set, Tuple
 
-from fontTools.ttLib import TTFont
-from fontTools.subset import Subsetter, Options
 from fontTools.merge import Merger
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
-import argparse
-import json
+from fontTools.subset import Options, Subsetter
+from fontTools.ttLib import TTFont
 
 # --- Hardcoded directories ---
 

@@ -34,10 +34,11 @@ import json
 import os
 import re
 import unicodedata
-from typing import Dict, List, Optional, Sequence, Tuple
 from collections import defaultdict
+from typing import Dict, List, Optional, Sequence, Tuple
 
-from build_cjk import CHAR_RANGES, IN_DIR, OUT_DIR as CJK_OUT
+from build_cjk import CHAR_RANGES, IN_DIR
+from build_cjk import OUT_DIR as CJK_OUT
 from cjk_diacritics import (
     CORE_MARK_CPS,
     MARK_SLOT_VS,
@@ -51,7 +52,7 @@ from cjk_diacritics import (
     SQUISH_TOP_CP,
     SQUISH_TR_CP,
 )
-from shared_half_cells import TRANSFORM_MODES, uvs_selector_for_mode
+from shared_cells import TRANSFORM_MODES, uvs_selector_for_mode
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "cjk", "diac-cjk.html")

@@ -1,4 +1,5 @@
 import svgwrite
+
 from ..stroke import Stroke
 
 

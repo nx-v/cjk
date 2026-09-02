@@ -1,11 +1,12 @@
-from ...vec2 import Vec2, normalize
+from argparse import Namespace
+
+import numpy as np
+import svgwrite
+
 from ...stroke import Stroke
+from ...vec2 import Vec2, normalize
 from ..font import Font
 from .serif_stroke import SerifStroke
-
-import svgwrite
-import numpy as np
-from argparse import Namespace
 
 
 class Serif(Font):

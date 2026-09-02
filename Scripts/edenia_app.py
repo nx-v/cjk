@@ -25,6 +25,16 @@ from pathlib import Path
 from typing import Dict, List
 from urllib.parse import unquote
 
+from cjk_diacritics import (
+    CORE_MARK_CPS,
+    MARK_SLOT_VS,
+    OV_SELECTOR_CP,
+    SQUISH_BOT_CP,
+    SQUISH_LEFT_CP,
+    SQUISH_RIGHT_CP,
+    SQUISH_TOP_CP,
+)
+from cjk_diacritics_html import BASE_ORIENT_LABEL, BASE_ORIENT_VS
 from edenia_names import (
     CSS_CJK,
     CSS_HANGUL,
@@ -38,16 +48,6 @@ from edenia_names import (
     FAMILY_YI_H,
     family_cjk_variant,
 )
-from cjk_diacritics import (
-    CORE_MARK_CPS,
-    MARK_SLOT_VS,
-    OV_SELECTOR_CP,
-    SQUISH_BOT_CP,
-    SQUISH_LEFT_CP,
-    SQUISH_RIGHT_CP,
-    SQUISH_TOP_CP,
-)
-from cjk_diacritics_html import BASE_ORIENT_LABEL, BASE_ORIENT_VS
 from hangul_html import L_RANGES, T_RANGES, V_RANGES, assigned_cps
 from kana_yi_slice import (
     SLICE_BL_CP,
@@ -98,6 +98,7 @@ def _combining_marks(limit: int = 48) -> List[dict]:
     if font.is_file():
         try:
             from fontTools.ttLib import TTFont
+
             from hangul_diacritics import iter_dakuten_codepoints, visible_dakuten_cps
 
             tt = TTFont(str(font))

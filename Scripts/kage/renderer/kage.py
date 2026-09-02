@@ -1,10 +1,12 @@
+from argparse import Namespace
+
+import numpy as np
+import svgwrite
+
 from .components import Components
+from .font.serif import Serif
 from .stroke import Stroke
 from .vec2 import Vec2
-from .font.serif import Serif
-from argparse import Namespace
-import svgwrite
-import numpy as np
 
 
 class Kage:

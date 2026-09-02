@@ -41,6 +41,8 @@ from Scripts.kage.extract_glyphwiki import (  # noqa: E402
     DUMP_PATH,
     FONT_DIR,
     RESOLVED_PATH,
+)
+from Scripts.kage.extract_glyphwiki import (
     main as extract_main,
 )
 from Scripts.shared_hinting import add_no_hint_argument  # noqa: E402

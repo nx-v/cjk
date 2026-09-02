@@ -13,7 +13,6 @@ from .engine import (
 from .mapping import (
     D4_MODES,
     DEFAULT_VS_MARKER,
-    MirrorVS,
     VS01,
     VS02,
     VS03,
@@ -22,6 +21,7 @@ from .mapping import (
     VS06,
     VS07,
     VS08,
+    MirrorVS,
     assign_ligatures,
     filter_alias_entries,
     filter_duplicate_stroke_entries,

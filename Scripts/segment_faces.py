@@ -8,17 +8,21 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from cjk_diacritics import MARK_CPS, SQUISH_VS_SLOTS
-from shared_half_cells import OV_SELECTOR_CP, TRANSFORM_MODES, variant_glyph_name
-from shared_quarter_cells import (
+from shared_cells import (
     GRID_VS_SLOTS,
+    OV_SELECTOR_CP,
     QUARTER_FACE_GRID,
     QUARTER_FACE_H,
     QUARTER_FACE_V,
+    THIRD_VS_SLOTS,
+    TRANSFORM_MODES,
+    install_quarter_cell_gsub,
+    install_third_cell_gsub,
     quarter_form_name,
     quarter_slot_parts,
     quarter_slots_for_face,
+    variant_glyph_name,
 )
-from shared_third_cells import THIRD_VS_SLOTS
 
 _D4_SUFFIXES: Tuple[str, ...] = tuple(
     suf for _vs, _r, _fx, _fy, suf in TRANSFORM_MODES if suf is not None
@@ -211,9 +215,6 @@ def install_segment_face_gsub(
     slice_forms: Sequence[str],
 ) -> None:
     """Third / quarter GSUB for one segment face (`t` / `q` / `qv` / `qh`)."""
-    from shared_quarter_cells import install_quarter_cell_gsub
-    from shared_third_cells import install_third_cell_gsub
-
     oriented = oriented_forms(bases, glyphs)
     match variant:
         case "t":

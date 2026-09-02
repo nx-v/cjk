@@ -43,6 +43,8 @@ REPO_ROOT = SCRIPT_DIR.parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from build_cjk import CHAR_RANGES, HANGUL_SYLLABLE_RANGES  # noqa: E402
+from build_hangul import SIDEWAYS_CP  # noqa: E402
 from build_kana import (  # noqa: E402
     D4_COUNT,
     HIRAGANA_COUNT,
@@ -55,21 +57,19 @@ from build_kana import (  # noqa: E402
     pair_index,
     small_cp,
 )
-from build_cjk import CHAR_RANGES, HANGUL_SYLLABLE_RANGES  # noqa: E402
-from build_hangul import SIDEWAYS_CP  # noqa: E402
-from hangul_diacritics import (  # noqa: E402
-    CGJ_CP,
-    DAKUTEN_SLOT_COUNT,
-    iter_dakuten_codepoints,
-    visible_dakuten_cps,
-)
 from edenia_names import (  # noqa: E402
     KANA_YI_DEFAULT_VARIANTS,
     ordered_cjk_variants,
     ordered_segment_variants,
     segment_variant_from_token,
 )
-from shared_half_cells import OV_SELECTOR_CP  # noqa: E402
+from hangul_diacritics import (  # noqa: E402
+    CGJ_CP,
+    DAKUTEN_SLOT_COUNT,
+    iter_dakuten_codepoints,
+    visible_dakuten_cps,
+)
+from shared_cells import OV_SELECTOR_CP  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Constants / weights (JP-like targets)

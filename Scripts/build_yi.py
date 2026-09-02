@@ -53,17 +53,33 @@ from fontTools.misc.roundTools import otRound
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
+from cdn_fonts import dist_rel, format_src_line
+from edenia_names import (
+    CSS_YI,
+    FAMILY_YI,
+    PS_YI,
+    SEGMENT_FACE_BUILD_ORDER,
+    SEGMENT_FACE_CSS_ORDER,
+    add_cjk_variant_arguments,
+    bucket_face_id,
+    family_yi_variant,
+    h_bucket_face_id,
+    parse_bucket_face_id,
+    parse_h_bucket_face_id,
+    ps_yi,
+    resolve_kana_yi_variants,
+)
 from hangul_diacritics import (
     DAKUTEN_SLOT_CYCLE,
     DAKUTEN_SLOTS,
-    add_dakuten_mark_glyphs,
     add_dakuten_chain_mark_glyphs,
+    add_dakuten_mark_glyphs,
     dakuten_mark_stack_label,
     install_dakuten_chain_gsub,
     install_dakuten_gpos,
     install_dakuten_mark_chain_gpos,
-    is_dakuten_chain_glyph,
     install_dakuten_slot_gsub,
+    is_dakuten_chain_glyph,
     load_dakuten_marks_from_stack,
     resolve_dakuten_mark_font_stack,
 )
@@ -76,12 +92,10 @@ from kana_yi_diacritics import (
     kana_mark_chain_parent_anchor,
     kana_representative_mark_points,
 )
-from shared_third_cells import prepare_third_cells
-from shared_quarter_cells import (
-    QUARTER_FACE_GRID,
-    QUARTER_FACE_H,
-    QUARTER_FACE_V,
-    prepare_quarter_cells,
+from kana_yi_slice import (
+    add_slice_halves,
+    inject_slice_marks,
+    install_slice_gsub,
 )
 from segment_faces import (
     filter_segment_face_cmap,
@@ -90,26 +104,14 @@ from segment_faces import (
     oriented_forms,
     subset_tables,
 )
-from edenia_names import (
-    SEGMENT_FACE_BUILD_ORDER,
-    SEGMENT_FACE_CSS_ORDER,
-    CSS_YI,
-    FAMILY_YI,
-    PS_YI,
-    add_cjk_variant_arguments,
-    bucket_face_id,
-    family_yi_variant,
-    h_bucket_face_id,
-    parse_bucket_face_id,
-    parse_h_bucket_face_id,
-    ps_yi,
-    resolve_kana_yi_variants,
-)
-from shared_half_cells import (
+from shared_cells import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
     DEFAULT_UPEM,
     NUOSU_FILENAME,
+    QUARTER_FACE_GRID,
+    QUARTER_FACE_H,
+    QUARTER_FACE_V,
     STANDALONE_CELL_SCALE,
     STANDALONE_VERT_PAD,
     TTF_GLYPH_LIMIT,
@@ -117,26 +119,23 @@ from shared_half_cells import (
     YiInventory,
     add_d4_variant_glyphs,
     build_d4_uvs_entries,
+    build_ext_gsub_lookup,
     empty_glyph,
     load_inventory,
     make_standalone_glyph,
     orientation_form_names,
+    prepare_quarter_cells,
+    prepare_third_cells,
     record_glyph,
     resolve_nuosu_path,
     subset_glyph_tables,
-    variant_glyph_name,
     uvs_selector_for_mode,
+    variant_glyph_name,
     vs_glyph_name,
 )
-from kana_yi_slice import (
-    add_slice_halves,
-    inject_slice_marks,
-    install_slice_gsub,
-)
-from sync_edenian_fonts import sync_dist_to_plugin
-from cdn_fonts import dist_rel, format_src_line
 from shared_font_builder import setup_head_timestamps
 from shared_hinting import add_jobs_argument, add_no_hint_argument, finish_font_outputs
+from sync_edenian_fonts import sync_dist_to_plugin
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_DIR = os.path.join(SCRIPT_DIR, "src")
@@ -202,8 +201,6 @@ def install_yi_orientation_gsub(
     from fontTools.otlLib.builder import buildLigatureSubstSubtable
     from fontTools.ttLib import newTable
     from fontTools.ttLib.tables import otTables as ot
-
-    from shared_half_cells import build_ext_gsub_lookup
 
     standalone_map: Dict[Tuple[str, ...], str] = {}
     for yi in yi_bases:

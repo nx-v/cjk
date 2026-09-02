@@ -105,76 +105,13 @@ from cape_weightor import (
     layer_from_ttglyph,
     widen_ttglyph,
 )
-from kana_yi_diacritics import (
-    collect_kana_dakuten_anchors,
-    inherit_kana_dakuten_anchors,
-    kana_coord_liga_names,
-    kana_dakuten_placement_stems,
-    kana_mark_center_anchor,
-    kana_mark_chain_parent_anchor,
-    kana_representative_mark_points,
-)
-from hangul_diacritics import (
-    DAKUTEN_SLOT_CYCLE,
-    DAKUTEN_SLOTS,
-    add_dakuten_mark_glyphs,
-    add_dakuten_chain_mark_glyphs,
-    dakuten_mark_stack_label,
-    is_dakuten_chain_glyph,
-    install_dakuten_chain_gsub,
-    install_dakuten_gpos,
-    install_dakuten_mark_chain_gpos,
-    install_dakuten_slot_gsub,
-    load_dakuten_marks_from_stack,
-    resolve_dakuten_mark_font_stack,
-)
-from shared_half_cells import (
-    DEFAULT_UPEM,
-    TTF_GLYPH_LIMIT,
-    TYPO_ASCENDER_FRAC,
-    TYPO_DESCENDER_FRAC,
-    YI_ORIENTATION_MODES,
-    add_d4_variant_glyphs,
-    add_overlay_forms,
-    apply_transform,
-    empty_glyph,
-    fit_glyph_to_ideographic_cell,
-    ideographic_bounds,
-    ideographic_center,
-    orientation_form_names,
-    rebuild_sideways_from_r90,
-    subset_glyph_tables,
-    variant_glyph_name,
-    variant_transform,
-)
-from shared_half_cells import _bake_transformed_glyph  # composite → plain outlines
-from kana_yi_slice import (
-    SLICE_SUFFIXES,
-    add_slice_halves,
-    half_glyph_name,
-    inject_slice_marks,
-    install_slice_gsub,
-)
-from shared_third_cells import prepare_third_cells
-from shared_quarter_cells import (
-    QUARTER_FACE_GRID,
-    QUARTER_FACE_H,
-    QUARTER_FACE_V,
-    prepare_quarter_cells,
-)
-from segment_faces import (
-    filter_segment_face_cmap,
-    install_segment_face_gsub,
-    keep_names_for_segment_face,
-    oriented_forms,
-    subset_tables,
-)
+from cdn_fonts import dist_rel, format_src_line
 from edenia_names import (
-    SEGMENT_FACE_BUILD_ORDER,
-    SEGMENT_FACE_CSS_ORDER,
     CSS_KANA,
     FAMILY_KANA,
     PS_KANA,
+    SEGMENT_FACE_BUILD_ORDER,
+    SEGMENT_FACE_CSS_ORDER,
     add_cjk_variant_arguments,
     bucket_face_id,
     family_kana_variant,
@@ -184,10 +121,71 @@ from edenia_names import (
     ps_kana,
     resolve_kana_yi_variants,
 )
-from sync_edenian_fonts import sync_dist_to_plugin
-from cdn_fonts import dist_rel, format_src_line
+from hangul_diacritics import (
+    DAKUTEN_SLOT_CYCLE,
+    DAKUTEN_SLOTS,
+    add_dakuten_chain_mark_glyphs,
+    add_dakuten_mark_glyphs,
+    dakuten_mark_stack_label,
+    install_dakuten_chain_gsub,
+    install_dakuten_gpos,
+    install_dakuten_mark_chain_gpos,
+    install_dakuten_slot_gsub,
+    is_dakuten_chain_glyph,
+    load_dakuten_marks_from_stack,
+    resolve_dakuten_mark_font_stack,
+)
+from kana_yi_diacritics import (
+    collect_kana_dakuten_anchors,
+    inherit_kana_dakuten_anchors,
+    kana_coord_liga_names,
+    kana_dakuten_placement_stems,
+    kana_mark_center_anchor,
+    kana_mark_chain_parent_anchor,
+    kana_representative_mark_points,
+)
+from kana_yi_slice import (
+    SLICE_SUFFIXES,
+    add_slice_halves,
+    half_glyph_name,
+    inject_slice_marks,
+    install_slice_gsub,
+)
+from segment_faces import (
+    filter_segment_face_cmap,
+    install_segment_face_gsub,
+    keep_names_for_segment_face,
+    oriented_forms,
+    subset_tables,
+)
+from shared_cells import (
+    DEFAULT_UPEM,
+    QUARTER_FACE_GRID,
+    QUARTER_FACE_H,
+    QUARTER_FACE_V,
+    TTF_GLYPH_LIMIT,
+    TYPO_ASCENDER_FRAC,
+    TYPO_DESCENDER_FRAC,
+    YI_ORIENTATION_MODES,
+    _bake_transformed_glyph,  # composite → plain outlines
+    add_d4_variant_glyphs,
+    add_overlay_forms,
+    apply_transform,
+    empty_glyph,
+    fit_glyph_to_ideographic_cell,
+    ideographic_bounds,
+    ideographic_center,
+    orientation_form_names,
+    prepare_quarter_cells,
+    prepare_third_cells,
+    rebuild_sideways_from_r90,
+    subset_glyph_tables,
+    variant_glyph_name,
+    variant_transform,
+)
 from shared_font_builder import load_ttfont, setup_head_timestamps
 from shared_hinting import add_jobs_argument, add_no_hint_argument, finish_font_outputs
+from sync_edenian_fonts import sync_dist_to_plugin
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)

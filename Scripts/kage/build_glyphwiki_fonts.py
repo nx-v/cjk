@@ -30,15 +30,15 @@ from fontTools.fontBuilder import FontBuilder
 from fontTools.misc.roundTools import otRound
 from fontTools.misc.transform import Transform
 from fontTools.pens.cu2quPen import Cu2QuPen
-from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.pens.transformPen import TransformPen
+from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.svgLib.path import parse_path
 from fontTools.ttLib import woff2
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from .engine import (
-    Kage,
     SHOTAI_STYLES,
+    Kage,
     _path_has_spike,
     iter_outline_paths,
     make_engine,
@@ -56,7 +56,8 @@ from .mapping import (
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
-from shared_half_cells import (  # noqa: E402
+from cdn_fonts import dist_rel, format_src_line  # noqa: E402
+from shared_cells import (  # noqa: E402
     STACK_MARK_CP,
     TYPO_ASCENDER_FRAC,
     TYPO_DESCENDER_FRAC,
@@ -70,9 +71,8 @@ from shared_half_cells import (  # noqa: E402
     install_overlay_gsub,
     make_composite_variant,
 )
-from shared_hinting import autohint_ttf  # noqa: E402
 from shared_font_builder import setup_head_timestamps  # noqa: E402
-from cdn_fonts import dist_rel, format_src_line  # noqa: E402
+from shared_hinting import autohint_ttf  # noqa: E402
 
 # One SPUA-marker font: 6400 PUA selectors + 6400*8 rendered D4 variants
 PUA_SELECTORS = BMP_PUA_COUNT  # 6400
@@ -138,6 +138,7 @@ def _round_skia_path(path, round_fn=otRound):
 def _drop_spike_contours(path, *, max_edge_ratio: float = 8.0, upem: int = 1000):
     """Drop contours dominated by one absurdly long edge (flatten artifacts)."""
     import math
+
     import pathops
 
     kept = pathops.Path()

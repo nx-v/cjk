@@ -33,14 +33,13 @@ from typing import List, Tuple
 
 from fontTools.ttLib import TTFont
 
+from build_hangul import SIDEWAYS_CP
 from hangul_diacritics import (
     DAKUTEN_SLOT_COUNT,
     DAKUTEN_SLOT_CYCLE,
     dakuten_count_options_html,
     dakuten_skip_options_html,
 )
-
-from build_hangul import SIDEWAYS_CP
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "hangul", "all-jamo-vs.html")

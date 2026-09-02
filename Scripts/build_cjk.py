@@ -55,10 +55,11 @@ from fontTools.ttLib import TTFont, woff2
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from cape_weightor import bolden_ttglyph
+from cdn_fonts import dist_rel, format_src_line
 from cjk_diacritics import (
-    PLANGOTHIC_P2_FILENAME,
-    MARK_CPS,
     MARK_BASE_SQUISH_FACTOR,
+    MARK_CPS,
+    PLANGOTHIC_P2_FILENAME,
     SIDE_SELECTOR_CPS,
     SQUISH_FACTOR,
     SQUISH_PUA_CPS,
@@ -68,28 +69,6 @@ from cjk_diacritics import (
     prepare_marks,
     prepare_squish_vs_access,
     squishable_forms,
-)
-from shared_half_cells import (
-    NUOSU_FILENAME,
-    OV_SELECTOR_CP,
-    OV_SELECTOR_NAME,
-    TRANSFORM_MODES,
-    VS_BASE,
-    VS_LAST,
-    add_d4_variant_glyphs,
-    fit_glyph_to_ideographic_cell,
-    grow_undersize_to_average_ideo,
-    compensate_stems_after_geometric_scale,
-    center_glyph_ink_in_advance,
-    average_ideo_ink,
-    ngulim_largest_touch_params,
-    is_yi_cp,
-    load_inventory,
-    make_standalone_glyph,
-    record_glyph,
-    uvs_selector_for_mode,
-    variant_glyph_name,
-    vs_glyph_name,
 )
 from edenia_names import (
     CJK_FACE_BUILD_ORDER,
@@ -105,10 +84,31 @@ from edenia_names import (
     resolve_cjk_variants,
     split_cjk_face_id,
 )
-from sync_edenian_fonts import sync_dist_to_plugin
-from cdn_fonts import dist_rel, format_src_line
+from shared_cells import (
+    NUOSU_FILENAME,
+    OV_SELECTOR_CP,
+    OV_SELECTOR_NAME,
+    TRANSFORM_MODES,
+    VS_BASE,
+    VS_LAST,
+    add_d4_variant_glyphs,
+    average_ideo_ink,
+    center_glyph_ink_in_advance,
+    compensate_stems_after_geometric_scale,
+    fit_glyph_to_ideographic_cell,
+    grow_undersize_to_average_ideo,
+    is_yi_cp,
+    load_inventory,
+    make_standalone_glyph,
+    ngulim_largest_touch_params,
+    record_glyph,
+    uvs_selector_for_mode,
+    variant_glyph_name,
+    vs_glyph_name,
+)
 from shared_font_builder import load_ttfont, setup_head_timestamps
-from shared_hinting import add_hint_mode_arguments, add_jobs_argument
+from shared_hinting import add_hint_mode_arguments, add_jobs_argument, autohint_ttf
+from sync_edenian_fonts import sync_dist_to_plugin
 
 # ---------- Directories ----------
 
@@ -1036,7 +1036,6 @@ def build_bucket_font(
 
     setup_head_timestamps(fb)
     fb.save(out_path)
-    from shared_hinting import autohint_ttf
 
     autohint_ttf(out_path, enabled=hint)
 
@@ -1473,8 +1472,6 @@ def _build_all_bucket_faces(
     variants: Sequence[str] = CJK_FACE_BUILD_ORDER,
 ) -> List[Tuple[str, Optional[Tuple[str, int, List[int]]]]]:
     """Build selected faces for one bucket (tests / single-bucket use)."""
-    from shared_hinting import autohint_ttf
-
     variants = ordered_cjk_variants(variants)
     bucket_hex = f"{bucket_id:X}"
     os.makedirs(out_dir, exist_ok=True)
@@ -1662,8 +1659,6 @@ def _face_ttf_task(
 
 
 def _hint_ttf_task(ttf_path: str) -> str:
-    from shared_hinting import autohint_ttf
-
     autohint_ttf(ttf_path, enabled=True)
     return ttf_path
 

@@ -23,23 +23,21 @@ from fontTools.pens.basePen import BasePen
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
 from hangul_diacritics import (
+    CGJ_CP,
     DAKUTEN_MARK_HEIGHT_FRAC,
     DAKUTEN_SLOTS,
-    CGJ_CP,
 )
-from shared_half_cells import (
+from shared_cells import (
+    GRID_VS_SLOTS,
+    QUARTER_VS_SLOTS_H,
+    QUARTER_VS_SLOTS_V,
     SLICE_SUFFIXES,
+    THIRD_VS_SLOTS,
     YI_ORIENTATION_MODES,
     _bake_transformed_glyph,
     orientation_form_names,
     overlay_glyph_name,
 )
-from shared_quarter_cells import (
-    GRID_VS_SLOTS,
-    QUARTER_VS_SLOTS_H,
-    QUARTER_VS_SLOTS_V,
-)
-from shared_third_cells import THIRD_VS_SLOTS
 
 Point = Tuple[float, float]
 

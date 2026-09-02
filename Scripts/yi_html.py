@@ -19,18 +19,20 @@ Usage
 
 from __future__ import annotations
 
+import argparse
+import json
+import os
+import unicodedata
+from typing import List
+
+from fontTools.ttLib import TTFont
+
+from edenia_names import SEGMENT_FACE_STACK_ORDER, family_yi_variant
 from hangul_diacritics import (
     DAKUTEN_SLOT_COUNT,
     DAKUTEN_SLOT_CYCLE,
     dakuten_count_options_html,
     dakuten_skip_options_html,
-)
-from shared_half_cells import (
-    OV_SELECTOR_CP,
-    YI_ORIENTATION_MODES,
-    load_inventory,
-    resolve_nuosu_path,
-    uvs_selector_for_mode,
 )
 from kana_yi_slice import (
     SLICE_BL_CP,
@@ -42,17 +44,16 @@ from kana_yi_slice import (
     SLICE_TOP_CP,
     SLICE_TR_CP,
 )
-from shared_third_cells import THIRD_VS_SLOTS
-from shared_quarter_cells import QUARTER_VS_SLOTS_H, QUARTER_VS_SLOTS_V
-from edenia_names import SEGMENT_FACE_STACK_ORDER, family_yi_variant
-
-import argparse
-import json
-import os
-import unicodedata
-from typing import List
-
-from fontTools.ttLib import TTFont
+from shared_cells import (
+    OV_SELECTOR_CP,
+    QUARTER_VS_SLOTS_H,
+    QUARTER_VS_SLOTS_V,
+    THIRD_VS_SLOTS,
+    YI_ORIENTATION_MODES,
+    load_inventory,
+    resolve_nuosu_path,
+    uvs_selector_for_mode,
+)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "yi", "all-yi-vs.html")

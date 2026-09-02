@@ -1097,7 +1097,7 @@ def resolve_and_build_pipelined(
         regenerate_css_from_dist(FONT_DIR)
         return all_strokes
 
-    from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
+    from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 
     pending: dict = {}
     finished = 0

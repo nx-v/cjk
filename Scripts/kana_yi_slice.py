@@ -30,7 +30,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from fontTools.ttLib.tables._g_l_y_f import Glyph as TTGlyph
 
-from shared_half_cells import (
+from shared_cells import (
     COMPOSITION_FEATURE_TAGS,
     COMPOSITION_LANGUAGE_SYSTEMS,
     HALF_PLANE_INF_FRAC,
