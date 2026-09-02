@@ -3,17 +3,17 @@
 
 **Jamo** (`all-jamo-vs.html`) — all Unicode conjoining jamo × VS × dakuten.
 
-**Syllables** (`all-hangul-s-vs.html`) — sideways syllable blocks (U+AC00..D7A3)
-in ``edenia hangul`` × FE05 × VS × dakuten.
+**Hangul-s** (`all-hangul-s-vs.html`) — same conjoining jamo inventory in
+``edenia hanguls`` (90° CW) × FE05 × VS × dakuten.
 
 Jamo inventories (Unicode, excluding fillers / unassigned):
   Choseong  U+1100..115E, U+A960..A97C
   Jungseong U+1161..11A7, U+D7B0..D7C6
   Jongseong U+11A8..11FF, U+D7CB..D7FB
 
-Sideways syllable blocks (``edenia hangul``):
-  Syllables U+AC00..D7A3 (jamo ljmo/vjmo/tjmo compose, 90° CW)
-  (append U+FE05 per glyph; FE00..FE03 mirror after rotation)
+Sideways jamo (``edenia hanguls``):
+  Same L/V/T ranges as ``edenia hangul``; outlines baked 90° clockwise.
+  Append U+FE05 per cluster; FE00..FE03 mirror after rotation.
 
 Usage
 -----
@@ -40,12 +40,13 @@ from hangul_diacritics import (
     dakuten_skip_options_html,
 )
 
-from build_hangul import SIDEWAYS_CP, SYLLABLE_CP_END, SYLLABLE_CP_START
+from build_hangul import SIDEWAYS_CP
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUT = os.path.join(SCRIPT_DIR, "dist", "hangul", "all-jamo-vs.html")
 DEFAULT_SYLL_OUT = os.path.join(SCRIPT_DIR, "dist", "hangul", "all-hangul-s-vs.html")
 HANGUL_FONT = os.path.join(SCRIPT_DIR, "dist", "hangul", "edenia-hangul.woff2")
+HANGULS_FONT = os.path.join(SCRIPT_DIR, "dist", "hangul", "edenia-hanguls.woff2")
 JULIAMONO = os.path.join(SCRIPT_DIR, "src", "JuliaMono-Regular.ttf")
 
 L_RANGES = ((0x1100, 0x115E), (0xA960, 0xA97C))
@@ -473,19 +474,22 @@ document.getElementById("btnOne").click();
     )
 
 
-def syllable_entries() -> List[dict]:
-    """Sideways syllable blocks baked in edenia hangul (Unicode-assigned only)."""
-    return assigned_cps(((SYLLABLE_CP_START, SYLLABLE_CP_END),))
+def jamo_entries() -> List[dict]:
+    """Conjoining jamo assigned in Unicode (L, then V, then T)."""
+    out: List[dict] = []
+    for ranges in (L_RANGES, V_RANGES, T_RANGES):
+        out.extend(assigned_cps(ranges))
+    return out
 
 
 def write_syllables_html(path: str, *, font_size: int, mark_limit: int) -> None:
-    syllables = syllable_entries()
-    marks = dakuten_mark_entries(limit=mark_limit, font_path=HANGUL_FONT)
+    jamo = jamo_entries()
+    marks = dakuten_mark_entries(limit=mark_limit, font_path=HANGULS_FONT)
     n_vs = 4
-    total = len(syllables) * n_vs
+    total = len(jamo) * n_vs
 
     payload = {
-        "SYLL": syllables,
+        "JAMO": jamo,
         "MARKS": marks,
         "VS": [None, 0xFE01, 0xFE02, 0xFE03],
         "VS_MARK": VS_MARK,
@@ -495,8 +499,8 @@ def write_syllables_html(path: str, *, font_size: int, mark_limit: int) -> None:
     }
 
     font_bust = 0
-    if os.path.isfile(HANGUL_FONT):
-        font_bust = int(os.path.getmtime(HANGUL_FONT))
+    if os.path.isfile(HANGULS_FONT):
+        font_bust = int(os.path.getmtime(HANGULS_FONT))
 
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
@@ -505,13 +509,13 @@ def write_syllables_html(path: str, *, font_size: int, mark_limit: int) -> None:
 <html lang="ko">
 <head>
 <meta charset="utf-8"/>
-<title>edenia hangul — syllable blocks × FE05 × VS × dakuten</title>
+<title>edenia hanguls — jamo × FE05 × VS × dakuten</title>
 <link rel="stylesheet" href="./edenia-hangul.css"/>
 <style>
 @font-face {{
-  font-family: 'edenia-hangul-local';
-  src: url("./edenia-hangul.woff2?v={font_bust}") format("woff2"),
-       url("./edenia-hangul.ttf?v={font_bust}") format("truetype");
+  font-family: 'edenia-hanguls-local';
+  src: url("./edenia-hanguls.woff2?v={font_bust}") format("woff2"),
+       url("./edenia-hanguls.ttf?v={font_bust}") format("truetype");
   font-weight: normal;
   font-style: normal;
   font-display: block;
@@ -520,7 +524,7 @@ def write_syllables_html(path: str, *, font_size: int, mark_limit: int) -> None:
 * {{ box-sizing: border-box; }}
 body {{
   margin: 0; background: #111; color: #eee;
-  font-family: edenia-hangul-local, 'edenia hangul', sans-serif;
+  font-family: edenia-hanguls-local, 'edenia hanguls', sans-serif;
   font-size: var(--fs);
   font-feature-settings: "rlig" 1, "liga" 1, "ccmp" 1;
 }}
@@ -572,11 +576,11 @@ section h2 {{
 </head>
 <body>
 <header>
-  <h1>edenia hangul — syllable blocks × FE05 × VS × dakuten</h1>
+  <h1>edenia hanguls — jamo × FE05 × VS × dakuten</h1>
   <p class="meta">
-    {len(syllables):,} syllable blocks · dakuten marks {len(marks)} (sample).
-    Glyphs are jamo-composed (ljmo/vjmo/tjmo), baked <strong>90° clockwise</strong>;
-    append <strong>U+FE05</strong> per glyph, then optional FE01–FE03 mirrors (post-rotation).
+    {len(jamo):,} conjoining jamo · dakuten marks {len(marks)} (sample).
+    Same inventory as <code>edenia hangul</code>, outlines baked <strong>90° clockwise</strong>;
+    append <strong>U+FE05</strong> per cluster, then optional FE01–FE03 mirrors (post-rotation).
     Upright syllables + compat jamo: <code>edenia cjk</code> bucket fonts.
     VS grid per slice: <strong>{n_vs}</strong> (= identity + mx + my + mxy).
     ⁵ FE05 · ¹ FE01 · ² FE02 · ³ FE03.
@@ -651,10 +655,10 @@ function labelFor(S, vi) {{
 }}
 
 function sliceIndices() {{
-  const start = Math.max(0, Math.min(DATA.SYLL.length - 1, +document.getElementById("idxStart").value || 0));
+  const start = Math.max(0, Math.min(DATA.JAMO.length - 1, +document.getElementById("idxStart").value || 0));
   const count = Math.max(1, +document.getElementById("idxCount").value || 1);
   const out = [];
-  for (let i = start; i < Math.min(DATA.SYLL.length, start + count); i++) out.push(i);
+  for (let i = start; i < Math.min(DATA.JAMO.length, start + count); i++) out.push(i);
   return out;
 }}
 
@@ -663,11 +667,11 @@ function renderSlice(indices, {{wantVS, labels}}) {{
   main.textContent = "";
   let total = 0;
   let Vvs = vsList(wantVS);
-  for (let si of indices) {{
-    let S = DATA.SYLL[si];
+  for (let ji of indices) {{
+    let J = DATA.JAMO[ji];
     let sec = document.createElement("section");
     let h = document.createElement("h2");
-    h.textContent = S.ch + "  U+" + S.cp.toString(16).toUpperCase() + "  " + S.short;
+    h.textContent = J.ch + "  U+" + J.cp.toString(16).toUpperCase() + "  " + J.short;
     sec.appendChild(h);
     let grid = document.createElement("div");
     grid.className = "grid";
@@ -676,11 +680,11 @@ function renderSlice(indices, {{wantVS, labels}}) {{
       cell.className = "cell";
       if (labels) {{
         let i = document.createElement("i");
-        i.textContent = labelFor(S, vi);
+        i.textContent = labelFor(J, vi);
         cell.appendChild(i);
       }}
       let b = document.createElement("b");
-      b.textContent = cpChars(buildSeq(S, vi));
+      b.textContent = cpChars(buildSeq(J, vi));
       cell.appendChild(b);
       grid.appendChild(cell);
       total++;
@@ -720,11 +724,11 @@ document.getElementById("btnSlice").onclick = () => {{
 }};
 
 document.getElementById("btnAll").onclick = () => {{
-  let msg = "Render ALL " + DATA.SYLL.length.toLocaleString()
-    + " syllables × " + (document.getElementById("wantVS").checked ? "4" : "1")
+  let msg = "Render ALL " + DATA.JAMO.length.toLocaleString()
+    + " jamo × " + (document.getElementById("wantVS").checked ? "4" : "1")
     + " VS? The page will become very large.";
   if (!confirm(msg)) return;
-  renderSlice(Array.from({{length: DATA.SYLL.length}}, (_, i) => i), opts());
+  renderSlice(Array.from({{length: DATA.JAMO.length}}, (_, i) => i), opts());
 }};
 
 fillMarkSelect();
@@ -735,7 +739,7 @@ document.getElementById("btnSlice").click();
 """
         )
     print(
-        f"Hangul-s: syllables={len(syllables):,} marks={len(marks)}  "
+        f"Hangul-s: jamo={len(jamo):,} marks={len(marks)}  "
         f"vs_combos={total:,}  -> {path}"
     )
 
@@ -746,7 +750,7 @@ def main() -> None:
     ap.add_argument(
         "--syllables-output",
         default=DEFAULT_SYLL_OUT,
-        help="Hangul-s syllable gallery HTML",
+        help="Hangul-s jamo gallery HTML",
     )
     ap.add_argument(
         "--jamo-only",

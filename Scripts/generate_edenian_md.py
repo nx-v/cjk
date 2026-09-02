@@ -4,14 +4,16 @@
 Japanese-like clause structure with Edenian role map:
   hiragana → kana (one script: both chart halves mix freely; full/hw = separate runs)
   hiragana-frequency yi → yi (separate script; never mixed with kana)
-  katakana → hangul
+  katakana → hangul (conjoining jamo: upright ``edenia hangul``; sideways
+             ``edenia hanguls`` with U+FE05 per cluster)
   kanji    → Han + Tangut + Khitan + precomposed Hangul (``build_cjk`` ranges;
-             conjoining jamo sequences are separate — ``edenia hangul``)
+             conjoining jamo sequences are separate — ``edenia hangul`` / ``edenia hanguls``)
 
 Word kinds:
   • inflected core — 1+ kanji/hangul components (phrasal-verb style); each may
     take fullwidth kana/yi okurigana (~92%) via prefix / suffix / circumfix / infix
-  • kanji·hangul sequence — kanji priority, hangul sporadic
+  • kanji·hangul sequence — CJK priority; precomposed Hangul (``edenia cjk``)
+    and conjoining jamo (``edenia hangul``) sporadic
   • particle — short standalone fullwidth kana or yi run
   • halfwidth kana — own sticky run (never okurigana / particles / yi mix)
 
@@ -21,7 +23,7 @@ Usage:
   python Scripts/generate_edenian_md.py --sentences 1 3 --phrases 2 5 --words 3 10
   python Scripts/generate_edenian_md.py --h --t
   python Scripts/generate_edenian_md.py --kana --h --q
-  python Scripts/generate_edenian_md.py --cjk --h --lines 32
+  python Scripts/generate_edenian_md.py --hangul --hangul-s --lines 32
 """
 
 from __future__ import annotations
@@ -53,7 +55,8 @@ from build_kana import (  # noqa: E402
     pair_index,
     small_cp,
 )
-from build_cjk import CHAR_RANGES  # noqa: E402
+from build_cjk import CHAR_RANGES, HANGUL_SYLLABLE_RANGES  # noqa: E402
+from build_hangul import SIDEWAYS_CP  # noqa: E402
 from hangul_diacritics import (  # noqa: E402
     CGJ_CP,
     DAKUTEN_SLOT_COUNT,
@@ -112,6 +115,12 @@ SLICE_RATIO = 0.18  # P(3)≈P(2)*r, P(4)≈P(3)*r
 # (geometric / exponential falloff — longer runs are rarer).
 SCRIPT_RUN_RATIO = 0.42
 
+# Hangul faces: ``""`` upright (edenia hangul); ``s`` sideways (+ FE05, edenia hanguls).
+HANGUL_DEFAULT_FACES = frozenset({"", "s"})
+HANGUL_SIDEWAYS_P = 0.30  # when both faces enabled in one run
+# Precomposed Hangul (``edenia cjk``) in kanji·hangul sequences when ``--cjk``.
+CJK_PRECOMPOSED_HANGUL_P = 0.12
+
 FALLBACK_MARKS = tuple("\u3099\u309a\uff9e\uff9f\u0308\u0301\u0300\u0302\u0304\u0306")
 
 FE_D4 = tuple(chr(c) for c in range(0xFE01, 0xFE08))
@@ -120,6 +129,7 @@ FE_D4 = tuple(chr(c) for c in range(0xFE01, 0xFE08))
 # never identity VS, never unsliced cluster glue, never stacked on itself.
 FE_HANGUL_MIRROR = tuple(chr(c) for c in range(0xFE01, 0xFE04))
 FE04 = "\ufe04"
+FE05 = chr(SIDEWAYS_CP)  # sideways jamo cluster selector (edenia hanguls)
 CA = "\U00016ff0"
 NHAY = "\U00016ff1"
 CGJ = chr(CGJ_CP)
@@ -319,16 +329,16 @@ def _cjk_range_pick_weight(label: str, n_chars: int) -> float:
         base = 3.0
     elif "radical" in lab or "kangxi" in lab:
         base = 2.5
-    elif "compat" in lab:
-        base = 2.0
+    elif "hangul syll" in lab:
+        base = 8.0
+    elif "hangul compat" in lab or "compatibility jamo" in lab:
+        base = 6.0
     elif "tangut" in lab:
         base = 5.0
     elif "khitan" in lab:
         base = 2.5
-    elif "hangul syll" in lab:
-        base = 8.0
-    elif "hangul compat" in lab or "compatibility jamo" in lab:
-        base = 1.5
+    elif "compat" in lab:
+        base = 2.0
     elif "kanbun" in lab or "stroke" in lab:
         base = 0.8
     else:
@@ -401,6 +411,15 @@ CJK_SAMPLE_POOLS: Tuple[Tuple[Tuple[int, ...], float], ...] = tuple(
     if cps
 )
 CJK_ASSIGNED_COUNT = sum(len(cps) for cps, _ in CJK_SAMPLE_POOLS)
+
+# Precomposed Hangul only (syllables U+AC00..D7A3 + compat jamo U+3131..318E).
+CJK_HANGUL_SAMPLE_POOLS: Tuple[Tuple[Tuple[int, ...], float], ...] = tuple(
+    (cps, _cjk_range_pick_weight(name, len(cps)))
+    for start, end, name in HANGUL_SYLLABLE_RANGES
+    for cps in (_assigned_cps_in_range(start, end, _UCD_INTERVALS),)
+    if cps
+)
+CJK_HANGUL_ASSIGNED_COUNT = sum(len(cps) for cps, _ in CJK_HANGUL_SAMPLE_POOLS)
 
 # Hangul jamo: packed as char+length digit (same as JS)
 _HANGUL_CHO = (
@@ -518,6 +537,7 @@ class GenOptions:
     kana: bool = True
     hangul: bool = True
     cjk: bool = True
+    hangul_faces: frozenset[str] = frozenset(HANGUL_DEFAULT_FACES)
     # Segment suffixes including ``""`` (base / unsliced).
     kana_faces: frozenset[str] = frozenset(KANA_YI_DEFAULT_VARIANTS)
     yi_faces: frozenset[str] = frozenset(KANA_YI_DEFAULT_VARIANTS)
@@ -541,7 +561,8 @@ class Gen:
         self.opts = opts or GenOptions()
         print(
             f"{len(CJK_SAMPLE_POOLS)} CJK ranges / {CJK_ASSIGNED_COUNT:,} assigned "
-            f"(Han+Tangut+Khitan; Unicode {UCD_VERSION})"
+            f"(Han+Tangut+Khitan+precomp Hangul; Unicode {UCD_VERSION}; "
+            f"Hangul syll+compat {CJK_HANGUL_ASSIGNED_COUNT:,})"
         )
         scripts = [
             s
@@ -557,7 +578,8 @@ class Gen:
             f"[generate_edenian_md] scripts={'+'.join(scripts) or '(none)'} "
             f"kana_faces={_faces_label(self.opts.kana_faces)} "
             f"yi_faces={_faces_label(self.opts.yi_faces)} "
-            f"cjk_faces={_faces_label(self.opts.cjk_faces)}"
+            f"cjk_faces={_faces_label(self.opts.cjk_faces)} "
+            f"hangul_faces={_hangul_faces_label(self.opts.hangul_faces)}"
         )
 
     def choice(self, seq: Sequence):
@@ -584,6 +606,15 @@ class Gen:
     def chance(self, p: float) -> bool:
         return self.rng.random() < p
 
+    def pick_hangul_sideways(self) -> bool:
+        """Pick sideways jamo (``edenia hanguls`` + FE05) vs upright."""
+        faces = self.opts.hangul_faces
+        if not faces or faces == frozenset({""}):
+            return False
+        if faces == frozenset({"s"}):
+            return True
+        return self.chance(HANGUL_SIDEWAYS_P)
+
     def weighted_choice(self, items: Sequence[Tuple[T, float]]) -> T:
         total = sum(w for _, w in items)
         if total <= 0:
@@ -608,6 +639,12 @@ class Gen:
     def ideograph(self) -> str:
         return chr(self.choice(self.weighted_choice(CJK_SAMPLE_POOLS)))
 
+    def precomposed_hangul(self) -> str:
+        """One precomposed syllable or compat jamo from ``edenia cjk`` inventory."""
+        if not CJK_HANGUL_SAMPLE_POOLS:
+            return self.ideograph()
+        return chr(self.choice(self.weighted_choice(CJK_HANGUL_SAMPLE_POOLS)))
+
 
 def _faces_label(faces: frozenset[str]) -> str:
     parts = [
@@ -617,9 +654,18 @@ def _faces_label(faces: frozenset[str]) -> str:
     return ",".join(parts) if parts else "-"
 
 
+def _hangul_faces_label(faces: frozenset[str]) -> str:
+    parts = [
+        ("base" if v == "" else "s" if v == "s" else v)
+        for v in sorted(faces, key=lambda x: (x != "", x))
+    ]
+    return ",".join(parts) if parts else "-"
+
+
 def load_combining_marks() -> List[str]:
     candidates = [
         SCRIPT_DIR / "dist" / "hangul" / "edenia-hangul.woff2",
+        SCRIPT_DIR / "dist" / "hangul" / "edenia-hanguls.woff2",
         SCRIPT_DIR / "dist" / "yi" / "edenia-yi.woff2",
         SCRIPT_DIR / "dist" / "kana" / "edenia-kana.woff2",
         SCRIPT_DIR / "obsidian-edenia" / "edenia" / "hangul" / "edenia-hangul.woff2",
@@ -802,7 +848,12 @@ def _slice_multigraph(
 # ---------------------------------------------------------------------------
 
 
-def hangul_syllable(g: Gen, *, with_vs: Optional[bool] = None) -> str:
+def hangul_syllable(
+    g: Gen,
+    *,
+    with_vs: Optional[bool] = None,
+    sideways: Optional[bool] = None,
+) -> str:
     # L and V always present: real jamo or fillers (never an empty onset/nucleus)
     L = g.choice(CHOSEONG) if CHOSEONG else FILLER_L
     V = g.choice(JUNGSEONG) if JUNGSEONG else FILLER_V
@@ -819,12 +870,16 @@ def hangul_syllable(g: Gen, *, with_vs: Optional[bool] = None) -> str:
     s = L + V + T
     if T and g.chance(0.25):
         s += FE04
+    if sideways if sideways is not None else g.pick_hangul_sideways():
+        s += FE05
     return attach_diacritics(g, s)
 
 
-def hangul_word(g: Gen, n: Optional[int] = None) -> str:
+def hangul_word(g: Gen, n: Optional[int] = None, *, sideways: Optional[bool] = None) -> str:
     n = n or g.island_len(1, 5)
-    return "".join(hangul_syllable(g) for _ in range(n))
+    if sideways is None:
+        sideways = g.pick_hangul_sideways()
+    return "".join(hangul_syllable(g, sideways=sideways) for _ in range(n))
 
 
 def yi_base(g: Gen) -> str:
@@ -992,6 +1047,27 @@ def kanji_cluster(g: Gen) -> str:
     return a
 
 
+def precomposed_hangul_cluster(g: Gen) -> str:
+    """Precomposed Hangul cluster (syllable or compat jamo; ``edenia cjk``)."""
+    a = g.precomposed_hangul()
+    if g.chance(0.25):
+        a += g.choice(FE_D4)
+    if g.chance(0.08):
+        slot = "" if g.chance(0.35) else g.choice(FE_D4)
+        a += slot + (CA if g.chance(0.5) else NHAY)
+    if g.chance(0.12):
+        b = g.precomposed_hangul()
+        if g.chance(0.3):
+            b += g.choice(FE_D4)
+        return a + b
+    return a
+
+
+def precomposed_hangul_word(g: Gen, n: Optional[int] = None) -> str:
+    n = n or g.island_len(1, 2)
+    return "".join(precomposed_hangul_cluster(g) for _ in range(n))
+
+
 def kanji_half_digraph(g: Gen) -> str:
     """CJK slice compound: complementary half/triangle tiles + FE00 joiner."""
     if "h" not in g.opts.cjk_faces:
@@ -1129,6 +1205,8 @@ def symbol_island(g: Gen) -> str:
             makers.append(lambda: yi_run(g, 2))
         if g.opts.cjk:
             makers.append(lambda: kanji_word(g))
+            if CJK_HANGUL_SAMPLE_POOLS:
+                makers.append(lambda: precomposed_hangul_word(g, 2))
         if g.opts.hangul:
             makers.append(lambda: hangul_word(g, 2))
         makers.append(lambda: fw_letters(g))
@@ -1278,21 +1356,33 @@ def word_inflected(g: Gen) -> str:
 
 
 def word_kanji_hangul_sequence(g: Gen) -> str:
-    """Sequence of kanji and hangul; kanji priority, hangul sporadic."""
+    """Sequence of CJK and Hangul; CJK priority, Hangul sporadic.
+
+    Precomposed syllables + compat jamo (``edenia cjk``) when ``--cjk``.
+    Conjoining jamo (``edenia hangul`` / ``edenia hanguls``) when ``--hangul``.
+    """
     n = g.island_len(1, 5)
-    hangul_p = 0.12 if (g.opts.hangul and g.opts.cjk) else (1.0 if g.opts.hangul else 0.0)
+    conj_hangul_p = 0.12 if (g.opts.hangul and g.opts.cjk) else (1.0 if g.opts.hangul else 0.0)
     parts: List[str] = []
     for i in range(n):
         if i > 0 and g.chance(0.06):
             parts.append("・")
-        if g.opts.hangul and g.chance(hangul_p):
-            parts.append(hangul_word(g, g.island_len(1, 2)))
-        elif g.opts.cjk:
-            parts.append(_kanji_piece(g, prefer_multi=(n >= 2)))
-        elif g.opts.hangul:
+        choices: List[Tuple[str, float]] = []
+        if g.opts.cjk:
+            choices.append(("cjk", 1.0))
+            if CJK_HANGUL_SAMPLE_POOLS:
+                choices.append(("precomp", CJK_PRECOMPOSED_HANGUL_P))
+        if g.opts.hangul and conj_hangul_p > 0:
+            choices.append(("conj", conj_hangul_p))
+        if not choices:
+            break
+        kind = g.weighted_choice(tuple(choices))
+        if kind == "precomp":
+            parts.append(precomposed_hangul_word(g, g.island_len(1, 2)))
+        elif kind == "conj":
             parts.append(hangul_word(g, g.island_len(1, 2)))
         else:
-            break
+            parts.append(_kanji_piece(g, prefer_multi=(n >= 2)))
     return "".join(parts)
 
 
@@ -1439,6 +1529,10 @@ def build_document(g: Gen, num_lines: int, seed: int) -> str:
         f"sentences: {b.sentences_min}-{b.sentences_max}",
         f"phrases: {b.phrases_min}-{b.phrases_max}",
         f"words: {b.words_min}-{b.words_max}",
+    ]
+    if g.opts.hangul:
+        parts.append(f"hangul_faces: {_hangul_faces_label(g.opts.hangul_faces)}")
+    parts += [
         "---",
         "",
         "# Random prose",
@@ -1559,6 +1653,16 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     faces.add_argument("--yi-h", action="store_true", help="Yi: half / triangle faces (implies base)")
     faces.add_argument("--yi-t", action="store_true", help="Yi: third-cell faces (implies base)")
     faces.add_argument("--yi-q", action="store_true", help="Yi: quarter faces q/qv/qh (implies base)")
+    faces.add_argument(
+        "--hangul-base",
+        action="store_true",
+        help="Hangul: upright jamo only when alone; implied by --hangul-s",
+    )
+    faces.add_argument(
+        "--hangul-s",
+        action="store_true",
+        help="Hangul: include sideways jamo (U+FE05, edenia hanguls; implies base)",
+    )
     return p.parse_args(argv)
 
 
@@ -1616,6 +1720,20 @@ def _resolve_cjk_face_flags(
     return frozenset(ordered_cjk_variants(selected))
 
 
+def _resolve_hangul_face_flags(*, base: bool, want_s: bool) -> frozenset[str]:
+    """Hangul: ``""`` upright; ``s`` sideways (+ FE05). Default: both."""
+    if not base and not want_s:
+        return frozenset(HANGUL_DEFAULT_FACES)
+    if base and not want_s:
+        return frozenset({""})
+    selected: List[str] = []
+    if base or want_s:
+        selected.append("")
+    if want_s:
+        selected.append("s")
+    return frozenset(selected)
+
+
 def options_from_args(args: argparse.Namespace) -> GenOptions:
     any_script = args.yi or args.kana or args.hangul or args.cjk
     # Shared --base/--h/--t/--q OR per-script flags (like run.ps1).
@@ -1643,6 +1761,10 @@ def options_from_args(args: argparse.Namespace) -> GenOptions:
             faces=args.cjk_faces,
             want_h=args.h or args.cjk_h,
             imply_base_from_slices=shared_slices,
+        ),
+        hangul_faces=_resolve_hangul_face_flags(
+            base=args.hangul_base,
+            want_s=args.hangul_s,
         ),
     )
 
