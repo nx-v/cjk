@@ -978,55 +978,42 @@ def _fe04_vowel_axis(axis: VowelAxis, *, rotate_cw: bool) -> VowelAxis:
     return axis
 
 
+def _fe04_is_cw_twin(name: str) -> bool:
+    return f".{SIDEWAYS_SUFFIX}" in name
+
+
+def _fe04_ctx(rotate_cw: bool, name: str) -> str:
+    """FE04 coordinate context: ``hanguls`` | ``cw`` | ``upright``."""
+    if rotate_cw:
+        return "hanguls"
+    if _fe04_is_cw_twin(name):
+        return "cw"
+    return "upright"
+
+
 def _fe04_logical_bounds(
     glyphs: Dict[str, TTGlyph],
     name: str,
     *,
-    rotate_cw: bool,
+    ctx: str,
 ) -> Optional[Tuple[float, float, float, float]]:
-    """Inverse 90° CW bbox so FE04 band math runs in upright syllable space."""
+    """Inverse 90° CW bbox for ``.cw`` upright twins only."""
     bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
         return None
-    if not rotate_cw:
+    if ctx != "cw":
         return bounds
     rx0, ry0, rx1, ry1 = bounds
     return (-ry1, rx0, -ry0, rx1)
 
 
-def _fe04_sideways_placement(*, rotate_cw: bool, name: str) -> bool:
-    """True when FE04 band math should run in 90°-CW syllable space."""
-    if rotate_cw:
-        return True
-    return f".{SIDEWAYS_SUFFIX}" in name
-
-
-def _fe04_expand_cw(
-    names: Sequence[str],
-    glyphs: Dict[str, TTGlyph],
-    *,
-    rotate_cw: bool,
-) -> List[str]:
-    """Include ``.cw`` twins on the upright face (FE05 GSUB path)."""
-    if rotate_cw:
-        return list(names)
-    out = set(names)
-    for name in names:
-        cw = sideways_glyph_name(name)
-        if cw in glyphs:
-            out.add(cw)
-    return list(out)
-
-
-def _fe04_placement_value(
-    *,
-    x: int = 0,
-    y: int = 0,
-    rotate_cw: bool = False,
-) -> object:
-    """Pack GPOS translate; 90° CW remaps upright ``(x, y)`` → ``(y, −x)``."""
-    if rotate_cw:
+def _fe04_pack(x: int = 0, y: int = 0, *, ctx: str) -> object:
+    """Pack GPOS translate for the active FE04 context."""
+    if ctx == "cw":
         x, y = y, -x
+    elif ctx == "hanguls":
+        # Baked 90° CW face: upright Y-band deltas are emitted on X (etc.) directly.
+        pass
     val: Dict[str, int] = {}
     if x:
         val["XPlacement"] = int(x)
@@ -1037,52 +1024,84 @@ def _fe04_placement_value(
     return buildValue(val)
 
 
+def _fe04_lv_delta(dy: int, *, ctx: str) -> Tuple[int, int]:
+    """Map shared upright ``dy_lv`` / ``dy_t`` magnitudes to font axes."""
+    if ctx == "hanguls":
+        return dy, 0
+    return 0, dy
+
+
 def fe04_unflipped_l_y_placement(
     name: str,
     *,
     glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
     bounds: Optional[Tuple[float, float, float, float]] = None,
-) -> int:
+    ctx: str = "upright",
+) -> Tuple[int, int]:
     """FE04 + upright Y/XY: park L top just under raised ``T.sw``."""
     if bounds is None:
         bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
-        return 0
+        return 0, 0
+    if ctx == "hanguls":
+        adv = int(metrics.get(name, (0, 0))[0])
+        box = padded_ideo_box(target_upem, advance=adv)
+        span = box[2] - box[0]
+        target = box[0] + span * 0.62
+        return otRound(target - bounds[2]), 0
     bottom, _top, ideo_h = ideographic_bounds(target_upem)
     target_top = bottom + ideo_h * 0.62
-    return otRound(target_top - bounds[3])
+    dy = otRound(target_top - bounds[3])
+    return _fe04_lv_delta(dy, ctx=ctx)
 
 
 def fe04_y_floor_y_placement(
     name: str,
     *,
     glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
     bounds: Optional[Tuple[float, float, float, float]] = None,
-) -> int:
-    """Park glyph bottom on the padded ideographic floor."""
+    ctx: str = "upright",
+) -> Tuple[int, int]:
+    """Park glyph floor on the padded ideographic band."""
     if bounds is None:
         bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
-        return 0
+        return 0, 0
+    if ctx == "hanguls":
+        adv = int(metrics.get(name, (0, 0))[0])
+        box = padded_ideo_box(target_upem, advance=adv)
+        span = box[2] - box[0]
+        target = box[0] + span * 0.04
+        return otRound(target - bounds[0]), 0
     bottom, _top, ideo_h = ideographic_bounds(target_upem)
     target_bottom = bottom + ideo_h * 0.04
-    return otRound(target_bottom - bounds[1])
+    dy = otRound(target_bottom - bounds[1])
+    return _fe04_lv_delta(dy, ctx=ctx)
 
 
 def fe04_emmy_l_y_placement(
     name: str,
     *,
     glyphs: Dict[str, TTGlyph],
+    metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
     vowel_axis: VowelAxis = "y",
     bounds: Optional[Tuple[float, float, float, float]] = None,
-) -> int:
+    ctx: str = "upright",
+) -> Tuple[int, int]:
     """FE04 + Y-flipped V: park ``L.em*`` on the floor under the medial tip."""
     del vowel_axis
     return fe04_y_floor_y_placement(
-        name, glyphs=glyphs, target_upem=target_upem, bounds=bounds
+        name,
+        glyphs=glyphs,
+        metrics=metrics,
+        target_upem=target_upem,
+        bounds=bounds,
+        ctx=ctx,
     )
 
 
@@ -1123,17 +1142,22 @@ def fe04_t_x_placement(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
     bounds: Optional[Tuple[float, float, float, float]] = None,
-) -> int:
-    """Translate ``T.sw`` so its bbox center sits on the ideographic mid-x."""
+    ctx: str = "upright",
+) -> Tuple[int, int]:
+    """Center ``T.sw`` on the ideographic mid-x (upright / ``.cw``) or mid-y (hanguls)."""
     if bounds is None:
         bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
-        return 0
+        return 0, 0
     adv = int(metrics.get(name, (0, 0))[0])
-    icx, _icy = ideographic_center(target_upem)
+    icx, icy = ideographic_center(target_upem)
+    if ctx == "hanguls":
+        exp = icy - (float(target_upem) if adv == 0 else 0.0)
+        cy = (bounds[1] + bounds[3]) * 0.5
+        return 0, otRound(exp - cy)
     exp = icx - (float(target_upem) if adv == 0 else 0.0)
     cx = (bounds[0] + bounds[2]) * 0.5
-    return otRound(exp - cx)
+    return otRound(exp - cx), 0
 
 
 def fe04_xy_x_placement(
@@ -1143,20 +1167,45 @@ def fe04_xy_x_placement(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
     bounds: Optional[Tuple[float, float, float, float]] = None,
-) -> int:
-    """Nudge XY medial into the padded X box (clearance math)."""
+    ctx: str = "upright",
+) -> Tuple[int, int]:
+    """Nudge XY medial into the padded box (clearance math)."""
     if bounds is None:
         bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
-        return 0
+        return 0, 0
     adv = int(metrics.get(name, (0, 0))[0])
     box = padded_ideo_box(target_upem, advance=adv)
+    if ctx == "hanguls":
+        y0, y1 = bounds[1], bounds[3]
+        if y0 < box[1]:
+            return 0, otRound(box[1] - y0)
+        if y1 > box[3]:
+            return 0, otRound(box[3] - y1)
+        return 0, 0
     x0, _y0, x1, _y1 = bounds
     if x0 < box[0]:
-        return otRound(box[0] - x0)
+        return otRound(box[0] - x0), 0
     if x1 > box[2]:
-        return otRound(box[2] - x1)
-    return 0
+        return otRound(box[2] - x1), 0
+    return 0, 0
+
+
+def _fe04_expand_cw(
+    names: Sequence[str],
+    glyphs: Dict[str, TTGlyph],
+    *,
+    rotate_cw: bool,
+) -> List[str]:
+    """Include ``.cw`` twins on the upright face (FE05 GSUB path)."""
+    if rotate_cw:
+        return list(names)
+    out = set(names)
+    for name in names:
+        cw = sideways_glyph_name(name)
+        if cw in glyphs:
+            out.add(cw)
+    return list(out)
 
 
 def add_em_variant(
@@ -2271,10 +2320,11 @@ def install_fe04_gpos(
     raised batchim; flipped Y/XY keep base `dy_lv` on L with medial extras.
     `T.sw` also gets cross-axis centering. XY medials may get in-box nudge.
 
-    When ``rotate_cw`` (``edenia hanguls``), upright band math runs on
-    logically unrotated bounds, then each ``(x, y)`` delta maps through
-    90° CW as ``(y, −x)`` (top→right, bottom→left). Vowel axis groups swap
-    x↔y like mirror/flip bands on the rotated face.
+    When ``rotate_cw`` (``edenia hanguls``), outlines are already baked 90° CW
+    and mirrors run post-rotation — FE04 emits sideways band targets once in
+    font space (no vowel-axis swap, no inverse bbox). ``.cw`` upright twins
+    (FE05 on ``edenia hangul``) still remap upright math through 90° CW and
+    swap x↔y medial chains.
 
     Returns `(dy_lv, dy_t, chain_lookup_count)`.
     """
@@ -2314,15 +2364,15 @@ def install_fe04_gpos(
             stem = stem[: -len(FE04_T_SUFFIX) - 1]
         a = vowel_axes.get(stem) or vowel_axes.get(_strip_mirror(stem), "xy")
         a = a if a in ("x", "y", "xy") else "xy"
-        if _fe04_sideways_placement(rotate_cw=rotate_cw, name=name):
+        if _fe04_ctx(rotate_cw, name) == "cw":
             a = _fe04_vowel_axis(a, rotate_cw=True)
         return a
 
-    def _places(name: str) -> bool:
-        return _fe04_sideways_placement(rotate_cw=rotate_cw, name=name)
+    def _ctx(name: str) -> str:
+        return _fe04_ctx(rotate_cw, name)
 
     def _lb(name: str) -> Optional[Tuple[float, float, float, float]]:
-        return _fe04_logical_bounds(glyphs, name, rotate_cw=_places(name))
+        return _fe04_logical_bounds(glyphs, name, ctx=_ctx(name))
 
     l_all = _with_bbox(l_forms)
     for L in list(l_all):
@@ -2423,44 +2473,54 @@ def install_fe04_gpos(
     def _l_values_x() -> Dict[str, object]:
         out: Dict[str, object] = {}
         for L in l_all:
+            ctx = _ctx(L)
             if fe04_l_is_emmy(L):
-                dy = fe04_emmy_l_y_placement(
+                x, y = fe04_emmy_l_y_placement(
                     L,
                     glyphs=glyphs,
+                    metrics=metrics,
                     target_upem=target_upem,
                     vowel_axis="xy",
                     bounds=_lb(L),
+                    ctx=ctx,
                 )
             else:
-                dy = dy_lv_x
-            out[L] = _fe04_placement_value(y=dy, rotate_cw=_places(L))
+                x, y = _fe04_lv_delta(dy_lv_x, ctx=ctx)
+            out[L] = _fe04_pack(x, y, ctx=ctx)
         return out
 
     def _l_values_up() -> Dict[str, object]:
-        # Upright Y/XY: L stays just under raised batchim.
         out: Dict[str, object] = {}
         for L in l_all:
-            dy = fe04_unflipped_l_y_placement(
-                L, glyphs=glyphs, target_upem=target_upem, bounds=_lb(L)
+            ctx = _ctx(L)
+            x, y = fe04_unflipped_l_y_placement(
+                L,
+                glyphs=glyphs,
+                metrics=metrics,
+                target_upem=target_upem,
+                bounds=_lb(L),
+                ctx=ctx,
             )
-            out[L] = _fe04_placement_value(y=dy, rotate_cw=_places(L))
+            out[L] = _fe04_pack(x, y, ctx=ctx)
         return out
 
     def _l_values_flip(axis: VowelAxis) -> Dict[str, object]:
-        # Flipped V: L.em* on the floor (end of medial / under the bar).
         out: Dict[str, object] = {}
         for L in l_all:
+            ctx = _ctx(L)
             if fe04_l_is_emmy(L):
-                dy = fe04_emmy_l_y_placement(
+                x, y = fe04_emmy_l_y_placement(
                     L,
                     glyphs=glyphs,
+                    metrics=metrics,
                     target_upem=target_upem,
                     vowel_axis=axis,
                     bounds=_lb(L),
+                    ctx=ctx,
                 )
             else:
-                dy = dy_lv_i
-            out[L] = _fe04_placement_value(y=dy, rotate_cw=_places(L))
+                x, y = _fe04_lv_delta(dy_lv_i, ctx=ctx)
+            out[L] = _fe04_pack(x, y, ctx=ctx)
         return out
 
     l_values_x = _l_values_x()
@@ -2471,46 +2531,52 @@ def install_fe04_gpos(
     v_x_values: Dict[str, object] = {}
     for V in v_all:
         axis = _axis_of(V)
+        ctx = _ctx(V)
         if axis == "x":
-            dy_v = dy_lv_x
+            x, y = _fe04_lv_delta(dy_lv_x, ctx=ctx)
         elif axis == "y" and not fe04_medial_is_y_flipped(V):
-            dy_v = fe04_y_floor_y_placement(
-                V, glyphs=glyphs, target_upem=target_upem, bounds=_lb(V)
-            )
-        else:
-            dy_v = dy_lv_i + fe04_medial_extra_dy(axis, V, target_upem)
-        if axis == "xy":
-            dx_v = fe04_xy_x_placement(
+            x, y = fe04_y_floor_y_placement(
                 V,
                 glyphs=glyphs,
                 metrics=metrics,
                 target_upem=target_upem,
                 bounds=_lb(V),
+                ctx=ctx,
             )
-            if rotate_cw or _places(V):
-                v_y_values[V] = _fe04_placement_value(
-                    x=dx_v, y=dy_v, rotate_cw=True
-                )
-            else:
-                v_y_values[V] = _fe04_placement_value(y=dy_v)
-                if dx_v:
-                    v_x_values[V] = _fe04_placement_value(x=dx_v)
         else:
-            v_y_values[V] = _fe04_placement_value(
-                y=dy_v, rotate_cw=_places(V)
+            x, y = _fe04_lv_delta(
+                dy_lv_i + fe04_medial_extra_dy(axis, V, target_upem), ctx=ctx
             )
+        if axis == "xy":
+            dx, dy = fe04_xy_x_placement(
+                V,
+                glyphs=glyphs,
+                metrics=metrics,
+                target_upem=target_upem,
+                bounds=_lb(V),
+                ctx=ctx,
+            )
+            if ctx == "upright":
+                v_y_values[V] = _fe04_pack(0, y, ctx=ctx)
+                if dx:
+                    v_x_values[V] = _fe04_pack(dx, 0, ctx=ctx)
+            else:
+                v_y_values[V] = _fe04_pack(x + dx, y + dy, ctx=ctx)
+        else:
+            v_y_values[V] = _fe04_pack(x, y, ctx=ctx)
     t_values: Dict[str, object] = {}
     for T in t_sw:
-        dx_t = fe04_t_x_placement(
+        ctx = _ctx(T)
+        dx, dy = fe04_t_x_placement(
             T,
             glyphs=glyphs,
             metrics=metrics,
             target_upem=target_upem,
             bounds=_lb(T),
+            ctx=ctx,
         )
-        t_values[T] = _fe04_placement_value(
-            x=dx_t, y=dy_t_i, rotate_cw=_places(T)
-        )
+        tx, ty = _fe04_lv_delta(dy_t_i, ctx=ctx)
+        t_values[T] = _fe04_pack(dx + tx, dy + ty, ctx=ctx)
 
     script_tags = ("DFLT", "hang", "latn")
     gpos = _ensure_gpos(font, script_tags)
