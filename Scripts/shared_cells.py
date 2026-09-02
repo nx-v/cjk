@@ -2506,7 +2506,7 @@ def _finalize_sliced_ttglyph(
 ) -> TTGlyph:
     """Post-clip finalize: strip crumbs → reconnect cut points → fix winding.
 
-    Does **not** run ``pathops.simplify`` — baked contours (after transforms /
+    Does **not** run `pathops.simplify` — baked contours (after transforms /
     weight) stay as clipped; only spike collapse + near-point snap redraws
     joins opened by the cut.
     """
@@ -2558,7 +2558,7 @@ def _prepare_pathops_for_slice(
     """Pre-slice pathops path: decompose only — keep raw baked contours.
 
     Transforms and weight adjustments already happened on the source glyph.
-    No ``pathops.simplify`` and no artefact strip before the clip (reconnect
+    No `pathops.simplify` and no artefact strip before the clip (reconnect
     runs after slicing in :func:`_finalize_sliced_ttglyph`).
     """
     del upem  # reserved for callers that pass cell size

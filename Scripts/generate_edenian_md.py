@@ -470,7 +470,7 @@ class GenOptions:
     hangul: bool = True
     cjk: bool = True
     hangul_faces: frozenset[str] = frozenset(HANGUL_DEFAULT_FACES)
-    # ``""`` = plain glyph (± diacritics); ``h`` = FE08–FE0F half compounds.
+    # `""` = plain glyph (± diacritics); `h` = FE08–FE0F half compounds.
     kana_faces: frozenset[str] = frozenset(FACE_DEFAULTS)
     yi_faces: frozenset[str] = frozenset(FACE_DEFAULTS)
     cjk_faces: frozenset[str] = frozenset(FACE_DEFAULTS)
@@ -655,7 +655,7 @@ def attach_diacritics(g: Gen, base: str) -> str:
 
 
 def _slice_tile(base: str, vs: int) -> str:
-    """One compound tile: unsliced base + slice selector (never bare ``cp FE00``)."""
+    """One compound tile: unsliced base + slice selector (never bare `cp FE00`)."""
     base = base.replace(OV, "")
     if not base:
         raise ValueError("slice tile base must be non-empty")
@@ -665,7 +665,7 @@ def _slice_tile(base: str, vs: int) -> str:
 def _stack_segments(parts: Sequence[Tuple[str, int]]) -> str:
     """Compose a complementary half-cell digraph (sole FE00 emitter).
 
-    Format: ``ZWSP tile FE00 tile`` where each tile is ``[cp][d4]?[slice]``.
+    Format: `ZWSP tile FE00 tile` where each tile is `[cp][d4]?[slice]`.
     FE00 only ever follows a half/triangle slice — never a bare full glyph.
     """
     if len(parts) != 2:
@@ -701,7 +701,7 @@ def _want_half_compound(g: Gen, faces: frozenset[str]) -> bool:
 
 
 def _pick_half_cover(g: Gen) -> Sequence[int]:
-    """Pick a complementary half/triangle cover (always 2 tiles on face ``h``)."""
+    """Pick a complementary half/triangle cover (always 2 tiles on face `h`)."""
     names_weights = [(n, w) for n, _c, w in _HALF_COVERS]
     pick = g.weighted_choice(tuple(names_weights))
     for name, covers, _w in _HALF_COVERS:
@@ -719,7 +719,7 @@ def _slice_multigraph(
 ) -> str:
     """Plain glyph (± diacritics) or complementary half digraph + diacritics.
 
-    ``plain`` defaults to ``mk``; kana passes ``kana_cluster`` so length/gem
+    `plain` defaults to `mk`; kana passes `kana_cluster` so length/gem
     markers stay on unsliced syllables only.
     """
     if not _want_half_compound(g, faces):
@@ -1526,7 +1526,9 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help="Yi: identity/base only when alone; implied by --yi-h",
     )
     faces.add_argument(
-        "--yi-h", action="store_true", help="Yi: half / triangle digraphs (implies base)"
+        "--yi-h",
+        action="store_true",
+        help="Yi: half / triangle digraphs (implies base)",
     )
     faces.add_argument(
         "--hangul-base",
@@ -1542,7 +1544,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 
 
 def _resolve_base_h_faces(*, base: bool, want_h: bool) -> frozenset[str]:
-    """``--h`` → base+h. ``--base`` alone → base. No flags → :data:`FACE_DEFAULTS`."""
+    """`--h` → base+h. `--base` alone → base. No flags → :data:`FACE_DEFAULTS`."""
     if not base and not want_h:
         return frozenset(FACE_DEFAULTS)
     selected: List[str] = [""]  # --h implies base
