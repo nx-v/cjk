@@ -17,8 +17,9 @@ Quarter cells (`q` / `qv` / `qh` faces)
 * Vertical `qv`: `VS9`–`VS10`, `VS27`–`VS33`.
 * Horizontal `qh`: `VS11`–`VS12`, `VS34`–`VS40`.
 
-All segment forms are **slices** of baked outlines (clip + heal; never
-`full − piece` alone). See each section below for VS tables.
+All segment forms are **slices** of baked outlines (clip, then reconnect
+cut points; never `pathops.simplify`, never `full − piece` alone). See each
+section below for VS tables.
 """
 
 from __future__ import annotations
@@ -2090,10 +2091,11 @@ def boolean_subtract_glyphs(
 ) -> TTGlyph:
     """Boolean **difference** `minuend − subtrahend`.
 
-    Both operands are healed + artefact-stripped first; the result is finalized
-    the same way. Optional `clamp_rect` / `clamp_polygon` re-intersects the
-    difference with the intended keep region so pathops crumbs past the cut
-    cannot survive (prefer a direct clip when the keep region is known).
+    Both operands are converted raw (no simplify); the result is finalized
+    with artefact strip + point reconnect only. Optional `clamp_rect` /
+    `clamp_polygon` re-intersects the difference with the intended keep
+    region so pathops crumbs past the cut cannot survive (prefer a direct
+    clip when the keep region is known).
     """
     import pathops
 
@@ -2502,15 +2504,14 @@ def _finalize_sliced_ttglyph(
     *,
     upem: int = DEFAULT_UPEM,
 ) -> TTGlyph:
-    """Post-boolean/clip finalize: strip → heal joins → safe simplify → strip."""
+    """Post-clip finalize: strip crumbs → reconnect cut points → fix winding.
+
+    Does **not** run ``pathops.simplify`` — baked contours (after transforms /
+    weight) stay as clipped; only spike collapse + near-point snap redraws
+    joins opened by the cut.
+    """
     cleaned = _pathops_strip_artefacts(path, upem=upem)
     glyph = fix_ttglyph_hole_winding(_pathops_to_ttglyph(cleaned))
-    glyph = cleanup_ttglyph_contours(glyph, upem=upem)
-    # Second pass through pathops so snap/spike fixes don't leave crumbs.
-    sk = _ttglyph_to_pathops(glyph)
-    sk = _safe_simplify_pathops(sk, upem=upem)
-    sk = _pathops_strip_artefacts(sk, upem=upem)
-    glyph = fix_ttglyph_hole_winding(_pathops_to_ttglyph(sk))
     return cleanup_ttglyph_contours(glyph, upem=upem)
 
 
@@ -2520,10 +2521,10 @@ def heal_sliced_glyph(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     upem: int = DEFAULT_UPEM,
 ) -> TTGlyph:
-    """Heal geometry around a slice cut (before + after pipeline).
+    """Reconnect geometry around a slice cut without simplifying contours.
 
-    Before: decompose → spike/snap → strip crumbs → safe winding simplify
-    After:  strip → heal joins → safe simplify → strip → final snap
+    Round-trips through pathops (decompose only), strips clip crumbs, then
+    redraws joins via spike collapse + near-point snap.
     """
     if glyph is None:
         return empty_glyph()
@@ -2554,13 +2555,14 @@ def _prepare_pathops_for_slice(
     *,
     upem: int = DEFAULT_UPEM,
 ):
-    """Pre-slice: decompose, heal broken joins, strip artefacts, fix winding."""
-    sk = _ttglyph_to_pathops(glyph, glyph_set)
-    tmp = _pathops_to_ttglyph(sk)
-    tmp = cleanup_ttglyph_contours(tmp, upem=upem)
-    sk = _ttglyph_to_pathops(tmp)
-    sk = _pathops_strip_artefacts(sk, upem=upem)
-    return _safe_simplify_pathops(sk, upem=upem)
+    """Pre-slice pathops path: decompose only — keep raw baked contours.
+
+    Transforms and weight adjustments already happened on the source glyph.
+    No ``pathops.simplify`` and no artefact strip before the clip (reconnect
+    runs after slicing in :func:`_finalize_sliced_ttglyph`).
+    """
+    del upem  # reserved for callers that pass cell size
+    return _ttglyph_to_pathops(glyph, glyph_set)
 
 
 def clip_glyph_to_rect(
@@ -2575,7 +2577,8 @@ def clip_glyph_to_rect(
     outside the band is dropped; ink inside keeps its original size and place.
     Complementary bands should also be clipped to their keep region — do not
     derive them with `boolean_subtract` alone (pathops difference leaves
-    cut-line spikes). Geometry is healed and artefacts stripped before and after.
+    cut-line spikes). Contours are left raw through the clip; cut points are
+    reconnected afterward (no simplify).
     """
     import pathops
 

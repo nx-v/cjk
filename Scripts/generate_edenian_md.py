@@ -21,8 +21,8 @@ Usage:
   python Scripts/generate_edenian_md.py
   python Scripts/generate_edenian_md.py --lines 64 --seed 1 --out Scripts/dist/Edenian-test.md
   python Scripts/generate_edenian_md.py --sentences 1 3 --phrases 2 5 --words 3 10
-  python Scripts/generate_edenian_md.py --h --t
-  python Scripts/generate_edenian_md.py --kana --h --q
+  python Scripts/generate_edenian_md.py --base
+  python Scripts/generate_edenian_md.py --kana --h
   python Scripts/generate_edenian_md.py --hangul --hangul-s --lines 32
 """
 
@@ -58,7 +58,6 @@ from build_kana import (  # noqa: E402
     small_cp,
 )
 from edenia_names import (  # noqa: E402
-    KANA_YI_DEFAULT_VARIANTS,
     ordered_cjk_variants,
     ordered_segment_variants,
     segment_variant_from_token,
@@ -107,14 +106,16 @@ WEIGHT_KANA_HW = WEIGHT_KANA_TOTAL * (KANA_HW_REL_WEIGHT / (1.0 + KANA_HW_REL_WE
 # Halfwidth kana is its own run (never mixed into okurigana / particles)
 WEIGHT_WORD_KANA_HW = WEIGHT_KANA_HW
 
-# Slice tier: P(n-way) ∝ r^n  (exponentially rarer)
-SLICE_BASE_P = 0.12
-SLICE_RATIO = 0.18  # P(3)≈P(2)*r, P(4)≈P(3)*r
+# Half-slice digraph chance when base+h are both enabled (else plain or always-half).
+SLICE_HALF_P = 0.12
 
 # Script-island length: each extra syllable continues with this probability
 # (geometric / exponential falloff — longer runs are rarer).
 SCRIPT_RUN_RATIO = 0.42
 SCRIPT_RUN_MAX = 8  # max sticky run length for any script island
+
+# Generator faces: identity/base and/or half-cell slices (FE08–FE0F). No t/q.
+FACE_DEFAULTS = frozenset(("", "h"))
 
 # Hangul faces: `""` upright (edenia hangul); `s` sideways (+ FE05, edenia hanguls).
 HANGUL_DEFAULT_FACES = frozenset({"", "s"})
@@ -127,7 +128,7 @@ FALLBACK_MARKS = tuple("\u3099\u309a\uff9e\uff9f\u0308\u0301\u0300\u0302\u0304\u
 
 FE_D4 = tuple(chr(c) for c in range(0xFE01, 0xFE08))
 # Hangul axis mirrors: FE01–FE03 only. U+FE00 is reserved exclusively as the
-# overlay joiner inside slice compounds (kana / yi / CJK half digraphs) —
+# overlay joiner inside half digraphs (kana / yi / CJK FE08–FE0F) —
 # never identity VS, never unsliced cluster glue, never stacked on itself.
 FE_HANGUL_MIRROR = tuple(chr(c) for c in range(0xFE01, 0xFE04))
 FE04 = "\ufe04"
@@ -139,110 +140,33 @@ OV = chr(OV_SELECTOR_CP)
 ZWSP = "\u200b"  # zero-width space — prefixes every slice compound
 
 # ---------------------------------------------------------------------------
-# Slice tilings (kana / yi / kanji-half)
+# Half-cell slice tilings (kana / yi / kanji) — FE08–FE0F only
 #
-# A slice compound is always a full unit-square partition (2–4 tiles).
-# Encoding — ZWSP prefixes; FE00 follows every slice except the last:
-#   ZWSP ([cp][d4]?[slice] FE00){n-1} [cp][d4]?[slice] [diacritics]{0,8}
+# Plain syllable: [cp][d4]? [diacritics]{0,8}
+# Half compound (always a complementary 2-tile cover of the unit square):
+#   ZWSP [cp][d4]?[slice] FE00 [cp][d4]?[slice] [diacritics]{0,8}
 #
-# FE00 must never follow an unsliced full glyph (no `cp FE00` / full `.ov`).
-# Orphan slices (a single [cp][slice] without completing the cover) are invalid.
-#
-# Each cover is a partition of the unit square (disjoint, union = full cell).
-# Families never cross:
-#   • thirds (t) — alone
-#   • triangles (FE0C–FE0F) — alone
-#   • halves (FE08–FE0B) may mix with quarters on the same face (qv / qh / q)
+# FE00 only ever follows a half/triangle slice selector — never a bare glyph.
+# Third (t) and quarter (q/qv/qh) faces are not emitted by this generator.
 # ---------------------------------------------------------------------------
 
-# Triangle face: complementary Δ pairs only
+# Complementary Δ pairs (h face)
 TRIANGLE_TILES: Tuple[Tuple[int, ...], ...] = (
     (0xFE0C, 0xFE0D),  # TL | BR
     (0xFE0E, 0xFE0F),  # TR | BL
 )
 
-# Rect half pairs (no triangles) — also used for kanji digraphs
+# Axis half pairs (h face) — also used for kanji digraphs
 HALF_RECT_TILES: Tuple[Tuple[int, ...], ...] = (
     (0xFE08, 0xFE09),  # top | bottom
     (0xFE0A, 0xFE0B),  # left | right
 )
 
-# Third face (t): VS17–26 only
-THIRD_TILES: Tuple[Tuple[int, ...], ...] = (
-    (0xE0101, 0xE0104),  # top+mid | bottom
-    (0xE0100, 0xE0103),  # top | mid+bottom
-    (0xE0106, 0xE0109),  # left+center | right
-    (0xE0105, 0xE0108),  # left | center+right
-    (0xE0100, 0xE0102, 0xE0104),  # top | mid | bottom
-    (0xE0105, 0xE0107, 0xE0109),  # left | center | right
+# Weighted half-cover families (both on face `h`)
+_HALF_COVERS: Tuple[Tuple[str, Tuple[Tuple[int, ...], ...], float], ...] = (
+    ("h", HALF_RECT_TILES, 0.60),
+    ("tri", TRIANGLE_TILES, 0.40),
 )
-
-# Vertical quarter face (qv): FE08/FE09 halves + VS27–33 bands
-# band 0=bottom … 3=top
-QV_TILES: Tuple[Tuple[int, ...], ...] = (
-    # 2-way
-    (0xFE08, 0xFE09),  # top half | bottom half
-    (0xE010E, 0xE010D),  # top 3/4 | bottom Q
-    (0xE010A, 0xE010F),  # top Q | bottom 3/4
-    # 3-way: half + two quarters on the other side
-    (0xFE08, 0xE010C, 0xE010D),  # top half | nb | b
-    (0xFE09, 0xE010A, 0xE010B),  # bottom half | t | nt
-    (0xE010A, 0xE0110, 0xE010D),  # t | mid half | b
-    # 4-way
-    (0xE010A, 0xE010B, 0xE010C, 0xE010D),  # t | nt | nb | b
-)
-
-# Horizontal quarter face (qh): FE0A/FE0B halves + VS34–40 bands
-# band 0=left … 3=right
-QH_TILES: Tuple[Tuple[int, ...], ...] = (
-    (0xFE0A, 0xFE0B),  # left half | right half
-    (0xE0115, 0xE0114),  # left 3/4 | right Q
-    (0xE0111, 0xE0116),  # left Q | right 3/4
-    (0xFE0A, 0xE0113, 0xE0114),  # left half | nr | r
-    (0xFE0B, 0xE0111, 0xE0112),  # right half | l | nl
-    (0xE0111, 0xE0117, 0xE0114),  # l | mid half | r
-    (0xE0111, 0xE0112, 0xE0113, 0xE0114),  # l | nl | nr | r
-)
-
-# Grid face (q): corners / L-3/4; halves may join (same face as FE08–FE0B)
-# cells: tl, tr, bl, br — never mix triangles here
-GRID_TILES: Tuple[Tuple[int, ...], ...] = (
-    # 2-way: L 3/4 | opposite corner
-    (0xE011C, 0xE011B),  # tl3 | br
-    (0xE011D, 0xE011A),  # tr3 | bl
-    (0xE011E, 0xE0119),  # bl3 | tr
-    (0xE011F, 0xE0118),  # br3 | tl
-    # 2-way: axis halves
-    (0xFE08, 0xFE09),
-    (0xFE0A, 0xFE0B),
-    # 3-way: half + two opposite corners
-    (0xFE08, 0xE011A, 0xE011B),  # top half | bl | br
-    (0xFE09, 0xE0118, 0xE0119),  # bottom half | tl | tr
-    (0xFE0A, 0xE0119, 0xE011B),  # left half | tr | br
-    (0xFE0B, 0xE0118, 0xE011A),  # right half | tl | bl
-    # 4-way
-    (0xE0118, 0xE0119, 0xE011A, 0xE011B),  # tl | tr | bl | br
-)
-
-# Family → covers (arity filtered at pick time)
-# `h` = rect halves; `tri` = complementary Δ (both live on the h face).
-_SLICE_FAMILIES: Tuple[Tuple[str, Tuple[Tuple[int, ...], ...], float], ...] = (
-    ("h", HALF_RECT_TILES, 0.18),
-    ("tri", TRIANGLE_TILES, 0.12),
-    ("t", THIRD_TILES, 0.18),
-    ("qv", QV_TILES, 0.22),
-    ("qh", QH_TILES, 0.18),
-    ("q", GRID_TILES, 0.12),
-)
-# Slice family name → segment face suffix (`h` / `t` / `q` / …).
-_SLICE_FAMILY_FACE: dict[str, str] = {
-    "h": "h",
-    "tri": "h",
-    "t": "t",
-    "qv": "qv",
-    "qh": "qh",
-    "q": "q",
-}
 
 SUZHOU = tuple("〇〡〢〣〤〥〦〧〨〩〸〹〺")
 IDS_BINARY = tuple("⿰⿱⿴⿵⿶⿷⿸⿹⿺⿻")
@@ -546,13 +470,13 @@ class GenOptions:
     hangul: bool = True
     cjk: bool = True
     hangul_faces: frozenset[str] = frozenset(HANGUL_DEFAULT_FACES)
-    # Segment suffixes including `""` (base / unsliced).
-    kana_faces: frozenset[str] = frozenset(KANA_YI_DEFAULT_VARIANTS)
-    yi_faces: frozenset[str] = frozenset(KANA_YI_DEFAULT_VARIANTS)
-    cjk_faces: frozenset[str] = frozenset(("", "h"))
+    # ``""`` = plain glyph (± diacritics); ``h`` = FE08–FE0F half compounds.
+    kana_faces: frozenset[str] = frozenset(FACE_DEFAULTS)
+    yi_faces: frozenset[str] = frozenset(FACE_DEFAULTS)
+    cjk_faces: frozenset[str] = frozenset(FACE_DEFAULTS)
 
-    def has_segment(self, faces: frozenset[str]) -> bool:
-        return bool(faces & {"h", "t", "q", "qv", "qh"})
+    def has_half(self, faces: frozenset[str]) -> bool:
+        return "h" in faces
 
 
 class Gen:
@@ -739,24 +663,22 @@ def _slice_tile(base: str, vs: int) -> str:
 
 
 def _stack_segments(parts: Sequence[Tuple[str, int]]) -> str:
-    """Compose a full unit-square slice compound (sole FE00 emitter).
+    """Compose a complementary half-cell digraph (sole FE00 emitter).
 
-    Format: ``ZWSP (tile FE00){n-1} tile`` where each tile is ``[cp][d4]?[slice]``.
-    FE00 only ever follows a slice selector — never a bare full glyph.
+    Format: ``ZWSP tile FE00 tile`` where each tile is ``[cp][d4]?[slice]``.
+    FE00 only ever follows a half/triangle slice — never a bare full glyph.
     """
-    if not (2 <= len(parts) <= 4):
-        raise ValueError(f"slice cover must have 2–4 tiles, got {len(parts)}")
+    if len(parts) != 2:
+        raise ValueError(f"half cover must have exactly 2 tiles, got {len(parts)}")
 
     tiles = [_slice_tile(base, vs) for base, vs in parts]
-    # All but the last tile: slice then FE00 joiner.
-    out = "".join(tile + OV for tile in tiles[:-1]) + tiles[-1]
-    return ZWSP + out
+    return ZWSP + tiles[0] + OV + tiles[1]
 
 
 def _tiled_multigraph(g: Gen, mk: Callable[[], str], vs_tile: Sequence[int]) -> str:
-    """Build a multigraph from a disjoint tile cover (order shuffled)."""
-    if len(vs_tile) < 2:
-        raise ValueError(f"slice cover must partition the cell (≥2 tiles), got {len(vs_tile)}")
+    """Build a half digraph from a complementary 2-tile cover (order shuffled)."""
+    if len(vs_tile) != 2:
+        raise ValueError(f"half cover must have 2 tiles, got {len(vs_tile)}")
     tiles = list(vs_tile)
     for _ in range(12):
         g.rng.shuffle(tiles)
@@ -767,61 +689,25 @@ def _tiled_multigraph(g: Gen, mk: Callable[[], str], vs_tile: Sequence[int]) -> 
     return _stack_segments([(mk(), vs) for vs in tiles])
 
 
-def _slice_arity(g: Gen, faces: frozenset[str]) -> int:
-    """Return 1 (plain), 2, 3, or 4 with exponential rarity.
-
-    Plain (1) only when ``""`` (base) is in ``faces`` — unsliced, no FE00.
-    When only segment faces are enabled, always 2–4 (full slice compounds).
-    """
+def _want_half_compound(g: Gen, faces: frozenset[str]) -> bool:
+    """True → emit a complementary FE08–FE0F digraph; False → plain glyph."""
     allow_plain = "" in faces
-    allow_slice = g.opts.has_segment(faces)
-    if not allow_slice:
-        return 1
-    p2 = SLICE_BASE_P
-    p3 = p2 * SLICE_RATIO
-    p4 = p3 * SLICE_RATIO
-    if allow_plain:
-        r = g.random()
-        if r < p4:
-            return 4
-        if r < p4 + p3:
-            return 3
-        if r < p4 + p3 + p2:
-            return 2
-        return 1
-    # Slice-only: renormalize 2/3/4 over the slice mass
-    mass = p2 + p3 + p4
-    r = g.random() * mass
-    if r < p4:
-        return 4
-    if r < p4 + p3:
-        return 3
-    return 2
+    allow_half = g.opts.has_half(faces)
+    if not allow_half:
+        return False
+    if not allow_plain:
+        return True
+    return g.chance(SLICE_HALF_P)
 
 
-def _pick_slice_cover(g: Gen, arity: int, faces: frozenset[str]) -> Sequence[int]:
-    """Pick a unit-square cover of the requested arity from one allowed family.
-
-    Families: triangles/halves on `h`; thirds alone; qv/qh/q allow half↔quarter.
-    """
-    candidates: List[Tuple[str, Tuple[Tuple[int, ...], ...], float]] = []
-    for name, covers, w in _SLICE_FAMILIES:
-        if _SLICE_FAMILY_FACE.get(name) not in faces:
-            continue
-        matching = tuple(c for c in covers if len(c) == arity)
-        if matching:
-            candidates.append((name, matching, w))
-    if not candidates:
-        # Fall back: any 2-way cover on an allowed face
-        if arity != 2:
-            return _pick_slice_cover(g, 2, faces)
-        raise ValueError(f"no slice covers for faces={sorted(faces)}")
-    names_weights = [(n, w) for n, _c, w in candidates]
+def _pick_half_cover(g: Gen) -> Sequence[int]:
+    """Pick a complementary half/triangle cover (always 2 tiles on face ``h``)."""
+    names_weights = [(n, w) for n, _c, w in _HALF_COVERS]
     pick = g.weighted_choice(tuple(names_weights))
-    for name, matching, _w in candidates:
+    for name, covers, _w in _HALF_COVERS:
         if name == pick:
-            return g.choice(matching)
-    return g.choice(candidates[0][1])
+            return g.choice(covers)
+    return g.choice(_HALF_COVERS[0][1])
 
 
 def _slice_multigraph(
@@ -829,15 +715,16 @@ def _slice_multigraph(
     mk: Callable[[], str],
     *,
     faces: frozenset[str],
-    arity: Optional[int] = None,
+    plain: Optional[Callable[[], str]] = None,
 ) -> str:
-    """Unit-square slice stack: ``ZWSP(tile FE00)*tile`` + diacritics."""
-    if arity is None:
-        arity = _slice_arity(g, faces)
-    if arity == 1:
-        return attach_diacritics(g, mk())
-    tile = _pick_slice_cover(g, arity, faces)
-    return attach_diacritics(g, _tiled_multigraph(g, mk, tile))
+    """Plain glyph (± diacritics) or complementary half digraph + diacritics.
+
+    ``plain`` defaults to ``mk``; kana passes ``kana_cluster`` so length/gem
+    markers stay on unsliced syllables only.
+    """
+    if not _want_half_compound(g, faces):
+        return attach_diacritics(g, (plain or mk)())
+    return attach_diacritics(g, _tiled_multigraph(g, mk, _pick_half_cover(g)))
 
 
 # ---------------------------------------------------------------------------
@@ -994,15 +881,11 @@ def kana_cluster(g: Gen, *, halfwidth: bool = False) -> str:
 
 def kana_syllable(g: Gen, *, halfwidth: bool = False) -> str:
     """One kana syllable (hira/kata mix freely; never yi)."""
-    arity = _slice_arity(g, g.opts.kana_faces)
-    if arity == 1:
-        return attach_diacritics(g, kana_cluster(g, halfwidth=halfwidth))
-    # Sliced multigraphs: phonetic larges only (markers stay on unsliced form)
     return _slice_multigraph(
         g,
         lambda: kana_base(g, halfwidth=halfwidth),
         faces=g.opts.kana_faces,
-        arity=arity,
+        plain=lambda: kana_cluster(g, halfwidth=halfwidth),
     )
 
 
@@ -1599,28 +1482,18 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         "--cjk", action="store_true", help="Include Han / Tangut / Khitan"
     )
 
-    # Shared face filters (like run.ps1 -Base/-H/-T/-Q): apply to kana, yi, cjk.
-    # Slice flags imply base — --h --t → base+h+t; --base alone → plain/D4 only.
+    # Shared face filters: --base (plain) and/or --h (FE08–FE0F half digraphs).
+    # --h implies base. Per-script --*-base / --*-h override the shared pair.
     faces = p.add_argument_group("faces")
     faces.add_argument(
         "--base",
         action="store_true",
-        help="Identity/base only when alone; always included with --h/--t/--q",
+        help="Identity/base only when alone; always included with --h",
     )
     faces.add_argument(
         "--h",
         action="store_true",
-        help="Allow half / triangle slice digraphs (implies --base)",
-    )
-    faces.add_argument(
-        "--t",
-        action="store_true",
-        help="Allow third-cell slice digraphs (kana/yi; implies --base)",
-    )
-    faces.add_argument(
-        "--q",
-        action="store_true",
-        help="Allow quarter-cell digraphs q/qv/qh (kana/yi; implies --base)",
+        help="Allow half / triangle digraphs FE08–FE0F (implies --base)",
     )
     faces.add_argument(
         "--cjk-base",
@@ -1640,34 +1513,20 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     faces.add_argument(
         "--kana-base",
         action="store_true",
-        help="Kana: identity/base only when alone; implied by --kana-h/t/q",
+        help="Kana: identity/base only when alone; implied by --kana-h",
     )
     faces.add_argument(
         "--kana-h",
         action="store_true",
-        help="Kana: half / triangle faces (implies base)",
-    )
-    faces.add_argument(
-        "--kana-t", action="store_true", help="Kana: third-cell faces (implies base)"
-    )
-    faces.add_argument(
-        "--kana-q",
-        action="store_true",
-        help="Kana: quarter faces q/qv/qh (implies base)",
+        help="Kana: half / triangle digraphs (implies base)",
     )
     faces.add_argument(
         "--yi-base",
         action="store_true",
-        help="Yi: identity/base only when alone; implied by --yi-h/t/q",
+        help="Yi: identity/base only when alone; implied by --yi-h",
     )
     faces.add_argument(
-        "--yi-h", action="store_true", help="Yi: half / triangle faces (implies base)"
-    )
-    faces.add_argument(
-        "--yi-t", action="store_true", help="Yi: third-cell faces (implies base)"
-    )
-    faces.add_argument(
-        "--yi-q", action="store_true", help="Yi: quarter faces q/qv/qh (implies base)"
+        "--yi-h", action="store_true", help="Yi: half / triangle digraphs (implies base)"
     )
     faces.add_argument(
         "--hangul-base",
@@ -1682,29 +1541,13 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def _resolve_kana_yi_face_flags(
-    *,
-    base: bool,
-    want_h: bool,
-    want_t: bool,
-    want_q: bool,
-) -> frozenset[str]:
-    """`--h --t` → base+h+t (slice flags imply base). `--base` alone → base.
-
-    `--q` enables all quarter faces (`q` / `qv` / `qh`).
-    """
-    any_slice = want_h or want_t or want_q
-    if not base and not any_slice:
-        return frozenset(KANA_YI_DEFAULT_VARIANTS)
-    selected: List[str] = []
-    if base or any_slice:
-        selected.append("")
+def _resolve_base_h_faces(*, base: bool, want_h: bool) -> frozenset[str]:
+    """``--h`` → base+h. ``--base`` alone → base. No flags → :data:`FACE_DEFAULTS`."""
+    if not base and not want_h:
+        return frozenset(FACE_DEFAULTS)
+    selected: List[str] = [""]  # --h implies base
     if want_h:
         selected.append("h")
-    if want_t:
-        selected.append("t")
-    if want_q:
-        selected.extend(["q", "qv", "qh"])
     return frozenset(ordered_segment_variants(selected))
 
 
@@ -1713,11 +1556,10 @@ def _resolve_cjk_face_flags(
     base: bool,
     faces: Optional[str],
     want_h: bool,
-    imply_base_from_slices: bool,
 ) -> frozenset[str]:
-    """CJK only has base/h. Slice flags (`--t`/`--q`/`--h`) imply base."""
+    """CJK: base and/or h only."""
     if faces:
-        if base or want_h or imply_base_from_slices:
+        if base or want_h:
             raise SystemExit("use either --cjk-faces or --base/--h/--cjk-*, not both")
         got = [
             segment_variant_from_token(p) for p in str(faces).split(",") if p.strip()
@@ -1725,13 +1567,7 @@ def _resolve_cjk_face_flags(
         if not got:
             raise SystemExit("--cjk-faces is empty")
         return frozenset(ordered_cjk_variants(got))
-    any_face = base or want_h or imply_base_from_slices
-    if not any_face:
-        return frozenset(("", "h"))
-    selected: List[str] = [""]  # always include base when any face flag fires
-    if want_h:
-        selected.append("h")
-    return frozenset(ordered_cjk_variants(selected))
+    return _resolve_base_h_faces(base=base, want_h=want_h)
 
 
 def _resolve_hangul_face_flags(*, base: bool, want_s: bool) -> frozenset[str]:
@@ -1750,31 +1586,23 @@ def _resolve_hangul_face_flags(*, base: bool, want_s: bool) -> frozenset[str]:
 
 def options_from_args(args: argparse.Namespace) -> GenOptions:
     any_script = args.yi or args.kana or args.hangul or args.cjk
-    # Shared --base/--h/--t/--q OR per-script flags (like run.ps1).
-    # --t/--q imply base for CJK even though CJK has no t/q faces.
-    shared_slices = args.h or args.t or args.q
     return GenOptions(
         yi=(not any_script) or args.yi,
         kana=(not any_script) or args.kana,
         hangul=(not any_script) or args.hangul,
         cjk=(not any_script) or args.cjk,
-        kana_faces=_resolve_kana_yi_face_flags(
+        kana_faces=_resolve_base_h_faces(
             base=args.base or args.kana_base,
             want_h=args.h or args.kana_h,
-            want_t=args.t or args.kana_t,
-            want_q=args.q or args.kana_q,
         ),
-        yi_faces=_resolve_kana_yi_face_flags(
+        yi_faces=_resolve_base_h_faces(
             base=args.base or args.yi_base,
             want_h=args.h or args.yi_h,
-            want_t=args.t or args.yi_t,
-            want_q=args.q or args.yi_q,
         ),
         cjk_faces=_resolve_cjk_face_flags(
             base=args.base or args.cjk_base,
             faces=args.cjk_faces,
             want_h=args.h or args.cjk_h,
-            imply_base_from_slices=shared_slices,
         ),
         hangul_faces=_resolve_hangul_face_flags(
             base=args.hangul_base,
