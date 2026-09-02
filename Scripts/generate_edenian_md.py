@@ -4,16 +4,16 @@
 Japanese-like clause structure with Edenian role map:
   hiragana → kana (one script: both chart halves mix freely; full/hw = separate runs)
   hiragana-frequency yi → yi (separate script; never mixed with kana)
-  katakana → hangul (conjoining jamo: upright ``edenia hangul``; sideways
-             ``edenia hanguls`` with U+FE05 per cluster)
-  kanji    → Han + Tangut + Khitan + precomposed Hangul (``build_cjk`` ranges;
+  katakana → hangul (conjoining jamo: upright `edenia hangul`; sideways
+             `edenia hanguls` with U+FE05 per cluster)
+  kanji    → Han + Tangut + Khitan + precomposed Hangul (`build_cjk` ranges;
              optional U+FE05 per cluster when sideways faces enabled)
 
 Word kinds:
   • inflected core — 1+ kanji/hangul components (phrasal-verb style); each may
     take fullwidth kana/yi okurigana (~92%) via prefix / suffix / circumfix / infix
-  • kanji·hangul sequence — CJK priority; precomposed Hangul (``edenia cjk``,
-    sporadic FE05) and conjoining jamo (``edenia hangul`` / ``edenia hanguls``)
+  • kanji·hangul sequence — CJK priority; precomposed Hangul (`edenia cjk`,
+    sporadic FE05) and conjoining jamo (`edenia hangul` / `edenia hanguls`)
   • particle — short standalone fullwidth kana or yi run
   • halfwidth kana — own sticky run (never okurigana / particles / yi mix)
 
@@ -115,11 +115,11 @@ SLICE_RATIO = 0.18  # P(3)≈P(2)*r, P(4)≈P(3)*r
 # (geometric / exponential falloff — longer runs are rarer).
 SCRIPT_RUN_RATIO = 0.42
 
-# Hangul faces: ``""`` upright (edenia hangul); ``s`` sideways (+ FE05, edenia hanguls).
+# Hangul faces: `""` upright (edenia hangul); `s` sideways (+ FE05, edenia hanguls).
 HANGUL_DEFAULT_FACES = frozenset({"", "s"})
 HANGUL_SIDEWAYS_P = 0.30  # when both faces enabled in one run
-# Precomposed Hangul (``edenia cjk``) in kanji·hangul sequences when ``--cjk``.
-# May append U+FE05 per cluster when ``--hangul-s`` / sideways faces enabled.
+# Precomposed Hangul (`edenia cjk`) in kanji·hangul sequences when `--cjk`.
+# May append U+FE05 per cluster when `--hangul-s` / sideways faces enabled.
 CJK_PRECOMPOSED_HANGUL_P = 0.12
 
 FALLBACK_MARKS = tuple("\u3099\u309a\uff9e\uff9f\u0308\u0301\u0300\u0302\u0304\u0306")
@@ -219,7 +219,7 @@ GRID_TILES: Tuple[Tuple[int, ...], ...] = (
 )
 
 # Family → covers (arity filtered at pick time)
-# ``h`` = rect halves; ``tri`` = complementary Δ (both live on the h face).
+# `h` = rect halves; `tri` = complementary Δ (both live on the h face).
 _SLICE_FAMILIES: Tuple[Tuple[str, Tuple[Tuple[int, ...], ...], float], ...] = (
     ("h", HALF_RECT_TILES, 0.18),
     ("tri", TRIANGLE_TILES, 0.12),
@@ -228,7 +228,7 @@ _SLICE_FAMILIES: Tuple[Tuple[str, Tuple[Tuple[int, ...], ...], float], ...] = (
     ("qh", QH_TILES, 0.18),
     ("q", GRID_TILES, 0.12),
 )
-# Slice family name → segment face suffix (``h`` / ``t`` / ``q`` / …).
+# Slice family name → segment face suffix (`h` / `t` / `q` / …).
 _SLICE_FAMILY_FACE: dict[str, str] = {
     "h": "h",
     "tri": "h",
@@ -315,6 +315,7 @@ ENCLOSED_IDEO_LABEL = tuple(chr(c) for c in range(0x3220, 0x322A))  # ㈠–㈩
 SIGNAGE = tuple(chr(c) for c in range(0x1F200, 0x1F220))  # sparse sample
 
 YI_RANGE = (0xA000, 0xA48C)
+
 
 # Single source of truth: Scripts/build_cjk.py CHAR_RANGES (incl. precomposed Hangul).
 def _cjk_range_pick_weight(label: str, n_chars: int) -> float:
@@ -485,7 +486,7 @@ def _expand_jamo(packed: str) -> List[str]:
 
 
 def _with_filler(pool: List[str], filler: str) -> List[str]:
-    """Ensure ``filler`` is present at length-1 weight even if ``pool`` was empty."""
+    """Ensure `filler` is present at length-1 weight even if `pool` was empty."""
     if not pool:
         return [filler] * _HANGUL_LEN1_W
     if filler not in pool:
@@ -532,14 +533,14 @@ class StructureBounds:
 
 @dataclass(frozen=True)
 class GenOptions:
-    """Script / face filters (same idea as ``run.ps1`` switches)."""
+    """Script / face filters (same idea as `run.ps1` switches)."""
 
     yi: bool = True
     kana: bool = True
     hangul: bool = True
     cjk: bool = True
     hangul_faces: frozenset[str] = frozenset(HANGUL_DEFAULT_FACES)
-    # Segment suffixes including ``""`` (base / unsliced).
+    # Segment suffixes including `""` (base / unsliced).
     kana_faces: frozenset[str] = frozenset(KANA_YI_DEFAULT_VARIANTS)
     yi_faces: frozenset[str] = frozenset(KANA_YI_DEFAULT_VARIANTS)
     cjk_faces: frozenset[str] = frozenset(("", "h"))
@@ -593,9 +594,9 @@ class Gen:
         return self.rng.randint(a, b)
 
     def island_len(self, lo: int, hi: int, *, ratio: float = SCRIPT_RUN_RATIO) -> int:
-        """Script-island length in ``[lo, hi]`` with exponential falloff.
+        """Script-island length in `[lo, hi]` with exponential falloff.
 
-        Starts at ``lo``; each extra unit continues with probability ``ratio``.
+        Starts at `lo`; each extra unit continues with probability `ratio`.
         """
         if hi < lo:
             raise ValueError(f"island_len: hi ({hi}) < lo ({lo})")
@@ -608,7 +609,7 @@ class Gen:
         return self.rng.random() < p
 
     def pick_hangul_sideways(self) -> bool:
-        """Pick sideways jamo (``edenia hanguls`` + FE05) vs upright."""
+        """Pick sideways jamo (`edenia hanguls` + FE05) vs upright."""
         faces = self.opts.hangul_faces
         if not faces or faces == frozenset({""}):
             return False
@@ -630,7 +631,7 @@ class Gen:
     def pick_sporadic(self, items: Sequence[Tuple[T, float]]) -> Optional[T]:
         """Each item fires with its own probability; pick among firers by weight.
 
-        Returns ``None`` when nothing fires (punctuation stays absent).
+        Returns `None` when nothing fires (punctuation stays absent).
         """
         hits = [(val, p) for val, p in items if p > 0 and self.chance(p)]
         if not hits:
@@ -641,7 +642,7 @@ class Gen:
         return chr(self.choice(self.weighted_choice(CJK_SAMPLE_POOLS)))
 
     def precomposed_hangul(self) -> str:
-        """One precomposed syllable or compat jamo from ``edenia cjk`` inventory."""
+        """One precomposed syllable or compat jamo from `edenia cjk` inventory."""
         if not CJK_HANGUL_SAMPLE_POOLS:
             return self.ideograph()
         return chr(self.choice(self.weighted_choice(CJK_HANGUL_SAMPLE_POOLS)))
@@ -649,8 +650,7 @@ class Gen:
 
 def _faces_label(faces: frozenset[str]) -> str:
     parts = [
-        ("base" if v == "" else v)
-        for v in sorted(faces, key=lambda x: (x != "", x))
+        ("base" if v == "" else v) for v in sorted(faces, key=lambda x: (x != "", x))
     ]
     return ",".join(parts) if parts else "-"
 
@@ -744,8 +744,8 @@ def _join_slice_tile(left: str, right: str) -> str:
 def _stack_segments(parts: Sequence[Tuple[str, int]]) -> str:
     """Compose a unit-square slice tiling (sole FE00 emitter).
 
-    Format: ``([cp][d4]?[slice][FE00]){1,3}[cp][d4]?[slice]``
-    Each ``slice`` is a half/third/quarter/triangle VS; FE00 only between tiles.
+    Format: `([cp][d4]?[slice][FE00]){1,3}[cp][d4]?[slice]`
+    Each `slice` is a half/third/quarter/triangle VS; FE00 only between tiles.
     """
     if not (2 <= len(parts) <= 4):
         raise ValueError(f"slice cover must have 2–4 tiles, got {len(parts)}")
@@ -774,7 +774,7 @@ def _tiled_multigraph(g: Gen, mk: Callable[[], str], vs_tile: Sequence[int]) -> 
 def _slice_arity(g: Gen, faces: frozenset[str]) -> int:
     """Return 1 (plain), 2, 3, or 4 with exponential rarity.
 
-    Without ``""`` (base) in ``faces``, plain forms are skipped — only slices.
+    Without `""` (base) in `faces`, plain forms are skipped — only slices.
     Without any segment face, always plain (base / D4 only).
     """
     allow_plain = "" in faces
@@ -806,7 +806,7 @@ def _slice_arity(g: Gen, faces: frozenset[str]) -> int:
 def _pick_slice_cover(g: Gen, arity: int, faces: frozenset[str]) -> Sequence[int]:
     """Pick a unit-square cover of the requested arity from one allowed family.
 
-    Families: triangles/halves on ``h``; thirds alone; qv/qh/q allow half↔quarter.
+    Families: triangles/halves on `h`; thirds alone; qv/qh/q allow half↔quarter.
     """
     candidates: List[Tuple[str, Tuple[Tuple[int, ...], ...], float]] = []
     for name, covers, w in _SLICE_FAMILIES:
@@ -835,7 +835,7 @@ def _slice_multigraph(
     faces: frozenset[str],
     arity: Optional[int] = None,
 ) -> str:
-    """Unit-square slice stack: ``…[slice][FE00]…[slice]`` + diacritics."""
+    """Unit-square slice stack: `…[slice][FE00]…[slice]` + diacritics."""
     if arity is None:
         arity = _slice_arity(g, faces)
     if arity == 1:
@@ -876,7 +876,9 @@ def hangul_syllable(
     return attach_diacritics(g, s)
 
 
-def hangul_word(g: Gen, n: Optional[int] = None, *, sideways: Optional[bool] = None) -> str:
+def hangul_word(
+    g: Gen, n: Optional[int] = None, *, sideways: Optional[bool] = None
+) -> str:
     n = n or g.island_len(1, 5)
     if sideways is None:
         sideways = g.pick_hangul_sideways()
@@ -1053,7 +1055,7 @@ def precomposed_hangul_cluster(
     *,
     sideways: Optional[bool] = None,
 ) -> str:
-    """Precomposed Hangul cluster (syllable or compat jamo; ``edenia cjk``)."""
+    """Precomposed Hangul cluster (syllable or compat jamo; `edenia cjk`)."""
     a = g.precomposed_hangul()
     if g.chance(0.25):
         a += g.choice(FE_D4)
@@ -1270,7 +1272,7 @@ def okurigana_run(g: Gen, n: Optional[int] = None) -> str:
 
 
 def _kanji_piece(g: Gen, *, prefer_multi: bool = False) -> str:
-    """One CJK atom: plain cluster and/or half digraph per ``cjk_faces``."""
+    """One CJK atom: plain cluster and/or half digraph per `cjk_faces`."""
     faces = g.opts.cjk_faces
     allow_base = "" in faces
     allow_h = "h" in faces
@@ -1308,7 +1310,7 @@ def _hangul_stem_segments(g: Gen) -> List[str]:
 def inflect_component(g: Gen, stem: Sequence[str]) -> str:
     """One phrasal component: stem ± okurigana (prefix/suffix/circumfix/infix).
 
-    Okurigana attaches about ``OKURI_P`` of the time. Infix within a
+    Okurigana attaches about `OKURI_P` of the time. Infix within a
     multi-segment stem; 〆 may hinge an infixed okuri run.
     """
     segs = [s for s in stem if s]
@@ -1374,11 +1376,13 @@ def word_inflected(g: Gen) -> str:
 def word_kanji_hangul_sequence(g: Gen) -> str:
     """Sequence of CJK and Hangul; CJK priority, Hangul sporadic.
 
-    Precomposed syllables + compat jamo (``edenia cjk``; sporadic FE05) when ``--cjk``.
-    Conjoining jamo (``edenia hangul`` / ``edenia hanguls``) when ``--hangul``.
+    Precomposed syllables + compat jamo (`edenia cjk`; sporadic FE05) when `--cjk`.
+    Conjoining jamo (`edenia hangul` / `edenia hanguls`) when `--hangul`.
     """
     n = g.island_len(1, 5)
-    conj_hangul_p = 0.12 if (g.opts.hangul and g.opts.cjk) else (1.0 if g.opts.hangul else 0.0)
+    conj_hangul_p = (
+        0.12 if (g.opts.hangul and g.opts.cjk) else (1.0 if g.opts.hangul else 0.0)
+    )
     parts: List[str] = []
     for i in range(n):
         if i > 0 and g.chance(0.06):
@@ -1605,12 +1609,8 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     scripts.add_argument(
         "--yi", action="store_true", help="Include Yi (alone or with other scripts)"
     )
-    scripts.add_argument(
-        "--kana", action="store_true", help="Include kana"
-    )
-    scripts.add_argument(
-        "--hangul", action="store_true", help="Include hangul"
-    )
+    scripts.add_argument("--kana", action="store_true", help="Include kana")
+    scripts.add_argument("--hangul", action="store_true", help="Include hangul")
     scripts.add_argument(
         "--cjk", action="store_true", help="Include Han / Tangut / Khitan"
     )
@@ -1658,17 +1658,33 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         action="store_true",
         help="Kana: identity/base only when alone; implied by --kana-h/t/q",
     )
-    faces.add_argument("--kana-h", action="store_true", help="Kana: half / triangle faces (implies base)")
-    faces.add_argument("--kana-t", action="store_true", help="Kana: third-cell faces (implies base)")
-    faces.add_argument("--kana-q", action="store_true", help="Kana: quarter faces q/qv/qh (implies base)")
+    faces.add_argument(
+        "--kana-h",
+        action="store_true",
+        help="Kana: half / triangle faces (implies base)",
+    )
+    faces.add_argument(
+        "--kana-t", action="store_true", help="Kana: third-cell faces (implies base)"
+    )
+    faces.add_argument(
+        "--kana-q",
+        action="store_true",
+        help="Kana: quarter faces q/qv/qh (implies base)",
+    )
     faces.add_argument(
         "--yi-base",
         action="store_true",
         help="Yi: identity/base only when alone; implied by --yi-h/t/q",
     )
-    faces.add_argument("--yi-h", action="store_true", help="Yi: half / triangle faces (implies base)")
-    faces.add_argument("--yi-t", action="store_true", help="Yi: third-cell faces (implies base)")
-    faces.add_argument("--yi-q", action="store_true", help="Yi: quarter faces q/qv/qh (implies base)")
+    faces.add_argument(
+        "--yi-h", action="store_true", help="Yi: half / triangle faces (implies base)"
+    )
+    faces.add_argument(
+        "--yi-t", action="store_true", help="Yi: third-cell faces (implies base)"
+    )
+    faces.add_argument(
+        "--yi-q", action="store_true", help="Yi: quarter faces q/qv/qh (implies base)"
+    )
     faces.add_argument(
         "--hangul-base",
         action="store_true",
@@ -1689,9 +1705,9 @@ def _resolve_kana_yi_face_flags(
     want_t: bool,
     want_q: bool,
 ) -> frozenset[str]:
-    """``--h --t`` → base+h+t (slice flags imply base). ``--base`` alone → base.
+    """`--h --t` → base+h+t (slice flags imply base). `--base` alone → base.
 
-    ``--q`` enables all quarter faces (``q`` / ``qv`` / ``qh``).
+    `--q` enables all quarter faces (`q` / `qv` / `qh`).
     """
     any_slice = want_h or want_t or want_q
     if not base and not any_slice:
@@ -1715,14 +1731,12 @@ def _resolve_cjk_face_flags(
     want_h: bool,
     imply_base_from_slices: bool,
 ) -> frozenset[str]:
-    """CJK only has base/h. Slice flags (``--t``/``--q``/``--h``) imply base."""
+    """CJK only has base/h. Slice flags (`--t`/`--q`/`--h`) imply base."""
     if faces:
         if base or want_h or imply_base_from_slices:
             raise SystemExit("use either --cjk-faces or --base/--h/--cjk-*, not both")
         got = [
-            segment_variant_from_token(p)
-            for p in str(faces).split(",")
-            if p.strip()
+            segment_variant_from_token(p) for p in str(faces).split(",") if p.strip()
         ]
         if not got:
             raise SystemExit("--cjk-faces is empty")
@@ -1737,7 +1751,7 @@ def _resolve_cjk_face_flags(
 
 
 def _resolve_hangul_face_flags(*, base: bool, want_s: bool) -> frozenset[str]:
-    """Hangul: ``""`` upright; ``s`` sideways (+ FE05). Default: both."""
+    """Hangul: `""` upright; `s` sideways (+ FE05). Default: both."""
     if not base and not want_s:
         return frozenset(HANGUL_DEFAULT_FACES)
     if base and not want_s:

@@ -8,7 +8,7 @@ into 256-codepoint blocks (cp >> 8), and builds each TTF/WOFF2 from scratch by
 copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
 
 **Conjoining Hangul jamo** (U+1100.., Ext-A/B) is *not* included here — those are
-built as ``edenia hangul`` (L/V/T composition) in ``build_hangul.py``.
+built as `edenia hangul` (L/V/T composition) in `build_hangul.py`.
 
 Two faces per bucket (filename / family stem = `{hex}` / `{hex}h`)::
 
@@ -192,8 +192,7 @@ CHAR_RANGES: List[Tuple[int, int, str]] = [
 
 # Precomposed Hangul blocks above (compat jamo + syllables). Not conjoining jamo.
 HANGUL_SYLLABLE_RANGES: List[Tuple[int, int, str]] = [
-    r for r in CHAR_RANGES
-    if r[2] in ("Hangul Compatibility Jamo", "Hangul Syllables")
+    r for r in CHAR_RANGES if r[2] in ("Hangul Compatibility Jamo", "Hangul Syllables")
 ]
 
 # Conjoining jamo — must stay out of CHAR_RANGES (edenia hangul / build_hangul).

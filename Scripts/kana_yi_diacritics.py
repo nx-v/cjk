@@ -42,7 +42,7 @@ from shared_cells import (
 Point = Tuple[float, float]
 
 # Segment / overlay suffixes stripped to find the full D4 stem that owns
-# dakuten slots. Longest first so ``q4th`` wins over ``th``, ``t3tm`` over ``tm``.
+# dakuten slots. Longest first so `q4th` wins over `th`, `t3tm` over `tm`.
 _KANA_DAKUTEN_DERIVED_SUFFIXES: Tuple[str, ...] = tuple(
     sorted(
         {
@@ -105,8 +105,8 @@ def kana_dakuten_stem_name(name: str) -> str:
 
     Digraphs attach marks only to the last cluster member; that glyph may be a
     half/third/quarter slice, but its eight compass slots come from the
-    matching full-cell D4 outline (e.g. ``り.top`` / ``り.t3b`` ← ``り``,
-    ``り.r90.t3b`` ← ``り.r90``).
+    matching full-cell D4 outline (e.g. `り.top` / `り.t3b` ← `り`,
+    `り.r90.t3b` ← `り.r90`).
     """
     while True:
         for suf in _KANA_DAKUTEN_DERIVED_SUFFIXES:
@@ -962,9 +962,9 @@ def collect_kana_dakuten_anchors(
 ) -> Dict[str, Dict[int, Tuple[int, int]]]:
     """Contour-place dakuten on the 8 D4 forms of each logical base only.
 
-    ``bases`` are upright inventory names (kana: full, small, hw-full, hw-small;
+    `bases` are upright inventory names (kana: full, small, hw-full, hw-small;
     Yi: syllables only). Placement runs once per existing D4 stem; slice /
-    third / quarter / overlay faces inherit via ``inherit_kana_dakuten_anchors``.
+    third / quarter / overlay faces inherit via `inherit_kana_dakuten_anchors`.
     """
     names = kana_dakuten_placement_stems(bases, glyphs=glyphs)
     if not names:

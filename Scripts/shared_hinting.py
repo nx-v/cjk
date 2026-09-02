@@ -45,7 +45,7 @@ def add_jobs_argument(parser: argparse.ArgumentParser) -> None:
         default=max(1, os.cpu_count() or 4),
         help=(
             "Parallel workers per stage (default: all CPUs); "
-            "stages: face TTF, hint, WOFF2. ``-j -61`` is the same as ``-j 61``."
+            "stages: face TTF, hint, WOFF2. `-j -61` is the same as `-j 61`."
         ),
     )
 
@@ -78,7 +78,7 @@ def _sfnt_magic(path: str) -> bytes:
 
 
 def _ensure_raw_ttf(path: str) -> None:
-    """If `path` is WOFF/WOFF2 mislabeled as ``.ttf``, rewrite as SFNT TTF."""
+    """If `path` is WOFF/WOFF2 mislabeled as `.ttf`, rewrite as SFNT TTF."""
     magic = _sfnt_magic(path)
     if magic in (b"\x00\x01\x00\x00", b"true", b"typ1"):
         return

@@ -1,24 +1,24 @@
 """Shared cell geometry: half-, third-, and quarter-cell segments.
 
-Half cells (``h`` face)
+Half cells (`h` face)
 -----------------------
-* ``U+FE08``–``U+FE0B`` half-planes and ``U+FE0C``–``U+FE0F`` diagonal triangles.
-* ``U+FE00`` zero-width overlay (``.ov``) for digraph / trigraph stacking.
-* D4 orientations on ``U+FE01``–``U+FE07``; clip/boolean pipeline with hole-
+* `U+FE08`–`U+FE0B` half-planes and `U+FE0C`–`U+FE0F` diagonal triangles.
+* `U+FE00` zero-width overlay (`.ov`) for digraph / trigraph stacking.
+* D4 orientations on `U+FE01`–`U+FE07`; clip/boolean pipeline with hole-
   winding repair after every cut.
 
-Third cells (``t`` face)
+Third cells (`t` face)
 ------------------------
-* ``VS17``–``VS26`` (``U+E0100``–``U+E0109``): vertical / horizontal thirds.
+* `VS17`–`VS26` (`U+E0100`–`U+E0109`): vertical / horizontal thirds.
 
-Quarter cells (``q`` / ``qv`` / ``qh`` faces)
+Quarter cells (`q` / `qv` / `qh` faces)
 ---------------------------------------------
-* Grid ``q``: ``VS41``–``VS48`` (2×2 corners + L 3/4).
-* Vertical ``qv``: ``VS9``–``VS10``, ``VS27``–``VS33``.
-* Horizontal ``qh``: ``VS11``–``VS12``, ``VS34``–``VS40``.
+* Grid `q`: `VS41`–`VS48` (2×2 corners + L 3/4).
+* Vertical `qv`: `VS9`–`VS10`, `VS27`–`VS33`.
+* Horizontal `qh`: `VS11`–`VS12`, `VS34`–`VS40`.
 
 All segment forms are **slices** of baked outlines (clip + heal; never
-``full − piece`` alone). See each section below for VS tables.
+`full − piece` alone). See each section below for VS tables.
 """
 
 from __future__ import annotations
@@ -104,7 +104,7 @@ HALF_SUFFIXES: Tuple[str, ...] = ("top", "bot", "left", "right")
 TRI_SUFFIXES: Tuple[str, ...] = ("tl", "br", "tr", "bl")
 SLICE_SUFFIXES: Tuple[str, ...] = HALF_SUFFIXES + TRI_SUFFIXES
 # PUA mirrors of overlay + eight slices (Blink drops unlisted VS before GSUB).
-# Legacy BMP PUA mirrors (optional ``pua=True`` only). Kana owns U+E000–F8FF.
+# Legacy BMP PUA mirrors (optional `pua=True` only). Kana owns U+E000–F8FF.
 # E008 = overlay; E009–E010 = FE08–FE0F.
 SLICE_PUA_SLOTS: Tuple[Tuple[int, str], ...] = (
     (OV_PUA_CP, OV_SELECTOR_NAME),
@@ -136,7 +136,7 @@ HALFWIDTH_PAD = 0.0
 COMPOUND_PAD = 0.0
 # Standalone only: CAPE Weightor Width-mode factor after fit
 # (0.15 → target outer width 115% of post-fit ink, stems preserved).
-# Contour widen for ``make_standalone_glyph`` (CAPE Width). Default off —
+# Contour widen for `make_standalone_glyph` (CAPE Width). Default off —
 # only kana opts into CAPE Weightor; Yi / Hangul / CJK standalones stay affine.
 STANDALONE_CONTOUR_WIDEN = 0.0
 # Inset from CJK typo top/bottom when fitting Y (fraction of em).
@@ -308,8 +308,8 @@ YI_ORIENTATION_MODES: List[TransformMode] = TRANSFORM_MODES
 
 # 90°/270° orientations (incl. diagonals).
 SIDEWAYS_SUFFIXES = frozenset({"r90", "r270", "r90mx", "r90my"})
-# Only ``r90`` is baked; these are axis-aligned TT composites of that outline.
-# ``r270`` = r180(r90); ``r90mx`` = reflect-Y(r90); ``r90my`` = reflect-X(r90).
+# Only `r90` is baked; these are axis-aligned TT composites of that outline.
+# `r270` = r180(r90); `r90mx` = reflect-Y(r90); `r90my` = reflect-X(r90).
 SIDEWAYS_FROM_R90: Dict[str, Tuple[int, bool, bool]] = {
     "r270": (2, False, False),
     "r90mx": (0, True, False),
@@ -2091,7 +2091,7 @@ def boolean_subtract_glyphs(
     """Boolean **difference** `minuend − subtrahend`.
 
     Both operands are healed + artefact-stripped first; the result is finalized
-    the same way. Optional ``clamp_rect`` / ``clamp_polygon`` re-intersects the
+    the same way. Optional `clamp_rect` / `clamp_polygon` re-intersects the
     difference with the intended keep region so pathops crumbs past the cut
     cannot survive (prefer a direct clip when the keep region is known).
     """
@@ -2315,7 +2315,7 @@ def _pathops_strip_artefacts(path, *, upem: int = DEFAULT_UPEM):
 
 
 def _safe_simplify_pathops(path, *, upem: int = DEFAULT_UPEM):
-    """``pathops.simplify`` when it does not shred the outline; else ``path``.
+    """`pathops.simplify` when it does not shred the outline; else `path`.
 
     Self-intersecting offset ribbons explode under simplify — detect that via
     contour-count / bounds heuristics and keep the unsimplified path.
@@ -2347,7 +2347,7 @@ def _safe_simplify_pathops(path, *, upem: int = DEFAULT_UPEM):
 
 
 def _contour_ranges(glyph: TTGlyph) -> List[Tuple[int, int]]:
-    """Inclusive ``(start, end)`` index pairs per glyf contour."""
+    """Inclusive `(start, end)` index pairs per glyf contour."""
     if glyph.numberOfContours <= 0:
         return []
     ends = list(glyph.endPtsOfContours)
@@ -2394,8 +2394,10 @@ def _contour_representative(
     return (min(xs) + max(xs)) * 0.5, (min(ys) + max(ys)) * 0.5
 
 
-def _point_in_closed_polygon(x: float, y: float, pts: Sequence[Tuple[float, float]]) -> bool:
-    """Ray casting; ``pts`` is a closed ring (first point need not repeat)."""
+def _point_in_closed_polygon(
+    x: float, y: float, pts: Sequence[Tuple[float, float]]
+) -> bool:
+    """Ray casting; `pts` is a closed ring (first point need not repeat)."""
     if len(pts) < 3:
         return False
     inside = False
@@ -2464,10 +2466,7 @@ def fix_ttglyph_hole_winding(glyph: TTGlyph) -> TTGlyph:
         areas.append(_contour_signed_area(coords, start, end))
         reps.append(_contour_representative(coords, flags, start, end))
         polys.append(
-            [
-                (float(coords[i][0]), float(coords[i][1]))
-                for i in range(start, end + 1)
-            ]
+            [(float(coords[i][0]), float(coords[i][1])) for i in range(start, end + 1)]
         )
 
     outer_i = max(range(len(areas)), key=lambda i: abs(areas[i]))
@@ -2543,7 +2542,7 @@ def finalize_slice_metrics(
     glyph_set: Optional[Dict[str, TTGlyph]] = None,
     upem: int = DEFAULT_UPEM,
 ) -> GlyphMetrics:
-    """Run :func:`heal_sliced_glyph` on a ``(glyph, advance, lsb)`` triple."""
+    """Run :func:`heal_sliced_glyph` on a `(glyph, advance, lsb)` triple."""
     g, adv, _lsb = gm
     out = heal_sliced_glyph(g, glyph_set=glyph_set, upem=upem)
     return out, int(adv), _lsb_of(out)
@@ -3062,15 +3061,15 @@ def ngulim_largest_touch_params(
 ) -> Tuple[float, float, float]:
     """Ngulim sizing params from a fast glyf-bounds scan.
 
-    Finds the largest bbox-area outline (UPM × ``pre_scale``), returns:
+    Finds the largest bbox-area outline (UPM × `pre_scale`), returns:
 
-    * ``grow_scale`` — uniform factor so that glyph kisses the ideographic
-      cell (``pad=0`` → full em edge).
-    * ``mean_area`` — mean bbox area **after** that grow (``grow² × mean``).
-    * ``post_scale`` — further uniform scale so mean ``max(w, h)`` after
-      grow + mean-area cap lands near ``target_avg_em``.
+    * `grow_scale` — uniform factor so that glyph kisses the ideographic
+      cell (`pad=0` → full em edge).
+    * `mean_area` — mean bbox area **after** that grow (`grow² × mean`).
+    * `post_scale` — further uniform scale so mean `max(w, h)` after
+      grow + mean-area cap lands near `target_avg_em`.
 
-    Uses stored glyf ``xMin``/``xMax``/… for simple glyphs; BoundsPen only for
+    Uses stored glyf `xMin`/`xMax`/… for simple glyphs; BoundsPen only for
     composites. Avoids redrawing every cmap glyph.
     """
     try:
@@ -4427,7 +4426,7 @@ THIRD_PAD_FRAC = 0.02
 
 # (vs_cp, selector glyph name, segment suffix, axis, band0, band1)
 # Bands are thirds along the axis: 0 = start (bottom/left), 1 = mid, 2 = end
-# (top/right). ``band0..band1`` inclusive occupy that span.
+# (top/right). `band0..band1` inclusive occupy that span.
 ThirdSlot = Tuple[int, str, str, str, int, int]
 
 THIRD_VS_SLOTS: Tuple[ThirdSlot, ...] = (
@@ -5145,7 +5144,7 @@ def add_quarter_forms(
 ) -> List[str]:
     """Slice each baked form by clipping every quarter / half / 3/4 slot rect.
 
-    ``qv``/``qh`` still reuse CJK ``.dkb`` / ``.dkt`` / ``.dk`` / ``.dkl`` halves when
+    `qv`/`qh` still reuse CJK `.dkb` / `.dkt` / `.dk` / `.dkl` halves when
     present (already clean clips); every other band is clipped from the base.
     """
     axis = quarter_axis_for_face(face)
@@ -5303,9 +5302,9 @@ def quarter_vs_liga_map(
 ) -> Dict[Tuple[str, ...], str]:
     """`base + VS` / `FE00` → quarter segment and/or zero-width `.ov`.
 
-    Includes residual ``base.ov + VS → segment.ov`` so segment ligas still
-    fire when a prior lookup (half-cell GSUB on face ``q``) already consumed
-    ``FE00``.
+    Includes residual `base.ov + VS → segment.ov` so segment ligas still
+    fire when a prior lookup (half-cell GSUB on face `q`) already consumed
+    `FE00`.
     """
 
     slots = quarter_slots_for_face(face)

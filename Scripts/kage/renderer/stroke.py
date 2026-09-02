@@ -91,7 +91,7 @@ class Stroke:
         maxY = -np.inf
         # Use the stroke type after stripping options. Remapping opt!=0 to
         # type 6 pulled in unused (often zero/NaN) cubic controls and broke
-        # component placement for strokes like ``101:3032:…``.
+        # component placement for strokes like `101:3032:…`.
         a1 = self.a1_100
         if a1 in [6, 7]:
             minX = np.nanmin([minX, self.vec_4.x])

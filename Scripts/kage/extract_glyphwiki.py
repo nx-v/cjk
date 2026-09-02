@@ -88,6 +88,7 @@ ResolvedGlyph = dict[str, Any]  # {d, r, n, cp?}
 # Step 1: optional component subset from HTML
 # ---------------------------------------------------------------------------
 
+
 def extract_component_names(html_path: Path) -> set[str]:
     if not html_path.is_file():
         print(f"  (no {html_path.name} — skipping component subset)")
@@ -101,7 +102,9 @@ def extract_component_names(html_path: Path) -> set[str]:
     names: set[str] = set()
 
     class WikiLinkParser(HTMLParser):
-        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        def handle_starttag(
+            self, tag: str, attrs: list[tuple[str, str | None]]
+        ) -> None:
             if tag != "a":
                 return
             attr = dict(attrs)
@@ -119,6 +122,7 @@ def extract_component_names(html_path: Path) -> set[str]:
 # ---------------------------------------------------------------------------
 # Step 2: load dumps
 # ---------------------------------------------------------------------------
+
 
 def parse_versioned_name(raw_name: str) -> tuple[str, int]:
     """Split `name\\@N` / `name@N` into `(base_name, version)`."""
@@ -181,7 +185,9 @@ def load_dump(
                 glyphs[raw_name] = data
 
             if line_count % 500_000 == 0:
-                print(f"\r  {line_count} lines ({len(glyphs)} glyphs)", end="", flush=True)
+                print(
+                    f"\r  {line_count} lines ({len(glyphs)} glyphs)", end="", flush=True
+                )
 
     print(f"\r  Done: {line_count} lines, {len(glyphs)} glyphs")
     return glyphs
@@ -261,8 +267,8 @@ def remap_cmap_drop_empty_alias_dups(*, no_filters: bool = False) -> int:
     # Prefer dump raw for alias detection; fall back to resolved string.
     for n in names:
         raw_glyphs.setdefault(n, strokes.get(n, ""))
-        # Never invent a fake ``uXXXX`` related from the glyph name — that
-        # hijacks ligature sort order (e.g. name ``u0378`` → CP U+0378).
+        # Never invent a fake `uXXXX` related from the glyph name — that
+        # hijacks ligature sort order (e.g. name `u0378` → CP U+0378).
         if n not in related_map:
             related_map[n] = n if not n.lower().startswith("u") else f"zz:{n}"
 
@@ -351,6 +357,7 @@ def remap_cmap_drop_empty_alias_dups(*, no_filters: bool = False) -> int:
 # KAGE coordinate transformation (resolver-local; matches upstream dump tool)
 # ---------------------------------------------------------------------------
 
+
 def stretch(dp: float, sp: float, p: float, _min: float, _max: float) -> float:
     if dp == 0 and sp == 0:
         return p
@@ -421,6 +428,7 @@ def transform_stroke(
 # Stroke parsing / resolution
 # ---------------------------------------------------------------------------
 
+
 def parse_strokes(data: str) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for segment in data.split("$"):
@@ -432,6 +440,7 @@ def parse_strokes(data: str) -> list[dict[str, Any]]:
         except (ValueError, IndexError):
             continue
         if typ == REFERENCE_STROKE:
+
             def num(i: int) -> float:
                 try:
                     return float(parts[i]) if i < len(parts) else 0.0
@@ -488,9 +497,7 @@ def extract_component_refs(data: str) -> list[ComponentRef]:
             except ValueError:
                 return 0.0
 
-        refs.append(
-            {"n": name, "b": [num(3), num(4), num(5), num(6)]}
-        )
+        refs.append({"n": name, "b": [num(3), num(4), num(5), num(6)]})
     return refs
 
 
@@ -566,8 +573,7 @@ def strokes_to_string(strokes: list[list[float]]) -> str:
             end -= 1
         parts.append(
             ":".join(
-                str(int(v)) if float(v).is_integer() else str(v)
-                for v in s[: end + 1]
+                str(int(v)) if float(v).is_integer() else str(v) for v in s[: end + 1]
             )
         )
     return "$".join(parts)
@@ -623,6 +629,7 @@ def stroke_counts_for_names(
 # ---------------------------------------------------------------------------
 # Resolve all + iterative missing-ref fill
 # ---------------------------------------------------------------------------
+
 
 def resolve_all_glyphs(
     all_glyphs: dict[str, str],
@@ -740,6 +747,7 @@ def iteratively_resolve_missing(
 # Output
 # ---------------------------------------------------------------------------
 
+
 def write_json_object(path: Path, obj: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     print(f"\nWriting {len(obj)} entries to {path}...")
@@ -771,7 +779,9 @@ def load_stroke_data_for_names(
     Streams the custom one-entry-per-line format when possible; falls back
     to a full `json.load` if the file is a single compact blob.
     """
-    print(f"\nLoading stroke data for {len(names):,} cmap names from {resolved_path}...")
+    print(
+        f"\nLoading stroke data for {len(names):,} cmap names from {resolved_path}..."
+    )
     out: dict[str, str] = {}
     # Fast path: line-oriented object written by write_json_object
     with resolved_path.open(encoding="utf-8") as fh:
@@ -871,12 +881,8 @@ def dedupe_pack_entries(
         )
         return entries
 
-    print(
-        f"Loading resolved strokes for dedupe ({len(entries):,} candidates)..."
-    )
-    strokes = strokes_for_entries(
-        entries, all_glyphs, resolved_path=resolved_path
-    )
+    print(f"Loading resolved strokes for dedupe ({len(entries):,} candidates)...")
+    strokes = strokes_for_entries(entries, all_glyphs, resolved_path=resolved_path)
     stroke_counts = {
         n: count_strokes(strokes[n])
         for n, _ in entries
@@ -950,7 +956,7 @@ def build_fonts_from_mappings(
     grouped = group_mappings_by_marker(mappings)
     markers = sorted(grouped)
     if font_markers > 0:
-        markers = markers[: font_markers]
+        markers = markers[:font_markers]
     FONT_DIR.mkdir(parents=True, exist_ok=True)
 
     jobs = max(1, jobs)
@@ -1056,7 +1062,7 @@ def resolve_and_build_pipelined(
     grouped = group_mappings_by_marker(mappings)
     markers = sorted(grouped)
     if font_markers > 0:
-        markers = markers[: font_markers]
+        markers = markers[:font_markers]
     FONT_DIR.mkdir(parents=True, exist_ok=True)
     jobs = max(1, jobs)
     total_fonts = len(markers) * len(style_list)
@@ -1180,6 +1186,7 @@ def resolve_shotai_styles(args: argparse.Namespace) -> list[str]:
 # Main
 # ---------------------------------------------------------------------------
 
+
 def load_dump_with_related(
     path: Path,
     label: str,
@@ -1224,7 +1231,9 @@ def load_dump_with_related(
                 related[raw_name] = rel or raw_name
 
             if line_count % 500_000 == 0:
-                print(f"\r  {line_count} lines ({len(glyphs)} glyphs)", end="", flush=True)
+                print(
+                    f"\r  {line_count} lines ({len(glyphs)} glyphs)", end="", flush=True
+                )
     print(f"\r  Done: {line_count} lines, {len(glyphs)} glyphs")
     return glyphs, related
 
@@ -1390,12 +1399,8 @@ def main(argv: list[str] | None = None) -> int:
             print("Fatal: cmap is empty", file=sys.stderr)
             return 1
         first, last = mappings[0], mappings[-1]
-        print(
-            f"  First: {first.name} -> U+{first.marker:X} U+{first.pua:X}"
-        )
-        print(
-            f"  Last:  {last.name} -> U+{last.marker:X} U+{last.pua:X}"
-        )
+        print(f"  First: {first.name} -> U+{first.marker:X} U+{first.pua:X}")
+        print(f"  Last:  {last.name} -> U+{last.marker:X} U+{last.pua:X}")
         if args.skip_fonts:
             print("\n=== from-resolved: nothing to build (--skip-fonts) ===")
             return 0
@@ -1442,8 +1447,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Total glyphs in resolution pool: {len(all_glyphs)}")
 
-    # Cmap only latest base names (no ``name@N`` keys). Versioned keys stay in
-    # all_glyphs so type-99 refs like ``u209f4@3`` still resolve.
+    # Cmap only latest base names (no `name@N` keys). Versioned keys stay in
+    # all_glyphs so type-99 refs like `u209f4@3` still resolve.
     base_names = {n for n in all_glyphs if "@" not in n}
     print(f"Base names in dump: {len(base_names):,}")
 
@@ -1474,16 +1479,12 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     # --- aliases (always); empty + duplicate outlines unless --no-filters ---
-    entries = dedupe_pack_entries(
-        entries, all_glyphs, aliases_only=args.no_filters
-    )
+    entries = dedupe_pack_entries(entries, all_glyphs, aliases_only=args.no_filters)
     print(f"  SPUA markers needed: {markers_needed(len(entries)):,}")
 
     if args.limit > 0:
         # Limit cmap/font membership only — keep component deps for resolution
-        stroke_counts = stroke_counts_for_names(
-            (n for n, _ in entries), all_glyphs
-        )
+        stroke_counts = stroke_counts_for_names((n for n, _ in entries), all_glyphs)
         entries = sort_glyph_entries(entries, stroke_counts)[: args.limit]
         seeds = {n for n, _ in entries}
         for n in all_glyphs:
@@ -1585,9 +1586,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.skip_fonts:
         stroke_data = {
-            name: entry["d"]
-            for name, entry in resolved.items()
-            if "@" not in name
+            name: entry["d"] for name, entry in resolved.items() if "@" not in name
         }
         build_fonts_from_mappings(
             mappings,

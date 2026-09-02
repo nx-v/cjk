@@ -35,7 +35,7 @@ from Scripts.kage.mapping import (  # noqa: E402
 DEFAULT_CMAP = SCRIPT_DIR / "data" / "glyphwiki-cmap.json"
 DEFAULT_OUT = SCRIPT_DIR / "dist" / "glyphwiki"
 
-# Glyphs per markdown line (same as the JS ``.chunk(32)`` exporter).
+# Glyphs per markdown line (same as the JS `.chunk(32)` exporter).
 CHUNK_SIZE = 32
 
 # (section heading, trailing VS code point or None for identity)

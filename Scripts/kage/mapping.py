@@ -242,7 +242,7 @@ def related_codepoint(related: str) -> int | None:
     return None if cp >= 0x110000 else cp
 
 
-# Same blocks as ``build_cjk.CHAR_RANGES``, plus GlyphWiki-only extras
+# Same blocks as `build_cjk.CHAR_RANGES`, plus GlyphWiki-only extras
 # (radicals; GETA MARK used as related for unencoded / placeholder glyphs).
 RELATED_EXTRA_RANGES: list[tuple[int, int, str]] = [
     (0x2E80, 0x2EFF, "CJK Radicals Supplement"),
@@ -335,7 +335,7 @@ GLYPH_EXCLUSION_DATA_MARKERS: tuple[str, ...] = (
 )
 
 # KAGE stroke types used by mincho (Serif) drawing. Values may be stored as
-# ``type`` or ``type + 100*opt`` (e.g. 101 → type 1); compare ``t % 100``.
+# `type` or `type + 100*opt` (e.g. 101 → type 1); compare `t % 100`.
 MINCHO_STROKE_TYPES: frozenset[int] = frozenset({1, 2, 3, 4, 6, 7, 12, 99})
 
 
@@ -363,10 +363,10 @@ def is_non_mincho_stroke_data(data: str) -> bool:
                 a3 = int(float(parts[2])) if len(parts) > 2 else 0
             except ValueError:
                 return True
-            # ``0:-1:-1:-1`` nop / deleted segment
+            # `0:-1:-1:-1` nop / deleted segment
             if a2 == -1 and a3 == -1:
                 continue
-            # ``0:99:N`` shotai: 0=mincho, nonzero=gothic / sideways / other
+            # `0:99:N` shotai: 0=mincho, nonzero=gothic / sideways / other
             if a2 == 99 and a3 != 0:
                 return True
             continue

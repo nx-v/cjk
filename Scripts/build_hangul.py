@@ -4,17 +4,17 @@ Build Hangul fonts from Malgun Gothic.
 
 Two families (same jamo pipeline)
 ---------------------------------
-* ``edenia hangul`` — conjoining jamo (U+1100.., Ext-A/B) upright; Malgun
-  ``ljmo`` / ``vjmo`` / ``tjmo`` shaping at render time. Append **U+FE05** after
-  a cluster to select pre-built **``.cw``** twins (90° CW) via GSUB when
-  ``edenia hangul`` follows ``edenia hanguls`` in the CSS stack.
-* ``edenia hanguls`` (hangul-**s**) — **same** jamo inventory and layout
+* `edenia hangul` — conjoining jamo (U+1100.., Ext-A/B) upright; Malgun
+  `ljmo` / `vjmo` / `tjmo` shaping at render time. Append **U+FE05** after
+  a cluster to select pre-built **`.cw`** twins (90° CW) via GSUB when
+  `edenia hangul` follows `edenia hanguls` in the CSS stack.
+* `edenia hanguls` (hangul-**s**) — **same** jamo inventory and layout
   rules; mirrors / em / FE04 are built **upright**, then every outline is
-  rotated **90° CW once** and GPOS placements remapped ``(x,y)→(y,−x)``.
+  rotated **90° CW once** and GPOS placements remapped `(x,y)→(y,−x)`.
   Append **U+FE05** per cluster block.
 
 Precomposed syllables (U+AC00..D7A3) and compat jamo (U+3131..318E) are
-**not** built here — upright syllables live in ``build_cjk`` (`edenia cjk`).
+**not** built here — upright syllables live in `build_cjk` (`edenia cjk`).
 
 Glyphs use a **1000×1000 em square** (`--upem`, default 1000): full-width
 advances are forced to `upem`; composed V/T overlays stay zero-width.
@@ -51,7 +51,7 @@ VS4     U+FE03     mxy — both axes
     zero-width mark so GPOS can see it. Open syllables ignore FE04.
 
 * **Hangul-s (`edenia hanguls`):** jamo-only cmap; outlines rotated 90° CW
-  before mirror / em / GPOS variants; ``+ FE05`` selects the sideways face.
+  before mirror / em / GPOS variants; `+ FE05` selects the sideways face.
 
 Dakuten (combining marks)
 -------------------------
@@ -161,22 +161,22 @@ VS_LAST = HANGUL_MIRROR_MODES[-1][0]
 UVS_BASE = 0xFE00
 UVS_LAST = UVS_BASE + len(HANGUL_MIRROR_MODES) - 1
 MIRROR_SUFFIXES: Tuple[str, ...] = ("mx", "my", "mxy")
-# Closed-syllable Y/XY mid-band ``.sq`` (disabled — see
-# ``add_medial_batchim_squish_variants``).
+# Closed-syllable Y/XY mid-band `.sq` (disabled — see
+# `add_medial_batchim_squish_variants`).
 SQ_SUFFIX = "sq"
 # After a jongseong: GPOS invert LV↑/T↓ via yPlacement.
-# ``T + vs05`` ligates to ``T.sw`` first so FE04 GPOS does not share an
-# ``L V T`` prefix with the Y-flip batchim raise.
+# `T + vs05` ligates to `T.sw` first so FE04 GPOS does not share an
+# `L V T` prefix with the Y-flip batchim raise.
 SWAP_CP = 0xFE04  # Unicode VS5 (jamo batchim top-swap only)
 SWAP_GLYPH = "vs05"
 # Sideways jamo cluster: append U+FE05 after each conjoining jamo block (hangul-s).
 SIDEWAYS_CP = 0xFE05  # Unicode VS6
 SIDEWAYS_GLYPH = "vs06"
-# 90° CW twin on ``edenia hangul``; FE05 GSUB selects these when both faces stack.
+# 90° CW twin on `edenia hangul`; FE05 GSUB selects these when both faces stack.
 SIDEWAYS_SUFFIX = "cw"
 FE04_T_SUFFIX = "sw"
 
-# VS ligas: ``ccmp`` early for browser paths; ``rlig``/``liga`` keep swap/mirror.
+# VS ligas: `ccmp` early for browser paths; `rlig`/`liga` keep swap/mirror.
 SYLL_VS_FEATURE_TAGS: Tuple[str, ...] = ("ccmp", "rlig", "liga")
 
 LOOKUP_FLAG_IGNORE_MARKS = 0x0008
@@ -365,10 +365,10 @@ def rotate_glyph_cw90(
 ) -> Tuple[TTGlyph, int, int]:
     """90° clockwise about this glyph's ideographic container.
 
-    ``fit_box`` shrinks / nudges ink into the local ideo square. That is fine
+    `fit_box` shrinks / nudges ink into the local ideo square. That is fine
     for a lone display twin, but **destroys** L+V+T relative layout when every
-    jamo is fitted independently — hanguls / cluster ``.cw`` must pass
-    ``fit_box=False`` so the upright syllable turns as one rigid block.
+    jamo is fitted independently — hanguls / cluster `.cw` must pass
+    `fit_box=False` so the upright syllable turns as one rigid block.
     """
     try:
         rec = DecomposingRecordingPen(glyph_set)
@@ -460,7 +460,7 @@ def add_sideways_cw_variants(
     metrics: Dict[str, Tuple[int, int]],
     target_upem: int,
 ) -> int:
-    """Install ``.cw`` outlines (90° CW) for every reachable jamo orientation form."""
+    """Install `.cw` outlines (90° CW) for every reachable jamo orientation form."""
     names = hangul_dakuten_bases(seed_names, glyphs)
     added = 0
     for name in names:
@@ -484,7 +484,7 @@ def add_sideways_cw_variants(
 
 
 def sideways_jamo_liga_pairs(cmap: Dict[int, str]) -> List[Tuple[str, str, str]]:
-    """``base + U+FE05 → base`` for each jamo cmap entry (hangul-s selector)."""
+    """`base + U+FE05 → base` for each jamo cmap entry (hangul-s selector)."""
     pairs: List[Tuple[str, str, str]] = []
     seen: Set[str] = set()
     for cp, gname in cmap.items():
@@ -963,7 +963,7 @@ def fe04_x_lv_extra_dy(target_upem: int) -> int:
 
 
 def fe04_medial_is_y_flipped(name: str) -> bool:
-    """True when medial carries a Y-mirror suffix (``.my`` / ``.mxy``)."""
+    """True when medial carries a Y-mirror suffix (`.my` / `.mxy`)."""
     n = name
     if n.endswith(f".{SQ_SUFFIX}"):
         n = n[: -len(SQ_SUFFIX) - 1]
@@ -982,7 +982,7 @@ def fe04_l_is_emmy(name: str) -> bool:
 def _fe04_strip_cw(name: str) -> str:
     if name.endswith(f".{SIDEWAYS_SUFFIX}"):
         return name[: -len(SIDEWAYS_SUFFIX) - 1]
-    # ``T.cw.sw`` / ``L.mx.cw`` — cw may sit before a trailing layout suffix.
+    # `T.cw.sw` / `L.mx.cw` — cw may sit before a trailing layout suffix.
     parts = name.split(".")
     if SIDEWAYS_SUFFIX in parts:
         parts = [p for p in parts if p != SIDEWAYS_SUFFIX]
@@ -991,7 +991,7 @@ def _fe04_strip_cw(name: str) -> str:
 
 
 def _fe04_pack(x: int = 0, y: int = 0, *, sideways: bool = False) -> object:
-    """Pack GPOS translate; ``sideways`` remaps upright ``(x, y)`` → ``(y, −x)``."""
+    """Pack GPOS translate; `sideways` remaps upright `(x, y)` → `(y, −x)`."""
     if sideways:
         x, y = y, -x
     val: Dict[str, int] = {}
@@ -1011,7 +1011,7 @@ def fe04_unflipped_l_y_placement(
     target_upem: int,
     bounds: Optional[Tuple[float, float, float, float]] = None,
 ) -> int:
-    """FE04 + upright Y/XY: park L top just under raised ``T.sw``."""
+    """FE04 + upright Y/XY: park L top just under raised `T.sw`."""
     if bounds is None:
         bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
@@ -1046,7 +1046,7 @@ def fe04_emmy_l_y_placement(
     vowel_axis: VowelAxis = "y",
     bounds: Optional[Tuple[float, float, float, float]] = None,
 ) -> int:
-    """FE04 + Y-flipped V: park ``L.em*`` on the floor under the medial tip."""
+    """FE04 + Y-flipped V: park `L.em*` on the floor under the medial tip."""
     del vowel_axis
     return fe04_y_floor_y_placement(
         name, glyphs=glyphs, target_upem=target_upem, bounds=bounds
@@ -1091,7 +1091,7 @@ def fe04_t_x_placement(
     target_upem: int,
     bounds: Optional[Tuple[float, float, float, float]] = None,
 ) -> int:
-    """Translate ``T.sw`` so its bbox center sits on the ideographic mid-x."""
+    """Translate `T.sw` so its bbox center sits on the ideographic mid-x."""
     if bounds is None:
         bounds = _glyph_bounds(glyphs, name)
     if bounds is None:
@@ -1130,7 +1130,7 @@ def _fe04_expand_cw(
     names: Sequence[str],
     glyphs: Dict[str, TTGlyph],
 ) -> List[str]:
-    """Include ``.cw`` twins on the upright face (FE05 GSUB path)."""
+    """Include `.cw` twins on the upright face (FE05 GSUB path)."""
     out = set(names)
     for name in names:
         cw = sideways_glyph_name(name)
@@ -1140,7 +1140,7 @@ def _fe04_expand_cw(
 
 
 def remap_gpos_placements_cw90(font) -> int:
-    """Remap every SinglePos ``(X, Y)`` → ``(Y, −X)`` after baking outlines 90° CW."""
+    """Remap every SinglePos `(X, Y)` → `(Y, −X)` after baking outlines 90° CW."""
     if "GPOS" not in font:
         return 0
     gpos = font["GPOS"].table
@@ -1600,7 +1600,7 @@ def _inject_sideways_vs(
     metrics: Dict[str, Tuple[int, int]],
     cmap: Dict[int, str],
 ) -> None:
-    """Zero-width FE05 — sideways jamo cluster selector (``edenia hanguls``)."""
+    """Zero-width FE05 — sideways jamo cluster selector (`edenia hanguls`)."""
     if SIDEWAYS_GLYPH not in glyphs:
         glyph_order.append(SIDEWAYS_GLYPH)
         glyphs[SIDEWAYS_GLYPH] = empty_glyph()
@@ -1893,7 +1893,7 @@ def install_vs_ligas(
     *,
     feature_tags: Sequence[str] = SYLL_VS_FEATURE_TAGS,
 ) -> None:
-    """``base + vs → variant`` ligas (whole-glyph / hangul-s syllables font)."""
+    """`base + vs → variant` ligas (whole-glyph / hangul-s syllables font)."""
     if not pairs:
         return
     liga_map: Dict[Tuple[str, ...], str] = {(base, vs): var for base, vs, var in pairs}
@@ -1924,11 +1924,11 @@ def install_sideways_fe05_gsub(
     glyphs: Dict[str, TTGlyph],
     glyph_order: Sequence[str],
 ) -> int:
-    """When ``U+FE05`` ends a jamo cluster, map each jamo to its ``.cw`` twin.
+    """When `U+FE05` ends a jamo cluster, map each jamo to its `.cw` twin.
 
-    Needed when ``edenia hanguls`` is stacked ahead of ``edenia hangul``: jamo
-    codepoints match the sideways face first; ``.cw`` GSUB on the upright face
-    covers renderers that itemize FE05 clusters onto ``edenia hangul``.
+    Needed when `edenia hanguls` is stacked ahead of `edenia hangul`: jamo
+    codepoints match the sideways face first; `.cw` GSUB on the upright face
+    covers renderers that itemize FE05 clusters onto `edenia hangul`.
     """
     if SIDEWAYS_GLYPH not in glyphs:
         return 0
@@ -1961,7 +1961,7 @@ def install_sideways_fe05_gsub(
 
     v_cov = sorted(v_map.keys(), key=lambda n: glyph_map.get(n, 10**9))
     t_cov = sorted(t_map.keys(), key=lambda n: glyph_map.get(n, 10**9))
-    # FE04 liga leaves ``T.sw`` before FE05; keep it in batchim lookahead.
+    # FE04 liga leaves `T.sw` before FE05; keep it in batchim lookahead.
     t_la = sorted(set(t_cov), key=lambda n: glyph_map.get(n, 10**9))
 
     gsub = _ensure_gsub(font)
@@ -2015,7 +2015,9 @@ def install_sideways_fe05_gsub(
         staged.append(chain_lu)
         rule_count += 1
 
-    for l_map_item, l_cov in ((l_map, sorted(l_map.keys(), key=lambda n: glyph_map.get(n, 10**9))),):
+    for l_map_item, l_cov in (
+        (l_map, sorted(l_map.keys(), key=lambda n: glyph_map.get(n, 10**9))),
+    ):
         _add_fe05_chain(l_map_item, l_cov, [fe05_cov])
         if v_cov:
             _add_fe05_chain(l_map_item, l_cov, [v_cov, fe05_cov])
@@ -2025,7 +2027,9 @@ def install_sideways_fe05_gsub(
         _add_fe05_chain(v_map_item, v_cov_item, [fe05_cov])
         if t_la:
             _add_fe05_chain(v_map_item, v_cov_item, [t_la, fe05_cov])
-    _add_fe05_chain(t_map, sorted(t_map.keys(), key=lambda n: glyph_map.get(n, 10**9)), [fe05_cov])
+    _add_fe05_chain(
+        t_map, sorted(t_map.keys(), key=lambda n: glyph_map.get(n, 10**9)), [fe05_cov]
+    )
 
     if not staged:
         return 0
@@ -2307,8 +2311,8 @@ def install_fe04_gpos(
 ) -> Tuple[float, float, int]:
     """FE04 top-swap: `T+vs05→T.sw` liga, then `L V T.sw` placement.
 
-    Always computes upright band math. ``.cw`` twins (FE05 on the upright face)
-    reuse the upright sibling's deltas remapped once via ``(x, y) → (y, −x)``.
+    Always computes upright band math. `.cw` twins (FE05 on the upright face)
+    reuse the upright sibling's deltas remapped once via `(x, y) → (y, −x)`.
     The hanguls face installs this upright, then rotates outlines and remaps
     all SinglePos values the same way — one transform for every medial group.
 
@@ -2350,7 +2354,7 @@ def install_fe04_gpos(
         return a if a in ("x", "y", "xy") else "xy"
 
     def _upright_name(name: str) -> str:
-        """Glyph used for band math (``.cw`` → upright sibling)."""
+        """Glyph used for band math (`.cw` → upright sibling)."""
         u = _fe04_strip_cw(name)
         return u if u in glyphs else name
 
@@ -2377,7 +2381,7 @@ def install_fe04_gpos(
     if not l_all or not v_all or not t_base:
         return 0.0, 0.0, 0
 
-    # Bake ``T.sw`` aliases (same outline) and liga ``T + vs05 → T.sw``.
+    # Bake `T.sw` aliases (same outline) and liga `T + vs05 → T.sw`.
     import copy
 
     liga_map: Dict[Tuple[str, ...], str] = {}
@@ -2428,8 +2432,12 @@ def install_fe04_gpos(
     gsub.LookupList.LookupCount = len(gsub.LookupList.Lookup)
     _attach_features(gsub, liga_indices, ("ccmp", "rlig", "liga", "rclt"))
 
-    l_all = sorted(set(_fe04_expand_cw(l_all, glyphs)), key=lambda n: glyph_map.get(n, 0))
-    v_all = sorted(set(_fe04_expand_cw(v_all, glyphs)), key=lambda n: glyph_map.get(n, 0))
+    l_all = sorted(
+        set(_fe04_expand_cw(l_all, glyphs)), key=lambda n: glyph_map.get(n, 0)
+    )
+    v_all = sorted(
+        set(_fe04_expand_cw(v_all, glyphs)), key=lambda n: glyph_map.get(n, 0)
+    )
 
     dy_lv, dy_t = fe04_swap_deltas(target_upem)
     dy_lv_i = otRound(dy_lv)
@@ -2705,7 +2713,7 @@ def install_yflip_batchim_gpos(
     for T in t_forms:
         t_all.extend(hangul_orientation_forms(T, glyphs))
     # Any batchim orientation — L lift must not depend on T flip. Skip
-    # ``T.sw`` (FE04 owns that path).
+    # `T.sw` (FE04 owns that path).
     t_ctx = sorted(
         set(t for t in t_all if t in glyphs and not t.endswith(f".{FE04_T_SUFFIX}")),
         key=lambda n: glyph_map.get(n, 0),
@@ -2716,7 +2724,7 @@ def install_yflip_batchim_gpos(
 
     _bottom, _top, ideo_h = ideographic_bounds(target_upem)
     # L needs a stronger lift than V: emmy bake sits near the floor after the
-    # open-syllable clearance nudge, while Y ``V.my`` is already upper-banded.
+    # open-syllable clearance nudge, while Y `V.my` is already upper-banded.
     # Lands near ~590 UPM on a 1000-upem ideographic box.
     dy_l = otRound(ideo_h * 0.36)
     dy_v = otRound(ideo_h * 0.20)
@@ -3195,9 +3203,7 @@ def _build_jamo_face(
         # Skip dakuten marks — their anchors are fixed CJK box corners.
         print("  Rotating jamo outlines 90° CW (after mirrors/em/FE04)...", flush=True)
         mark_skip = {
-            n
-            for n in glyphs
-            if ".mk" in n or n.startswith("u0") and ".mk" in n
+            n for n in glyphs if ".mk" in n or n.startswith("u0") and ".mk" in n
         }
         # Prefer explicit mark names from dakuten prep when available.
         if dakuten is not None:
@@ -3280,7 +3286,7 @@ def build_jamo_font(
     write_woff2: bool = True,
     hint: bool = True,
 ) -> Tuple[str, int, List[int]]:
-    """Upright conjoining jamo — ``edenia hangul``."""
+    """Upright conjoining jamo — `edenia hangul`."""
     return _build_jamo_face(
         in_dir,
         out_dir,
@@ -3311,7 +3317,7 @@ def build_hanguls_font(
     write_woff2: bool = True,
     hint: bool = True,
 ) -> Tuple[str, int, List[int]]:
-    """Same jamo pipeline, outlines rotated 90° CW — ``edenia hanguls``."""
+    """Same jamo pipeline, outlines rotated 90° CW — `edenia hanguls`."""
     return _build_jamo_face(
         in_dir,
         out_dir,
