@@ -444,11 +444,11 @@ def write_plugin(faces: list[dict]) -> None:
     manifest = {
         "id": PLUGIN_ID,
         "name": PLUGIN_DISPLAY_NAME,
-        "version": "1.6.0",
+        "version": "1.7.0",
         "minAppVersion": "1.5.0",
         "description": (
             "Loads baked edenia cjk / yi / kana / hangul via FontFace "
-            "(toggle scripts + base/h faces in settings) and pins half "
+            "(per-script base/h toggles in settings) and pins half "
             "digraphs to the matching face "
             "(desktop: Node fs; mobile: vault.adapter.readBinary)."
         ),
@@ -476,13 +476,57 @@ const BATCH_MOBILE = 4;
 const PLUGIN_FOLDER = {json.dumps(PLUGIN_DIR_NAME)};
 
 const DEFAULT_SETTINGS = {{
-  kana: true,
-  yi: true,
-  hangul: true,
-  cjk: true,
-  base: true,
-  h: true,
+  kana: {{ enabled: true, base: true, h: true }},
+  yi: {{ enabled: true, base: true, h: true }},
+  cjk: {{ enabled: true, base: true, h: true }},
+  hangul: {{ enabled: true }},
 }};
+
+/** Merge saved data with defaults; migrate flat 1.6.0 keys. */
+function normalizeSettings(raw) {{
+  const out = {{
+    kana: {{ ...DEFAULT_SETTINGS.kana }},
+    yi: {{ ...DEFAULT_SETTINGS.yi }},
+    cjk: {{ ...DEFAULT_SETTINGS.cjk }},
+    hangul: {{ ...DEFAULT_SETTINGS.hangul }},
+  }};
+  if (!raw || typeof raw !== "object") return out;
+
+  // Legacy flat toggles: kana/yi/cjk/hangul + global base/h
+  const legacyFlat =
+    typeof raw.kana === "boolean" ||
+    typeof raw.yi === "boolean" ||
+    typeof raw.cjk === "boolean" ||
+    typeof raw.hangul === "boolean" ||
+    typeof raw.base === "boolean" ||
+    typeof raw.h === "boolean";
+  if (legacyFlat) {{
+    const gBase = raw.base !== false;
+    const gH = raw.h !== false;
+    for (const script of ["kana", "yi", "cjk"]) {{
+      out[script].enabled = raw[script] !== false;
+      out[script].base = gBase;
+      out[script].h = gH;
+    }}
+    out.hangul.enabled = raw.hangul !== false;
+    return out;
+  }}
+
+  for (const script of ["kana", "yi", "cjk"]) {{
+    const block = raw[script];
+    if (block && typeof block === "object") {{
+      if (typeof block.enabled === "boolean") out[script].enabled = block.enabled;
+      if (typeof block.base === "boolean") out[script].base = block.base;
+      if (typeof block.h === "boolean") out[script].h = block.h;
+    }}
+  }}
+  if (raw.hangul && typeof raw.hangul === "object") {{
+    if (typeof raw.hangul.enabled === "boolean") {{
+      out.hangul.enabled = raw.hangul.enabled;
+    }}
+  }}
+  return out;
+}}
 
 function nodeFs() {{
   try {{
@@ -508,12 +552,11 @@ function classifyFamily(family) {{
 function faceEnabled(family, settings) {{
   const info = classifyFamily(family);
   if (!info) return false;
-  if (info.script === "hangul") return !!settings.hangul;
-  if (info.script === "kana" && !settings.kana) return false;
-  if (info.script === "yi" && !settings.yi) return false;
-  if (info.script === "cjk" && !settings.cjk) return false;
-  if (info.face === "base") return !!settings.base;
-  if (info.face === "h") return !!settings.h;
+  if (info.script === "hangul") return !!settings.hangul.enabled;
+  const block = settings[info.script];
+  if (!block || !block.enabled) return false;
+  if (info.face === "base") return !!block.base;
+  if (info.face === "h") return !!block.h;
   // t / q / qv / qh are not offered in settings (half digraphs only).
   return false;
 }}
@@ -541,7 +584,6 @@ function hasHalfSliceMark(cps) {{
 }}
 
 function familyForCps(cps, settings) {{
-  if (!settings.h) return null;
   if (!cps.some((c) => c === 0xfe00 || (c >= 0xfe08 && c <= 0xfe0f))) {{
     return null;
   }}
@@ -550,9 +592,13 @@ function familyForCps(cps, settings) {{
     (c) =>
       (c >= 0xe000 && c <= 0xf8ff) || (c >= 0xf0000 && c <= 0xf1fff)
   );
-  if (yi) return settings.yi ? "edenia yi h" : null;
-  if (kana) return settings.kana ? "edenia kana h" : null;
-  return settings.cjk ? "edenia cjk h" : null;
+  if (yi) {{
+    return settings.yi.enabled && settings.yi.h ? "edenia yi h" : null;
+  }}
+  if (kana) {{
+    return settings.kana.enabled && settings.kana.h ? "edenia kana h" : null;
+  }}
+  return settings.cjk.enabled && settings.cjk.h ? "edenia cjk h" : null;
 }}
 
 function splitPinned(text, settings) {{
@@ -618,57 +664,72 @@ class EdeniaSettingTab extends PluginSettingTab {{
     this.plugin = plugin;
   }}
 
+  async _set(path, value) {{
+    let cur = this.plugin.settings;
+    for (let i = 0; i < path.length - 1; i++) cur = cur[path[i]];
+    cur[path[path.length - 1]] = value;
+    await this.plugin.saveSettings();
+    await this.plugin.reloadFaces();
+    this.display();
+  }}
+
   display() {{
     const {{ containerEl }} = this;
+    const s = this.plugin.settings;
     containerEl.empty();
     containerEl.createEl("h2", {{ text: "Edenia fonts" }});
 
-    containerEl.createEl("h3", {{ text: "Scripts" }});
-    for (const [key, name, desc] of [
-      ["kana", "Kana", "Load edenia kana (+ kana h when Half is on)"],
-      ["yi", "Yi", "Load edenia yi (+ yi h when Half is on)"],
-      ["hangul", "Hangul", "Load edenia hangul / hanguls"],
-      ["cjk", "CJK", "Load edenia cjk (+ cjk h when Half is on)"],
+    for (const [key, title, family] of [
+      ["kana", "Kana", "edenia kana"],
+      ["yi", "Yi", "edenia yi"],
+      ["cjk", "CJK", "edenia cjk"],
     ]) {{
+      containerEl.createEl("h3", {{ text: title }});
       new Setting(containerEl)
-        .setName(name)
-        .setDesc(desc)
+        .setName(title)
+        .setDesc(`Load ${{family}} families`)
         .addToggle((toggle) =>
-          toggle.setValue(this.plugin.settings[key]).onChange(async (v) => {{
-            this.plugin.settings[key] = v;
-            await this.plugin.saveSettings();
-            await this.plugin.reloadFaces();
-          }})
+          toggle.setValue(s[key].enabled).onChange((v) => this._set([key, "enabled"], v))
+        );
+      new Setting(containerEl)
+        .setName(`${{title}} base`)
+        .setDesc(`Identity / unsliced (${{family}})`)
+        .setClass("edenia-subsetting")
+        .setDisabled(!s[key].enabled)
+        .addToggle((toggle) =>
+          toggle
+            .setValue(s[key].base)
+            .setDisabled(!s[key].enabled)
+            .onChange((v) => this._set([key, "base"], v))
+        );
+      new Setting(containerEl)
+        .setName(`${{title}} h`)
+        .setDesc(`Half digraphs (${{family}} h; FE08–FE0F + FE00)`)
+        .setClass("edenia-subsetting")
+        .setDisabled(!s[key].enabled)
+        .addToggle((toggle) =>
+          toggle
+            .setValue(s[key].h)
+            .setDisabled(!s[key].enabled)
+            .onChange((v) => this._set([key, "h"], v))
         );
     }}
 
-    containerEl.createEl("h3", {{ text: "Faces" }});
+    containerEl.createEl("h3", {{ text: "Hangul" }});
     new Setting(containerEl)
-      .setName("Base")
-      .setDesc("Identity / unsliced families (edenia kana, yi, cjk)")
+      .setName("Hangul")
+      .setDesc("Load edenia hangul / hanguls")
       .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.base).onChange(async (v) => {{
-          this.plugin.settings.base = v;
-          await this.plugin.saveSettings();
-          await this.plugin.reloadFaces();
-        }})
-      );
-    new Setting(containerEl)
-      .setName("Half")
-      .setDesc("Half / triangle digraph families (… h; FE08–FE0F + FE00)")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.h).onChange(async (v) => {{
-          this.plugin.settings.h = v;
-          await this.plugin.saveSettings();
-          await this.plugin.reloadFaces();
-        }})
+        toggle
+          .setValue(s.hangul.enabled)
+          .onChange((v) => this._set(["hangul", "enabled"], v))
       );
   }}
 }}
 
 module.exports = class {PLUGIN_CLASS} extends Plugin {{
   async onload() {{
-    this.settings = Object.assign({{}}, DEFAULT_SETTINGS, await this.loadData());
+    this.settings = normalizeSettings(await this.loadData());
     this._loadedFaces = [];
     this.addSettingTab(new EdeniaSettingTab(this.app, this));
 
@@ -784,8 +845,13 @@ module.exports = class {PLUGIN_CLASS} extends Plugin {{
     console.info(
       `[edenia] loading ${{wanted.length}}/${{FACES.length}} faces from ${{relPlugin}}` +
         ` (${{mobile ? "mobile/adapter" : "desktop"}}; ` +
-        `scripts=${{["kana","yi","hangul","cjk"].filter((k) => this.settings[k]).join("+") || "none"}}; ` +
-        `faces=${{["base","h"].filter((k) => this.settings[k]).join("+") || "none"}})`
+        `${{["kana","yi","cjk"].map((k) => {{
+          const b = this.settings[k];
+          if (!b.enabled) return k + "=off";
+          const faces = [["base", b.base], ["h", b.h]].filter((x) => x[1]).map((x) => x[0]);
+          return k + "[" + (faces.join("+") || "none") + "]";
+        }}).join(" ")}}` +
+        ` hangul=${{this.settings.hangul.enabled ? "on" : "off"}})`
     );
     for (let i = 0; i < wanted.length; i += batch) {{
       await Promise.all(wanted.slice(i, i + batch).map(loadOne));
