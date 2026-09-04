@@ -134,8 +134,8 @@ IMPORT_THREADS = min(32, max(4, (os.cpu_count() or 4)))
 HARMONY_IDEO_PAD = 0.02
 PRIORITY_FONTS: List[Tuple[str, float, float]] = [
     ("NGULIM.ttf", 1.2, 1.3),
-    ("Han-Nom Gothic 1.32.otf", 0.9, 1.1),
-    ("msyh.ttc", 0.9, 1.1),
+    ("Han-Nom Gothic 1.32.otf", 0.95, 1.1),
+    ("msyh.ttc", 0.95, 1.1),
     ("LXGWClearGothic-Regular.ttf", 1.0, 1.0),
     ("Fanmei-Hei.ttf", 1.0, 1.0),
     ("LXGWXiHeiMN.ttf", 1.0, 1.0),
