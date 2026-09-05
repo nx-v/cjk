@@ -825,7 +825,24 @@ SOFTWARE.
       format("truetype");
   font-weight: bold;
   font-style: normal;
-  unicode-range: U+0-D7FF, U+F900-1FFFF;
+  unicode-range:
+    U+22, U+27, U+2C, U+3B, U+3F, U+42-44, U+47, U+50, U+52-53, U+56-58,
+    U+60-62, U+64-65, U+68, U+6B, U+6E, U+75, U+7A, U+C7, U+E0-E5, U+E8-EB,
+    U+F1, U+F9-FC, U+101, U+103, U+105-106, U+108, U+10A, U+10C, U+10E-10F,
+    U+113, U+115, U+117, U+119, U+11B-11C, U+11E, U+120, U+122, U+125, U+137,
+    U+144, U+146, U+148, U+154, U+156, U+158, U+15A, U+15C, U+15E, U+160, U+169,
+    U+16B, U+16D, U+16F, U+171, U+173-174, U+17A, U+17C, U+17E, U+1B0, U+1CE,
+    U+1D4, U+1D6, U+1D8, U+1DA, U+1DC, U+1DF, U+1E1, U+1E6, U+1E9, U+1F4, U+1F9,
+    U+1FB, U+201, U+203, U+205, U+207, U+210, U+212, U+215, U+217-218, U+21F,
+    U+227, U+229, U+374-375, U+37E, U+1E01-1E08, U+1E0A-1E13, U+1E15, U+1E17,
+    U+1E19, U+1E1B, U+1E1D, U+1E20, U+1E23, U+1E25, U+1E27, U+1E29, U+1E2B,
+    U+1E31, U+1E33, U+1E35, U+1E45, U+1E47, U+1E49, U+1E4B, U+1E54, U+1E56,
+    U+1E58, U+1E5A, U+1E5C, U+1E5E, U+1E60, U+1E62, U+1E64, U+1E66, U+1E68,
+    U+1E73, U+1E75, U+1E77, U+1E79, U+1E7B-1E7C, U+1E7E, U+1E80, U+1E82, U+1E84,
+    U+1E86, U+1E88, U+1E8A, U+1E8C, U+1E91, U+1E93, U+1E95-1E96, U+1EA1, U+1EA3,
+    U+1EA5, U+1EA7, U+1EA9, U+1EAB, U+1EAD, U+1EAF, U+1EB1, U+1EB3, U+1EB5,
+    U+1EB7, U+1EB9, U+1EBB, U+1EBD, U+1EBF, U+1EC1, U+1EC3, U+1EC5, U+1EC7,
+    U+1EE5, U+1EE7, U+1EE9, U+1EEB, U+1EED, U+1EEF, U+1EF1, U+2018-201F;
 }
 
 @font-face {
@@ -843,7 +860,24 @@ SOFTWARE.
       format("truetype");
   font-weight: bold;
   font-style: italic;
-  unicode-range: U+0-D7FF, U+F900-1FFFF;
+  unicode-range:
+    U+22, U+27, U+2C, U+3B, U+3F, U+42-44, U+47, U+50, U+52-53, U+56-58,
+    U+60-62, U+64-65, U+68, U+6B, U+6E, U+75, U+7A, U+C7, U+E0-E5, U+E8-EB,
+    U+F1, U+F9-FC, U+101, U+103, U+105-106, U+108, U+10A, U+10C, U+10E-10F,
+    U+113, U+115, U+117, U+119, U+11B-11C, U+11E, U+120, U+122, U+125, U+137,
+    U+144, U+146, U+148, U+154, U+156, U+158, U+15A, U+15C, U+15E, U+160, U+169,
+    U+16B, U+16D, U+16F, U+171, U+173-174, U+17A, U+17C, U+17E, U+1B0, U+1CE,
+    U+1D4, U+1D6, U+1D8, U+1DA, U+1DC, U+1DF, U+1E1, U+1E6, U+1E9, U+1F4, U+1F9,
+    U+1FB, U+201, U+203, U+205, U+207, U+210, U+212, U+215, U+217-218, U+21F,
+    U+227, U+229, U+374-375, U+37E, U+1E01-1E08, U+1E0A-1E13, U+1E15, U+1E17,
+    U+1E19, U+1E1B, U+1E1D, U+1E20, U+1E23, U+1E25, U+1E27, U+1E29, U+1E2B,
+    U+1E31, U+1E33, U+1E35, U+1E45, U+1E47, U+1E49, U+1E4B, U+1E54, U+1E56,
+    U+1E58, U+1E5A, U+1E5C, U+1E5E, U+1E60, U+1E62, U+1E64, U+1E66, U+1E68,
+    U+1E73, U+1E75, U+1E77, U+1E79, U+1E7B-1E7C, U+1E7E, U+1E80, U+1E82, U+1E84,
+    U+1E86, U+1E88, U+1E8A, U+1E8C, U+1E91, U+1E93, U+1E95-1E96, U+1EA1, U+1EA3,
+    U+1EA5, U+1EA7, U+1EA9, U+1EAB, U+1EAD, U+1EAF, U+1EB1, U+1EB3, U+1EB5,
+    U+1EB7, U+1EB9, U+1EBB, U+1EBD, U+1EBF, U+1EC1, U+1EC3, U+1EC5, U+1EC7,
+    U+1EE5, U+1EE7, U+1EE9, U+1EEB, U+1EED, U+1EEF, U+1EF1, U+2018-201F;
 }
 
 @font-face {
@@ -862,10 +896,23 @@ SOFTWARE.
   font-style: normal;
   font-weight: normal;
   unicode-range:
-    U+22, U+27, U+2C, U+32-33, U+3B, U+3F, U+43, U+47, U+53, U+60, U+63,
-    U+B2-B3, U+C7, U+E7, U+106-10D, U+11C, U+11E, U+120, U+122, U+15A, U+15C,
-    U+15E, U+160, U+1E6, U+1F4, U+218, U+374-375, U+37E, U+1E08-1E09, U+1E20,
-    U+1E60, U+1E62, U+1E64, U+1E66, U+1E68, U+2082-2083;
+    U+22, U+27, U+2C, U+3B, U+3F, U+42-44, U+47, U+50, U+52-53, U+56-58,
+    U+60-62, U+64-65, U+68, U+6B, U+6E, U+75, U+7A, U+C7, U+E0-E5, U+E8-EB,
+    U+F1, U+F9-FC, U+101, U+103, U+105-106, U+108, U+10A, U+10C, U+10E-10F,
+    U+113, U+115, U+117, U+119, U+11B-11C, U+11E, U+120, U+122, U+125, U+137,
+    U+144, U+146, U+148, U+154, U+156, U+158, U+15A, U+15C, U+15E, U+160, U+169,
+    U+16B, U+16D, U+16F, U+171, U+173-174, U+17A, U+17C, U+17E, U+1B0, U+1CE,
+    U+1D4, U+1D6, U+1D8, U+1DA, U+1DC, U+1DF, U+1E1, U+1E6, U+1E9, U+1F4, U+1F9,
+    U+1FB, U+201, U+203, U+205, U+207, U+210, U+212, U+215, U+217-218, U+21F,
+    U+227, U+229, U+374-375, U+37E, U+1E01-1E08, U+1E0A-1E13, U+1E15, U+1E17,
+    U+1E19, U+1E1B, U+1E1D, U+1E20, U+1E23, U+1E25, U+1E27, U+1E29, U+1E2B,
+    U+1E31, U+1E33, U+1E35, U+1E45, U+1E47, U+1E49, U+1E4B, U+1E54, U+1E56,
+    U+1E58, U+1E5A, U+1E5C, U+1E5E, U+1E60, U+1E62, U+1E64, U+1E66, U+1E68,
+    U+1E73, U+1E75, U+1E77, U+1E79, U+1E7B-1E7C, U+1E7E, U+1E80, U+1E82, U+1E84,
+    U+1E86, U+1E88, U+1E8A, U+1E8C, U+1E91, U+1E93, U+1E95-1E96, U+1EA1, U+1EA3,
+    U+1EA5, U+1EA7, U+1EA9, U+1EAB, U+1EAD, U+1EAF, U+1EB1, U+1EB3, U+1EB5,
+    U+1EB7, U+1EB9, U+1EBB, U+1EBD, U+1EBF, U+1EC1, U+1EC3, U+1EC5, U+1EC7,
+    U+1EE5, U+1EE7, U+1EE9, U+1EEB, U+1EED, U+1EEF, U+1EF1, U+2018-201F;
 }
 
 @font-face {
@@ -883,7 +930,24 @@ SOFTWARE.
       format("truetype");
   font-weight: normal;
   font-style: italic;
-  unicode-range: U+0-D7FF, U+F900-1FFFF;
+  unicode-range:
+    U+22, U+27, U+2C, U+3B, U+3F, U+42-44, U+47, U+50, U+52-53, U+56-58,
+    U+60-62, U+64-65, U+68, U+6B, U+6E, U+75, U+7A, U+C7, U+E0-E5, U+E8-EB,
+    U+F1, U+F9-FC, U+101, U+103, U+105-106, U+108, U+10A, U+10C, U+10E-10F,
+    U+113, U+115, U+117, U+119, U+11B-11C, U+11E, U+120, U+122, U+125, U+137,
+    U+144, U+146, U+148, U+154, U+156, U+158, U+15A, U+15C, U+15E, U+160, U+169,
+    U+16B, U+16D, U+16F, U+171, U+173-174, U+17A, U+17C, U+17E, U+1B0, U+1CE,
+    U+1D4, U+1D6, U+1D8, U+1DA, U+1DC, U+1DF, U+1E1, U+1E6, U+1E9, U+1F4, U+1F9,
+    U+1FB, U+201, U+203, U+205, U+207, U+210, U+212, U+215, U+217-218, U+21F,
+    U+227, U+229, U+374-375, U+37E, U+1E01-1E08, U+1E0A-1E13, U+1E15, U+1E17,
+    U+1E19, U+1E1B, U+1E1D, U+1E20, U+1E23, U+1E25, U+1E27, U+1E29, U+1E2B,
+    U+1E31, U+1E33, U+1E35, U+1E45, U+1E47, U+1E49, U+1E4B, U+1E54, U+1E56,
+    U+1E58, U+1E5A, U+1E5C, U+1E5E, U+1E60, U+1E62, U+1E64, U+1E66, U+1E68,
+    U+1E73, U+1E75, U+1E77, U+1E79, U+1E7B-1E7C, U+1E7E, U+1E80, U+1E82, U+1E84,
+    U+1E86, U+1E88, U+1E8A, U+1E8C, U+1E91, U+1E93, U+1E95-1E96, U+1EA1, U+1EA3,
+    U+1EA5, U+1EA7, U+1EA9, U+1EAB, U+1EAD, U+1EAF, U+1EB1, U+1EB3, U+1EB5,
+    U+1EB7, U+1EB9, U+1EBB, U+1EBD, U+1EBF, U+1EC1, U+1EC3, U+1EC5, U+1EC7,
+    U+1EE5, U+1EE7, U+1EE9, U+1EEB, U+1EED, U+1EEF, U+1EF1, U+2018-201F;
 }
 
 @font-face {
@@ -974,35 +1038,32 @@ SOFTWARE.
   font-style: normal;
   font-weight: bold;
   unicode-range:
-    U+20, U+30-31, U+34-39, U+41-42, U+44-46, U+48-52, U+54-5A, U+61, U+67-68,
-    U+6A, U+6E-71, U+74, U+78-79, U+B9, U+C0-C5, U+C8-D6, U+D9-DE, U+E0-E6,
-    U+F0-F6, U+FD-105, U+10E, U+112, U+114, U+116, U+118, U+11A, U+11D, U+11F,
-    U+121, U+123-125, U+128, U+12A, U+12C, U+12E, U+130, U+134-136, U+139,
-    U+13B, U+13D, U+143-148, U+14A-151, U+154, U+156, U+158, U+162-165, U+168,
-    U+16A, U+16C, U+16E, U+170, U+172, U+174, U+176-179, U+17B, U+17D, U+186,
-    U+18F-192, U+19D, U+1A0-1A1, U+1A9, U+1AF, U+1B1, U+1B7, U+1CD-1CF,
-    U+1D1-1D3, U+1D5, U+1D7, U+1D9, U+1DB, U+1DE-1E1, U+1E3, U+1E7-1E8,
-    U+1EA-1F0, U+1F5, U+1F8-1FB, U+1FD, U+200-204, U+206, U+208, U+20A,
-    U+20C-210, U+212, U+214, U+216, U+21A-21B, U+21E-21F, U+226-228, U+22A-233,
-    U+237, U+245, U+251-252, U+254, U+259, U+25B-25C, U+261, U+26A, U+272,
-    U+283, U+28A, U+28C, U+292, U+294, U+386, U+388-38A, U+38C, U+38E-38F,
-    U+391-3A1, U+3A3-3AB, U+3AD-3AE, U+3B0, U+3B2, U+3B4-3B5, U+3B7, U+3BF,
-    U+3C1, U+3C3, U+3C5, U+3C7, U+3C9, U+3CB-3CE, U+400-434, U+436-43B,
-    U+440-441, U+443-44F, U+452-454, U+459-45F, U+4C1-4C2, U+4D0-4D3, U+4D6,
-    U+4DC-4DF, U+4E2-4E6, U+4EC-4F5, U+4F8-4F9, U+1E00-1E02, U+1E04, U+1E06,
-    U+1E0A, U+1E0C, U+1E0E, U+1E10, U+1E12, U+1E14, U+1E16, U+1E18, U+1E1A,
-    U+1E1C, U+1E1E, U+1E21-1E2C, U+1E2E, U+1E30, U+1E32, U+1E34, U+1E36, U+1E38,
-    U+1E3A, U+1E3C, U+1E3E, U+1E40, U+1E42, U+1E44-1E58, U+1E5A, U+1E5C, U+1E5E,
-    U+1E6A-1E72, U+1E74, U+1E76, U+1E78, U+1E7A, U+1E7C, U+1E7E, U+1E80, U+1E82,
-    U+1E84, U+1E86, U+1E88, U+1E8A-1E90, U+1E92, U+1E94, U+1E96-1E97, U+1E99,
-    U+1E9E, U+1EA0-1EB8, U+1EBA, U+1EBC, U+1EBE, U+1EC0, U+1EC2, U+1EC4, U+1EC6,
-    U+1EC8, U+1ECA, U+1ECC-1EE4, U+1EE6, U+1EE8, U+1EEA, U+1EEC, U+1EEE, U+1EF0,
-    U+1EF2-1EF9, U+1F08-1F15, U+1F18-1F1D, U+1F20-1F2F, U+1F38-1F45,
-    U+1F48-1F4D, U+1F50-1F57, U+1F59, U+1F5B, U+1F5D, U+1F5F-1F6F, U+1F72,
-    U+1F74, U+1F78, U+1F7A, U+1F7C, U+1F88-1FAF, U+1FB8-1FBA, U+1FBC,
-    U+1FC2-1FC4, U+1FC6-1FC8, U+1FCA, U+1FCC, U+1FD8-1FDA, U+1FE0-1FE2,
-    U+1FE4-1FEA, U+1FEC, U+1FF2-1FF4, U+1FF6-1FF8, U+1FFA, U+1FFC, U+2070,
-    U+2074-2079, U+2080-2081, U+2084-2089;
+    U+20, U+30-31, U+34-39, U+41-42, U+44-46, U+48-52, U+54-5A, U+61, U+67,
+    U+69-6A, U+6D-71, U+74, U+76-79, U+B9, U+C0-C5, U+C8-D6, U+D9-DE, U+E0-E6,
+    U+EC-F6, U+FD-105, U+10E, U+112, U+114, U+116, U+118, U+11A, U+11D, U+11F,
+    U+121, U+123-124, U+128-130, U+134-136, U+139, U+13B, U+13D, U+143-148,
+    U+14A-151, U+154, U+156, U+158, U+162-165, U+168, U+16A, U+16C, U+16E,
+    U+170, U+172, U+174-179, U+17B, U+17D, U+186, U+18F-192, U+19D, U+1A0-1A1,
+    U+1A9, U+1AF, U+1B1, U+1B7, U+1CD-1D3, U+1D5, U+1D7, U+1D9, U+1DB,
+    U+1DE-1E1, U+1E3, U+1E7-1E8, U+1EA-1F0, U+1F5, U+1F8-1FB, U+1FD, U+200-204,
+    U+206, U+208-210, U+212, U+214, U+216, U+21A-21B, U+21E, U+226-228,
+    U+22A-233, U+237, U+245, U+251-252, U+254, U+259, U+25B-25C, U+261, U+26A,
+    U+272, U+283, U+292, U+294, U+386, U+388-38A, U+38C, U+38E-38F, U+391-3A1,
+    U+3A3-3AB, U+3AD-3AE, U+3B0, U+3B2, U+3B4-3B5, U+3B7, U+3BF, U+3C1, U+3C3,
+    U+3C5, U+3C7, U+3C9, U+3CB-3CE, U+400-434, U+436-43B, U+440-441, U+443-44F,
+    U+452-454, U+459-45F, U+4C1-4C2, U+4D0-4D3, U+4D6, U+4DC-4DF, U+4E2-4E6,
+    U+4EC-4F5, U+4F8-4F9, U+1E00-1E02, U+1E04, U+1E06, U+1E0A, U+1E0C, U+1E0E,
+    U+1E10, U+1E12, U+1E14, U+1E16, U+1E18, U+1E1A, U+1E1C, U+1E1E, U+1E21-1E22,
+    U+1E24, U+1E26, U+1E28, U+1E2A, U+1E2C-1E30, U+1E32, U+1E34, U+1E36, U+1E38,
+    U+1E3A, U+1E3C, U+1E3E-1E58, U+1E5A, U+1E5C, U+1E5E, U+1E6A-1E72, U+1E74,
+    U+1E76, U+1E78, U+1E7A, U+1E7C-1E90, U+1E92, U+1E94, U+1E97-1E99, U+1E9E,
+    U+1EA0-1EB8, U+1EBA, U+1EBC, U+1EBE, U+1EC0, U+1EC2, U+1EC4, U+1EC6,
+    U+1EC8-1EE4, U+1EE6, U+1EE8, U+1EEA, U+1EEC, U+1EEE, U+1EF0, U+1EF2-1EF9,
+    U+1F08-1F15, U+1F18-1F1D, U+1F20-1F2F, U+1F38-1F45, U+1F48-1F4D,
+    U+1F50-1F57, U+1F59, U+1F5B, U+1F5D, U+1F5F-1F6F, U+1F72, U+1F74, U+1F78,
+    U+1F7A, U+1F7C, U+1F88-1FAF, U+1FB8-1FBA, U+1FBC, U+1FC2-1FC4, U+1FC6-1FC8,
+    U+1FCA, U+1FCC, U+1FD8-1FDA, U+1FE0-1FE2, U+1FE4-1FEA, U+1FEC, U+1FF2-1FF4,
+    U+1FF6-1FF8, U+1FFA, U+1FFC, U+2070, U+2074-2079, U+2080-2081, U+2084-2089;
 }
 
 @font-face {
@@ -1060,35 +1121,32 @@ SOFTWARE.
   font-style: normal;
   font-weight: normal;
   unicode-range:
-    U+20, U+30-31, U+34-39, U+41-42, U+44-46, U+48-52, U+54-5A, U+61, U+67-68,
-    U+6A, U+6E-71, U+74, U+78-79, U+B9, U+C0-C5, U+C8-D6, U+D9-DE, U+E0-E6,
-    U+F0-F6, U+FD-105, U+10E, U+112, U+114, U+116, U+118, U+11A, U+11D, U+11F,
-    U+121, U+123-125, U+128, U+12A, U+12C, U+12E, U+130, U+134-136, U+139,
-    U+13B, U+13D, U+143-148, U+14A-151, U+154, U+156, U+158, U+162-165, U+168,
-    U+16A, U+16C, U+16E, U+170, U+172, U+174, U+176-179, U+17B, U+17D, U+186,
-    U+18F-192, U+19D, U+1A0-1A1, U+1A9, U+1AF, U+1B1, U+1B7, U+1CD-1CF,
-    U+1D1-1D3, U+1D5, U+1D7, U+1D9, U+1DB, U+1DE-1E1, U+1E3, U+1E7-1E8,
-    U+1EA-1F0, U+1F5, U+1F8-1FB, U+1FD, U+200-204, U+206, U+208, U+20A,
-    U+20C-210, U+212, U+214, U+216, U+21A-21B, U+21E-21F, U+226-228, U+22A-233,
-    U+237, U+245, U+251-252, U+254, U+259, U+25B-25C, U+261, U+26A, U+272,
-    U+283, U+28A, U+28C, U+292, U+294, U+386, U+388-38A, U+38C, U+38E-38F,
-    U+391-3A1, U+3A3-3AB, U+3AD-3AE, U+3B0, U+3B2, U+3B4-3B5, U+3B7, U+3BF,
-    U+3C1, U+3C3, U+3C5, U+3C7, U+3C9, U+3CB-3CE, U+400-434, U+436-43B,
-    U+440-441, U+443-44F, U+452-454, U+459-45F, U+4C1-4C2, U+4D0-4D3, U+4D6,
-    U+4DC-4DF, U+4E2-4E6, U+4EC-4F5, U+4F8-4F9, U+1E00-1E02, U+1E04, U+1E06,
-    U+1E0A, U+1E0C, U+1E0E, U+1E10, U+1E12, U+1E14, U+1E16, U+1E18, U+1E1A,
-    U+1E1C, U+1E1E, U+1E21-1E2C, U+1E2E, U+1E30, U+1E32, U+1E34, U+1E36, U+1E38,
-    U+1E3A, U+1E3C, U+1E3E, U+1E40, U+1E42, U+1E44-1E58, U+1E5A, U+1E5C, U+1E5E,
-    U+1E6A-1E72, U+1E74, U+1E76, U+1E78, U+1E7A, U+1E7C, U+1E7E, U+1E80, U+1E82,
-    U+1E84, U+1E86, U+1E88, U+1E8A-1E90, U+1E92, U+1E94, U+1E96-1E97, U+1E99,
-    U+1E9E, U+1EA0-1EB8, U+1EBA, U+1EBC, U+1EBE, U+1EC0, U+1EC2, U+1EC4, U+1EC6,
-    U+1EC8, U+1ECA, U+1ECC-1EE4, U+1EE6, U+1EE8, U+1EEA, U+1EEC, U+1EEE, U+1EF0,
-    U+1EF2-1EF9, U+1F08-1F15, U+1F18-1F1D, U+1F20-1F2F, U+1F38-1F45,
-    U+1F48-1F4D, U+1F50-1F57, U+1F59, U+1F5B, U+1F5D, U+1F5F-1F6F, U+1F72,
-    U+1F74, U+1F78, U+1F7A, U+1F7C, U+1F88-1FAF, U+1FB8-1FBA, U+1FBC,
-    U+1FC2-1FC4, U+1FC6-1FC8, U+1FCA, U+1FCC, U+1FD8-1FDA, U+1FE0-1FE2,
-    U+1FE4-1FEA, U+1FEC, U+1FF2-1FF4, U+1FF6-1FF8, U+1FFA, U+1FFC, U+2070,
-    U+2074-2079, U+2080-2081, U+2084-2089;
+    U+20, U+30-31, U+34-39, U+41-42, U+44-46, U+48-52, U+54-5A, U+61, U+67,
+    U+69-6A, U+6D-71, U+74, U+76-79, U+B9, U+C0-C5, U+C8-D6, U+D9-DE, U+E0-E6,
+    U+EC-F6, U+FD-105, U+10E, U+112, U+114, U+116, U+118, U+11A, U+11D, U+11F,
+    U+121, U+123-124, U+128-130, U+134-136, U+139, U+13B, U+13D, U+143-148,
+    U+14A-151, U+154, U+156, U+158, U+162-165, U+168, U+16A, U+16C, U+16E,
+    U+170, U+172, U+174-179, U+17B, U+17D, U+186, U+18F-192, U+19D, U+1A0-1A1,
+    U+1A9, U+1AF, U+1B1, U+1B7, U+1CD-1D3, U+1D5, U+1D7, U+1D9, U+1DB,
+    U+1DE-1E1, U+1E3, U+1E7-1E8, U+1EA-1F0, U+1F5, U+1F8-1FB, U+1FD, U+200-204,
+    U+206, U+208-210, U+212, U+214, U+216, U+21A-21B, U+21E, U+226-228,
+    U+22A-233, U+237, U+245, U+251-252, U+254, U+259, U+25B-25C, U+261, U+26A,
+    U+272, U+283, U+292, U+294, U+386, U+388-38A, U+38C, U+38E-38F, U+391-3A1,
+    U+3A3-3AB, U+3AD-3AE, U+3B0, U+3B2, U+3B4-3B5, U+3B7, U+3BF, U+3C1, U+3C3,
+    U+3C5, U+3C7, U+3C9, U+3CB-3CE, U+400-434, U+436-43B, U+440-441, U+443-44F,
+    U+452-454, U+459-45F, U+4C1-4C2, U+4D0-4D3, U+4D6, U+4DC-4DF, U+4E2-4E6,
+    U+4EC-4F5, U+4F8-4F9, U+1E00-1E02, U+1E04, U+1E06, U+1E0A, U+1E0C, U+1E0E,
+    U+1E10, U+1E12, U+1E14, U+1E16, U+1E18, U+1E1A, U+1E1C, U+1E1E, U+1E21-1E22,
+    U+1E24, U+1E26, U+1E28, U+1E2A, U+1E2C-1E30, U+1E32, U+1E34, U+1E36, U+1E38,
+    U+1E3A, U+1E3C, U+1E3E-1E58, U+1E5A, U+1E5C, U+1E5E, U+1E6A-1E72, U+1E74,
+    U+1E76, U+1E78, U+1E7A, U+1E7C-1E90, U+1E92, U+1E94, U+1E97-1E99, U+1E9E,
+    U+1EA0-1EB8, U+1EBA, U+1EBC, U+1EBE, U+1EC0, U+1EC2, U+1EC4, U+1EC6,
+    U+1EC8-1EE4, U+1EE6, U+1EE8, U+1EEA, U+1EEC, U+1EEE, U+1EF0, U+1EF2-1EF9,
+    U+1F08-1F15, U+1F18-1F1D, U+1F20-1F2F, U+1F38-1F45, U+1F48-1F4D,
+    U+1F50-1F57, U+1F59, U+1F5B, U+1F5D, U+1F5F-1F6F, U+1F72, U+1F74, U+1F78,
+    U+1F7A, U+1F7C, U+1F88-1FAF, U+1FB8-1FBA, U+1FBC, U+1FC2-1FC4, U+1FC6-1FC8,
+    U+1FCA, U+1FCC, U+1FD8-1FDA, U+1FE0-1FE2, U+1FE4-1FEA, U+1FEC, U+1FF2-1FF4,
+    U+1FF6-1FF8, U+1FFA, U+1FFC, U+2070, U+2074-2079, U+2080-2081, U+2084-2089;
 }
 
 @font-face {
@@ -3144,12 +3202,48 @@ SOFTWARE.
    Digraphs need one face (Obsidian post-processor / HTML pin).
    CJK lists FE00-FE0F. */
 body {
-  --font-text-theme: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hanguls", "edenia hangul", "edenia kana q", "edenia kana qv", "edenia kana qh", "edenia kana t", "edenia kana h", "edenia kana", "edenia yi q", "edenia yi qv", "edenia yi qh", "edenia yi t", "edenia yi h", "edenia yi", "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace;
-  --font-interface-theme: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hanguls", "edenia hangul", "edenia kana q", "edenia kana qv", "edenia kana qh", "edenia kana t", "edenia kana h", "edenia kana", "edenia yi q", "edenia yi qv", "edenia yi qh", "edenia yi t", "edenia yi h", "edenia yi", "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace;
-  --font-monospace-theme: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hanguls", "edenia hangul", "edenia kana q", "edenia kana qv", "edenia kana qh", "edenia kana t", "edenia kana h", "edenia kana", "edenia yi q", "edenia yi qv", "edenia yi qh", "edenia yi t", "edenia yi h", "edenia yi", "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace;
-  --font-text: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hanguls", "edenia hangul", "edenia kana q", "edenia kana qv", "edenia kana qh", "edenia kana t", "edenia kana h", "edenia kana", "edenia yi q", "edenia yi qv", "edenia yi qh", "edenia yi t", "edenia yi h", "edenia yi", "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace !important;
-  --font-interface: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hanguls", "edenia hangul", "edenia kana q", "edenia kana qv", "edenia kana qh", "edenia kana t", "edenia kana h", "edenia kana", "edenia yi q", "edenia yi qv", "edenia yi qh", "edenia yi t", "edenia yi h", "edenia yi", "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace !important;
-  --font-monospace: Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono, "edenia hanguls", "edenia hangul", "edenia kana q", "edenia kana qv", "edenia kana qh", "edenia kana t", "edenia kana h", "edenia kana", "edenia yi q", "edenia yi qv", "edenia yi qh", "edenia yi t", "edenia yi h", "edenia yi", "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1, Plangothic P2, monospace !important;
+  --font-text-theme:
+    Caesium, Cascadia, Nexsevka, Cascadia Code, JuliaMono, "edenia hanguls",
+    "edenia hangul", "edenia kana q", "edenia kana qv", "edenia kana qh",
+    "edenia kana t", "edenia kana h", "edenia kana", "edenia yi q",
+    "edenia yi qv", "edenia yi qh", "edenia yi t", "edenia yi h", "edenia yi",
+    "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1,
+    Plangothic P2, monospace;
+  --font-interface-theme:
+    Caesium, Cascadia, Nexsevka, Cascadia Code, JuliaMono, "edenia hanguls",
+    "edenia hangul", "edenia kana q", "edenia kana qv", "edenia kana qh",
+    "edenia kana t", "edenia kana h", "edenia kana", "edenia yi q",
+    "edenia yi qv", "edenia yi qh", "edenia yi t", "edenia yi h", "edenia yi",
+    "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1,
+    Plangothic P2, monospace;
+  --font-monospace-theme:
+    Caesium, Cascadia, Nexsevka, Cascadia Code, JuliaMono, "edenia hanguls",
+    "edenia hangul", "edenia kana q", "edenia kana qv", "edenia kana qh",
+    "edenia kana t", "edenia kana h", "edenia kana", "edenia yi q",
+    "edenia yi qv", "edenia yi qh", "edenia yi t", "edenia yi h", "edenia yi",
+    "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1,
+    Plangothic P2, monospace;
+  --font-text:
+    Caesium, Cascadia, Nexsevka, Cascadia Code, JuliaMono, "edenia hanguls",
+    "edenia hangul", "edenia kana q", "edenia kana qv", "edenia kana qh",
+    "edenia kana t", "edenia kana h", "edenia kana", "edenia yi q",
+    "edenia yi qv", "edenia yi qh", "edenia yi t", "edenia yi h", "edenia yi",
+    "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1,
+    Plangothic P2, monospace !important;
+  --font-interface:
+    Caesium, Cascadia, Nexsevka, Cascadia Code, JuliaMono, "edenia hanguls",
+    "edenia hangul", "edenia kana q", "edenia kana qv", "edenia kana qh",
+    "edenia kana t", "edenia kana h", "edenia kana", "edenia yi q",
+    "edenia yi qv", "edenia yi qh", "edenia yi t", "edenia yi h", "edenia yi",
+    "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1,
+    Plangothic P2, monospace !important;
+  --font-monospace:
+    Caesium, Cascadia, Nexsevka, Cascadia Code, JuliaMono, "edenia hanguls",
+    "edenia hangul", "edenia kana q", "edenia kana qv", "edenia kana qh",
+    "edenia kana t", "edenia kana h", "edenia kana", "edenia yi q",
+    "edenia yi qv", "edenia yi qh", "edenia yi t", "edenia yi h", "edenia yi",
+    "edenia cjk h", "edenia cjk", FlopDesignFont, MKanaPlus, Plangothic P1,
+    Plangothic P2, monospace !important;
   --font-editor-theme: "";
   --font-editor: var(--font-editor-theme), var(--font-text);
 }

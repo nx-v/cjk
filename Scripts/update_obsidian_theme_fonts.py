@@ -104,7 +104,7 @@ MARK_STACK_BEGIN = (
 )
 MARK_STACK_END = "/* === END auto pan font stack === */"
 
-STACK_LATIN = "Caesium, Cascadia, Cascadia Code, Nexsevka, JuliaMono"
+STACK_LATIN = "Caesium, Cascadia, Nexsevka, Cascadia Code, JuliaMono"
 STACK_TAIL = "monospace"
 
 
