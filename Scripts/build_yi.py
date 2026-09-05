@@ -10,7 +10,7 @@ Contents
       yi + VS02..VS08 / FE01..FE07   →   oriented variant
       (bare yi = identity; U+FE00 = overlay, on the `h` face)
 
-* Combining slices live on `edenia yi h` (full cell advance) + overlay::
+* Combining slices live on `edenia yi h` (full cell advance) + overlay:
 
       A FE08          →  A.top
       A FE08 FE00 B FE09  →  A.top.ov + B.bot
@@ -28,7 +28,7 @@ Contents
   plus slice/overlay ligatures. Successive marks fill TR→CR→…→BL then chain
   outward. No left-squish `.dk` forms.
 
-Segment faces (pigeonholed by `cp>>8`, matching CJK)::
+Segment faces (pigeonholed by `cp>>8`, matching CJK):
 
     h    half-cell slices (FE00 + FE08–FE0F)
     t    third-cell segments (VS17–VS26)

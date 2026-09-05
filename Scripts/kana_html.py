@@ -3,7 +3,7 @@
 
 Segment faces (`h` / `t` / `qv` / `qh`, plus base) stack via CSS unicode-range.
 
-Encoding (matches `build_kana`)::
+Encoding (matches `build_kana`):
 
     i        = L * 8 + o
     full[i]  = U+E000 + 2*i     # even
@@ -330,8 +330,7 @@ def write_html(path: str, *, font_size: int, mark_limit: int) -> None:
 
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(
-            f"""<!doctype html>
+        f.write(f"""<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8"/>
@@ -842,8 +841,7 @@ renderChart(0);
 </script>
 </body>
 </html>
-"""
-        )
+""")
     print(
         f"Kana: N={n} marks={len(marks)}  orientations={n_orient:,}  "
         f"pairwise={n_pair:,}  -> {path}"

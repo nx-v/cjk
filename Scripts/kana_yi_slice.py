@@ -2,7 +2,7 @@
 
 Encoding
 --------
-Preceding glyph + selector occupies that segment (full cell advance)::
+Preceding glyph + selector occupies that segment (full cell advance):
 
     U+FE08  top half          `.top`
     U+FE09  bottom half       `.bot`
@@ -14,7 +14,7 @@ Preceding glyph + selector occupies that segment (full cell advance)::
     U+FE0F  bottom-left Δ     `.bl`
 
 `U+FE00` makes the preceding form zero-width (`.ov`) so the next
-glyph stacks in the same cell::
+glyph stacks in the same cell:
 
     A FE08 FE00 B FE09   →  A.top.ov + B.bot
 

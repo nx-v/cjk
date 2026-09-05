@@ -5,13 +5,13 @@ faces (`h` / `t` / `qv` / `qh` / optional `q`), matching CJK.
 
 Encoding
 --------
-BMP PUA `U+E000`..`U+F8FF` (full/small, 6400 CPs)::
+BMP PUA `U+E000`..`U+F8FF` (full/small, 6400 CPs):
 
     i        = L * 8 + o          # L = 0..219, o = 0..7 (D4_MODES order)
     full[i]  = 0xE000 + 2 * i     # even — full-size oriented form
     small[i] = 0xE000 + 2 * i + 1 # odd  — small: ideo-scale + Weight once, D4 @ ideo
 
-Halfwidth companions (same `i`) in Supplementary PUA-A::
+Halfwidth companions (same `i`) in Supplementary PUA-A:
 
     hw_full[i]  = 0xF0000 + 2 * i
     hw_small[i] = 0xF0000 + 2 * i + 1
@@ -25,9 +25,9 @@ Row-major into logical `L` (hiragana block, then katakana block). Each cell
 holds one **source** code point (Flop / mkanaplus PUA / GenSeki / LXGW); the
 built face maps it to PUA `full` / `small` (and halfwidth companions).
 
-Columns (`VOWELS`)::  a · i · u · e · o · ə
+Columns (`VOWELS`):  a · i · u · e · o · ə
 
-Rows (`CONSONANTS` — same order in `HIRAGANA_ROWS` and `KATAKANA_ROWS`)::
+Rows (`CONSONANTS` — same order in `HIRAGANA_ROWS` and `KATAKANA_ROWS`):
 
      0  ∅     vowel-only (あア …)
      1  k
@@ -48,7 +48,7 @@ Rows (`CONSONANTS` — same order in `HIRAGANA_ROWS` and `KATAKANA_ROWS`)::
     16  p
     17  ny
 
-Logical indices::
+Logical indices:
 
     L 0..107     hiragana 18×6
     L 108..109   hiragana length · gemination
@@ -65,7 +65,7 @@ average Flop kana ink size are stretched up on X and/or Y to that average;
 strokes are thinned to compensate (CAPE restores pre-stretch stem weight).
 Axes already at or above the average are left as-is.
 
-Trailing marks (all D4)::
+Trailing marks (all D4):
 
     hiragana  length U+301C 〜 · gemination U+309D ゝ
     katakana  length U+30FC ー · gemination U+30FD ヽ

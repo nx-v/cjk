@@ -7,7 +7,7 @@ Base face (`edenia cjk`)
 **ca** (U+16FF0) sits in a **1/3** segment; the CJK outline occupies **2/3**.
 **nhay** (U+16FF1) sits in a **1/4** segment; the CJK outline occupies **3/4**.
 FE00–FE0F on the **clipped CJK** select mark position × axis-mirror
-(Klein four-group only — no r90 / r270)::
+(Klein four-group only — no r90 / r270):
 
     FE00  right, upright (no-op: same as bare MARK)
     FE01  right, mx
@@ -28,7 +28,7 @@ Half face (`edenia cjk h`)
 ----------------------------
 Half-cell segments are **slices** of already-baked fullwidth outlines.
 `FE00` overlays; `FE08`–`FE0F` are halves / triangles. CJK D4 stays
-on `FE01`–`FE07` (BMP PUA is edenia kana). Digraphs::
+on `FE01`–`FE07` (BMP PUA is edenia kana). Digraphs:
 
     A  FE08  FE00  B  FE09   →  A.top.ov + B.bot
 """

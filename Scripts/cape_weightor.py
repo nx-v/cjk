@@ -8,7 +8,7 @@ Cape Arcona / Thomas Schostok) without vanilla/AppKit UI.
 * **Weight mode** — bolden/lighten via OffsetCurve, then restore outer box
 
 `GlyphsFilterOffsetCurve` is replaced by contour-normal point offsets
-(TrueType winding-aware). Build scripts use::
+(TrueType winding-aware). Build scripts use:
 
     apply_width(layer, factor)   # factor = target/original outer width
     apply_weight(layer, factor)  # factor > 1 bolden, < 1 lighten

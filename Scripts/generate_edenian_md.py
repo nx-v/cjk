@@ -834,7 +834,7 @@ def kana_base(
 
 
 def kana_cluster(g: Gen, *, halfwidth: bool = False) -> str:
-    """Phonetic syllable cluster::
+    """Phonetic syllable cluster:
 
         [gemination]?  large  [small]?  [length]?
 

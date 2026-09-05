@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a graphic CJK half-cell digraph composer.
 
-Interactive HTML::
+Interactive HTML:
 
   • up to 4 character codes + D4 orientation each
   • H / V axis (horizontal vs vertical halves)

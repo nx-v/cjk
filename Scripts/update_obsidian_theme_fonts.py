@@ -15,20 +15,21 @@ Default: font files via **jsDelivr**.
 themes — so bake writes a tiny **plugin** that injects faces with
 `FontFace` + `readBinary`.
 
-Usage::
+Usage:
 
     python Scripts/update_obsidian_theme_fonts.py
     python Scripts/update_obsidian_theme_fonts.py --local
     python Scripts/update_obsidian_theme_fonts.py --bake
     python Scripts/update_obsidian_theme_fonts.py --bake --vault path/to/vault
 
-Markers (inserted on first run if missing)::
+Markers (inserted on first run if missing):
 
     /* === BEGIN auto pan fonts (update_obsidian_theme_fonts.py) === */
     /* === END auto pan fonts === */
     /* === BEGIN auto pan font stack (update_obsidian_theme_fonts.py) === */
     /* === END auto pan font stack === */
 """
+
 from __future__ import annotations
 
 import argparse

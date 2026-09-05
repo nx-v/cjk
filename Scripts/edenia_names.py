@@ -241,7 +241,7 @@ def family_cjk(face_id: str) -> str:
     """CSS / name-table family for a face file stem.
 
     All buckets of one variant share a family so cross-bucket digraphs can
-    shape in one run::
+    shape in one run:
 
         `4E` / `66`  → `edenia cjk`
         `4Eh` / `66h` → `edenia cjk h`

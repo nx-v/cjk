@@ -10,7 +10,7 @@ copying (decomposed, scaled) glyphs one-by-one into a fresh FontBuilder font.
 **Conjoining Hangul jamo** (U+1100.., Ext-A/B) is *not* included here — those are
 built as `edenia hangul` (L/V/T composition) in `build_hangul.py`.
 
-Two faces per bucket (filename / family stem = `{hex}` / `{hex}h`)::
+Two faces per bucket (filename / family stem = `{hex}` / `{hex}h`):
 
     (none)  base forms + ca/nhay (all mark orientations); ca mark = 1/3
                 (base 2/3), nhay mark = 1/4 (base 3/4)
@@ -894,7 +894,7 @@ def build_bucket_font(
 ) -> Tuple[str, int, List[int]]:
     """Build one pigeonhole face for a bucket.
 
-    `variant`::
+    `variant`:
 
         ""   identity bases + ca/nhay (mark segment 1/4, base 3/4); no CJK D4
         "h"  bases + D4 + half-cell slice/overlay

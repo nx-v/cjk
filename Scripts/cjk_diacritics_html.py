@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """Build an HTML gallery of CJK × VS1–8 × reading marks.
 
-Encoding (matches `cjk_diacritics` / `build_cjk`)::
+Encoding (matches `cjk_diacritics` / `build_cjk`):
 
     Base face (`edenia cjk`) — ca in a 1/3 segment (base 2/3); nhay in 1/4
     (base 3/4). FE00–FE0F on the clipped CJK select position × axis-mirror
-    (id / mx / my / mxy)::
+    (id / mx / my / mxy):
       CJK FE00 MARK       → right, upright
       CJK FE01 MARK       → right, mx
       CJK FE04 MARK       → left, upright
       CJK FE08 MARK       → up, upright
       CJK FE0C MARK       → down, upright
 
-    Half digraphs use the `h` face (`edenia cjk h`)::
+    Half digraphs use the `h` face (`edenia cjk h`):
 
       A (D4)? FE08 FE00   B (D4)? FE09
 
@@ -426,8 +426,7 @@ def write_html(
 
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(
-            f"""<!doctype html>
+        f.write(f"""<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8"/>
@@ -920,8 +919,7 @@ renderMarks(sliceIndices(), markList());
 </script>
 </body>
 </html>
-"""
-        )
+""")
 
     print(f"CJK: N={n:,}  range={range_note}  gallery~{total:,}  -> {path}")
 

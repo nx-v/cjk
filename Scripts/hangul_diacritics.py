@@ -5,7 +5,7 @@ Mongolian FVS). First font in the stack wins per codepoint. Wide thin
 marks (macron, overline) are box-fitted, not dropped. Spacing marks
 (`Mc`) and enclosing marks (`Me`) are excluded.
 
-Stack (priority order)::
+Stack (priority order):
 
     LXGWNeoXiHeiScreenFull → mkanaplus → Nexsevka-Regular → Arial
     → JuliaMono-Regular → Segoe UI → Segoe UI Historic → Sans Serif Collection
@@ -18,7 +18,7 @@ matching ink edge flush to the cell side. Top / bottom slots pin the
 mark's near edge to the **outer** face of the ideographic box so the
 diacritic sits clearly above or below the cell (not inset into it).
 
-Successive marks fill slots via GSUB cycling (corners then edge midpoints)::
+Successive marks fill slots via GSUB cycling (corners then edge midpoints):
 
     1st → top-right
     2nd → center-right
