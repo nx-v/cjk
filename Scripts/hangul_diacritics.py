@@ -198,6 +198,11 @@ def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
     Looks under `in_dir` first, then well-known repo locations.
     """
     groups: Tuple[Tuple[str, ...], ...] = (
+        _paths_for_names(
+            in_dir,
+            (NEXSEVKA_FILENAME,),
+            os.path.join(_REPO_ROOT, "Nexsevka", "TTF", NEXSEVKA_FILENAME),
+        ),
         _paths_for_names(in_dir, LXGW_NEO_XIHEI_SCREEN_FULL_FILENAMES),
         _paths_for_names(
             in_dir,
@@ -206,11 +211,6 @@ def resolve_dakuten_mark_font_stack(in_dir: str) -> List[str]:
             os.path.join(_REPO_ROOT, "CJK", "mkanaplus-regular.ttf"),
             os.path.join(_REPO_ROOT, "Kana", "mkanaplus.ttf"),
             os.path.join(_REPO_ROOT, "mkanaplus-regular.ttf"),
-        ),
-        _paths_for_names(
-            in_dir,
-            (NEXSEVKA_FILENAME,),
-            os.path.join(_REPO_ROOT, "Nexsevka", "TTF", NEXSEVKA_FILENAME),
         ),
         _paths_for_names(
             in_dir,
