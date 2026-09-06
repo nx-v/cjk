@@ -6,14 +6,15 @@ import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Tuple, List
 
 from fontTools.ttLib import TTFont
 
 ROOT = Path(__file__).resolve().parent / "dist" / "cjk"
 
 
-def check(path: Path) -> tuple[str, list[str], str]:
-    issues: list[str] = []
+def check(path: Path) -> Tuple[str, List[str], str]:
+    issues: List[str] = []
     meta = ""
     try:
         if path.stat().st_size < 100:
@@ -80,7 +81,7 @@ def main() -> int:
         p for p in ROOT.glob("*.woff2") if re.fullmatch(r"[0-9A-Fa-f]+", p.stem)
     )
     print(f"scanning {len(files)} woff2 under {ROOT}")
-    bad: list[tuple[str, list[str], str]] = []
+    bad: List[Tuple[str, List[str], str]] = []
     ok = 0
     old_style = 0
     with ThreadPoolExecutor(max_workers=16) as ex:
